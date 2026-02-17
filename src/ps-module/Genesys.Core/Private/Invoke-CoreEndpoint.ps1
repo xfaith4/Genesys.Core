@@ -47,6 +47,12 @@ function Invoke-CoreEndpoint {
 
             return Invoke-AuditTransaction -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -BaseUri $EndpointSpec.transaction.baseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
+        'bodypaging' {
+            return Invoke-PagingBodyPaging -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+        }
+        'cursor' {
+            return Invoke-PagingCursor -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+        }
         'none' {
             $singleEndpointSpec = [pscustomobject]@{
                 method = $EndpointSpec.method

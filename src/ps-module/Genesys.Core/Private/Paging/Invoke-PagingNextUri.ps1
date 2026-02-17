@@ -96,6 +96,59 @@ function Get-PagingTotalHitsFromResponse {
     return $null
 }
 
+function Get-PagingValueFromResponse {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Response,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if ($null -eq $Response) {
+        return $null
+    }
+
+    $normalizedPath = [string]$Path
+    if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
+        return $null
+    }
+
+    if ($normalizedPath.StartsWith('$.')) {
+        $normalizedPath = $normalizedPath.Substring(2)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
+        return $Response
+    }
+
+    $target = $Response
+    foreach ($segment in ($normalizedPath -split '\.')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) {
+            continue
+        }
+
+        if ($null -eq $target) {
+            return $null
+        }
+
+        if ($target -is [System.Collections.IDictionary]) {
+            $target = $target[$segment]
+            continue
+        }
+
+        if ($target.PSObject.Properties.Name -contains $segment) {
+            $target = $target.$segment
+            continue
+        }
+
+        return $null
+    }
+
+    return $target
+}
+
 function Invoke-PagingNextUri {
     [CmdletBinding()]
     param(

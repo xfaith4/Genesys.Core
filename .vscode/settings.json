@@ -28,5 +28,6 @@
     "Lua.workspace.library": [
         "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.1-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\tsp-lua-5.0",
         "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.1-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\nodes_definitions"
-    ]
+    ],
+    "pgsql.connections": []
 }

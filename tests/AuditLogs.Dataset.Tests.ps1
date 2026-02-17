@@ -78,4 +78,64 @@ Describe 'Audit logs dataset' {
         (@($events | Where-Object { $_.eventType -eq 'audit.transaction.poll' })).Count | Should -Be 2
         (@($events | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 0
     }
+
+    It 'fails when transaction reaches FAILED terminal state' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../catalog/genesys-core.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-failed' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-failed') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FAILED' } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        {
+            Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker
+        } | Should -Throw "*Audit transaction ended in state 'FAILED'.*"
+    }
+
+    It 'fails when transaction reaches CANCELLED terminal state' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../catalog/genesys-core.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-cancelled' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-cancelled') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'CANCELLED' } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        {
+            Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker
+        } | Should -Throw "*Audit transaction ended in state 'CANCELLED'.*"
+    }
 }

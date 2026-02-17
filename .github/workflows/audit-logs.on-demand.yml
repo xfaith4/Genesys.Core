@@ -1,0 +1,96 @@
+name: Audit Logs On Demand
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Start timestamp (UTC ISO-8601). Defaults to previous-day start."
+        required: false
+        type: string
+      end:
+        description: "End timestamp (UTC ISO-8601). Defaults to current-day start."
+        required: false
+        type: string
+      summaryOnly:
+        description: "When true, keep only manifest/summary/events in the run artifact."
+        required: false
+        default: false
+        type: boolean
+      retentionDays:
+        description: "Artifact retention days (1-90)."
+        required: false
+        default: '3'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DATASET_KEY: audit-logs
+
+jobs:
+  audit_logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run audit-logs dataset
+        id: run
+        shell: pwsh
+        env:
+          INPUT_START: ${{ inputs.start }}
+          INPUT_END: ${{ inputs.end }}
+          INPUT_SUMMARY_ONLY: ${{ inputs.summaryOnly }}
+        run: |
+          $start = $env:INPUT_START
+          $end = $env:INPUT_END
+
+          if ([string]::IsNullOrWhiteSpace($start)) {
+            $start = [DateTime]::UtcNow.Date.AddDays(-1).ToString('yyyy-MM-ddT00:00:00Z')
+          }
+
+          if ([string]::IsNullOrWhiteSpace($end)) {
+            $end = [DateTime]::UtcNow.Date.ToString('yyyy-MM-ddT00:00:00Z')
+          }
+
+          Write-Host "Running dataset '$($env:DATASET_KEY)' for window $($start) to $($end)."
+
+          & pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset $env:DATASET_KEY -OutputRoot out
+
+          $runFolder = Get-ChildItem -Path (Join-Path -Path 'out' -ChildPath $env:DATASET_KEY) -Directory |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+
+          if (-not $runFolder) {
+            throw "No run folder found under out/$($env:DATASET_KEY)."
+          }
+
+          $runId = $runFolder.Name
+          $runPath = $runFolder.FullName
+
+          $windowMetadata = @{
+            requestedStart = $start
+            requestedEnd = $end
+            summaryOnly = [System.Convert]::ToBoolean($env:INPUT_SUMMARY_ONLY)
+          } | ConvertTo-Json -Depth 5
+          Set-Content -Path (Join-Path -Path $runPath -ChildPath 'window-request.json') -Value $windowMetadata -Encoding utf8
+
+          if ([System.Convert]::ToBoolean($env:INPUT_SUMMARY_ONLY)) {
+            $dataPath = Join-Path -Path $runPath -ChildPath 'data'
+            if (Test-Path -Path $dataPath) {
+              Remove-Item -Path (Join-Path -Path $dataPath -ChildPath '*') -Force -Recurse
+            }
+          }
+
+          "start=$start" >> $env:GITHUB_OUTPUT
+          "end=$end" >> $env:GITHUB_OUTPUT
+          "run_id=$runId" >> $env:GITHUB_OUTPUT
+
+      - name: Upload dataset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-logs-${{ steps.run.outputs.run_id }}-${{ github.run_id }}
+          path: out/audit-logs/${{ steps.run.outputs.run_id }}/
+          retention-days: ${{ inputs.retentionDays }}
+          if-no-files-found: error

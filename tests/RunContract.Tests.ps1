@@ -67,7 +67,7 @@ Describe 'Run output contract' {
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'manifest.json') | Should -BeTrue
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl') | Should -BeTrue
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'summary.json') | Should -BeTrue
-        Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'data/records.jsonl') | Should -BeTrue
+        Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'data/audit.jsonl') | Should -BeTrue
 
         $events = @(Get-Content -Path (Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl'))
         $events.Count | Should -BeGreaterThan 0

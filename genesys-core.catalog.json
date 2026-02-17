@@ -1,4 +1,7 @@
+### BEGIN FILE: genesys-core.catalog.json
 {
+  "$schema": "./catalog/schema/genesys-core.catalog.schema.json",
+
   "version": "1.0-seed",
   "generatedAtUtc": "2026-02-17T06:41:00.568982Z",
   "source": {
@@ -6,15 +9,16 @@
     "examples": "ExamplePostBodies.json",
     "swaggerInZip": null
   },
+
   "paginationProfiles": {
-    "none": {
-      "type": "none"
-    },
+    "none": { "type": "none" },
+
     "nextUri_default": {
       "type": "nextUri",
       "itemsPath": "$.entities",
       "nextUriPath": "$.nextUri"
     },
+
     "pageNumber_default": {
       "type": "pageNumber",
       "itemsPath": "$.entities",
@@ -22,6 +26,24 @@
       "pageSizeParam": "pageSize",
       "pageCountPath": "$.pageCount"
     },
+
+    "nextUri_auditResults": {
+      "type": "nextUri",
+      "itemsPath": "$.results",
+      "nextUriPath": "$.nextUri"
+    },
+
+    "audit_query_transaction_then_results": {
+      "type": "jobThenResults",
+      "jobIdPath": "$.transactionId",
+      "jobStatePath": "$.state",
+      "fulfilledValue": "FULFILLED",
+      "pollIntervalSeconds": 2,
+      "maxPollSeconds": 600,
+      "resultsEndpointTemplate": "/api/v2/audits/query/{jobId}/results",
+      "resultsPaginationProfile": "nextUri_auditResults"
+    },
+
     "totalHits_conversations": {
       "type": "totalHits",
       "itemsPath": "$.conversations",
@@ -29,6 +51,7 @@
       "pageNumberParam": "pageNumber",
       "pageSizeParam": "pageSize"
     },
+
     "analytics_details_query": {
       "type": "bodyPagingTotalHits",
       "itemsPath": "$.conversations",
@@ -37,6 +60,7 @@
       "pageSizeField": "pageSize",
       "totalHitsPath": "$.totalHits"
     },
+
     "analytics_jobs": {
       "type": "jobThenResults",
       "jobIdPath": "$.jobId",
@@ -47,29 +71,55 @@
       "resultsEndpointTemplate": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
       "resultsPaginationProfile": "nextUri_conversations"
     },
+
     "nextUri_conversations": {
       "type": "nextUri",
       "itemsPath": "$.conversations",
       "nextUriPath": "$.nextUri"
     }
   },
-  "retryProfiles": {
+ "retryProfiles": {
     "default": {
       "maxAttempts": 5,
       "baseDelaySeconds": 2,
       "useRetryAfterHeader": true,
       "parseRetryMessageRegex": "Retry the request in \\[(\\d+)\\] seconds",
-      "retryStatusCodes": [
-        429,
-        500,
-        502,
-        503,
-        504
-      ],
+      "retryStatusCodes": [429, 500, 502, 503, 504],
       "timeoutSeconds": 120
     }
   },
   "endpoints": {
+  "audits.get.service.mapping": {
+    "displayName": "Audit Logs - Service Mapping",
+    "group": "Audits",
+    "method": "GET",
+    "pathTemplate": "/api/v2/audits/query/servicemapping",
+    "paginationProfile": "none",
+    "retryProfile": "default",
+    "itemsPath": "$",
+    "ui": {
+      "defaultParams": {},
+      "defaultBody": null,
+      "exampleBody": null
+    }
+  },
+      
+    "audits.query.submit": {
+    "displayName": "Audit Logs - Submit Query (Transaction)",
+    "group": "Audits",
+    "method": "POST",
+    "pathTemplate": "/api/v2/audits/query",
+    "paginationProfile": "audit_query_transaction_then_results",
+    "retryProfile": "default",
+    "itemsPath": null,
+    "ui": {
+      "defaultParams": {
+        "body": "{\n  \"interval\": \"2026-02-16T00:00:00.000Z/2026-02-16T23:59:59.999Z\",\n  \"filters\": [],\n  \"sort\": [{ \"name\": \"timestamp\", \"sortOrder\": \"DESC\" }]\n}"
+      },
+      "defaultBody": null,
+      "exampleBody": null
+    }
+  },
     "conversations.get.active.conversations": {
       "displayName": "Get Active Conversations",
       "group": "Conversations",

@@ -1,0 +1,31 @@
+name: Audit Logs Scheduled (Stub)
+
+on:
+  schedule:
+    - cron: '20 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  audit_logs_stub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stub run details
+        shell: pwsh
+        run: |
+          $dataset = 'audit-logs'
+          $runId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+          $basePath = Join-Path -Path 'out' -ChildPath (Join-Path -Path $dataset -ChildPath $runId)
+          New-Item -Path (Join-Path -Path $basePath -ChildPath 'data') -ItemType Directory -Force | Out-Null
+          '{"status":"stub","dataset":"audit-logs"}' | Set-Content -Path (Join-Path -Path $basePath -ChildPath 'summary.json')
+          '{"event":"stub-run"}' | Set-Content -Path (Join-Path -Path $basePath -ChildPath 'events.jsonl')
+          '{"datasetKey":"audit-logs","runId":"' + $runId + '"}' | Set-Content -Path (Join-Path -Path $basePath -ChildPath 'manifest.json')
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-logs-${{ github.run_id }}
+          path: out/audit-logs/**
+          retention-days: 3

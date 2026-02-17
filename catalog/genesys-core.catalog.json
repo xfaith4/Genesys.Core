@@ -1,0 +1,36 @@
+{
+  "$schema": "./schema/genesys-core.catalog.schema.json",
+  "version": "0.1.0-bootstrap",
+  "datasets": {
+    "audit-logs": {
+      "description": "Bootstrap dataset placeholder for audit logs.",
+      "endpoint": "audits.query.submit",
+      "itemsPath": "$.results",
+      "pagingProfile": "transactionResults",
+      "retryProfile": "default",
+      "redactionPolicy": "default"
+    }
+  },
+  "paginationProfiles": {
+    "transactionResults": {
+      "type": "transactionResults",
+      "transactionIdPath": "$.transactionId"
+    }
+  },
+  "retryProfiles": {
+    "default": {
+      "maxAttempts": 5,
+      "baseDelaySeconds": 2,
+      "retryStatusCodes": [429, 500, 502, 503, 504]
+    }
+  },
+  "endpoints": {
+    "audits.query.submit": {
+      "method": "POST",
+      "path": "/api/v2/audits/query",
+      "itemsPath": "$.results",
+      "pagingProfile": "transactionResults",
+      "retryProfile": "default"
+    }
+  }
+}

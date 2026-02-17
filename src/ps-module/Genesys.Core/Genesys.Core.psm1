@@ -1,6 +1,6 @@
 ### BEGIN: ModuleBootstrap
 $privatePath = Join-Path -Path $PSScriptRoot -ChildPath 'Private'
-Get-ChildItem -Path $privatePath -Filter '*.ps1' -ErrorAction SilentlyContinue | ForEach-Object {
+Get-ChildItem -Path $privatePath -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
     . $_.FullName
 }
 

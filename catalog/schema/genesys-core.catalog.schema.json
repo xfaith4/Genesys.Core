@@ -1,250 +1,80 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/genesys-core.catalog.schema.json",
+  "$id": "https://example.local/genesys-core.catalog.schema.json",
   "title": "Genesys Core Catalog",
   "type": "object",
   "additionalProperties": false,
-  "required": ["catalogVersion", "endpoints", "profiles"],
+  "required": [
+    "version",
+    "datasets",
+    "paginationProfiles",
+    "retryProfiles",
+    "endpoints"
+  ],
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional pointer to the JSON schema for tooling."
-    },
-    "catalogVersion": {
-      "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "description": "Semantic version of the catalog schema/content."
-    },
-    "generatedAt": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "name": {
-      "type": "string",
-      "default": "Genesys.Core Catalog"
-    },
-    "description": {
-      "type": "string"
-    },
-
-    "profiles": {
+    "version": { "type": "string", "minLength": 1 },
+    "datasets": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["retry", "paging", "transaction", "redaction"],
-      "properties": {
-        "retry": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/retryProfile" },
-          "description": "Named retry profiles (referenced by endpoints.retryProfile)."
-        },
-        "paging": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/pagingProfile" },
-          "description": "Named paging profiles (referenced by endpoints.pagingProfile)."
-        },
-        "transaction": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/transactionProfile" },
-          "description": "Named async transaction profiles (referenced by endpoints.transactionProfile)."
-        },
-        "redaction": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/redactionPolicy" },
-          "description": "Named redaction policies (referenced by endpoints.redactionPolicy)."
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["endpoint", "itemsPath", "pagingProfile", "retryProfile"],
+        "properties": {
+          "description": { "type": "string" },
+          "endpoint": { "type": "string", "minLength": 1 },
+          "itemsPath": { "type": "string", "minLength": 1 },
+          "pagingProfile": { "type": "string", "minLength": 1 },
+          "retryProfile": { "type": "string", "minLength": 1 },
+          "redactionPolicy": { "type": "string" }
         }
       }
     },
-
+    "paginationProfiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["none", "nextUri", "pageNumber", "cursor", "bodyPaging", "transactionResults"]
+          },
+          "transactionIdPath": { "type": "string" }
+        }
+      }
+    },
+    "retryProfiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["maxAttempts", "baseDelaySeconds", "retryStatusCodes"],
+        "properties": {
+          "maxAttempts": { "type": "integer", "minimum": 1 },
+          "baseDelaySeconds": { "type": "number", "minimum": 0 },
+          "retryStatusCodes": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    },
     "endpoints": {
       "type": "object",
-      "description": "Endpoint definitions keyed by a stable logical name (e.g., audits.queryResults).",
-      "additionalProperties": { "$ref": "#/$defs/endpoint" }
-    }
-  },
-
-  "$defs": {
-    "endpoint": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["method", "path", "itemsPath", "pagingProfile", "retryProfile"],
-      "properties": {
-        "method": {
-          "type": "string",
-          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
-        },
-        "path": {
-          "type": "string",
-          "description": "Genesys API path (e.g., /api/v2/audits/query). May include {placeholders}."
-        },
-        "description": { "type": "string" },
-
-        "itemsPath": {
-          "type": "string",
-          "description": "Dot-path to items in response (e.g., entities, results, conversations). Use empty string only if pagingProfile=none and the full response is the payload.",
-          "minLength": 0
-        },
-
-        "pagingProfile": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Name of a paging profile in profiles.paging."
-        },
-        "retryProfile": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Name of a retry profile in profiles.retry."
-        },
-        "transactionProfile": {
-          "type": "string",
-          "description": "Optional name of a transaction profile in profiles.transaction."
-        },
-        "redactionPolicy": {
-          "type": "string",
-          "description": "Optional name of a redaction policy in profiles.redaction."
-        },
-
-        "supportsExpand": { "type": "boolean", "default": false },
-        "defaultQueryParams": {
-          "type": "object",
-          "additionalProperties": { "type": ["string", "number", "boolean"] }
-        },
-
-        "notes": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
-      }
-    },
-
-    "retryProfile": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["maxRetries", "baseDelaySeconds", "mode"],
-      "properties": {
-        "mode": {
-          "type": "string",
-          "enum": ["standard", "rateLimitAware"],
-          "description": "standard: fixed/backoff; rateLimitAware: honors Retry-After and parses retry hints."
-        },
-        "maxRetries": { "type": "integer", "minimum": 0, "maximum": 25, "default": 3 },
-        "baseDelaySeconds": { "type": "number", "minimum": 0, "default": 2 },
-        "maxDelaySeconds": { "type": "number", "minimum": 0, "default": 120 },
-        "jitterSeconds": { "type": "number", "minimum": 0, "default": 0.5 },
-        "retryOnMethods": {
-          "type": "array",
-          "items": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
-          "default": ["GET"]
-        },
-        "retryOnStatusCodes": {
-          "type": "array",
-          "items": { "type": "integer" },
-          "default": [429, 500, 502, 503, 504]
-        }
-      }
-    },
-
-    "pagingProfile": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type"],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["none", "nextUri", "pageNumber", "cursor", "bodyPaging", "transactionResults"]
-        },
-
-        "nextUriPath": {
-          "type": "string",
-          "description": "Dot-path to nextUri-like field (e.g., nextUri). Used by nextUri paging."
-        },
-
-        "pageNumberParam": { "type": "string", "default": "pageNumber" },
-        "pageSizeParam": { "type": "string", "default": "pageSize" },
-        "pageCountPath": {
-          "type": "string",
-          "description": "Dot-path to pageCount (optional) used by pageNumber paging."
-        },
-        "pageNumberPath": {
-          "type": "string",
-          "description": "Dot-path to current pageNumber (optional) used by pageNumber paging."
-        },
-
-        "cursorParam": { "type": "string", "default": "cursor" },
-        "cursorPath": {
-          "type": "string",
-          "description": "Dot-path to cursor in response (for cursor paging)."
-        },
-
-        "totalHitsPath": {
-          "type": "string",
-          "description": "Dot-path to totalHits/total (optional) used by bodyPaging."
-        },
-
-        "transactionIdPath": {
-          "type": "string",
-          "description": "Dot-path to transactionId/jobId returned by submit step (transactionResults)."
-        }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "type": { "const": "nextUri" } } },
-          "then": { "required": ["nextUriPath"] }
-        },
-        {
-          "if": { "properties": { "type": { "const": "transactionResults" } } },
-          "then": { "required": ["transactionIdPath"] }
-        }
-      ]
-    },
-
-    "transactionProfile": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["pollIntervalSeconds", "maxPolls", "terminalStatesPath", "statePath"],
-      "properties": {
-        "pollIntervalSeconds": { "type": "number", "minimum": 0.1, "default": 2 },
-        "maxPolls": { "type": "integer", "minimum": 1, "maximum": 500, "default": 60 },
-
-        "statePath": {
-          "type": "string",
-          "description": "Dot-path to state field in status response (e.g., state)."
-        },
-        "terminalStatesPath": {
-          "type": "string",
-          "description": "Dot-path to an array of terminal states OR allow the profile to embed terminalStates directly."
-        },
-        "terminalStates": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["FULFILLED", "FAILED", "CANCELLED"]
-        },
-
-        "statusEndpointRef": {
-          "type": "string",
-          "description": "Endpoint key for status polling (e.g., audits.queryStatus)."
-        },
-        "resultsEndpointRef": {
-          "type": "string",
-          "description": "Endpoint key for results fetch (e.g., audits.queryResults)."
-        }
-      }
-    },
-
-    "redactionPolicy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["mode"],
-      "properties": {
-        "mode": { "type": "string", "enum": ["none", "standard", "strict"] },
-        "removeFields": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": []
-        },
-        "hashFields": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": []
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "path", "itemsPath", "pagingProfile", "retryProfile"],
+        "properties": {
+          "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+          "path": { "type": "string", "minLength": 1 },
+          "itemsPath": { "type": "string", "minLength": 1 },
+          "pagingProfile": { "type": "string", "minLength": 1 },
+          "retryProfile": { "type": "string", "minLength": 1 }
         }
       }
     }

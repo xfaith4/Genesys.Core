@@ -1,9 +1,7 @@
-### BEGIN FILE: genesys-core.catalog.json
 {
   "$schema": "./catalog/schema/genesys-core.catalog.schema.json",
 
   "version": "1.0-seed",
-  "generatedAtUtc": "2026-02-17T06:41:00.568982Z",
   "source": {
     "templates": "DefaultTemplates.json",
     "examples": "ExamplePostBodies.json",
@@ -103,7 +101,7 @@
       "exampleBody": null
     }
   },
-      
+
     "audits.query.submit": {
     "displayName": "Audit Logs - Submit Query (Transaction)",
     "group": "Audits",

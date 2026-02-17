@@ -5,7 +5,6 @@ param(
     [string]$OutputRoot = 'out'
 )
 
-### BEGIN: InvokeDatasetStub
 function Invoke-Dataset {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -15,7 +14,13 @@ function Invoke-Dataset {
 
         [string]$CatalogPath = (Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\genesys-core.catalog.json'),
 
-        [string]$OutputRoot = 'out'
+        [string]$OutputRoot = 'out',
+
+        [string]$BaseUri = 'https://api.mypurecloud.com',
+
+        [hashtable]$Headers,
+
+        [scriptblock]$RequestInvoker
     )
 
     $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $OutputRoot
@@ -26,30 +31,32 @@ function Invoke-Dataset {
         return
     }
 
-    if ($PSCmdlet.ShouldProcess($Dataset, 'Invoke dataset run')) {
-        Write-Host "Invoking dataset '$($Dataset)' using catalog '$($CatalogPath)'."
-        Write-Host "Output path: '$($runContext.runFolder)'."
+    if ($PSCmdlet.ShouldProcess($Dataset, 'Invoke dataset run') -eq $false) {
+        return
+    }
 
-        Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $CatalogPath } | Out-Null
+    $catalog = Get-Content -Path $CatalogPath -Raw | ConvertFrom-Json -Depth 100
 
-        $stubRecord = [ordered]@{ id = 'stub-1'; dataset = $Dataset; generatedAtUtc = [DateTime]::UtcNow.ToString('o') }
-        Write-Jsonl -Path (Join-Path -Path $runContext.dataFolder -ChildPath 'records.jsonl') -InputObject $stubRecord
+    Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $CatalogPath } | Out-Null
 
-        $summary = [ordered]@{
-            datasetKey = $Dataset
-            runId = $runContext.runId
-            itemCount = 1
-            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+    try {
+        switch ($Dataset) {
+            'audit-logs' {
+                Invoke-AuditLogsDataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
+            }
+            default {
+                throw "Unsupported dataset '$($Dataset)'."
+            }
         }
-        $summary | ConvertTo-Json -Depth 100 | Set-Content -Path $runContext.summaryPath -Encoding utf8
-
-        Write-RunEvent -RunContext $runContext -EventType 'run.completed' -Payload @{ itemCount = 1 } | Out-Null
-        Write-Manifest -RunContext $runContext -Counts @{ itemCount = 1 } | Out-Null
 
         return $runContext
     }
+    catch {
+        Write-RunEvent -RunContext $runContext -EventType 'run.failed' -Payload @{ message = $_.Exception.Message } | Out-Null
+        Write-Manifest -RunContext $runContext -Counts @{ itemCount = 0 } -Warnings @($_.Exception.Message) | Out-Null
+        throw
+    }
 }
-### END: InvokeDatasetStub
 
 if ($PSBoundParameters.ContainsKey('Dataset')) {
     Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -WhatIf:$WhatIfPreference

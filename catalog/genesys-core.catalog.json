@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "datasets": {
     "audit-logs": {
-      "description": "Sample audit logs dataset.",
+      "description": "Audit logs dataset using async transaction submit/poll/results flow.",
       "endpoint": "audits.query.submit",
       "itemsPath": "$.results",
       "paging": {
@@ -22,7 +22,7 @@
       "key": "audits.query.submit",
       "method": "POST",
       "path": "/api/v2/audits/query",
-      "itemsPath": "$.results",
+      "itemsPath": "$",
       "paging": {
         "profile": "transactionResults"
       },
@@ -31,6 +31,42 @@
       },
       "transaction": {
         "profile": "auditTransaction"
+      }
+    },
+    {
+      "key": "audits.get.service.mapping",
+      "method": "GET",
+      "path": "/api/v2/audits/query/servicemapping",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    {
+      "key": "audits.query.status",
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    {
+      "key": "audits.query.results",
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}/results",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "nextUri"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
       }
     }
   ]

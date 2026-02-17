@@ -40,6 +40,13 @@ function Invoke-CoreEndpoint {
         'pagenumber' {
             return Invoke-PagingPageNumber -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
+        'transactionresults' {
+            if ($null -eq $EndpointSpec.PSObject.Properties['transaction']) {
+                throw "transactionResults paging requires EndpointSpec.transaction metadata."
+            }
+
+            return Invoke-AuditTransaction -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -BaseUri $EndpointSpec.transaction.baseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+        }
         'none' {
             $singleEndpointSpec = [pscustomobject]@{
                 method = $EndpointSpec.method

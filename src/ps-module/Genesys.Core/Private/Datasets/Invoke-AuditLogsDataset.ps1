@@ -88,8 +88,10 @@ function Invoke-AuditLogsDataset {
     $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($transactionResult.Items)
+    $sanitizedRecords = @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'audit.jsonl'
-    foreach ($record in $records) {
+    foreach ($record in $sanitizedRecords) {
         Write-Jsonl -Path $dataPath -InputObject $record
     }
 
@@ -101,16 +103,16 @@ function Invoke-AuditLogsDataset {
         datasetKey = $RunContext.datasetKey
         runId = $RunContext.runId
         totals = [ordered]@{
-            totalRecords = $records.Count
-            totalServices = (@($records | ForEach-Object { $_.serviceName } | Where-Object { $_ } | Select-Object -Unique)).Count
-            totalActions = (@($records | ForEach-Object { $_.action } | Where-Object { $_ } | Select-Object -Unique)).Count
+            totalRecords = $sanitizedRecords.Count
+            totalServices = (@($sanitizedRecords | ForEach-Object { $_.serviceName } | Where-Object { $_ } | Select-Object -Unique)).Count
+            totalActions = (@($sanitizedRecords | ForEach-Object { $_.action } | Where-Object { $_ } | Select-Object -Unique)).Count
         }
         countsByAction = [ordered]@{}
         countsByServiceName = [ordered]@{}
         generatedAtUtc = [DateTime]::UtcNow.ToString('o')
     }
 
-    foreach ($group in ($records | Group-Object -Property action)) {
+    foreach ($group in ($sanitizedRecords | Group-Object -Property action)) {
         if ([string]::IsNullOrWhiteSpace([string]$group.Name)) {
             continue
         }
@@ -118,7 +120,7 @@ function Invoke-AuditLogsDataset {
         $summary.countsByAction[$group.Name] = $group.Count
     }
 
-    foreach ($group in ($records | Group-Object -Property serviceName)) {
+    foreach ($group in ($sanitizedRecords | Group-Object -Property serviceName)) {
         if ([string]::IsNullOrWhiteSpace([string]$group.Name)) {
             continue
         }
@@ -128,11 +130,11 @@ function Invoke-AuditLogsDataset {
 
     $summary | ConvertTo-Json -Depth 100 | Set-Content -Path $RunContext.summaryPath -Encoding utf8
 
-    Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $records.Count } | Out-Null
-    Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $records.Count } | Out-Null
+    Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $sanitizedRecords.Count } | Out-Null
+    Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } | Out-Null
 
     return [pscustomobject]@{
-        Items = $records
+        Items = $sanitizedRecords
         Summary = $summary
     }
 }

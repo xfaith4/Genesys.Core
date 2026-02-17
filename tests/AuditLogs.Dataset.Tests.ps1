@@ -34,8 +34,8 @@ Describe 'Audit logs dataset' {
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123/results') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     results = @(
-                        [pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing' },
-                        [pscustomobject]@{ id = '2'; action = 'update'; serviceName = 'platform' }
+                        [pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing'; userEmail = 'agent1@example.com'; authorization = 'Bearer secret-token-1' },
+                        [pscustomobject]@{ id = '2'; action = 'update'; serviceName = 'platform'; context = [pscustomobject]@{ apiKey = 'abc123'; nestedToken = 'value' } }
                     )
                     nextUri = 'https://api.test.local/api/v2/audits/query/tx-123/results?pageNumber=2'
                     totalHits = 3
@@ -45,7 +45,7 @@ Describe 'Audit logs dataset' {
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123/results?pageNumber=2') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     results = @(
-                        [pscustomobject]@{ id = '3'; action = 'create'; serviceName = 'routing' }
+                        [pscustomobject]@{ id = '3'; action = 'create'; serviceName = 'routing'; jwt = 'aaa.bbb.ccc' }
                     )
                     nextUri = $null
                     totalHits = 3
@@ -65,6 +65,13 @@ Describe 'Audit logs dataset' {
 
         $auditLines = @(Get-Content -Path $auditPath)
         $auditLines.Count | Should -Be 3
+
+        $auditRecords = @($auditLines | ForEach-Object { $_ | ConvertFrom-Json })
+        $auditRecords[0].userEmail | Should -Be '[REDACTED]'
+        $auditRecords[0].authorization | Should -Be '[REDACTED]'
+        $auditRecords[1].context.apiKey | Should -Be '[REDACTED]'
+        $auditRecords[1].context.nestedToken | Should -Be '[REDACTED]'
+        $auditRecords[2].jwt | Should -Be '[REDACTED]'
 
         $summaryPath = Join-Path -Path $runFolder.FullName -ChildPath 'summary.json'
         $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json

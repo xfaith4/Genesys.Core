@@ -1,36 +1,37 @@
 {
   "$schema": "./schema/genesys-core.catalog.schema.json",
-  "version": "0.1.0-bootstrap",
+  "version": "0.2.0",
   "datasets": {
     "audit-logs": {
-      "description": "Bootstrap dataset placeholder for audit logs.",
+      "description": "Sample audit logs dataset.",
       "endpoint": "audits.query.submit",
       "itemsPath": "$.results",
-      "pagingProfile": "transactionResults",
-      "retryProfile": "default",
-      "redactionPolicy": "default"
+      "paging": {
+        "profile": "transactionResults"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "auditTransaction"
+      }
     }
   },
-  "paginationProfiles": {
-    "transactionResults": {
-      "type": "transactionResults",
-      "transactionIdPath": "$.transactionId"
-    }
-  },
-  "retryProfiles": {
-    "default": {
-      "maxAttempts": 5,
-      "baseDelaySeconds": 2,
-      "retryStatusCodes": [429, 500, 502, 503, 504]
-    }
-  },
-  "endpoints": {
-    "audits.query.submit": {
+  "endpoints": [
+    {
+      "key": "audits.query.submit",
       "method": "POST",
       "path": "/api/v2/audits/query",
       "itemsPath": "$.results",
-      "pagingProfile": "transactionResults",
-      "retryProfile": "default"
+      "paging": {
+        "profile": "transactionResults"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "auditTransaction"
+      }
     }
-  }
+  ]
 }

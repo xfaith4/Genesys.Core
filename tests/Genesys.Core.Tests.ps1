@@ -9,7 +9,7 @@ Describe 'Genesys Core bootstrap' {
 
         $catalog.version | Should -Not -BeNullOrEmpty
         $catalog.datasets.PSObject.Properties.Name.Count | Should -BeGreaterThan 0
-        $catalog.endpoints.PSObject.Properties.Name.Count | Should -BeGreaterThan 0
+        $catalog.endpoints.Count | Should -BeGreaterThan 0
     }
 
     It 'Invoke-Dataset WhatIf returns successfully' {

@@ -1,7 +1,7 @@
 {
-  "$schema": "./catalog/schema/genesys-core.catalog.schema.json",
-  "catalogVersion": "1.0.0",
+  "version": "1.0.0",
   "generatedAt": "2026-02-17T07:54:49.627772Z",
+  "datasets": [],
   "profiles": {
     "retry": {
       "default": {

@@ -28,13 +28,13 @@ Describe 'Invoke-WithRetry' {
     }
 
     It 'bounds retries and emits retry events for GET' {
-        $attempt = 0
+        $script:attempt = 0
         $runEvents = [System.Collections.Generic.List[object]]::new()
         $sleepDelays = [System.Collections.Generic.List[double]]::new()
 
         $operation = {
-            $attempt++
-            if ($attempt -lt 3) {
+            $script:attempt++
+            if ($script:attempt -lt 3) {
                 $error = [System.Exception]::new('Retry the request in [1] seconds')
                 $error | Add-Member -MemberType NoteProperty -Name Response -Value ([pscustomobject]@{
                     StatusCode = 429
@@ -59,12 +59,12 @@ Describe 'Invoke-WithRetry' {
     }
 
     It 'does not retry POST by default' {
-        $attempt = 0
+        $script:attempt = 0
         $runEvents = [System.Collections.Generic.List[object]]::new()
 
         {
             Invoke-WithRetry -Operation {
-                $attempt++
+                $script:attempt++
                 $error = [System.Exception]::new('Retry the request in [5] seconds')
                 $error | Add-Member -MemberType NoteProperty -Name Response -Value ([pscustomobject]@{
                     StatusCode = 429
@@ -74,7 +74,7 @@ Describe 'Invoke-WithRetry' {
             } -Method POST -MaxRetries 4 -JitterSeconds 0 -RunEvents $runEvents -SleepAction { }
         } | Should -Throw
 
-        $attempt | Should -Be 1
+        $script:attempt | Should -Be 1
         ($runEvents | Where-Object { $_.eventType -eq 'request.retry.scheduled' }).Count | Should -Be 0
     }
 }

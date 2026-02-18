@@ -49,6 +49,32 @@ function Join-EndpointUri {
     return "$($trimmedBase)/$($resolvedPath)"
 }
 
+function Resolve-AuditTransactionEndpoints {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Catalog,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]$SubmitEndpoint
+    )
+
+    if ($null -ne $SubmitEndpoint.transaction -and [string]::IsNullOrWhiteSpace([string]$SubmitEndpoint.transaction.profile) -eq $false) {
+        $profileName = [string]$SubmitEndpoint.transaction.profile
+        if ($null -ne $Catalog.profiles -and $null -ne $Catalog.profiles.transaction -and $Catalog.profiles.transaction.PSObject.Properties.Name -contains $profileName) {
+            $profile = $Catalog.profiles.transaction.$profileName
+            $statusEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key $profile.statusEndpointRef
+            $resultsEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key $profile.resultsEndpointRef
+            return [pscustomobject]@{ status = $statusEndpoint; results = $resultsEndpoint }
+        }
+    }
+
+    return [pscustomobject]@{
+        status = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.status'
+        results = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.results'
+    }
+}
+
 function Invoke-AuditLogsDataset {
     [CmdletBinding()]
     param(
@@ -67,8 +93,9 @@ function Invoke-AuditLogsDataset {
 
     $mappingEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.get.service.mapping'
     $submitEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.submit'
-    $statusEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.status'
-    $resultsEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.results'
+    $transactionEndpoints = Resolve-AuditTransactionEndpoints -Catalog $Catalog -SubmitEndpoint $submitEndpoint
+    $statusEndpoint = $transactionEndpoints.status
+    $resultsEndpoint = $transactionEndpoints.results
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
 

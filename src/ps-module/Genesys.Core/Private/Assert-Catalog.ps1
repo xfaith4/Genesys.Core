@@ -1,44 +1,62 @@
 function Assert-Catalog {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
         [string]$CatalogPath,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$SchemaPath
+        [string]$SchemaPath,
+
+        [switch]$StrictCatalog
     )
 
-    if (-not (Test-Path -Path $CatalogPath)) {
-        throw "Catalog file not found: $($CatalogPath)"
+    $resolved = Resolve-Catalog -CatalogPath $CatalogPath -SchemaPath $SchemaPath -StrictCatalog:$StrictCatalog
+    $catalog = $resolved.catalogObject
+
+    if ([string]::IsNullOrWhiteSpace([string]$catalog.version)) {
+        throw "Catalog '$($resolved.pathUsed)' is missing required 'version'."
     }
 
-    if (-not (Test-Path -Path $SchemaPath)) {
-        throw "Schema file not found: $($SchemaPath)"
+    if ($null -eq $catalog.datasets -or $catalog.datasets.Keys.Count -eq 0) {
+        throw "Catalog '$($resolved.pathUsed)' is missing required dataset entries."
     }
 
-    $catalogRaw = Get-Content -Path $CatalogPath -Raw
-    $catalog = $catalogRaw | ConvertFrom-Json -Depth 100
+    foreach ($datasetKey in $catalog.datasets.Keys) {
+        $dataset = $catalog.datasets[$datasetKey]
+        if ([string]::IsNullOrWhiteSpace([string]$dataset.endpoint)) {
+            throw "Dataset '$($datasetKey)' is missing required 'endpoint'."
+        }
 
-    $testJsonCommand = Get-Command -Name Test-Json -ErrorAction SilentlyContinue
-    if ($null -ne $testJsonCommand) {
-        $schemaRaw = Get-Content -Path $SchemaPath -Raw
-        $isValid = $catalogRaw | Test-Json -Schema $schemaRaw
-        if (-not $isValid) {
-            throw "Catalog schema validation failed for '$($CatalogPath)'."
+        if ([string]::IsNullOrWhiteSpace([string]$dataset.itemsPath)) {
+            throw "Dataset '$($datasetKey)' is missing required 'itemsPath'."
+        }
+
+        if ($null -eq $dataset.paging -or [string]::IsNullOrWhiteSpace([string]$dataset.paging.profile)) {
+            throw "Dataset '$($datasetKey)' is missing required 'paging.profile'."
+        }
+
+        if ($null -eq $dataset.retry -or [string]::IsNullOrWhiteSpace([string]$dataset.retry.profile)) {
+            throw "Dataset '$($datasetKey)' is missing required 'retry.profile'."
         }
     }
 
-    foreach ($endpoint in $catalog.endpoints) {
-        if ([string]::IsNullOrWhiteSpace($endpoint.itemsPath)) {
+    foreach ($endpoint in @($catalog.endpoints)) {
+        if ([string]::IsNullOrWhiteSpace([string]$endpoint.key)) {
+            throw "Endpoint in '$($resolved.pathUsed)' is missing required 'key'."
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$endpoint.itemsPath)) {
             throw "Endpoint '$($endpoint.key)' is missing required 'itemsPath'."
         }
 
-        if ($null -eq $endpoint.paging -or [string]::IsNullOrWhiteSpace($endpoint.paging.profile)) {
+        if ($null -eq $endpoint.paging -or [string]::IsNullOrWhiteSpace([string]$endpoint.paging.profile)) {
             throw "Endpoint '$($endpoint.key)' is missing required 'paging.profile'."
+        }
+
+        if ($null -eq $endpoint.retry -or [string]::IsNullOrWhiteSpace([string]$endpoint.retry.profile)) {
+            throw "Endpoint '$($endpoint.key)' is missing required 'retry.profile'."
         }
     }
 
-    return $catalog
+    return $resolved
 }

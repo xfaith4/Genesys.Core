@@ -1,5 +1,6 @@
 {
-  "version": "0.2.0",
+  "version": "1.0.0",
+  "generatedAt": "2026-02-17T07:54:49.627772Z",
   "datasets": {
     "audit-logs": {
       "description": "Audit logs dataset using async transaction submit/poll/results flow.",
@@ -14,53 +15,22 @@
       "transaction": {
         "profile": "auditTransaction"
       }
-    }
-  },
-  "endpoints": [
-    {
-      "key": "audits.query.submit",
-      "method": "POST",
-      "path": "/api/v2/audits/query",
-      "itemsPath": "$",
-      "paging": {
-        "profile": "transactionResults"
-      },
-      "retry": {
-        "profile": "rateLimitAware"
-      },
-      "transaction": {
-        "profile": "auditTransaction"
-      }
     },
-    {
-      "key": "audits.get.service.mapping",
-      "method": "GET",
-      "path": "/api/v2/audits/query/servicemapping",
-      "itemsPath": "$",
+    "users": {
+      "description": "Users with presence and routing status.",
+      "endpoint": "users.get.all.users.with.presence.and.status",
+      "itemsPath": "$.entities",
       "paging": {
-        "profile": "none"
+        "profile": "nextUri"
       },
       "retry": {
         "profile": "rateLimitAware"
       }
     },
-    {
-      "key": "audits.query.status",
-      "method": "GET",
-      "path": "/api/v2/audits/query/{transactionId}",
-      "itemsPath": "$",
-      "paging": {
-        "profile": "none"
-      },
-      "retry": {
-        "profile": "rateLimitAware"
-      }
-    },
-    {
-      "key": "audits.query.results",
-      "method": "GET",
-      "path": "/api/v2/audits/query/{transactionId}/results",
-      "itemsPath": "$.results",
+    "routing-queues": {
+      "description": "Routing queues with details.",
+      "endpoint": "routing.get.all.queues.with.details",
+      "itemsPath": "$.entities",
       "paging": {
         "profile": "nextUri"
       },
@@ -68,5 +38,1107 @@
         "profile": "rateLimitAware"
       }
     }
-  ]
+  },
+  "profiles": {
+    "retry": {
+      "default": {
+        "mode": "rateLimitAware",
+        "maxRetries": 4,
+        "baseDelaySeconds": 2.0,
+        "maxDelaySeconds": 60.0,
+        "jitterSeconds": 0.5,
+        "retryOnStatusCodes": [
+          429,
+          500,
+          502,
+          503,
+          504
+        ],
+        "retryOnMethods": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE"
+        ]
+      }
+    },
+    "paging": {
+      "none": {
+        "type": "none"
+      },
+      "nextUri_default": {
+        "type": "nextUri",
+        "nextUriPath": "$.nextUri"
+      },
+      "pageNumber_default": {
+        "type": "pageNumber",
+        "pageNumberParam": "pageNumber",
+        "pageSizeParam": "pageSize",
+        "pageCountPath": "$.pageCount"
+      },
+      "nextUri_auditResults": {
+        "type": "nextUri",
+        "nextUriPath": "$.nextUri"
+      },
+      "audit_query_transaction_then_results": {
+        "type": "transactionResults",
+        "transactionIdPath": "$.transactionId"
+      },
+      "totalHits_conversations": {
+        "type": "pageNumber",
+        "pageNumberParam": "pageNumber",
+        "pageSizeParam": "pageSize",
+        "totalHitsPath": "$.totalHits"
+      },
+      "analytics_details_query": {
+        "type": "bodyPaging",
+        "totalHitsPath": "$.totalHits"
+      },
+      "analytics_jobs": {
+        "type": "transactionResults",
+        "transactionIdPath": "$.jobId"
+      },
+      "nextUri_conversations": {
+        "type": "nextUri",
+        "nextUriPath": "$.nextUri"
+      }
+    },
+    "transaction": {
+      "audit_query_transaction_then_results": {
+        "pollIntervalSeconds": 2.0,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStatesPath": "$.terminalStates",
+        "terminalStates": [
+          "FULFILLED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "statusEndpointRef": "audit_query_transaction_then_results.status",
+        "resultsEndpointRef": "audit_query_transaction_then_results.results"
+      },
+      "analytics_jobs": {
+        "pollIntervalSeconds": 2.0,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStatesPath": "$.terminalStates",
+        "terminalStates": [
+          "FULFILLED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "statusEndpointRef": "analytics.get.conversation.details.job.status",
+        "resultsEndpointRef": "analytics.get.conversation.details.job.results"
+      }
+    },
+    "redaction": {
+      "standard": {
+        "mode": "standard",
+        "removeFields": [
+          "access_token",
+          "refresh_token",
+          "token",
+          "authorization"
+        ],
+        "hashFields": [
+          "client_id",
+          "userId",
+          "conversationId"
+        ]
+      }
+    }
+  },
+  "endpoints": {
+    "audits.get.service.mapping": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/servicemapping",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Audit Logs - Service Mapping",
+        "group: Audits"
+      ]
+    },
+    "audits.query.submit": {
+      "method": "POST",
+      "path": "/api/v2/audits/query",
+      "pagingProfile": "audit_query_transaction_then_results",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Audit Logs - Submit Query (Transaction)",
+        "group: Audits",
+        "defaultBody:\n{\n  \"interval\": \"2026-02-16T00:00:00.000Z/2026-02-16T23:59:59.999Z\",\n  \"filters\": [],\n  \"sort\": [\n    {\n      \"name\": \"timestamp\",\n      \"sortOrder\": \"DESC\"\n    }\n  ]\n}"
+      ],
+      "transactionProfile": "audit_query_transaction_then_results"
+    },
+    "conversations.get.active.conversations": {
+      "method": "GET",
+      "path": "/api/v2/conversations",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Active Conversations",
+        "group: Conversations"
+      ]
+    },
+    "conversations.get.specific.conversation.details": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get Specific Conversation Details",
+        "group: Conversations"
+      ]
+    },
+    "analytics.get.multiple.conversations.by.ids": {
+      "method": "GET",
+      "path": "/api/v2/analytics/conversations/details",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "id": "conversation-id-1,conversation-id-2,conversation-id-3"
+      },
+      "notes": [
+        "Get Multiple Conversations by IDs",
+        "group: Analytics"
+      ]
+    },
+    "analytics.get.single.conversation.analytics": {
+      "method": "GET",
+      "path": "/api/v2/analytics/conversations/{conversationId}/details",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get Single Conversation Analytics",
+        "group: Analytics"
+      ]
+    },
+    "analytics.query.conversation.details.last.7.days": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Details - Last 7 Days",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
+      ]
+    },
+    "analytics.division.analysis.conversation.quality.report.oct.15.dec.8": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ],\n  \"segmentDetailFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"interact\"\n        },\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"system\"\n        }\n      ]\n    }\n  ]\n}"
+      ]
+    },
+    "users.division.analysis.get.users.with.division.info": {
+      "method": "GET",
+      "path": "/api/v2/users",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "500",
+        "pageNumber": "1",
+        "sortOrder": "ASC",
+        "expand": "division"
+      },
+      "notes": [
+        "Division Analysis - Get Users with Division Info",
+        "group: Users"
+      ]
+    },
+    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.conversation.details.today": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Details - Today",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
+      ]
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Details - By Queue",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"queueId\",\n          \"value\": \"queue-id-goes-here\"\n        }\n      ]\n    }\n  ]\n}"
+      ]
+    },
+    "analytics.query.conversation.details.by.media.type": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Details - By Media Type",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.daily.stats": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Aggregates - Daily Stats",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.agent.performance": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Aggregates - Agent Performance",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"tAnswered\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.conversation.transcripts": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/transcripts/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Transcripts",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"conversationId\",\n          \"value\": \"conversation-id-goes-here\"\n        }\n      ]\n    }\n  ],\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\"\n}"
+      ]
+    },
+    "analytics.create.conversation.details.job.large.query": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/jobs",
+      "pagingProfile": "analytics_jobs",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Create Conversation Details Job - Large Query",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"conversationFilters\": [],\n  \"segmentFilters\": []\n}"
+      ],
+      "transactionProfile": "analytics_jobs"
+    },
+    "analytics.get.conversation.details.job.status": {
+      "method": "GET",
+      "path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Get Conversation Details Job Status",
+        "group: Analytics"
+      ]
+    },
+    "analytics.get.conversation.details.job.results": {
+      "method": "GET",
+      "path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here",
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get Conversation Details Job Results",
+        "group: Analytics"
+      ]
+    },
+    "analytics.query.conversation.activity": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/activity/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Activity",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"nOutbound\"\n  ]\n}"
+      ]
+    },
+    "conversations.get.call.history": {
+      "method": "GET",
+      "path": "/api/v2/conversations/calls/history",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get Call History",
+        "group: Conversations"
+      ]
+    },
+    "conversations.get.active.callbacks": {
+      "method": "GET",
+      "path": "/api/v2/conversations/callbacks",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Active Callbacks",
+        "group: Conversations"
+      ]
+    },
+    "conversations.get.active.calls": {
+      "method": "GET",
+      "path": "/api/v2/conversations/calls",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Active Calls",
+        "group: Conversations"
+      ]
+    },
+    "conversations.get.active.chats": {
+      "method": "GET",
+      "path": "/api/v2/conversations/chats",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Active Chats",
+        "group: Conversations"
+      ]
+    },
+    "conversations.get.active.emails": {
+      "method": "GET",
+      "path": "/api/v2/conversations/emails",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Active Emails",
+        "group: Conversations"
+      ]
+    },
+    "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get Speech and Text Analytics for Conversation",
+        "group: Speech and Text Analytics"
+      ]
+    },
+    "conversations.get.conversation.recording.metadata": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/recordingmetadata",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get Conversation Recording Metadata",
+        "group: Conversations"
+      ]
+    },
+    "speech.and.text.analytics.get.sentiment.data.for.conversation": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get Sentiment Data for Conversation",
+        "group: Speech and Text Analytics"
+      ]
+    },
+    "telephony.get.sip.message.for.conversation": {
+      "method": "GET",
+      "path": "/api/v2/telephony/sipmessages/conversations/{conversationId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      },
+      "notes": [
+        "Get SIP Message for Conversation",
+        "group: Telephony"
+      ]
+    },
+    "routing.get.queue.details": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here"
+      },
+      "notes": [
+        "Get Queue Details",
+        "group: Routing"
+      ]
+    },
+    "routing.get.queue.members": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}/members",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here"
+      },
+      "notes": [
+        "Get Queue Members",
+        "group: Routing"
+      ]
+    },
+    "users.get.user.routing.skills": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/routingskills",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      },
+      "notes": [
+        "Get User Routing Skills",
+        "group: Users"
+      ]
+    },
+    "users.get.user.presence.genesys.cloud": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/presences/purecloud",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      },
+      "notes": [
+        "Get User Presence (Genesys Cloud)",
+        "group: Users"
+      ]
+    },
+    "users.get.bulk.user.presences.genesys.cloud": {
+      "method": "GET",
+      "path": "/api/v2/users/presences/purecloud/bulk",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "id": "user-id-1,user-id-2,user-id-3"
+      },
+      "notes": [
+        "Get Bulk User Presences (Genesys Cloud)",
+        "group: Users"
+      ]
+    },
+    "users.get.user.routing.status": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/routingstatus",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      },
+      "notes": [
+        "Get User Routing Status",
+        "group: Users"
+      ]
+    },
+    "users.get.all.users.with.presence.and.status": {
+      "method": "GET",
+      "path": "/api/v2/users",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortOrder": "ASC",
+        "expand": "presence,routingStatus,conversationSummary"
+      },
+      "notes": [
+        "Get All Users with Presence and Status",
+        "group: Users"
+      ]
+    },
+    "users.search.users.by.name.or.email": {
+      "method": "GET",
+      "path": "/api/v2/users/search",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1",
+        "query": "john",
+        "expand": "presence,routingStatus"
+      },
+      "notes": [
+        "Search Users by Name or Email",
+        "group: Users"
+      ]
+    },
+    "users.get.user.details.with.full.expansion": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here",
+        "expand": "routingStatus,presence,conversationSummary,outOfOffice,geolocation,station,authorization"
+      },
+      "notes": [
+        "Get User Details with Full Expansion",
+        "group: Users"
+      ]
+    },
+    "users.get.user.s.active.conversations": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/conversations",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      },
+      "notes": [
+        "Get User's Active Conversations",
+        "group: Users"
+      ]
+    },
+    "users.get.user.s.queue.memberships": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/queues",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here",
+        "pageSize": "100",
+        "joined": "true",
+        "divisionId": ""
+      },
+      "notes": [
+        "Get User's Queue Memberships",
+        "group: Users"
+      ]
+    },
+    "users.get.user.s.routing.skills": {
+      "method": "GET",
+      "path": "/api/v2/users/{userId}/routingskills",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here",
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get User's Routing Skills",
+        "group: Users"
+      ]
+    },
+    "users.get.bulk.user.presences": {
+      "method": "GET",
+      "path": "/api/v2/users/presences/purecloud/bulk",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "id": "user-id-1,user-id-2,user-id-3"
+      },
+      "notes": [
+        "Get Bulk User Presences",
+        "group: Users"
+      ]
+    },
+    "analytics.query.user.details.activity.report": {
+      "method": "POST",
+      "path": "/api/v2/analytics/users/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query User Details - Activity Report",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"userId\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"presenceFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"systemPresence\",\n          \"value\": \"AVAILABLE\"\n        },\n        {\n          \"dimension\": \"systemPresence\",\n          \"value\": \"BUSY\"\n        }\n      ]\n    }\n  ]\n}"
+      ]
+    },
+    "analytics.query.user.aggregates.performance.metrics": {
+      "method": "POST",
+      "path": "/api/v2/analytics/users/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query User Aggregates - Performance Metrics",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"nOffered\",\n    \"tAnswered\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      },\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.user.observations.real.time.status": {
+      "method": "POST",
+      "path": "/api/v2/analytics/users/observations/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query User Observations - Real-Time Status",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"userId\",\n        \"value\": \"user-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oUserPresence\",\n    \"oUserRoutingStatus\"\n  ]\n}"
+      ]
+    },
+    "routing.get.all.queues.with.details": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortBy": "name",
+        "active": "true",
+        "divisionId": ""
+      },
+      "notes": [
+        "Get All Queues with Details",
+        "group: Routing"
+      ]
+    },
+    "routing.get.queue.members.with.status": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}/members",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here",
+        "pageSize": "100",
+        "pageNumber": "1",
+        "expand": "routingStatus,presence,conversationSummary"
+      },
+      "notes": [
+        "Get Queue Members with Status",
+        "group: Routing"
+      ]
+    },
+    "routing.get.queue.wrapup.codes": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}/wrapupcodes",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here",
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get Queue Wrapup Codes",
+        "group: Routing"
+      ]
+    },
+    "analytics.query.queue.observations.real.time.stats": {
+      "method": "POST",
+      "path": "/api/v2/analytics/queues/observations/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Queue Observations - Real-Time Stats",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oInteracting\",\n    \"oWaiting\",\n    \"oOnQueueUsers\",\n    \"oOffQueueUsers\",\n    \"oActiveUsers\"\n  ]\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.queue.performance": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Conversation Aggregates - Queue Performance",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"tHeld\",\n    \"nOffered\",\n    \"nOutbound\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "authorization.get.all.divisions": {
+      "method": "GET",
+      "path": "/api/v2/authorization/divisions",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortBy": "name",
+        "expand": ""
+      },
+      "notes": [
+        "Get All Divisions",
+        "group: Authorization"
+      ]
+    },
+    "authorization.get.division.details": {
+      "method": "GET",
+      "path": "/api/v2/authorization/divisions/{divisionId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "divisionId": "division-id-goes-here"
+      },
+      "notes": [
+        "Get Division Details",
+        "group: Authorization"
+      ]
+    },
+    "authorization.search.division.objects": {
+      "method": "GET",
+      "path": "/api/v2/authorization/divisions/{divisionId}/objects",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "divisionId": "division-id-goes-here",
+        "objectType": "QUEUE",
+        "pageSize": "100"
+      },
+      "notes": [
+        "Search Division Objects",
+        "group: Authorization"
+      ]
+    },
+    "usage.get.api.usage.organization.summary": {
+      "method": "GET",
+      "path": "/api/v2/usage/query/organization",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+      },
+      "notes": [
+        "Get API Usage - Organization Summary",
+        "group: Usage"
+      ]
+    },
+    "usage.get.api.usage.by.client": {
+      "method": "GET",
+      "path": "/api/v2/usage/query/clients",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+      },
+      "notes": [
+        "Get API Usage - By Client",
+        "group: Usage"
+      ]
+    },
+    "usage.get.api.usage.by.user": {
+      "method": "GET",
+      "path": "/api/v2/usage/query/users",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get API Usage - By User",
+        "group: Usage"
+      ]
+    },
+    "analytics.query.rate.limit.aggregates": {
+      "method": "POST",
+      "path": "/api/v2/analytics/ratelimits/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Rate Limit Aggregates",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nError\",\n    \"nOverLimit\"\n  ]\n}"
+      ]
+    },
+    "audits.get.audit.query.results": {
+      "method": "GET",
+      "path": "/api/v2/audits/query",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1",
+        "sortBy": "timestamp",
+        "sortOrder": "descending",
+        "facetName": "",
+        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+      },
+      "notes": [
+        "Get Audit Query Results",
+        "group: Audits"
+      ]
+    },
+    "audits.query.audit.logs.user.actions": {
+      "method": "POST",
+      "path": "/api/v2/audits/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Audit Logs - User Actions",
+        "group: Audits",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"filters\": [\n    {\n      \"property\": \"userId\",\n      \"value\": \"user-id-goes-here\"\n    }\n  ],\n  \"sort\": [\n    {\n      \"name\": \"timestamp\",\n      \"sortOrder\": \"DESC\"\n    }\n  ]\n}"
+      ]
+    },
+    "presence.get.system.presence.definitions": {
+      "method": "GET",
+      "path": "/api/v2/systempresences",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get System Presence Definitions",
+        "group: Presence"
+      ]
+    },
+    "presence.get.organization.presence.definitions": {
+      "method": "GET",
+      "path": "/api/v2/presencedefinitions",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get Organization Presence Definitions",
+        "group: Presence"
+      ]
+    },
+    "routing.get.all.routing.skills": {
+      "method": "GET",
+      "path": "/api/v2/routing/skills",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "name": ""
+      },
+      "notes": [
+        "Get All Routing Skills",
+        "group: Routing"
+      ]
+    },
+    "routing.get.all.languages": {
+      "method": "GET",
+      "path": "/api/v2/routing/languages",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "name": ""
+      },
+      "notes": [
+        "Get All Languages",
+        "group: Routing"
+      ]
+    },
+    "routing.get.all.wrapup.codes": {
+      "method": "GET",
+      "path": "/api/v2/routing/wrapupcodes",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "name": ""
+      },
+      "notes": [
+        "Get All Wrapup Codes",
+        "group: Routing"
+      ]
+    },
+    "organization.get.organization.details": {
+      "method": "GET",
+      "path": "/api/v2/organizations/me",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Organization Details",
+        "group: Organization"
+      ]
+    },
+    "organization.get.organization.limits": {
+      "method": "GET",
+      "path": "/api/v2/organizations/limits/namespaces",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get Organization Limits",
+        "group: Organization"
+      ]
+    },
+    "analytics.query.flow.aggregates.execution.metrics": {
+      "method": "POST",
+      "path": "/api/v2/analytics/flows/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Query Flow Aggregates - Execution Metrics",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"flowId\",\n    \"flowType\"\n  ],\n  \"metrics\": [\n    \"nFlow\",\n    \"nFlowOutcome\",\n    \"nFlowOutcomeFailed\",\n    \"nFlowMilestone\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"flowType\",\n        \"value\": \"inboundcall\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "notifications.get.notification.subscriptions": {
+      "method": "GET",
+      "path": "/api/v2/notifications/channels",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get Notification Subscriptions",
+        "group: Notifications"
+      ]
+    },
+    "notifications.get.available.notification.topics": {
+      "method": "GET",
+      "path": "/api/v2/notifications/availabletopics",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "expand": "schema",
+        "includePreview": "true"
+      },
+      "notes": [
+        "Get Available Notification Topics",
+        "group: Notifications"
+      ]
+    },
+    "audit_query_transaction_then_results.results": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{jobId}/results",
+      "pagingProfile": "nextUri_auditResults",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Auto-generated results endpoint for transaction 'audit_query_transaction_then_results'."
+      ]
+    },
+    "audit_query_transaction_then_results.status": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{jobId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Auto-generated status endpoint for transaction 'audit_query_transaction_then_results'."
+      ]
+    },
+    "audits.query.status": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Compatibility alias for audit status endpoint."
+      ]
+    },
+    "audits.query.results": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}/results",
+      "pagingProfile": "nextUri_auditResults",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Compatibility alias for audit results endpoint."
+      ]
+    }
+  }
 }

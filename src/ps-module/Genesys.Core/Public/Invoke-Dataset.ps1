@@ -1,8 +1,9 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$Dataset,
-    [string]$CatalogPath = (Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\genesys-core.catalog.json'),
-    [string]$OutputRoot = 'out'
+    [string]$CatalogPath,
+    [string]$OutputRoot = 'out',
+    [switch]$StrictCatalog
 )
 
 function Invoke-Dataset {
@@ -12,7 +13,7 @@ function Invoke-Dataset {
         [ValidateNotNullOrEmpty()]
         [string]$Dataset,
 
-        [string]$CatalogPath = (Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\genesys-core.catalog.json'),
+        [string]$CatalogPath,
 
         [string]$OutputRoot = 'out',
 
@@ -20,13 +21,23 @@ function Invoke-Dataset {
 
         [hashtable]$Headers,
 
-        [scriptblock]$RequestInvoker
+        [scriptblock]$RequestInvoker,
+
+        [switch]$StrictCatalog
     )
 
+    $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\schema\genesys-core.catalog.schema.json'
+    $catalogResolution = Resolve-Catalog -CatalogPath $CatalogPath -SchemaPath $schemaPath -StrictCatalog:$StrictCatalog
+
+    foreach ($warning in @($catalogResolution.warnings)) {
+        Write-Warning $warning
+    }
+
+    $catalog = $catalogResolution.catalogObject
     $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $OutputRoot
 
     if ($WhatIfPreference) {
-        Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($CatalogPath)'."
+        Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($catalogResolution.pathUsed)'."
         Write-Host "[WhatIf] Would write outputs under '$($runContext.runFolder)' (manifest/events/summary/data)."
         return
     }
@@ -35,20 +46,10 @@ function Invoke-Dataset {
         return
     }
 
-    $catalog = Get-Content -Path $CatalogPath -Raw | ConvertFrom-Json -Depth 100
-
-    Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $CatalogPath } | Out-Null
+    Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
     try {
-        switch ($Dataset) {
-            'audit-logs' {
-                Invoke-AuditLogsDataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
-            }
-            default {
-                throw "Unsupported dataset '$($Dataset)'."
-            }
-        }
-
+        Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
         return $runContext
     }
     catch {
@@ -59,5 +60,5 @@ function Invoke-Dataset {
 }
 
 if ($PSBoundParameters.ContainsKey('Dataset')) {
-    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -WhatIf:$WhatIfPreference
+    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -StrictCatalog:$StrictCatalog -WhatIf:$WhatIfPreference
 }

@@ -77,3 +77,23 @@ Invoke-Pester -Configuration $config
 # Catalog validation + fixture-driven dry-run ingest for all datasets
 pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
 ```
+
+For comprehensive testing documentation, including production environment testing, see [TESTING.md](TESTING.md).
+
+## Graphical User Interface (Windows)
+
+A WPF-based GUI is available for Windows users:
+
+```powershell
+# Launch the GUI
+.\GenesysCore-GUI.ps1
+```
+
+Features:
+- OAuth authentication flow
+- Dataset selection (checkboxes for audit-logs, users, routing-queues)
+- Real-time execution logging
+- Dry run (WhatIf) support
+- Output directory selection
+
+**Note:** The GUI requires Windows as WPF is Windows-only. For cross-platform use, use the PowerShell module directly.

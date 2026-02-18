@@ -8,13 +8,15 @@ function Test-IsSensitiveFieldName {
         return $false
     }
 
-    return $Name -match '(?i)(^|_|-)(token|secret|password|authorization|apikey|clientsecret|client_secret|email|phone|ssn|userid|employeeid)(_|-|$)' -or $Name -match '(?i)^(token|secret|password|authorization|apikey|clientsecret|email|phone|ssn)$'
+    # Match fields containing sensitive terms (case-insensitive)
+    # Covers patterns like: email, userEmail, user_email, authorization, apiKey, etc.
+    return $Name -match '(?i)(token|secret|password|authorization|apikey|clientsecret|client_secret|email|phone|ssn|userid|employeeid|jwt)'
 }
 
 function Protect-RecordData {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         $InputObject,
 
         [string]$CurrentFieldName

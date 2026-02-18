@@ -6,13 +6,51 @@
       "endpoint": "audits.query.submit",
       "itemsPath": "$.results",
       "paging": {
-        "profile": "transactionResults"
+        "profile": "transactionResults",
+        "transactionIdPath": "$.transactionId"
       },
       "retry": {
-        "profile": "rateLimitAware"
+        "profile": "rateLimitAware",
+        "maxRetries": 4
       },
       "transaction": {
         "profile": "auditTransaction"
+      }
+    },
+    "audit-service-mapping": {
+      "description": "Reference dataset for audit service mapping values.",
+      "endpoint": "audits.get.service.mapping",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware",
+        "maxRetries": 4
+      },
+      "outputFile": "service-mapping.jsonl"
+    },
+    "analytics-conversation-details": {
+      "description": "Analytics conversation details query using body paging.",
+      "endpoint": "analytics.conversations.details.query",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "bodyPaging",
+        "pagePath": "paging.pageNumber",
+        "totalHitsPath": "$.totalHits"
+      },
+      "retry": {
+        "profile": "rateLimitAware",
+        "maxRetries": 4
+      },
+      "requestBody": {
+        "interval": "2025-01-01T00:00:00.000Z/2025-01-01T23:59:59.999Z",
+        "paging": {
+          "pageSize": 100,
+          "pageNumber": 1
+        },
+        "order": "asc",
+        "orderBy": "conversationStart"
       }
     }
   },
@@ -23,13 +61,24 @@
       "path": "/api/v2/audits/query",
       "itemsPath": "$",
       "paging": {
-        "profile": "transactionResults"
+        "profile": "transactionResults",
+        "transactionIdPath": "$.transactionId"
       },
       "retry": {
-        "profile": "rateLimitAware"
+        "profile": "rateLimitAware",
+        "maxRetries": 4
       },
       "transaction": {
-        "profile": "auditTransaction"
+        "profile": "auditTransaction",
+        "statusEndpointKey": "audits.query.status",
+        "resultsEndpointKey": "audits.query.results",
+        "statePath": "$.state",
+        "terminalStates": [ "FULFILLED", "FAILED", "CANCELLED" ],
+        "fulfilledState": "FULFILLED",
+        "pollIntervalSeconds": 2,
+        "maxPolls": 60,
+        "eventPrefix": "audit.transaction",
+        "routeParamName": "transactionId"
       }
     },
     {
@@ -41,7 +90,8 @@
         "profile": "none"
       },
       "retry": {
-        "profile": "rateLimitAware"
+        "profile": "rateLimitAware",
+        "maxRetries": 4
       }
     },
     {
@@ -53,7 +103,8 @@
         "profile": "none"
       },
       "retry": {
-        "profile": "rateLimitAware"
+        "profile": "rateLimitAware",
+        "maxRetries": 4
       }
     },
     {
@@ -62,10 +113,28 @@
       "path": "/api/v2/audits/query/{transactionId}/results",
       "itemsPath": "$.results",
       "paging": {
-        "profile": "nextUri"
+        "profile": "nextUri",
+        "nextUriPath": "$.nextUri"
       },
       "retry": {
-        "profile": "rateLimitAware"
+        "profile": "rateLimitAware",
+        "maxRetries": 4
+      }
+    },
+    {
+      "key": "analytics.conversations.details.query",
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "bodyPaging",
+        "pageParam": "pageNumber",
+        "pagePath": "paging.pageNumber",
+        "totalHitsPath": "$.totalHits"
+      },
+      "retry": {
+        "profile": "rateLimitAware",
+        "maxRetries": 4
       }
     }
   ]

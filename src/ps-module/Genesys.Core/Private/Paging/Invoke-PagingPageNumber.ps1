@@ -98,9 +98,19 @@ function Invoke-PagingPageNumber {
         $maxPages = [int]$pagingProfile.maxPages
     }
 
+    $totalHitsPath = '$.totalHits'
+    if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'totalHitsPath' -and [string]::IsNullOrWhiteSpace([string]$pagingProfile.totalHitsPath) -eq $false) {
+        $totalHitsPath = [string]$pagingProfile.totalHitsPath
+    }
+
     $maxRetries = 3
     if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'maxRetries') {
         $maxRetries = [int]$RetryProfile.maxRetries
+    }
+
+    $allowRetryOnPost = $false
+    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'allowRetryOnPost') {
+        $allowRetryOnPost = [bool]$RetryProfile.allowRetryOnPost
     }
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
@@ -118,7 +128,7 @@ function Invoke-PagingPageNumber {
             Headers = $Headers
             Body = $InitialBody
             MaxRetries = $maxRetries
-            AllowRetryOnPost = $false
+            AllowRetryOnPost = $allowRetryOnPost
             RunEvents = $RunEvents
         })
 
@@ -133,7 +143,10 @@ function Invoke-PagingPageNumber {
         }
 
         $collectedCount += $pageItems.Count
-        $totalHits = Get-PagingTotalHitsFromResponse -Response $response
+        $totalHits = Get-PagingValueFromResponse -Response $response -Path $totalHitsPath
+        if ($null -eq $totalHits) {
+            $totalHits = Get-PagingTotalHitsFromResponse -Response $response
+        }
 
         $nextUri = Add-PagingQueryValue -Uri $InitialUri -Name $pageParam -Value ($pageNumber + 1)
         if ($pageItems.Count -eq 0) {
@@ -162,6 +175,16 @@ function Invoke-PagingPageNumber {
         }
 
         $pageNumber++
+    }
+
+    if ($pageNumber -gt $maxPages) {
+        $RunEvents.Add([pscustomobject]@{
+            eventType = 'paging.terminated.maxPages'
+            profile = 'pageNumber'
+            page = $pageNumber
+            maxPages = $maxPages
+            timestampUtc = [DateTime]::UtcNow.ToString('o')
+        })
     }
 
     return [pscustomobject]@{

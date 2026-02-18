@@ -24,6 +24,16 @@ function Invoke-CoreEndpoint {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
+    $maxRetries = 3
+    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'maxRetries') {
+        $maxRetries = [int]$RetryProfile.maxRetries
+    }
+
+    $allowRetryOnPost = $false
+    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'allowRetryOnPost') {
+        $allowRetryOnPost = [bool]$RetryProfile.allowRetryOnPost
+    }
+
     $pagingProfile = 'none'
     if ($EndpointSpec.PSObject.Properties.Name -contains 'paging' -and $null -ne $EndpointSpec.paging) {
         if ($EndpointSpec.paging.PSObject.Properties.Name -contains 'profile' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.paging.profile) -eq $false) {
@@ -45,7 +55,74 @@ function Invoke-CoreEndpoint {
                 throw "transactionResults paging requires EndpointSpec.transaction metadata."
             }
 
-            return Invoke-AuditTransaction -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -BaseUri $EndpointSpec.transaction.baseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            $transactionSpec = $EndpointSpec.transaction
+            $submitEndpoint = $transactionSpec.submit
+            if ($null -eq $submitEndpoint) {
+                $submitEndpoint = [pscustomobject]@{
+                    key = $EndpointSpec.key
+                    method = $EndpointSpec.method
+                    path = $EndpointSpec.path
+                    itemsPath = '$'
+                    retry = $EndpointSpec.retry
+                }
+            }
+
+            if ($null -eq $transactionSpec.status -or $null -eq $transactionSpec.results) {
+                throw "transactionResults paging requires transaction.status and transaction.results endpoint specs."
+            }
+
+            $transactionIdPath = '$.transactionId'
+            if ($EndpointSpec.PSObject.Properties.Name -contains 'paging' -and $null -ne $EndpointSpec.paging -and $EndpointSpec.paging.PSObject.Properties.Name -contains 'transactionIdPath' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.paging.transactionIdPath) -eq $false) {
+                $transactionIdPath = [string]$EndpointSpec.paging.transactionIdPath
+            }
+            if ($transactionSpec.PSObject.Properties.Name -contains 'transactionIdPath' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.transactionIdPath) -eq $false) {
+                $transactionIdPath = [string]$transactionSpec.transactionIdPath
+            }
+
+            $statePath = '$.state'
+            if ($transactionSpec.PSObject.Properties.Name -contains 'statePath' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.statePath) -eq $false) {
+                $statePath = [string]$transactionSpec.statePath
+            }
+
+            $terminalStates = @('FULFILLED', 'FAILED', 'CANCELLED')
+            if ($transactionSpec.PSObject.Properties.Name -contains 'terminalStates' -and $null -ne $transactionSpec.terminalStates -and @($transactionSpec.terminalStates).Count -gt 0) {
+                $terminalStates = @($transactionSpec.terminalStates)
+            }
+
+            $fulfilledState = 'FULFILLED'
+            if ($transactionSpec.PSObject.Properties.Name -contains 'fulfilledState' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.fulfilledState) -eq $false) {
+                $fulfilledState = [string]$transactionSpec.fulfilledState
+            }
+
+            $maxPolls = 60
+            if ($transactionSpec.PSObject.Properties.Name -contains 'maxPolls') {
+                $maxPolls = [int]$transactionSpec.maxPolls
+            }
+
+            $pollIntervalSeconds = 2
+            if ($transactionSpec.PSObject.Properties.Name -contains 'pollIntervalSeconds') {
+                $pollIntervalSeconds = [int]$transactionSpec.pollIntervalSeconds
+            }
+
+            $eventPrefix = 'transaction'
+            if ($transactionSpec.PSObject.Properties.Name -contains 'eventPrefix' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.eventPrefix) -eq $false) {
+                $eventPrefix = [string]$transactionSpec.eventPrefix
+            }
+            elseif ($transactionSpec.PSObject.Properties.Name -contains 'profile' -and [string]::Equals([string]$transactionSpec.profile, 'auditTransaction', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $eventPrefix = 'audit.transaction'
+            }
+
+            $routeParamName = $null
+            if ($transactionSpec.PSObject.Properties.Name -contains 'routeParamName' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.routeParamName) -eq $false) {
+                $routeParamName = [string]$transactionSpec.routeParamName
+            }
+
+            $baseUri = 'https://api.mypurecloud.com'
+            if ($transactionSpec.PSObject.Properties.Name -contains 'baseUri' -and [string]::IsNullOrWhiteSpace([string]$transactionSpec.baseUri) -eq $false) {
+                $baseUri = [string]$transactionSpec.baseUri
+            }
+
+            return Invoke-TransactionResults -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $transactionSpec.status -ResultsEndpointSpec $transactionSpec.results -BaseUri $baseUri -Headers $Headers -SubmitBody $InitialBody -TransactionIdPath $transactionIdPath -StatePath $statePath -TerminalStates $terminalStates -FulfilledState $fulfilledState -RouteParamName $routeParamName -MaxPolls $maxPolls -PollIntervalSeconds $pollIntervalSeconds -EventPrefix $eventPrefix -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'bodypaging' {
             return Invoke-PagingBodyPaging -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
@@ -73,8 +150,8 @@ function Invoke-CoreEndpoint {
                 Method = $EndpointSpec.method
                 Headers = $Headers
                 Body = $InitialBody
-                MaxRetries = 3
-                AllowRetryOnPost = $false
+                MaxRetries = $maxRetries
+                AllowRetryOnPost = $allowRetryOnPost
                 RunEvents = $RunEvents
             })
 

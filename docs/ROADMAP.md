@@ -10,12 +10,12 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
   - Catalog + schema scaffold with validation tests.
   - Module runtime scaffold with dataset dispatcher (`Invoke-Dataset`).
   - Retry engine with 429 handling (`Retry-After` and message parsing).
-  - Paging strategy plugins for `none`, `nextUri`, and `pageNumber`.
-  - Async audit transaction submit/poll/results flow.
+  - Paging strategy plugins for `none`, `nextUri`, `pageNumber`, `cursor`, and `bodyPaging`.
+  - Generalized `transactionResults` async submit/poll/results flow driven by catalog metadata.
   - Deterministic run output contract (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`).
   - CI + scheduled/on-demand audit workflow artifacts scoped to run folder.
 - **In progress**
-  - Broader dataset coverage from catalog profiles.
+  - Broader dataset coverage from catalog profiles (beyond baseline expansion).
   - Stronger redaction/normalization profiles for payload fields.
   - Consolidation of duplicate catalog representations.
 
@@ -33,13 +33,12 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 ## Phase 1 — Core Runtime Foundations (Mostly complete)
 
 - Request/retry runtime with deterministic 429 behavior and bounded jitter.
-- Pluggable paging strategies (`nextUri`, `pageNumber`, `none`).
+- Pluggable paging strategies (`nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `none`).
 - Structured run events for retries, paging progress, and async state transitions.
 - Request event redaction for sensitive headers and token-like query parameters.
 
 ### Remaining
 
-- Add additional paging strategies declared in the long-form catalog (`cursor`, `bodyPaging`, `transactionResults` generalized profile mapping).
 - Broaden retry profile wiring from catalog profile names to runtime parameters.
 
 ## Phase 2 — Audit Logs Dataset (Complete for baseline)
@@ -53,9 +52,9 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 - Expand data-level redaction for record fields beyond transport/request telemetry.
 - Add failure-path tests for failed/cancelled transaction terminal states.
 
-## Phase 3 — Additional Datasets (Pending)
+## Phase 3 — Additional Datasets (In progress)
 
-- Add operational event datasets using catalog-driven endpoint definitions.
+- Add operational event datasets using catalog-driven endpoint definitions (baseline added: `audit-service-mapping`, `analytics-conversation-details`).
 - Expand test coverage for profile-to-runtime mapping and endpoint compatibility.
 
 ## External client readiness

@@ -17,6 +17,10 @@ function Get-PagingItemsFromResponse {
         $normalizedPath = '$.results'
     }
 
+    if ($normalizedPath -ceq '$') {
+        $normalizedPath = ''
+    }
+
     if ($normalizedPath.StartsWith('$.')) {
         $normalizedPath = $normalizedPath.Substring(2)
     }
@@ -115,6 +119,10 @@ function Get-PagingValueFromResponse {
         return $null
     }
 
+    if ($normalizedPath -ceq '$') {
+        return $Response
+    }
+
     if ($normalizedPath.StartsWith('$.')) {
         $normalizedPath = $normalizedPath.Substring(2)
     }
@@ -192,9 +200,29 @@ function Invoke-PagingNextUri {
         $itemsPath = [string]$EndpointSpec.itemsPath
     }
 
+    $pagingProfile = $null
+    if ($EndpointSpec.PSObject.Properties.Name -contains 'paging') {
+        $pagingProfile = $EndpointSpec.paging
+    }
+
+    $nextUriPath = '$.nextUri'
+    if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'nextUriPath' -and [string]::IsNullOrWhiteSpace([string]$pagingProfile.nextUriPath) -eq $false) {
+        $nextUriPath = [string]$pagingProfile.nextUriPath
+    }
+
+    $maxPages = 1000
+    if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'maxPages') {
+        $maxPages = [int]$pagingProfile.maxPages
+    }
+
     $maxRetries = 3
     if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'maxRetries') {
         $maxRetries = [int]$RetryProfile.maxRetries
+    }
+
+    $allowRetryOnPost = $false
+    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'allowRetryOnPost') {
+        $allowRetryOnPost = [bool]$RetryProfile.allowRetryOnPost
     }
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
@@ -205,7 +233,7 @@ function Invoke-PagingNextUri {
     $currentUri = $InitialUri
     $currentBody = $InitialBody
 
-    while ([string]::IsNullOrWhiteSpace($currentUri) -eq $false) {
+    while ([string]::IsNullOrWhiteSpace($currentUri) -eq $false -and $pageNumber -le $maxPages) {
         if ($visitedUris.Contains($currentUri)) {
             $RunEvents.Add([pscustomobject]@{
                 eventType = 'paging.terminated.duplicateUri'
@@ -224,7 +252,7 @@ function Invoke-PagingNextUri {
             Headers = $Headers
             Body = $currentBody
             MaxRetries = $maxRetries
-            AllowRetryOnPost = $false
+            AllowRetryOnPost = $allowRetryOnPost
             RunEvents = $RunEvents
         })
 
@@ -238,9 +266,9 @@ function Invoke-PagingNextUri {
             $items.Add($item) | Out-Null
         }
 
-        $nextUri = $null
-        if ($null -ne $response -and $response.PSObject.Properties.Name -contains 'nextUri') {
-            $nextUri = [string]$response.nextUri
+        $nextUri = [string](Get-PagingValueFromResponse -Response $response -Path $nextUriPath)
+        if ([string]::IsNullOrWhiteSpace($nextUri)) {
+            $nextUri = $null
         }
 
         $totalHits = Get-PagingTotalHitsFromResponse -Response $response
@@ -265,6 +293,16 @@ function Invoke-PagingNextUri {
         $currentUri = $nextUri
         $currentBody = $null
         $pageNumber++
+    }
+
+    if ([string]::IsNullOrWhiteSpace($currentUri) -eq $false -and $pageNumber -gt $maxPages) {
+        $RunEvents.Add([pscustomobject]@{
+            eventType = 'paging.terminated.maxPages'
+            profile = 'nextUri'
+            page = $pageNumber
+            maxPages = $maxPages
+            timestampUtc = [DateTime]::UtcNow.ToString('o')
+        })
     }
 
     return [pscustomobject]@{

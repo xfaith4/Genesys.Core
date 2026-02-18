@@ -23,29 +23,45 @@ function Invoke-Dataset {
         [scriptblock]$RequestInvoker
     )
 
-    $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $OutputRoot
-
     if ($WhatIfPreference) {
+        $datasetFolder = Join-Path -Path $OutputRoot -ChildPath $Dataset
         Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($CatalogPath)'."
-        Write-Host "[WhatIf] Would write outputs under '$($runContext.runFolder)' (manifest/events/summary/data)."
+        Write-Host "[WhatIf] Would write outputs under '$($datasetFolder)/<runId>' (manifest/events/summary/data)."
         return
     }
+
+    $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $OutputRoot
 
     if ($PSCmdlet.ShouldProcess($Dataset, 'Invoke dataset run') -eq $false) {
         return
     }
 
-    $catalog = Get-Content -Path $CatalogPath -Raw | ConvertFrom-Json -Depth 100
+    $rawCatalog = Get-Content -Path $CatalogPath -Raw | ConvertFrom-Json -Depth 100
+    $catalog = Resolve-CoreCatalog -Catalog $rawCatalog
 
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $CatalogPath } | Out-Null
 
     try {
+        $datasetExists = $false
+        if ($null -ne $catalog.datasets) {
+            foreach ($datasetProperty in $catalog.datasets.PSObject.Properties) {
+                if ($datasetProperty.Name -ceq $Dataset) {
+                    $datasetExists = $true
+                    break
+                }
+            }
+        }
+
+        if ($datasetExists -eq $false) {
+            throw "Unsupported dataset '$($Dataset)'."
+        }
+
         switch ($Dataset) {
             'audit-logs' {
                 Invoke-AuditLogsDataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
             }
             default {
-                throw "Unsupported dataset '$($Dataset)'."
+                Invoke-CatalogDataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
             }
         }
 

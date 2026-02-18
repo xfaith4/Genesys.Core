@@ -19,7 +19,7 @@ function Assert-Catalog {
     }
 
     $catalogRaw = Get-Content -Path $CatalogPath -Raw
-    $catalog = $catalogRaw | ConvertFrom-Json -Depth 100
+    $catalog = Resolve-CoreCatalog -Catalog ($catalogRaw | ConvertFrom-Json -Depth 100)
 
     $testJsonCommand = Get-Command -Name Test-Json -ErrorAction SilentlyContinue
     if ($null -ne $testJsonCommand) {
@@ -31,12 +31,24 @@ function Assert-Catalog {
     }
 
     foreach ($endpoint in $catalog.endpoints) {
+        if ([string]::IsNullOrWhiteSpace([string]$endpoint.method)) {
+            throw "Endpoint '$($endpoint.key)' is missing required 'method'."
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$endpoint.path)) {
+            throw "Endpoint '$($endpoint.key)' is missing required 'path'."
+        }
+
         if ([string]::IsNullOrWhiteSpace($endpoint.itemsPath)) {
             throw "Endpoint '$($endpoint.key)' is missing required 'itemsPath'."
         }
 
         if ($null -eq $endpoint.paging -or [string]::IsNullOrWhiteSpace($endpoint.paging.profile)) {
             throw "Endpoint '$($endpoint.key)' is missing required 'paging.profile'."
+        }
+
+        if ($null -eq $endpoint.retry -or [string]::IsNullOrWhiteSpace([string]$endpoint.retry.profile)) {
+            throw "Endpoint '$($endpoint.key)' is missing required 'retry.profile'."
         }
     }
 

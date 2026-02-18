@@ -13,7 +13,7 @@ Catalog-driven PowerShell core for running governed Genesys Cloud datasets with 
   - `data/*.jsonl`
 - Supports scheduled and on-demand GitHub Actions workflows for `audit-logs`.
 
-## Current supported dataset
+## Current supported datasets
 
 - `audit-logs`
   - Service mapping discovery (`GET /api/v2/audits/query/servicemapping`)
@@ -21,12 +21,16 @@ Catalog-driven PowerShell core for running governed Genesys Cloud datasets with 
     - submit (`POST /api/v2/audits/query`)
     - status polling (`GET /api/v2/audits/query/{transactionId}`)
     - results pagination (`GET /api/v2/audits/query/{transactionId}/results`)
+- `audit-service-mapping`
+  - Service mapping lookup (`GET /api/v2/audits/query/servicemapping`)
+- `analytics-conversation-details`
+  - Body-paged details query (`POST /api/v2/analytics/conversations/details/query`)
 
 ## Runtime guarantees
 
 - Deterministic 429 handling with bounded retries and jitter (`Invoke-WithRetry`).
-- Paging strategy plugins (`none`, `nextUri`, `pageNumber`) selected by catalog profile.
-- Async transaction polling for audit logs with terminal-state enforcement.
+- Paging strategy plugins (`none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`) selected by catalog profile.
+- Generalized `transactionResults` flow (submit -> poll -> fetch paged results) driven by catalog metadata.
 - Structured event telemetry (`events.jsonl`) for retries, paging, and transaction state.
 - Request logging redacts sensitive headers and token-like query parameters.
 
@@ -54,7 +58,7 @@ Invoke-Dataset -Dataset 'audit-logs' -CatalogPath './catalog/genesys-core.catalo
 
 External clients should call the module entrypoint and provide:
 
-- `-Dataset` (currently `audit-logs`)
+- `-Dataset` (`audit-logs`, `audit-service-mapping`, `analytics-conversation-details`)
 - `-CatalogPath`
 - `-OutputRoot`
 - `-BaseUri` (optional, defaults to `https://api.mypurecloud.com`)
@@ -90,6 +94,6 @@ Ready for controlled external consumption for `audit-logs` with the following co
 
 Known gaps before broader production rollout:
 
-- Additional dataset implementations beyond `audit-logs`.
+- Additional dataset implementations beyond current baseline set.
 - Full catalog/profile unification between root `genesys-core.catalog.json` and `catalog/genesys-core.catalog.json`.
 - Optional stronger payload redaction policies for dataset record fields.

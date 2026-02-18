@@ -30,6 +30,8 @@
           "description": { "type": "string" },
           "endpoint": { "type": "string", "minLength": 1 },
           "itemsPath": { "type": "string", "minLength": 1 },
+          "outputFile": { "type": "string", "minLength": 1 },
+          "requestBody": {},
           "paging": {
             "type": "object",
             "additionalProperties": false,
@@ -38,7 +40,15 @@
               "profile": {
                 "type": "string",
                 "enum": ["none", "nextUri", "pageNumber", "cursor", "bodyPaging", "transactionResults"]
-              }
+              },
+              "pageParam": { "type": "string", "minLength": 1 },
+              "pagePath": { "type": "string", "minLength": 1 },
+              "maxPages": { "type": "integer", "minimum": 1 },
+              "totalHitsPath": { "type": "string", "minLength": 1 },
+              "nextUriPath": { "type": "string", "minLength": 1 },
+              "cursorParam": { "type": "string", "minLength": 1 },
+              "cursorPath": { "type": "string", "minLength": 1 },
+              "transactionIdPath": { "type": "string", "minLength": 1 }
             }
           },
           "retry": {
@@ -49,7 +59,9 @@
               "profile": {
                 "type": "string",
                 "enum": ["standard", "rateLimitAware"]
-              }
+              },
+              "maxRetries": { "type": "integer", "minimum": 0 },
+              "allowRetryOnPost": { "type": "boolean" }
             }
           },
           "transaction": {
@@ -59,8 +71,22 @@
             "properties": {
               "profile": {
                 "type": "string",
-                "enum": ["none", "auditTransaction"]
-              }
+                "enum": ["none", "auditTransaction", "transactionResults"]
+              },
+              "statusEndpointKey": { "type": "string", "minLength": 1 },
+              "resultsEndpointKey": { "type": "string", "minLength": 1 },
+              "transactionIdPath": { "type": "string", "minLength": 1 },
+              "statePath": { "type": "string", "minLength": 1 },
+              "terminalStates": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1
+              },
+              "fulfilledState": { "type": "string", "minLength": 1 },
+              "maxPolls": { "type": "integer", "minimum": 1 },
+              "pollIntervalSeconds": { "type": "integer", "minimum": 0 },
+              "eventPrefix": { "type": "string", "minLength": 1 },
+              "routeParamName": { "type": "string", "minLength": 1 }
             }
           }
         }
@@ -105,7 +131,15 @@
               "profile": {
                 "type": "string",
                 "enum": ["none", "nextUri", "pageNumber", "cursor", "bodyPaging", "transactionResults"]
-              }
+              },
+              "pageParam": { "type": "string", "minLength": 1 },
+              "pagePath": { "type": "string", "minLength": 1 },
+              "maxPages": { "type": "integer", "minimum": 1 },
+              "totalHitsPath": { "type": "string", "minLength": 1 },
+              "nextUriPath": { "type": "string", "minLength": 1 },
+              "cursorParam": { "type": "string", "minLength": 1 },
+              "cursorPath": { "type": "string", "minLength": 1 },
+              "transactionIdPath": { "type": "string", "minLength": 1 }
             }
           },
           "retry": {
@@ -116,7 +150,9 @@
               "profile": {
                 "type": "string",
                 "enum": ["standard", "rateLimitAware"]
-              }
+              },
+              "maxRetries": { "type": "integer", "minimum": 0 },
+              "allowRetryOnPost": { "type": "boolean" }
             }
           },
           "transaction": {
@@ -126,8 +162,22 @@
             "properties": {
               "profile": {
                 "type": "string",
-                "enum": ["none", "auditTransaction"]
-              }
+                "enum": ["none", "auditTransaction", "transactionResults"]
+              },
+              "statusEndpointKey": { "type": "string", "minLength": 1 },
+              "resultsEndpointKey": { "type": "string", "minLength": 1 },
+              "transactionIdPath": { "type": "string", "minLength": 1 },
+              "statePath": { "type": "string", "minLength": 1 },
+              "terminalStates": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1
+              },
+              "fulfilledState": { "type": "string", "minLength": 1 },
+              "maxPolls": { "type": "integer", "minimum": 1 },
+              "pollIntervalSeconds": { "type": "integer", "minimum": 0 },
+              "eventPrefix": { "type": "string", "minLength": 1 },
+              "routeParamName": { "type": "string", "minLength": 1 }
             }
           }
         }

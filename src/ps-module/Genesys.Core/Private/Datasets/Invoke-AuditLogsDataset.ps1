@@ -1,54 +1,3 @@
-function Get-CatalogEndpointByKey {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [psobject]$Catalog,
-
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
-        [string]$Key
-    )
-
-    foreach ($endpoint in @($Catalog.endpoints)) {
-        if ($endpoint.key -eq $Key) {
-            return $endpoint
-        }
-    }
-
-    throw "Endpoint '$($Key)' was not found in catalog."
-}
-
-function Join-EndpointUri {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$BaseUri,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-
-        [hashtable]$RouteValues
-    )
-
-    $resolvedPath = $Path
-    if ($null -ne $RouteValues) {
-        foreach ($key in $RouteValues.Keys) {
-            $resolvedPath = $resolvedPath.Replace("{$($key)}", [string]$RouteValues[$key])
-        }
-    }
-
-    if ($resolvedPath.StartsWith('http://') -or $resolvedPath.StartsWith('https://')) {
-        return $resolvedPath
-    }
-
-    $trimmedBase = $BaseUri.TrimEnd('/')
-    if ($resolvedPath.StartsWith('/')) {
-        return "$($trimmedBase)$($resolvedPath)"
-    }
-
-    return "$($trimmedBase)/$($resolvedPath)"
-}
-
 function Invoke-AuditLogsDataset {
     [CmdletBinding()]
     param(
@@ -65,14 +14,12 @@ function Invoke-AuditLogsDataset {
         [scriptblock]$RequestInvoker
     )
 
-    $mappingEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.get.service.mapping'
-    $submitEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.submit'
-    $statusEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.status'
-    $resultsEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.results'
+    $mappingEndpoint = Resolve-EndpointSpecForExecution -Catalog $Catalog -EndpointKey 'audits.get.service.mapping'
+    $submitEndpoint = Resolve-DatasetEndpointSpec -Catalog $Catalog -DatasetKey 'audit-logs'
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
 
-    $mappingResponse = Invoke-CoreEndpoint -EndpointSpec $mappingEndpoint -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $mappingEndpoint.path) -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    $mappingResponse = Invoke-CoreEndpoint -EndpointSpec $mappingEndpoint -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $mappingEndpoint.path) -Headers $Headers -RetryProfile $mappingEndpoint.retry -RunEvents $runEvents -RequestInvoker $RequestInvoker
     $serviceMappings = @($mappingResponse.Items)
 
     $body = [ordered]@{
@@ -85,7 +32,8 @@ function Invoke-AuditLogsDataset {
         $body.serviceName = @($serviceMappings | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.PSObject.Properties.Name -contains 'serviceName') { $_.serviceName } } | Where-Object { $_ })
     }
 
-    $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    $submitEndpoint.transaction | Add-Member -MemberType NoteProperty -Name baseUri -Value $BaseUri -Force
+    $transactionResult = Invoke-CoreEndpoint -EndpointSpec $submitEndpoint -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $submitEndpoint.path) -InitialBody ($body | ConvertTo-Json -Depth 100) -Headers $Headers -RetryProfile $submitEndpoint.retry -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($transactionResult.Items)
     $sanitizedRecords = @($records | ForEach-Object { Protect-RecordData -InputObject $_ })

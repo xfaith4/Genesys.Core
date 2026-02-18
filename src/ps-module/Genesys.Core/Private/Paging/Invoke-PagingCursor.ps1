@@ -108,6 +108,11 @@ function Invoke-PagingCursor {
         $maxRetries = [int]$RetryProfile.maxRetries
     }
 
+    $allowRetryOnPost = $false
+    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'allowRetryOnPost') {
+        $allowRetryOnPost = [bool]$RetryProfile.allowRetryOnPost
+    }
+
     $telemetry = [System.Collections.Generic.List[object]]::new()
     $items = [System.Collections.Generic.List[object]]::new()
     $visitedCursors = New-Object System.Collections.Generic.HashSet[string]
@@ -122,7 +127,7 @@ function Invoke-PagingCursor {
             Headers = $Headers
             Body = $InitialBody
             MaxRetries = $maxRetries
-            AllowRetryOnPost = $false
+            AllowRetryOnPost = $allowRetryOnPost
             RunEvents = $RunEvents
         })
 
@@ -178,6 +183,16 @@ function Invoke-PagingCursor {
 
         $currentUri = $nextUri
         $pageNumber++
+    }
+
+    if ([string]::IsNullOrWhiteSpace($currentUri) -eq $false -and $pageNumber -gt $maxPages) {
+        $RunEvents.Add([pscustomobject]@{
+            eventType = 'paging.terminated.maxPages'
+            profile = 'cursor'
+            page = $pageNumber
+            maxPages = $maxPages
+            timestampUtc = [DateTime]::UtcNow.ToString('o')
+        })
     }
 
     return [pscustomobject]@{

@@ -174,4 +174,21 @@ Describe 'Paging strategies' {
         @($result.PagingTelemetry).Count | Should -Be 2
         $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
     }
+
+    It 'treats itemsPath $ as a single response item' {
+        $response = [pscustomobject]@{ id = 'one'; value = 1 }
+        $items = Get-PagingItemsFromResponse -Response $response -ItemsPath '$'
+
+        @($items).Count | Should -Be 1
+        $items[0].id | Should -Be 'one'
+    }
+
+    It 'treats itemsPath $. as a single response item' {
+        $response = [pscustomobject]@{ id = 'two'; value = 2 }
+        $items = Get-PagingItemsFromResponse -Response $response -ItemsPath '$.'
+
+        @($items).Count | Should -Be 1
+        $items[0].id | Should -Be 'two'
+    }
+
 }

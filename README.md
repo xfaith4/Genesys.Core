@@ -35,6 +35,25 @@ Catalog-driven PowerShell core for running governed Genesys Cloud datasets with 
 
 Migration helper: use `Copy-Item ./genesys-core.catalog.json ./catalog/genesys-core.catalog.json -Force` to reconcile the legacy mirror.
 
+## Swagger-driven endpoint coverage
+
+Use `scripts/Update-CatalogFromSwagger.ps1` to keep catalog endpoint coverage aligned with the Genesys Cloud swagger operations while preserving existing curated endpoint entries.
+
+- Canonical catalog file: `./genesys-core.catalog.json`
+- Legacy mirror (optional write): `./catalog/genesys-core.catalog.json`
+- Default swagger URL: `https://api.mypurecloud.com/api/v2/docs/swagger`
+- Local swagger snapshot path: `./generated/swagger/swagger.json`
+
+```powershell
+# One-command refresh from swagger + optional mirror update
+pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -WriteLegacyCopy
+
+# Use a pre-downloaded swagger file
+pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -SwaggerPath ./my/swagger.json -WriteLegacyCopy
+```
+
+If root and legacy catalogs diverge, `Resolve-Catalog` warns by default and fails in strict mode (`-StrictCatalog`).
+
 ## Quick start (local)
 
 ```powershell

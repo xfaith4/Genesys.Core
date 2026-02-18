@@ -17,6 +17,10 @@ function Get-PagingItemsFromResponse {
         $normalizedPath = '$.results'
     }
 
+    if ($normalizedPath -eq '$' -or $normalizedPath -eq '$.') {
+        return @(,$Response)
+    }
+
     if ($normalizedPath.StartsWith('$.')) {
         $normalizedPath = $normalizedPath.Substring(2)
     }

@@ -54,7 +54,7 @@ function Invoke-AuditTransaction {
     $currentState = $null
 
     for ($poll = 1; $poll -le $MaxPolls; $poll++) {
-        $statusUri = Join-EndpointUri -BaseUri $BaseUri -Path $StatusEndpointSpec.path -RouteValues @{ transactionId = $transactionId }
+        $statusUri = Join-EndpointUri -BaseUri $BaseUri -Path $StatusEndpointSpec.path -RouteValues @{ transactionId = $transactionId; jobId = $transactionId }
         $statusResult = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
             key = $StatusEndpointSpec.key
             method = $StatusEndpointSpec.method
@@ -88,7 +88,7 @@ function Invoke-AuditTransaction {
         throw "Audit transaction did not reach terminal FULFILLED state after $($MaxPolls) polls."
     }
 
-    $resultsUri = Join-EndpointUri -BaseUri $BaseUri -Path $ResultsEndpointSpec.path -RouteValues @{ transactionId = $transactionId }
+    $resultsUri = Join-EndpointUri -BaseUri $BaseUri -Path $ResultsEndpointSpec.path -RouteValues @{ transactionId = $transactionId; jobId = $transactionId }
     $resultsPagingProfile = 'nextUri'
     if ($ResultsEndpointSpec.PSObject.Properties.Name -contains 'paging' -and $ResultsEndpointSpec.paging.PSObject.Properties.Name -contains 'profile') {
         $resultsPagingProfile = [string]$ResultsEndpointSpec.paging.profile

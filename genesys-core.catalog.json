@@ -1,7 +1,44 @@
 {
   "version": "1.0.0",
   "generatedAt": "2026-02-17T07:54:49.627772Z",
-  "datasets": [],
+  "datasets": {
+    "audit-logs": {
+      "description": "Audit logs dataset using async transaction submit/poll/results flow.",
+      "endpoint": "audits.query.submit",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "transactionResults"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "auditTransaction"
+      }
+    },
+    "users": {
+      "description": "Users with presence and routing status.",
+      "endpoint": "users.get.all.users.with.presence.and.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "routing-queues": {
+      "description": "Routing queues with details.",
+      "endpoint": "routing.get.all.queues.with.details",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    }
+  },
   "profiles": {
     "retry": {
       "default": {
@@ -1081,6 +1118,26 @@
       },
       "notes": [
         "Auto-generated status endpoint for transaction 'audit_query_transaction_then_results'."
+      ]
+    },
+    "audits.query.status": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Compatibility alias for audit status endpoint."
+      ]
+    },
+    "audits.query.results": {
+      "method": "GET",
+      "path": "/api/v2/audits/query/{transactionId}/results",
+      "pagingProfile": "nextUri_auditResults",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Compatibility alias for audit results endpoint."
       ]
     }
   }

@@ -7,7 +7,7 @@
     Copyright         = '(c) Genesys.Core. All rights reserved.'
     Description       = 'Catalog-driven Genesys Core PowerShell module bootstrap.'
     PowerShellVersion = '5.1'
-    FunctionsToExport = @('Invoke-Dataset')
+    FunctionsToExport = @('Invoke-Dataset', 'Assert-Catalog')
     CmdletsToExport   = @()
     VariablesToExport = @()
     AliasesToExport   = @()

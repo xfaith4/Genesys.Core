@@ -1,2 +1,0 @@
-{"timestampUtc":"2026-02-18T20:42:21.5665440Z","datasetKey":"audit-logs","runId":"20260218T204221Z","eventType":"run.started","payload":{"catalogPath":"/home/runner/work/Genesys.Core/Genesys.Core/genesys-core.catalog.json"}}
-{"timestampUtc":"2026-02-18T20:42:21.7272700Z","datasetKey":"audit-logs","runId":"20260218T204221Z","eventType":"run.failed","payload":{"message":"Unsupported paging profile 'nextUri_auditResults' for endpoint 'audit_query_transaction_then_results.results'."}}

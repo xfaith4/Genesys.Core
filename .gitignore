@@ -1,0 +1,29 @@
+# Output directories
+out/
+out-smoke/
+
+# Generated files
+generated/
+
+# PowerShell artifacts
+*.ps1~
+*.swp
+
+# Build artifacts
+*.dll
+*.pdb
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IDE files
+.vs/
+.vscode/settings.json
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

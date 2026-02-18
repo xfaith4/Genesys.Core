@@ -24,21 +24,35 @@ function Invoke-CoreEndpoint {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
+    # Extract retry profile from EndpointSpec if not provided as parameter
+    $effectiveRetryProfile = $RetryProfile
+    if ($null -eq $effectiveRetryProfile -and $EndpointSpec.PSObject.Properties.Name -contains 'retry' -and $null -ne $EndpointSpec.retry) {
+        $effectiveRetryProfile = $EndpointSpec.retry
+    }
+
+    # Support both nested paging.profile and flat pagingProfile for backwards compatibility
     $pagingProfile = 'none'
-    if ($EndpointSpec.PSObject.Properties.Name -contains 'paging' -and $null -ne $EndpointSpec.paging) {
+    if ($EndpointSpec.PSObject.Properties.Name -contains 'pagingProfile' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.pagingProfile) -eq $false) {
+        $pagingProfile = [string]$EndpointSpec.pagingProfile
+    }
+    elseif ($EndpointSpec.PSObject.Properties.Name -contains 'paging' -and $null -ne $EndpointSpec.paging) {
         if ($EndpointSpec.paging.PSObject.Properties.Name -contains 'profile' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.paging.profile) -eq $false) {
             $pagingProfile = [string]$EndpointSpec.paging.profile
         }
     }
 
+    # Normalize paging profile: strip variant suffixes (e.g., nextUri_auditResults -> nexturi)
     $normalizedProfile = $pagingProfile.ToLowerInvariant()
+    if ($normalizedProfile -match '^(nexturi|pagenumber|bodypaging|cursor)_') {
+        $normalizedProfile = $Matches[1]
+    }
 
     switch ($normalizedProfile) {
         'nexturi' {
-            return Invoke-PagingNextUri -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            return Invoke-PagingNextUri -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'pagenumber' {
-            return Invoke-PagingPageNumber -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            return Invoke-PagingPageNumber -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'transactionresults' {
             if ($null -eq $EndpointSpec.PSObject.Properties['transaction']) {
@@ -48,10 +62,10 @@ function Invoke-CoreEndpoint {
             return Invoke-AuditTransaction -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -BaseUri $EndpointSpec.transaction.baseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'bodypaging' {
-            return Invoke-PagingBodyPaging -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            return Invoke-PagingBodyPaging -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'cursor' {
-            return Invoke-PagingCursor -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $RetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            return Invoke-PagingCursor -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'none' {
             $singleEndpointSpec = [pscustomobject]@{

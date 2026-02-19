@@ -67,6 +67,20 @@ $headers = @{ Authorization = 'Bearer <token>' }
 Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri 'https://api.mypurecloud.com' -Headers $headers
 ```
 
+### Standalone script invocation
+
+The `Invoke-Dataset.ps1` script can also be run directly without importing the module (e.g., in CI/CD workflows):
+
+```powershell
+# Direct invocation (auto-loads required module functions)
+pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
+
+# Real run
+pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset users -OutputRoot ./out
+```
+
+The script automatically loads required private module functions when invoked standalone.
+
 ## Validation and smoke checks
 
 ```powershell

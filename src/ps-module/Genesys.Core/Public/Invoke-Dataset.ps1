@@ -6,6 +6,19 @@ param(
     [switch]$StrictCatalog
 )
 
+### BEGIN: StandaloneBootstrap
+# When invoked via 'pwsh -File', module functions are not available.
+# Bootstrap by dot-sourcing required Private functions if not already loaded.
+if (-not (Get-Command -Name 'Write-RunEvent' -ErrorAction SilentlyContinue)) {
+    $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '..'
+    $privatePath = Join-Path -Path $modulePath -ChildPath 'Private'
+    
+    Get-ChildItem -Path $privatePath -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        . $_.FullName
+    }
+}
+### END: StandaloneBootstrap
+
 function Invoke-Dataset {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(

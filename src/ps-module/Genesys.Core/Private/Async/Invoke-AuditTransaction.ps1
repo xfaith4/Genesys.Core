@@ -31,79 +31,46 @@ function Invoke-AuditTransaction {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
-    $submitResult = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
-        key = $SubmitEndpointSpec.key
-        method = $SubmitEndpointSpec.method
-        itemsPath = '$'
-        paging = [pscustomobject]@{ profile = 'none' }
-    }) -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $SubmitEndpointSpec.path) -InitialBody ($SubmitBody | ConvertTo-Json -Depth 50) -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
-
-    $submitEnvelope = @($submitResult.Items) | Select-Object -First 1
-    if ($null -eq $submitEnvelope -or [string]::IsNullOrWhiteSpace([string]$submitEnvelope.transactionId)) {
-        throw 'Audit transaction submit did not return transactionId.'
+    $transactionProfile = $null
+    if ($SubmitEndpointSpec.PSObject.Properties.Name -contains 'transaction' -and $null -ne $SubmitEndpointSpec.transaction) {
+        $transactionProfile = $SubmitEndpointSpec.transaction
     }
 
-    $transactionId = [string]$submitEnvelope.transactionId
-    $RunEvents.Add([pscustomobject]@{
-        eventType = 'audit.transaction.submitted'
-        transactionId = $transactionId
-        timestampUtc = [DateTime]::UtcNow.ToString('o')
-    })
+    $resolvedMaxPolls = $MaxPolls
+    if (-not $PSBoundParameters.ContainsKey('MaxPolls') -and $null -ne $transactionProfile -and $transactionProfile.PSObject.Properties.Name -contains 'maxPolls' -and $null -ne $transactionProfile.maxPolls) {
+        $resolvedMaxPolls = [int]$transactionProfile.maxPolls
+    }
 
-    $terminalStates = @('FULFILLED', 'FAILED', 'CANCELLED')
-    $currentState = $null
+    $resolvedPollIntervalSeconds = $PollIntervalSeconds
+    if (-not $PSBoundParameters.ContainsKey('PollIntervalSeconds') -and $null -ne $transactionProfile -and $transactionProfile.PSObject.Properties.Name -contains 'pollIntervalSeconds' -and $null -ne $transactionProfile.pollIntervalSeconds) {
+        $resolvedPollIntervalSeconds = [int]$transactionProfile.pollIntervalSeconds
+    }
 
-    for ($poll = 1; $poll -le $MaxPolls; $poll++) {
-        $statusUri = Join-EndpointUri -BaseUri $BaseUri -Path $StatusEndpointSpec.path -RouteValues @{ transactionId = $transactionId; jobId = $transactionId }
-        $statusResult = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
-            key = $StatusEndpointSpec.key
-            method = $StatusEndpointSpec.method
-            itemsPath = '$'
-            paging = [pscustomobject]@{ profile = 'none' }
-        }) -InitialUri $statusUri -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+    $asyncProfile = [ordered]@{
+        transactionIdPath = '$.transactionId'
+        statePath = '$.state'
+        terminalStates = @('FULFILLED', 'FAILED', 'CANCELLED')
+        successStates = @('FULFILLED')
+        statusRouteValues = @{ transactionId = '{jobId}'; jobId = '{jobId}' }
+        resultsRouteValues = @{ transactionId = '{jobId}'; jobId = '{jobId}' }
+        submittedEventType = 'audit.transaction.submitted'
+        pollEventType = 'audit.transaction.poll'
+        jobLabel = 'Audit transaction'
+        maxPolls = $resolvedMaxPolls
+        pollIntervalSeconds = $resolvedPollIntervalSeconds
+    }
 
-        $statusEnvelope = @($statusResult.Items) | Select-Object -First 1
-        $currentState = [string]$statusEnvelope.state
-
-        $RunEvents.Add([pscustomobject]@{
-            eventType = 'audit.transaction.poll'
-            transactionId = $transactionId
-            pollCount = $poll
-            state = $currentState
-            timestampUtc = [DateTime]::UtcNow.ToString('o')
-        })
-
-        if ($terminalStates -contains $currentState) {
-            break
+    if ($null -ne $transactionProfile) {
+        foreach ($property in $transactionProfile.PSObject.Properties) {
+            $asyncProfile[$property.Name] = $property.Value
         }
-
-        & $SleepAction $PollIntervalSeconds
     }
 
-    if ($terminalStates -contains $currentState -and $currentState -ne 'FULFILLED') {
-        throw "Audit transaction ended in state '$($currentState)'."
-    }
-
-    if ($currentState -ne 'FULFILLED') {
-        throw "Audit transaction did not reach terminal FULFILLED state after $($MaxPolls) polls."
-    }
-
-    $resultsUri = Join-EndpointUri -BaseUri $BaseUri -Path $ResultsEndpointSpec.path -RouteValues @{ transactionId = $transactionId; jobId = $transactionId }
-    $resultsPagingProfile = 'nextUri'
-    if ($ResultsEndpointSpec.PSObject.Properties.Name -contains 'paging' -and $ResultsEndpointSpec.paging.PSObject.Properties.Name -contains 'profile') {
-        $resultsPagingProfile = [string]$ResultsEndpointSpec.paging.profile
-    }
-
-    $results = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
-        key = $ResultsEndpointSpec.key
-        method = $ResultsEndpointSpec.method
-        itemsPath = $ResultsEndpointSpec.itemsPath
-        paging = [pscustomobject]@{ profile = $resultsPagingProfile }
-    }) -InitialUri $resultsUri -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+    $result = Invoke-AsyncJob -SubmitEndpointSpec $SubmitEndpointSpec -StatusEndpointSpec $StatusEndpointSpec -ResultsEndpointSpec $ResultsEndpointSpec -AsyncProfile ([pscustomobject]$asyncProfile) -BaseUri $BaseUri -Headers $Headers -SubmitBody $SubmitBody -MaxPolls $resolvedMaxPolls -PollIntervalSeconds $resolvedPollIntervalSeconds -RunEvents $RunEvents -SleepAction $SleepAction -RequestInvoker $RequestInvoker
 
     return [pscustomobject]@{
-        TransactionId = $transactionId
-        Items = @($results.Items)
+        TransactionId = $result.JobId
+        Items = @($result.Items)
         RunEvents = $RunEvents
     }
 }

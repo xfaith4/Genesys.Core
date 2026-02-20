@@ -14,6 +14,7 @@ function Resolve-DatasetEndpointSpec {
 
     $dataset = $Catalog.datasets[$DatasetKey]
     $endpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key $dataset.endpoint
+    $endpoint = Resolve-EndpointSpecProfiles -Catalog $Catalog -EndpointSpec $endpoint -DatasetSpec $dataset
 
     return [pscustomobject]@{
         Dataset = $dataset
@@ -90,8 +91,9 @@ function Invoke-SimpleCollectionDataset {
         method = $endpoint.method
         path = $endpoint.path
         itemsPath = $dataset.itemsPath
-        paging = $dataset.paging
-        retry = $dataset.retry
+        paging = $endpoint.paging
+        retry = $endpoint.retry
+        transaction = $endpoint.transaction
     }) -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $endpoint.path) -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($response.Items | ForEach-Object { & $Normalizer $_ })

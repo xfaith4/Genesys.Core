@@ -60,7 +60,22 @@ function Invoke-GcRequest {
         [ValidateRange(0, 100)]
         [int]$MaxRetries = 3,
 
+        [ValidateRange(0, 600)]
+        [double]$BaseDelaySeconds = 1,
+
+        [ValidateRange(0, 3600)]
+        [double]$MaxDelaySeconds = 60,
+
+        [ValidateRange(0, 30)]
+        [double]$JitterSeconds = 0.25,
+
         [switch]$AllowRetryOnPost,
+
+        [int[]]$RetryOnStatusCodes = @(429),
+
+        [string[]]$RetryOnMethods = @('GET', 'HEAD', 'OPTIONS'),
+
+        [int]$RandomSeed = 17,
 
         [System.Collections.Generic.List[object]]$RunEvents
     )
@@ -108,6 +123,6 @@ function Invoke-GcRequest {
         Invoke-RestMethod @invokeParams
     }.GetNewClosure()
 
-    Invoke-WithRetry -Operation $operation -Method $Method -MaxRetries $MaxRetries -AllowRetryOnPost:$AllowRetryOnPost -RunEvents $RunEvents
+    Invoke-WithRetry -Operation $operation -Method $Method -MaxRetries $MaxRetries -BaseDelaySeconds $BaseDelaySeconds -MaxDelaySeconds $MaxDelaySeconds -JitterSeconds $JitterSeconds -AllowRetryOnPost:$AllowRetryOnPost -RetryOnStatusCodes $RetryOnStatusCodes -RetryOnMethods $RetryOnMethods -RandomSeed $RandomSeed -RunEvents $RunEvents
 }
 ### END: InvokeGcRequest

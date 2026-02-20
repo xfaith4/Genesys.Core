@@ -11,6 +11,8 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
   - Module runtime scaffold with dataset dispatcher (`Invoke-Dataset`).
   - Retry engine with 429 handling (`Retry-After` and message parsing).
   - Paging strategy plugins for `none`, `nextUri`, and `pageNumber`.
+  - Catalog profile resolution that maps named paging/retry/transaction profiles to concrete runtime settings.
+  - Generic async job engine (`Submit-AsyncJob`, `Get-AsyncJobStatus`, `Get-AsyncJobResults`, `Invoke-AsyncJob`) with audit transactions on top.
   - Async audit transaction submit/poll/results flow.
   - Deterministic run output contract (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`).
   - CI + scheduled/on-demand audit workflow artifacts scoped to run folder.
@@ -40,7 +42,7 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 ### Remaining
 
 - Add additional paging strategies declared in the long-form catalog (`cursor`, `bodyPaging`, `transactionResults` generalized profile mapping).
-- Broaden retry profile wiring from catalog profile names to runtime parameters.
+- Expand profile-driven runtime coverage across additional datasets/endpoints beyond current shipped dataset set.
 
 ## Phase 2 — Audit Logs Dataset (Complete for baseline)
 
@@ -51,7 +53,6 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 ### Remaining hardening
 
 - Expand data-level redaction for record fields beyond transport/request telemetry.
-- Add failure-path tests for failed/cancelled transaction terminal states.
 
 ## Phase 3 — Additional Datasets (Pending)
 

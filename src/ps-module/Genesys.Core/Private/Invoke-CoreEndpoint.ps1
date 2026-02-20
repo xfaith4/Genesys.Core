@@ -43,6 +43,12 @@ function Invoke-CoreEndpoint {
 
     # Normalize paging profile: strip variant suffixes (e.g., nextUri_auditResults -> nexturi)
     $normalizedProfile = $pagingProfile.ToLowerInvariant()
+    if ($normalizedProfile -notin @('nexturi', 'pagenumber', 'transactionresults', 'bodypaging', 'cursor', 'none') -and $EndpointSpec.PSObject.Properties.Name -contains 'paging' -and $null -ne $EndpointSpec.paging) {
+        if ($EndpointSpec.paging.PSObject.Properties.Name -contains 'type' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.paging.type) -eq $false) {
+            $normalizedProfile = ([string]$EndpointSpec.paging.type).ToLowerInvariant()
+        }
+    }
+
     if ($normalizedProfile -match '^(nexturi|pagenumber|bodypaging|cursor)_') {
         $normalizedProfile = $Matches[1]
     }
@@ -59,7 +65,16 @@ function Invoke-CoreEndpoint {
                 throw "transactionResults paging requires EndpointSpec.transaction metadata."
             }
 
-            return Invoke-AuditTransaction -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -BaseUri $EndpointSpec.transaction.baseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+            $transactionBaseUri = $null
+            if ($EndpointSpec.transaction.PSObject.Properties.Name -contains 'baseUri' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.transaction.baseUri) -eq $false) {
+                $transactionBaseUri = [string]$EndpointSpec.transaction.baseUri
+            }
+            else {
+                $initialUriObject = [Uri]$InitialUri
+                $transactionBaseUri = "$($initialUriObject.Scheme)://$($initialUriObject.Authority)"
+            }
+
+            return Invoke-AsyncJob -SubmitEndpointSpec $EndpointSpec.transaction.submit -StatusEndpointSpec $EndpointSpec.transaction.status -ResultsEndpointSpec $EndpointSpec.transaction.results -AsyncProfile $EndpointSpec.transaction -BaseUri $transactionBaseUri -Headers $Headers -SubmitBody $InitialBody -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'bodypaging' {
             return Invoke-PagingBodyPaging -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
@@ -68,29 +83,18 @@ function Invoke-CoreEndpoint {
             return Invoke-PagingCursor -EndpointSpec $EndpointSpec -InitialUri $InitialUri -InitialBody $InitialBody -Headers $Headers -RetryProfile $effectiveRetryProfile -RunEvents $RunEvents -RequestInvoker $RequestInvoker
         }
         'none' {
+            $retrySettings = Resolve-RetryRuntimeSettings -RetryProfile $effectiveRetryProfile
             $singleEndpointSpec = [pscustomobject]@{
                 method = $EndpointSpec.method
                 itemsPath = $EndpointSpec.itemsPath
             }
 
-            $request = {
-                param($Request)
-                if ($null -ne $RequestInvoker) {
-                    return & $RequestInvoker $Request
-                }
-
-                return Invoke-GcRequest -Uri $Request.Uri -Method $Request.Method -Headers $Request.Headers -Body $Request.Body -MaxRetries $Request.MaxRetries -AllowRetryOnPost:$Request.AllowRetryOnPost -RunEvents $Request.RunEvents
-            }
-
-            $responseEnvelope = & $request ([pscustomobject]@{
+            $responseEnvelope = Invoke-RequestWithRetry -Request ([pscustomobject]@{
                 Uri = $InitialUri
                 Method = $EndpointSpec.method
                 Headers = $Headers
                 Body = $InitialBody
-                MaxRetries = 3
-                AllowRetryOnPost = $false
-                RunEvents = $RunEvents
-            })
+            }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
             $response = $responseEnvelope
             if ($null -ne $responseEnvelope -and $responseEnvelope.PSObject.Properties.Name -contains 'Result') {

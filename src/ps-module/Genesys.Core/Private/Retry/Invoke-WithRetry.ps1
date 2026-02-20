@@ -81,11 +81,17 @@ function Invoke-WithRetry {
 
         [switch]$AllowRetryOnPost,
 
+        [int[]]$RetryOnStatusCodes = @(429),
+
+        [string[]]$RetryOnMethods = @('GET', 'HEAD', 'OPTIONS'),
+
         [scriptblock]$SleepAction = { param([double]$Seconds) Start-Sleep -Seconds $Seconds },
 
         [System.Collections.Generic.List[object]]$RunEvents,
 
-        [int]$RandomSeed = 17
+        [int]$RandomSeed = 17,
+
+        [scriptblock]$JitterCalculator
     )
 
     if ($null -eq $RunEvents) {
@@ -93,7 +99,42 @@ function Invoke-WithRetry {
     }
 
     $normalizedMethod = $Method.ToUpperInvariant()
-    $retryableMethod = $normalizedMethod -eq 'GET' -or $normalizedMethod -eq 'HEAD' -or $normalizedMethod -eq 'OPTIONS' -or ($normalizedMethod -eq 'POST' -and $AllowRetryOnPost)
+    $allowedMethods = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($retryMethod in @($RetryOnMethods)) {
+        if ([string]::IsNullOrWhiteSpace([string]$retryMethod)) {
+            continue
+        }
+
+        $allowedMethods.Add(([string]$retryMethod).ToUpperInvariant()) | Out-Null
+    }
+
+    if ($allowedMethods.Count -eq 0) {
+        $allowedMethods.Add('GET') | Out-Null
+        $allowedMethods.Add('HEAD') | Out-Null
+        $allowedMethods.Add('OPTIONS') | Out-Null
+    }
+
+    if ($AllowRetryOnPost) {
+        $allowedMethods.Add('POST') | Out-Null
+    }
+    else {
+        $allowedMethods.Remove('POST') | Out-Null
+    }
+
+    $retryableStatuses = New-Object 'System.Collections.Generic.HashSet[int]'
+    foreach ($status in @($RetryOnStatusCodes)) {
+        if ($null -eq $status) {
+            continue
+        }
+
+        $retryableStatuses.Add([int]$status) | Out-Null
+    }
+
+    if ($retryableStatuses.Count -eq 0) {
+        $retryableStatuses.Add(429) | Out-Null
+    }
+
+    $retryableMethod = $allowedMethods.Contains($normalizedMethod)
     $attempt = 0
     $random = [System.Random]::new($RandomSeed)
 
@@ -118,7 +159,7 @@ function Invoke-WithRetry {
             $exception = $_.Exception
             $statusCode = Get-GcHttpStatusCode -Exception $exception
             $message = [string]$exception.Message
-            $isRetryableStatus = $statusCode -eq 429
+            $isRetryableStatus = $null -ne $statusCode -and $retryableStatuses.Contains([int]$statusCode)
             $isRetryableError = $retryableMethod -and $isRetryableStatus
             $maxAttempts = $MaxRetries + 1
 
@@ -143,7 +184,17 @@ function Invoke-WithRetry {
 
             $jitterOffset = 0
             if ($JitterSeconds -gt 0) {
-                $jitterOffset = ($random.NextDouble() * 2 - 1) * $JitterSeconds
+                if ($null -ne $JitterCalculator) {
+                    $jitterOffset = [double](& $JitterCalculator ([pscustomobject]@{
+                        attempt = $attempt
+                        backoff = $backoff
+                        jitterSeconds = $JitterSeconds
+                        random = $random
+                    }))
+                }
+                else {
+                    $jitterOffset = ($random.NextDouble() * 2 - 1) * $JitterSeconds
+                }
             }
 
             $delaySeconds = [Math]::Max(0, [Math]::Round($backoff + $jitterOffset, 3))

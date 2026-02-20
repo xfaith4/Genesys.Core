@@ -24,14 +24,6 @@ function Invoke-PagingBodyPaging {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
-    if ($null -eq $RequestInvoker) {
-        $RequestInvoker = {
-            param($Request)
-
-            Invoke-GcRequest -Uri $Request.Uri -Method $Request.Method -Headers $Request.Headers -Body $Request.Body -MaxRetries $Request.MaxRetries -AllowRetryOnPost:$Request.AllowRetryOnPost -RunEvents $Request.RunEvents
-        }
-    }
-
     $method = 'POST'
     if ($EndpointSpec.PSObject.Properties.Name -contains 'method' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.method) -eq $false) {
         $method = [string]$EndpointSpec.method
@@ -62,10 +54,7 @@ function Invoke-PagingBodyPaging {
         $totalHitsPath = [string]$pagingProfile.totalHitsPath
     }
 
-    $maxRetries = 3
-    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'maxRetries') {
-        $maxRetries = [int]$RetryProfile.maxRetries
-    }
+    $retrySettings = Resolve-RetryRuntimeSettings -RetryProfile $RetryProfile
 
     $baseBodyObject = @{}
     if ($null -ne $InitialBody -and [string]::IsNullOrWhiteSpace([string]$InitialBody) -eq $false) {
@@ -87,15 +76,12 @@ function Invoke-PagingBodyPaging {
         $requestBody[$pageParam] = $pageNumber
         $requestBodyJson = $requestBody | ConvertTo-Json -Depth 100
 
-        $responseEnvelope = & $RequestInvoker ([pscustomobject]@{
+        $responseEnvelope = Invoke-RequestWithRetry -Request ([pscustomobject]@{
             Uri = $InitialUri
             Method = $method
             Headers = $Headers
             Body = $requestBodyJson
-            MaxRetries = $maxRetries
-            AllowRetryOnPost = $false
-            RunEvents = $RunEvents
-        })
+        }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
         if ($null -ne $responseEnvelope -and $responseEnvelope.PSObject.Properties.Name -contains 'Result') {

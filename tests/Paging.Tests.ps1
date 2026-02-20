@@ -1,5 +1,8 @@
 Describe 'Paging strategies' {
     BeforeAll {
+        . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
+        . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1"
+        . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1"
         . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1"
         . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1"
         . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1"
@@ -189,6 +192,24 @@ Describe 'Paging strategies' {
 
         @($items).Count | Should -Be 1
         $items[0].id | Should -Be 'two'
+    }
+
+    It 'uses explicit RetryProfile parameter over EndpointSpec.retry' {
+        $captured = [System.Collections.Generic.List[int]]::new()
+
+        $null = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key = 'users.list'
+            method = 'GET'
+            itemsPath = '$.results'
+            paging = [pscustomobject]@{ profile = 'none' }
+            retry = [pscustomobject]@{ maxRetries = 9 }
+        }) -InitialUri 'https://example.test/api/v2/users' -RetryProfile ([pscustomobject]@{ maxRetries = 1; baseDelaySeconds = 0; maxDelaySeconds = 0; jitterSeconds = 0 }) -RequestInvoker {
+            param($request)
+            $captured.Add([int]$request.MaxRetries) | Out-Null
+            return [pscustomobject]@{ Result = [pscustomobject]@{ results = @() } }
+        }
+
+        ($captured | Select-Object -First 1) | Should -Be 1
     }
 
 }

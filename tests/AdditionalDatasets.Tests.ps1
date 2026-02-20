@@ -13,8 +13,10 @@ Describe 'Additional dataset implementations' {
 
     It 'runs users dataset with nextUri paging and normalized output' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-users'
+        $script:userMaxRetries = [System.Collections.Generic.List[int]]::new()
         $requestInvoker = {
             param($request)
+            $script:userMaxRetries.Add([int]$request.MaxRetries) | Out-Null
             if ($request.Uri -eq 'https://api.test.local/api/v2/users') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
@@ -43,12 +45,16 @@ Describe 'Additional dataset implementations' {
 
         $events = Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json }
         (@($events | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -Be 2
+        ($script:userMaxRetries | Select-Object -Unique).Count | Should -Be 1
+        ($script:userMaxRetries | Select-Object -First 1) | Should -Be 4
     }
 
     It 'runs routing-queues dataset and normalizes records' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-queues'
+        $script:queueMaxRetries = [System.Collections.Generic.List[int]]::new()
         $requestInvoker = {
             param($request)
+            $script:queueMaxRetries.Add([int]$request.MaxRetries) | Out-Null
             if ($request.Uri -eq 'https://api.test.local/api/v2/routing/queues') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
@@ -66,5 +72,7 @@ Describe 'Additional dataset implementations' {
         $records.Count | Should -Be 1
         $records[0].recordType | Should -Be 'routingQueue'
         $records[0].divisionId | Should -Be 'd1'
+        ($script:queueMaxRetries | Select-Object -Unique).Count | Should -Be 1
+        ($script:queueMaxRetries | Select-Object -First 1) | Should -Be 4
     }
 }

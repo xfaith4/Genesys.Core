@@ -56,7 +56,40 @@ Describe 'Run output contract' {
     It 'local stub run writes contract files' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
         Import-Module "$PSScriptRoot/../src/ps-module/Genesys.Core/Genesys.Core.psd1" -Force
-        Invoke-Dataset -Dataset 'audit-logs' -OutputRoot $outputRoot | Out-Null
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../genesys-core.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-contract' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-contract') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-contract/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    results = @(
+                        [pscustomobject]@{ id = '1'; serviceName = 'routing'; action = 'create' }
+                    )
+                    nextUri = $null
+                    totalHits = 1
+                } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
 
         $datasetFolder = Join-Path -Path $outputRoot -ChildPath 'audit-logs'
         Test-Path -Path $datasetFolder | Should -BeTrue

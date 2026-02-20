@@ -6,47 +6,18 @@ function Get-CatalogEndpointByKey {
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$Key
+        [string]$Key,
+
+        [psobject]$DatasetSpec
     )
 
     foreach ($endpoint in @($Catalog.endpoints)) {
         if ($endpoint.key -eq $Key) {
-            return $endpoint
+            return Resolve-EndpointSpecProfiles -Catalog $Catalog -EndpointSpec $endpoint -DatasetSpec $DatasetSpec
         }
     }
 
     throw "Endpoint '$($Key)' was not found in catalog."
-}
-
-function Join-EndpointUri {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$BaseUri,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-
-        [hashtable]$RouteValues
-    )
-
-    $resolvedPath = $Path
-    if ($null -ne $RouteValues) {
-        foreach ($key in $RouteValues.Keys) {
-            $resolvedPath = $resolvedPath.Replace("{$($key)}", [string]$RouteValues[$key])
-        }
-    }
-
-    if ($resolvedPath.StartsWith('http://') -or $resolvedPath.StartsWith('https://')) {
-        return $resolvedPath
-    }
-
-    $trimmedBase = $BaseUri.TrimEnd('/')
-    if ($resolvedPath.StartsWith('/')) {
-        return "$($trimmedBase)$($resolvedPath)"
-    }
-
-    return "$($trimmedBase)/$($resolvedPath)"
 }
 
 function Resolve-AuditTransactionEndpoints {
@@ -58,6 +29,13 @@ function Resolve-AuditTransactionEndpoints {
         [Parameter(Mandatory = $true)]
         [psobject]$SubmitEndpoint
     )
+
+    if ($null -ne $SubmitEndpoint.transaction -and [string]::IsNullOrWhiteSpace([string]$SubmitEndpoint.transaction.statusEndpointRef) -eq $false -and [string]::IsNullOrWhiteSpace([string]$SubmitEndpoint.transaction.resultsEndpointRef) -eq $false) {
+        return [pscustomobject]@{
+            status = Get-CatalogEndpointByKey -Catalog $Catalog -Key ([string]$SubmitEndpoint.transaction.statusEndpointRef)
+            results = Get-CatalogEndpointByKey -Catalog $Catalog -Key ([string]$SubmitEndpoint.transaction.resultsEndpointRef)
+        }
+    }
 
     if ($null -ne $SubmitEndpoint.transaction -and [string]::IsNullOrWhiteSpace([string]$SubmitEndpoint.transaction.profile) -eq $false) {
         $profileName = [string]$SubmitEndpoint.transaction.profile
@@ -91,8 +69,9 @@ function Invoke-AuditLogsDataset {
         [scriptblock]$RequestInvoker
     )
 
+    $datasetSpec = $Catalog.datasets['audit-logs']
     $mappingEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.get.service.mapping'
-    $submitEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.submit'
+    $submitEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.submit' -DatasetSpec $datasetSpec
     $transactionEndpoints = Resolve-AuditTransactionEndpoints -Catalog $Catalog -SubmitEndpoint $submitEndpoint
     $statusEndpoint = $transactionEndpoints.status
     $resultsEndpoint = $transactionEndpoints.results

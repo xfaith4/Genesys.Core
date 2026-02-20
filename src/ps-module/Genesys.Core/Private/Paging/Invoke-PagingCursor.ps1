@@ -65,14 +65,6 @@ function Invoke-PagingCursor {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
-    if ($null -eq $RequestInvoker) {
-        $RequestInvoker = {
-            param($Request)
-
-            Invoke-GcRequest -Uri $Request.Uri -Method $Request.Method -Headers $Request.Headers -Body $Request.Body -MaxRetries $Request.MaxRetries -AllowRetryOnPost:$Request.AllowRetryOnPost -RunEvents $Request.RunEvents
-        }
-    }
-
     $method = 'GET'
     if ($EndpointSpec.PSObject.Properties.Name -contains 'method' -and [string]::IsNullOrWhiteSpace([string]$EndpointSpec.method) -eq $false) {
         $method = [string]$EndpointSpec.method
@@ -103,10 +95,7 @@ function Invoke-PagingCursor {
         $maxPages = [int]$pagingProfile.maxPages
     }
 
-    $maxRetries = 3
-    if ($null -ne $RetryProfile -and $RetryProfile.PSObject.Properties.Name -contains 'maxRetries') {
-        $maxRetries = [int]$RetryProfile.maxRetries
-    }
+    $retrySettings = Resolve-RetryRuntimeSettings -RetryProfile $RetryProfile
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
     $items = [System.Collections.Generic.List[object]]::new()
@@ -116,15 +105,12 @@ function Invoke-PagingCursor {
     $pageNumber = 1
 
     while ([string]::IsNullOrWhiteSpace($currentUri) -eq $false -and $pageNumber -le $maxPages) {
-        $responseEnvelope = & $RequestInvoker ([pscustomobject]@{
+        $responseEnvelope = Invoke-RequestWithRetry -Request ([pscustomobject]@{
             Uri = $currentUri
             Method = $method
             Headers = $Headers
             Body = $InitialBody
-            MaxRetries = $maxRetries
-            AllowRetryOnPost = $false
-            RunEvents = $RunEvents
-        })
+        }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
         if ($null -ne $responseEnvelope -and $responseEnvelope.PSObject.Properties.Name -contains 'Result') {

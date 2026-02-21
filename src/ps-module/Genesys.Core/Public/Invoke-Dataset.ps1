@@ -59,6 +59,10 @@ function Invoke-Dataset {
         return
     }
 
+    if (-not $PSBoundParameters.ContainsKey('Headers') -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_BEARER_TOKEN)) {
+        $Headers = @{ Authorization = "Bearer $($env:GENESYS_BEARER_TOKEN)" }
+    }
+
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
     try {

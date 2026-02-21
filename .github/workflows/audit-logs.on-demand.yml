@@ -42,6 +42,7 @@ jobs:
           INPUT_START: ${{ inputs.start }}
           INPUT_END: ${{ inputs.end }}
           INPUT_SUMMARY_ONLY: ${{ inputs.summaryOnly }}
+          GENESYS_BEARER_TOKEN: ${{ secrets.GENESYS_BEARER_TOKEN }}
         run: |
           $start = $env:INPUT_START
           $end = $env:INPUT_END

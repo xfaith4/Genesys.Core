@@ -21,6 +21,8 @@ jobs:
       - name: Run audit-logs dataset (previous-day window)
         id: run
         shell: pwsh
+        env:
+          GENESYS_BEARER_TOKEN: ${{ secrets.GENESYS_BEARER_TOKEN }}
         run: |
           $start = [DateTime]::UtcNow.Date.AddDays(-1).ToString('yyyy-MM-ddT00:00:00Z')
           $end = [DateTime]::UtcNow.Date.ToString('yyyy-MM-ddT00:00:00Z')

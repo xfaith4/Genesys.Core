@@ -423,13 +423,46 @@ $dryRunButton.Add_Click({
     $outputDir = [string]$outputDirTextBox.Text
 
     Write-Log "========================================"
-    Write-Log "Dry run (WhatIf) for $($datasets.Count) dataset(s)..."
+    Write-Log "Dry run for $($datasets.Count) dataset(s)..."
     Write-Log "Planned output root: $outputDir"
-    
-    foreach ($dataset in $datasets) {
-        Write-Log "Would execute: $dataset"
-        Invoke-Dataset -Dataset $dataset -OutputRoot $outputDir -WhatIf *>&1 | ForEach-Object {
+
+    $mockScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'scripts/Invoke-MockRun.ps1'
+    $mockSupportedDatasets = @(
+        'audit-logs'
+        'analytics-conversation-details'
+        'analytics-conversation-details-query'
+        'users'
+        'routing-queues'
+    )
+
+    $mockDatasets = @($datasets | Where-Object { $mockSupportedDatasets -contains $_ })
+    $whatIfDatasets = @($datasets | Where-Object { $mockSupportedDatasets -notcontains $_ })
+
+    if ((Test-Path -Path $mockScriptPath) -and $mockDatasets.Count -gt 0) {
+        Write-Log "Running mock dry-run datasets with scripts/Invoke-MockRun.ps1..."
+        $mockOutput = & pwsh -NoProfile -File $mockScriptPath -OutputRoot $outputDir -Datasets $mockDatasets -NoReport *>&1
+        $mockExitCode = $LASTEXITCODE
+        @($mockOutput) | ForEach-Object {
             Write-Log "  $_"
+        }
+
+        if ($mockExitCode -ne 0) {
+            Write-Log "Mock dry-run script exited with code $mockExitCode. Falling back to WhatIf for those datasets." "Red"
+            $whatIfDatasets = @($whatIfDatasets + $mockDatasets)
+        }
+    }
+    elseif ($mockDatasets.Count -gt 0) {
+        Write-Log "Mock script not found at '$mockScriptPath'. Falling back to WhatIf for mock-supported datasets." "Red"
+        $whatIfDatasets = @($whatIfDatasets + $mockDatasets)
+    }
+
+    if ($whatIfDatasets.Count -gt 0) {
+        Write-Log "Running WhatIf for datasets without mock coverage..."
+        foreach ($dataset in $whatIfDatasets) {
+            Write-Log "Would execute: $dataset"
+            Invoke-Dataset -Dataset $dataset -OutputRoot $outputDir -WhatIf *>&1 | ForEach-Object {
+                Write-Log "  $_"
+            }
         }
     }
     

@@ -23,9 +23,15 @@
 .PARAMETER OutputRoot
     Destination folder for run artifacts. Defaults to 'out-mock' in the repo root.
 
+.PARAMETER Datasets
+    Optional dataset keys to run. Defaults to all datasets with built-in mock invokers.
+
 .PARAMETER NoRedact
     When set, PII fields are written to output files without redaction. Useful for
     inspecting the full data shape during design. Omit for the default safe output.
+
+.PARAMETER NoReport
+    When set, skip the detailed artifact report section and print only run status.
 
 .EXAMPLE
     pwsh -NoProfile -File ./scripts/Invoke-MockRun.ps1
@@ -35,7 +41,9 @@
 [CmdletBinding()]
 param(
     [string]$OutputRoot = 'out-mock',
-    [switch]$NoRedact
+    [string[]]$Datasets,
+    [switch]$NoRedact,
+    [switch]$NoReport
 )
 
 $ErrorActionPreference = 'Stop'
@@ -711,75 +719,11 @@ $analyticsQueryRequestInvoker = {
 }
 
 # ---------------------------------------------------------------------------
-# Run all datasets
+# Run datasets
 # ---------------------------------------------------------------------------
 $catalogPath = Join-Path -Path $repoRoot -ChildPath 'genesys-core.catalog.json'
 $baseUri     = 'https://api.mock.local'
-
-Write-Host ''
-Write-Host '  Genesys.Core — Mock Run' -ForegroundColor White
-Write-Host '  ========================' -ForegroundColor DarkGray
-Write-Host "  Output root : $OutputRoot" -ForegroundColor DarkGray
-Write-Host "  Catalog     : $catalogPath" -ForegroundColor DarkGray
-if ($NoRedact) {
-    Write-Host '  Mode        : NO REDACTION (PII fields visible)' -ForegroundColor Yellow
-}
-
-# --- audit-logs ---
-Write-Section 'audit-logs  (async transaction -> nextUri results paging)'
-$script:auditPolled = $false
-Invoke-Dataset -Dataset 'audit-logs' `
-    -CatalogPath $catalogPath `
-    -OutputRoot $OutputRoot `
-    -BaseUri $baseUri `
-    -RequestInvoker $auditRequestInvoker `
-    -NoRedact:$NoRedact | Out-Null
-
-# --- analytics-conversation-details ---
-Write-Section 'analytics-conversation-details  (async job -> cursor results paging)'
-$script:analyticsPolled = $false
-Invoke-Dataset -Dataset 'analytics-conversation-details' `
-    -CatalogPath $catalogPath `
-    -OutputRoot $OutputRoot `
-    -BaseUri $baseUri `
-    -RequestInvoker $analyticsRequestInvoker `
-    -NoRedact:$NoRedact | Out-Null
-
-# --- users ---
-Write-Section 'users  (GET collection -> nextUri paging, normalized records)'
-Invoke-Dataset -Dataset 'users' `
-    -CatalogPath $catalogPath `
-    -OutputRoot $OutputRoot `
-    -BaseUri $baseUri `
-    -RequestInvoker $usersRequestInvoker `
-    -NoRedact:$NoRedact | Out-Null
-
-# --- routing-queues ---
-Write-Section 'routing-queues  (GET collection -> nextUri paging, normalized records)'
-Invoke-Dataset -Dataset 'routing-queues' `
-    -CatalogPath $catalogPath `
-    -OutputRoot $OutputRoot `
-    -BaseUri $baseUri `
-    -RequestInvoker $queuesRequestInvoker `
-    -NoRedact:$NoRedact | Out-Null
-
-# --- analytics-conversation-details-query ---
-Write-Section 'analytics-conversation-details-query  (POST -> body paging)'
-Invoke-Dataset -Dataset 'analytics-conversation-details-query' `
-    -CatalogPath $catalogPath `
-    -OutputRoot $OutputRoot `
-    -BaseUri $baseUri `
-    -RequestInvoker $analyticsQueryRequestInvoker `
-    -NoRedact:$NoRedact | Out-Null
-
-# ---------------------------------------------------------------------------
-# Report — locate run folders and show file layout + previews
-# ---------------------------------------------------------------------------
-Write-Host ''
-Write-Host '  Output artifacts' -ForegroundColor White
-Write-Host '  =================' -ForegroundColor DarkGray
-
-$reportDatasets = @(
+$availableMockDatasets = @(
     'audit-logs'
     'analytics-conversation-details'
     'users'
@@ -787,74 +731,173 @@ $reportDatasets = @(
     'analytics-conversation-details-query'
 )
 
-foreach ($datasetKey in $reportDatasets) {
-    Write-Section $datasetKey
+if ($PSBoundParameters.ContainsKey('Datasets') -and $null -ne $Datasets) {
+    $selectedDatasets = @(
+        @($Datasets) |
+            ForEach-Object { [string]$_ } |
+            Where-Object { [string]::IsNullOrWhiteSpace([string]$_) -eq $false } |
+            Select-Object -Unique
+    )
+}
+else {
+    $selectedDatasets = @($availableMockDatasets)
+}
 
-    $datasetDir = Join-Path -Path $OutputRoot -ChildPath $datasetKey
-    $runFolder  = Get-ChildItem -Path $datasetDir -Directory |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
+$unsupportedDatasets = @($selectedDatasets | Where-Object { $availableMockDatasets -notcontains $_ })
+if ($unsupportedDatasets.Count -gt 0) {
+    throw "Unsupported mock dataset(s): $([string]::Join(', ', $unsupportedDatasets)). Supported values: $([string]::Join(', ', $availableMockDatasets))."
+}
 
-    if (-not $runFolder) {
-        Write-Warn "No run folder found under $datasetDir"
-        continue
-    }
+if ($selectedDatasets.Count -eq 0) {
+    throw "No datasets selected for mock run."
+}
 
-    Write-Info "Run folder: $($runFolder.FullName)"
+Write-Host ''
+Write-Host '  Genesys.Core — Mock Run' -ForegroundColor White
+Write-Host '  ========================' -ForegroundColor DarkGray
+Write-Host "  Output root : $OutputRoot" -ForegroundColor DarkGray
+Write-Host "  Catalog     : $catalogPath" -ForegroundColor DarkGray
+Write-Host "  Datasets    : $([string]::Join(', ', $selectedDatasets))" -ForegroundColor DarkGray
+if ($NoRedact) {
+    Write-Host '  Mode        : NO REDACTION (PII fields visible)' -ForegroundColor Yellow
+}
 
-    # File inventory
-    foreach ($file in @('manifest.json', 'summary.json', 'events.jsonl')) {
-        $filePath = Join-Path -Path $runFolder.FullName -ChildPath $file
-        if (Test-Path -Path $filePath) {
-            $sizeKb = [Math]::Round((Get-Item -Path $filePath).Length / 1KB, 1)
-            Write-Ok "$file  (${sizeKb} KB)"
-        } else {
-            Write-Warn "$file  MISSING"
+foreach ($dataset in $selectedDatasets) {
+    switch ($dataset) {
+        'audit-logs' {
+            Write-Section 'audit-logs  (async transaction -> nextUri results paging)'
+            $script:auditPolled = $false
+            Invoke-Dataset -Dataset 'audit-logs' `
+                -CatalogPath $catalogPath `
+                -OutputRoot $OutputRoot `
+                -BaseUri $baseUri `
+                -RequestInvoker $auditRequestInvoker `
+                -NoRedact:$NoRedact | Out-Null
+            continue
+        }
+        'analytics-conversation-details' {
+            Write-Section 'analytics-conversation-details  (async job -> cursor results paging)'
+            $script:analyticsPolled = $false
+            Invoke-Dataset -Dataset 'analytics-conversation-details' `
+                -CatalogPath $catalogPath `
+                -OutputRoot $OutputRoot `
+                -BaseUri $baseUri `
+                -RequestInvoker $analyticsRequestInvoker `
+                -NoRedact:$NoRedact | Out-Null
+            continue
+        }
+        'users' {
+            Write-Section 'users  (GET collection -> nextUri paging, normalized records)'
+            Invoke-Dataset -Dataset 'users' `
+                -CatalogPath $catalogPath `
+                -OutputRoot $OutputRoot `
+                -BaseUri $baseUri `
+                -RequestInvoker $usersRequestInvoker `
+                -NoRedact:$NoRedact | Out-Null
+            continue
+        }
+        'routing-queues' {
+            Write-Section 'routing-queues  (GET collection -> nextUri paging, normalized records)'
+            Invoke-Dataset -Dataset 'routing-queues' `
+                -CatalogPath $catalogPath `
+                -OutputRoot $OutputRoot `
+                -BaseUri $baseUri `
+                -RequestInvoker $queuesRequestInvoker `
+                -NoRedact:$NoRedact | Out-Null
+            continue
+        }
+        'analytics-conversation-details-query' {
+            Write-Section 'analytics-conversation-details-query  (POST -> body paging)'
+            Invoke-Dataset -Dataset 'analytics-conversation-details-query' `
+                -CatalogPath $catalogPath `
+                -OutputRoot $OutputRoot `
+                -BaseUri $baseUri `
+                -RequestInvoker $analyticsQueryRequestInvoker `
+                -NoRedact:$NoRedact | Out-Null
+            continue
         }
     }
+}
 
-    $dataFolder = Join-Path -Path $runFolder.FullName -ChildPath 'data'
-    foreach ($dataFile in (Get-ChildItem -Path $dataFolder -Filter '*.jsonl' -ErrorAction SilentlyContinue)) {
-        $lines  = @(Get-Content -Path $dataFile.FullName)
-        $sizeKb = [Math]::Round($dataFile.Length / 1KB, 1)
-        Write-Ok "data/$($dataFile.Name)  ($($lines.Count) records, ${sizeKb} KB)"
-    }
+# ---------------------------------------------------------------------------
+# Report — locate run folders and show file layout + previews
+# ---------------------------------------------------------------------------
+if (-not $NoReport) {
+    Write-Host ''
+    Write-Host '  Output artifacts' -ForegroundColor White
+    Write-Host '  =================' -ForegroundColor DarkGray
 
-    # summary.json preview
-    $summaryPath = Join-Path -Path $runFolder.FullName -ChildPath 'summary.json'
-    if (Test-Path -Path $summaryPath) {
-        Write-Host ''
-        Write-Host '    summary.json:' -ForegroundColor DarkCyan
-        Get-Content -Path $summaryPath | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
-    }
+    $reportDatasets = @($selectedDatasets)
 
-    # Event type breakdown
-    $eventsPath = Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl'
-    if (Test-Path -Path $eventsPath) {
-        $events  = @(Get-Content -Path $eventsPath | ForEach-Object { $_ | ConvertFrom-Json })
-        $grouped = $events | Group-Object -Property eventType | Sort-Object Count -Descending
-        Write-Host ''
-        Write-Host '    Event types recorded:' -ForegroundColor DarkCyan
-        foreach ($g in $grouped) {
-            Write-Host ("      {0,-38} x {1}" -f $g.Name, $g.Count) -ForegroundColor DarkGray
+    foreach ($datasetKey in $reportDatasets) {
+        Write-Section $datasetKey
+
+        $datasetDir = Join-Path -Path $OutputRoot -ChildPath $datasetKey
+        $runFolder  = Get-ChildItem -Path $datasetDir -Directory |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+
+        if (-not $runFolder) {
+            Write-Warn "No run folder found under $datasetDir"
+            continue
         }
-    }
 
-    # Redaction spot-check on first data record
-    $dataFile = Get-ChildItem -Path $dataFolder -Filter '*.jsonl' -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-    if ($dataFile) {
-        $firstRecord = Get-Content -Path $dataFile.FullName | Select-Object -First 1 | ConvertFrom-Json
-        if ($firstRecord) {
-            $redactedFields = $firstRecord.PSObject.Properties |
-                Where-Object { $_.Value -is [string] -and $_.Value -eq '[REDACTED]' } |
-                ForEach-Object { $_.Name }
+        Write-Info "Run folder: $($runFolder.FullName)"
 
-            if ($redactedFields.Count -gt 0) {
-                Write-Host ''
-                Write-Host '    Redacted top-level fields in first record:' -ForegroundColor DarkCyan
-                foreach ($f in $redactedFields) {
-                    Write-Host "      $f = [REDACTED]" -ForegroundColor DarkGray
+        # File inventory
+        foreach ($file in @('manifest.json', 'summary.json', 'events.jsonl')) {
+            $filePath = Join-Path -Path $runFolder.FullName -ChildPath $file
+            if (Test-Path -Path $filePath) {
+                $sizeKb = [Math]::Round((Get-Item -Path $filePath).Length / 1KB, 1)
+                Write-Ok "$file  (${sizeKb} KB)"
+            } else {
+                Write-Warn "$file  MISSING"
+            }
+        }
+
+        $dataFolder = Join-Path -Path $runFolder.FullName -ChildPath 'data'
+        foreach ($dataFile in (Get-ChildItem -Path $dataFolder -Filter '*.jsonl' -ErrorAction SilentlyContinue)) {
+            $lines  = @(Get-Content -Path $dataFile.FullName)
+            $sizeKb = [Math]::Round($dataFile.Length / 1KB, 1)
+            Write-Ok "data/$($dataFile.Name)  ($($lines.Count) records, ${sizeKb} KB)"
+        }
+
+        # summary.json preview
+        $summaryPath = Join-Path -Path $runFolder.FullName -ChildPath 'summary.json'
+        if (Test-Path -Path $summaryPath) {
+            Write-Host ''
+            Write-Host '    summary.json:' -ForegroundColor DarkCyan
+            Get-Content -Path $summaryPath | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
+        }
+
+        # Event type breakdown
+        $eventsPath = Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl'
+        if (Test-Path -Path $eventsPath) {
+            $events  = @(Get-Content -Path $eventsPath | ForEach-Object { $_ | ConvertFrom-Json })
+            $grouped = $events | Group-Object -Property eventType | Sort-Object Count -Descending
+            Write-Host ''
+            Write-Host '    Event types recorded:' -ForegroundColor DarkCyan
+            foreach ($g in $grouped) {
+                Write-Host ("      {0,-38} x {1}" -f $g.Name, $g.Count) -ForegroundColor DarkGray
+            }
+        }
+
+        # Redaction spot-check on first data record
+        $dataFile = Get-ChildItem -Path $dataFolder -Filter '*.jsonl' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($dataFile) {
+            $firstRecord = Get-Content -Path $dataFile.FullName | Select-Object -First 1 | ConvertFrom-Json
+            if ($firstRecord) {
+                $redactedFields = $firstRecord.PSObject.Properties |
+                    Where-Object { $_.Value -is [string] -and $_.Value -eq '[REDACTED]' } |
+                    ForEach-Object { $_.Name }
+
+                if ($redactedFields.Count -gt 0) {
+                    Write-Host ''
+                    Write-Host '    Redacted top-level fields in first record:' -ForegroundColor DarkCyan
+                    foreach ($f in $redactedFields) {
+                        Write-Host "      $f = [REDACTED]" -ForegroundColor DarkGray
+                    }
                 }
             }
         }

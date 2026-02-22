@@ -20,6 +20,24 @@ if (-not (Get-Command -Name 'Write-RunEvent' -ErrorAction SilentlyContinue)) {
 }
 ### END: StandaloneBootstrap
 
+function Resolve-OutputRootPath {
+    [CmdletBinding()]
+    param(
+        [string]$OutputRoot = 'out'
+    )
+
+    $effectiveOutputRoot = [string]$OutputRoot
+    if ([string]::IsNullOrWhiteSpace($effectiveOutputRoot)) {
+        $effectiveOutputRoot = 'out'
+    }
+
+    if ([System.IO.Path]::IsPathRooted($effectiveOutputRoot)) {
+        return [System.IO.Path]::GetFullPath($effectiveOutputRoot)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location).Path -ChildPath $effectiveOutputRoot))
+}
+
 function Invoke-Dataset {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -50,17 +68,35 @@ function Invoke-Dataset {
     }
 
     $catalog = $catalogResolution.catalogObject
-    $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $OutputRoot
+    $resolvedOutputRoot = Resolve-OutputRootPath -OutputRoot $OutputRoot
 
     if ($WhatIfPreference) {
+        $plannedRunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+        $plannedRunFolder = Join-Path -Path $resolvedOutputRoot -ChildPath (Join-Path -Path $Dataset -ChildPath $plannedRunId)
+        $plannedDataFolder = Join-Path -Path $plannedRunFolder -ChildPath 'data'
+        $plannedContext = [pscustomobject]@{
+            datasetKey = $Dataset
+            runId = $plannedRunId
+            outputRoot = $resolvedOutputRoot
+            runFolder = $plannedRunFolder
+            dataFolder = $plannedDataFolder
+            manifestPath = (Join-Path -Path $plannedRunFolder -ChildPath 'manifest.json')
+            eventsPath = (Join-Path -Path $plannedRunFolder -ChildPath 'events.jsonl')
+            summaryPath = (Join-Path -Path $plannedRunFolder -ChildPath 'summary.json')
+        }
+
         Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($catalogResolution.pathUsed)'."
-        Write-Host "[WhatIf] Would write outputs under '$($runContext.runFolder)' (manifest/events/summary/data)."
-        return
+        Write-Host "[WhatIf] Planned output root: '$($resolvedOutputRoot)'."
+        Write-Host "[WhatIf] Would write outputs under '$($plannedContext.runFolder)' (manifest/events/summary/data)."
+        Write-Host "[WhatIf] No files or directories were created."
+        return $plannedContext
     }
 
     if ($PSCmdlet.ShouldProcess($Dataset, 'Invoke dataset run') -eq $false) {
         return
     }
+
+    $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $resolvedOutputRoot
 
     if (-not $PSBoundParameters.ContainsKey('Headers') -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_BEARER_TOKEN)) {
         $Headers = @{ Authorization = "Bearer $($env:GENESYS_BEARER_TOKEN)" }

@@ -29,11 +29,15 @@ exit ([int](-not $allPresent))
         $LASTEXITCODE | Should -Be 0 -Because "All required functions should be available after dot-sourcing the script"
     }
 
-    It 'creates output directory structure when run in WhatIf mode' {
+    It 'reports planned output path and does not create directories when run in WhatIf mode' {
         $output = & pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -OutputRoot $script:testOutputRoot -WhatIf 2>&1
         $LASTEXITCODE | Should -Be 0
-        ($output | Out-String) | Should -Match 'WhatIf'
-        ($output | Out-String) | Should -Match 'manifest/events/summary/data'
+        $outputStr = $output | Out-String
+        $outputStr | Should -Match 'WhatIf'
+        $outputStr | Should -Match 'manifest/events/summary/data'
+        $outputStr | Should -Match 'No files or directories were created'
+        $outputStr | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:testOutputRoot)))
+        Test-Path -Path $script:testOutputRoot | Should -BeFalse
     }
 
     It 'does not throw function not found errors when invoked with pwsh -File' {

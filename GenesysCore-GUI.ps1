@@ -419,13 +419,16 @@ $dryRunButton.Add_Click({
         [System.Windows.MessageBox]::Show('Please select at least one dataset.', 'Validation Error', 'OK', 'Warning')
         return
     }
-    
+
+    $outputDir = [string]$outputDirTextBox.Text
+
     Write-Log "========================================"
     Write-Log "Dry run (WhatIf) for $($datasets.Count) dataset(s)..."
+    Write-Log "Planned output root: $outputDir"
     
     foreach ($dataset in $datasets) {
         Write-Log "Would execute: $dataset"
-        Invoke-Dataset -Dataset $dataset -WhatIf *>&1 | ForEach-Object {
+        Invoke-Dataset -Dataset $dataset -OutputRoot $outputDir -WhatIf *>&1 | ForEach-Object {
             Write-Log "  $_"
         }
     }

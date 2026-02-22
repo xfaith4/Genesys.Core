@@ -11,8 +11,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PowerShell
-        uses: actions/setup-powershell@v2
+      - name: Verify PowerShell
+        run: pwsh -Command '$PSVersionTable'
 
       - name: Install Pester
         shell: pwsh

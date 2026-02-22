@@ -57,7 +57,7 @@ Detailed onboarding is documented in [docs/ONBOARDING.md](docs/ONBOARDING.md). T
 ```powershell
 Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
 
-$region = 'mypurecloud.com'
+$region = 'usw2.pure.cloud'
 $baseUri = "https://api.$region"
 $authUrl = "https://login.$region/oauth/token"
 
@@ -70,7 +70,10 @@ $authResponse = Invoke-RestMethod -Uri $authUrl -Method POST -Body @{
     client_secret = $clientSecret
 } -ContentType 'application/x-www-form-urlencoded'
 
-$headers = @{ Authorization = "Bearer $($authResponse.access_token)" }
+$headers = @{
+    "Authorization" = "Bearer $($authResponse.access_token)"
+    "Content-Type"  = "application/json"
+}
 
 Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
 ```

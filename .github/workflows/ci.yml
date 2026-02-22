@@ -17,12 +17,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
-          if (-not (Get-Module -ListAvailable -Name PSResourceGet)) {
-            Install-Module -Name PSResourceGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
-          }
+          # Ensure PowerShellGet is available and modern enough
+          Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
 
-          Import-Module PSResourceGet -Force
-          Install-PSResource -Name Pester -Scope CurrentUser -TrustRepository -Reinstall
+          # Install Pester
+          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
 
           Import-Module Pester -Force
           Get-Module Pester | Format-List Name,Version,Path

@@ -11,30 +11,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show PowerShell info
+      - name: Install Pester (no NuGet provider)
         shell: pwsh
         run: |
-          $PSVersionTable
-          Get-Command pwsh | Format-List *
-
-      - name: Install Pester (robust)
-        shell: pwsh
-        run: |
-          Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
-
-          # Trust PSGallery to avoid prompts
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
-          # Prefer PSResourceGet (modern). If missing, install it using PowerShellGet.
           if (-not (Get-Module -ListAvailable -Name PSResourceGet)) {
-            # PowerShellGet is commonly present; this avoids the NuGet provider path.
             Install-Module -Name PSResourceGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
           }
 
           Import-Module PSResourceGet -Force
-
-          # Install Pester v5+ deterministically
           Install-PSResource -Name Pester -Scope CurrentUser -TrustRepository -Reinstall
 
           Import-Module Pester -Force

@@ -46,4 +46,62 @@ exit ([int](-not $allPresent))
         $outputStr | Should -Not -Match 'Invoke-RegisteredDataset.*is not recognized'
         $outputStr | Should -Not -Match 'Write-Manifest.*is not recognized'
     }
+
+    It 'passes Authorization header from GENESYS_BEARER_TOKEN env var when set' {
+        $script = @'
+. ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1
+
+$script:capturedHeaders = $null
+$requestInvoker = {
+    param($request)
+    $script:capturedHeaders = $request.Headers
+    throw 'stop-after-capture'
+}
+
+$env:GENESYS_BEARER_TOKEN = 'test-token-value'
+try {
+    Invoke-Dataset -Dataset 'audit-logs' -BaseUri 'https://api.test.local' -OutputRoot ([System.IO.Path]::GetTempPath()) -RequestInvoker $requestInvoker
+} catch {}
+
+if ($null -eq $script:capturedHeaders -or $script:capturedHeaders['Authorization'] -ne 'Bearer test-token-value') {
+    Write-Host "Authorization header not set correctly: $($script:capturedHeaders['Authorization'])"
+    exit 1
+}
+exit 0
+'@
+        $output = & pwsh -NoProfile -Command $script 2>&1
+        $LASTEXITCODE | Should -Be 0 -Because "Authorization header should be set from GENESYS_BEARER_TOKEN env var"
+    }
+
+    It 'does not set Authorization header when GENESYS_BEARER_TOKEN env var is absent' {
+        $script = @'
+. ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1
+
+$script:capturedHeaders = $null
+$requestInvoker = {
+    param($request)
+    $script:capturedHeaders = $request.Headers
+    throw 'stop-after-capture'
+}
+
+$env:GENESYS_BEARER_TOKEN = ''
+try {
+    Invoke-Dataset -Dataset 'audit-logs' -BaseUri 'https://api.test.local' -OutputRoot ([System.IO.Path]::GetTempPath()) -RequestInvoker $requestInvoker
+} catch {}
+
+if ($null -ne $script:capturedHeaders -and $script:capturedHeaders['Authorization']) {
+    Write-Host "Authorization header unexpectedly set: $($script:capturedHeaders['Authorization'])"
+    exit 1
+}
+exit 0
+'@
+        $savedToken = $env:GENESYS_BEARER_TOKEN
+        $env:GENESYS_BEARER_TOKEN = ''
+        try {
+            $output = & pwsh -NoProfile -Command $script 2>&1
+        } finally {
+            $env:GENESYS_BEARER_TOKEN = $savedToken
+        }
+        $LASTEXITCODE | Should -Be 0 -Because "Authorization header should not be set when GENESYS_BEARER_TOKEN is absent"
+    }
 }

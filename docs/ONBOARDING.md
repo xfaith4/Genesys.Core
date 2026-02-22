@@ -51,7 +51,7 @@ Assert-Catalog -SchemaPath ./catalog/schema/genesys-core.catalog.schema.json
 ## 5. Acquire OAuth token (client credentials)
 
 ```powershell
-$region = 'mypurecloud.com'
+$region = 'usw2.pure.cloud'
 $authUrl = "https://login.$region/oauth/token"
 $baseUri = "https://api.$region"
 

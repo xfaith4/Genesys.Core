@@ -302,10 +302,47 @@ $authButton.Add_Click({
 $browseButton.Add_Click({
     $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
     $folderBrowser.Description = "Select output directory"
-    $folderBrowser.SelectedPath = $outputDirTextBox.Text
-    
-    if ($folderBrowser.ShowDialog() -eq 'OK') {
-        $outputDirTextBox.Text = $folderBrowser.SelectedPath
+    $folderBrowser.ShowNewFolderButton = $true
+
+    $rawPath = [string]$outputDirTextBox.Text
+    $initialPath = $null
+
+    if ([string]::IsNullOrWhiteSpace($rawPath) -eq $false) {
+        try {
+            if ([System.IO.Path]::IsPathRooted($rawPath)) {
+                $candidatePath = [System.IO.Path]::GetFullPath($rawPath)
+            }
+            else {
+                $candidatePath = [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location) -ChildPath $rawPath))
+            }
+
+            if (Test-Path -Path $candidatePath -PathType Container) {
+                $initialPath = $candidatePath
+            }
+        }
+        catch {
+            Write-Log "Browse path '$($rawPath)' is invalid. Falling back to current directory." "Red"
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$initialPath)) {
+        $initialPath = (Get-Location).Path
+    }
+
+    $folderBrowser.SelectedPath = $initialPath
+
+    try {
+        $dialogResult = $folderBrowser.ShowDialog()
+        if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK -and [string]::IsNullOrWhiteSpace([string]$folderBrowser.SelectedPath) -eq $false) {
+            $outputDirTextBox.Text = $folderBrowser.SelectedPath
+        }
+    }
+    catch {
+        Write-Log "Unable to open folder picker: $($_.Exception.Message)" "Red"
+        [System.Windows.MessageBox]::Show("Unable to open folder picker: $($_.Exception.Message)", 'Browse Error', 'OK', 'Error') | Out-Null
+    }
+    finally {
+        $folderBrowser.Dispose()
     }
 })
 

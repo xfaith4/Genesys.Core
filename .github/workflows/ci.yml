@@ -11,20 +11,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PowerShell (pwsh) is already available on ubuntu-latest runners. :contentReference[oaicite:1]{index=1}
-      - name: Show PowerShell version
+      - name: Show PowerShell info
         shell: pwsh
         run: |
           $PSVersionTable
+          Get-Command pwsh | Format-List *
 
-      - name: Install Pester
+      - name: Install Pester (robust)
         shell: pwsh
         run: |
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-PackageProvider -Name NuGet -Force -Scope CurrentUser | Out-Null
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
 
-          # Install a modern Pester (v5+) deterministically
-          Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck
+          # Trust PSGallery to avoid prompts
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+          # Prefer PSResourceGet (modern). If missing, install it using PowerShellGet.
+          if (-not (Get-Module -ListAvailable -Name PSResourceGet)) {
+            # PowerShellGet is commonly present; this avoids the NuGet provider path.
+            Install-Module -Name PSResourceGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
+          }
+
+          Import-Module PSResourceGet -Force
+
+          # Install Pester v5+ deterministically
+          Install-PSResource -Name Pester -Scope CurrentUser -TrustRepository -Reinstall
 
           Import-Module Pester -Force
           Get-Module Pester | Format-List Name,Version,Path
@@ -32,5 +43,6 @@ jobs:
       - name: Run Pester
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $config = . ./tests/PesterConfiguration.ps1
           Invoke-Pester -Configuration $config

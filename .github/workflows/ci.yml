@@ -11,15 +11,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify PowerShell
-        run: pwsh -Command '$PSVersionTable'
+      # PowerShell (pwsh) is already available on ubuntu-latest runners. :contentReference[oaicite:1]{index=1}
+      - name: Show PowerShell version
+        shell: pwsh
+        run: |
+          $PSVersionTable
 
       - name: Install Pester
         shell: pwsh
         run: |
-          if (-not (Get-Module -ListAvailable -Name Pester)) {
-            Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
-          }
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-PackageProvider -Name NuGet -Force -Scope CurrentUser | Out-Null
+
+          # Install a modern Pester (v5+) deterministically
+          Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck
+
+          Import-Module Pester -Force
+          Get-Module Pester | Format-List Name,Version,Path
 
       - name: Run Pester
         shell: pwsh

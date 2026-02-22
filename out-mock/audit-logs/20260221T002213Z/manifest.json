@@ -1,0 +1,11 @@
+{
+  "datasetKey": "audit-logs",
+  "runId": "20260221T002213Z",
+  "startedAtUtc": "2026-02-21T00:22:13.9083775Z",
+  "endedAtUtc": "2026-02-21T00:22:16.4929488Z",
+  "gitSha": null,
+  "counts": {
+    "itemCount": 6
+  },
+  "warnings": []
+}

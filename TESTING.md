@@ -4,6 +4,7 @@ This document provides comprehensive instructions for testing the Genesys.Core P
 
 ## Table of Contents
 - [Quick Start](#quick-start)
+- [End-user Onboarding](#end-user-onboarding)
 - [Local Development Testing](#local-development-testing)
 - [Production Environment Testing](#production-environment-testing)
 - [Test Suite Overview](#test-suite-overview)
@@ -29,6 +30,17 @@ Invoke-Pester -Configuration $config
 # Quick validation without real API calls
 pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
 ```
+
+## End-user Onboarding
+
+For an end-to-end onboarding flow (auth setup, dataset discovery, first run, output validation), see:
+
+- [docs/ONBOARDING.md](docs/ONBOARDING.md)
+
+Current behavior to be aware of:
+
+- Authenticated live calls should use module invocation (`Import-Module` + `Invoke-Dataset -Headers ...`).
+- Direct script invocation (`pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1`) currently does not expose script-level `-Headers` and `-BaseUri`.
 
 ## Local Development Testing
 
@@ -67,7 +79,7 @@ Invoke-Pester -Path ./tests/Retry.Tests.ps1
    - Exponential backoff with jitter
    - POST retry behavior (disabled by default)
 
-5. **Dataset Execution** (`AuditLogs.Dataset.Tests.ps1`, `AdditionalDatasets.Tests.ps1`)
+5. **Dataset Execution** (`AuditLogs.Dataset.Tests.ps1`, `AnalyticsConversationDetails.Dataset.Tests.ps1`, `AdditionalDatasets.Tests.ps1`)
    - Async transaction flow (submit → poll → results)
    - Data normalization
    - Output file generation
@@ -247,6 +259,8 @@ The repository includes example workflows in `.github/workflows/`:
 - `audit-logs.scheduled.yml` - Scheduled dataset execution
 - `audit-logs.on-demand.yml` - Manual workflow dispatch
 
+Current workflow scope is `audit-logs` only.
+
 ### Environment Variables
 ```yaml
 env:
@@ -255,13 +269,15 @@ env:
   GENESYS_REGION: 'mypurecloud.com'
 ```
 
+Note: this repository does not yet include a built-in workflow auth bootstrap step that injects `Authorization` headers into `Invoke-Dataset`. You should adapt workflow steps for your environment before production use.
+
 ### Artifact Upload
 ```yaml
 - name: Upload run artifacts
-  uses: actions/upload-artifact@v3
+  uses: actions/upload-artifact@v4
   with:
     name: audit-logs-${{ env.RUN_ID }}
-    path: out/audit-logs/**/*
+    path: out/audit-logs/${{ env.RUN_ID }}/
     retention-days: 7
 ```
 

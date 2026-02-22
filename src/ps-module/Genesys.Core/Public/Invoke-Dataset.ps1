@@ -3,7 +3,8 @@ param(
     [string]$Dataset,
     [string]$CatalogPath,
     [string]$OutputRoot = 'out',
-    [switch]$StrictCatalog
+    [switch]$StrictCatalog,
+    [switch]$NoRedact
 )
 
 ### BEGIN: StandaloneBootstrap
@@ -12,7 +13,7 @@ param(
 if (-not (Get-Command -Name 'Write-RunEvent' -ErrorAction SilentlyContinue)) {
     $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '..'
     $privatePath = Join-Path -Path $modulePath -ChildPath 'Private'
-    
+
     Get-ChildItem -Path $privatePath -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
         . $_.FullName
     }
@@ -36,7 +37,9 @@ function Invoke-Dataset {
 
         [scriptblock]$RequestInvoker,
 
-        [switch]$StrictCatalog
+        [switch]$StrictCatalog,
+
+        [switch]$NoRedact
     )
 
     $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\schema\genesys-core.catalog.schema.json'
@@ -62,7 +65,7 @@ function Invoke-Dataset {
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
     try {
-        Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker | Out-Null
+        Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -NoRedact:$NoRedact | Out-Null
         return $runContext
     }
     catch {
@@ -73,5 +76,5 @@ function Invoke-Dataset {
 }
 
 if ($PSBoundParameters.ContainsKey('Dataset')) {
-    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -StrictCatalog:$StrictCatalog -WhatIf:$WhatIfPreference
+    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -StrictCatalog:$StrictCatalog -NoRedact:$NoRedact -WhatIf:$WhatIfPreference
 }

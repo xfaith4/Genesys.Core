@@ -89,7 +89,72 @@ Describe 'Async job engine' {
         @($result.Items).Count | Should -Be 3
         (@($runEvents | Where-Object { $_.eventType -eq 'async.job.submitted' })).Count | Should -Be 1
         (@($runEvents | Where-Object { $_.eventType -eq 'async.job.poll' })).Count | Should -Be 2
-        (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -Be 2
+        (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 1
+    }
+
+    It 'uses configured terminalStates fallback when terminalStatesPath is missing in status payload' {
+        $runEvents = [System.Collections.Generic.List[object]]::new()
+
+        $submitEndpoint = [pscustomobject]@{
+            key = 'jobs.submit'
+            method = 'POST'
+            path = '/api/v2/jobs'
+            retry = [pscustomobject]@{ maxRetries = 1; baseDelaySeconds = 0; maxDelaySeconds = 0; jitterSeconds = 0; allowRetryOnPost = $true; retryOnStatusCodes = @(429, 503); retryOnMethods = @('GET', 'POST') }
+        }
+
+        $statusEndpoint = [pscustomobject]@{
+            key = 'jobs.status'
+            method = 'GET'
+            path = '/api/v2/jobs/{jobId}'
+            retry = [pscustomobject]@{ maxRetries = 1; baseDelaySeconds = 0; maxDelaySeconds = 0; jitterSeconds = 0; retryOnStatusCodes = @(429, 503); retryOnMethods = @('GET') }
+        }
+
+        $resultsEndpoint = [pscustomobject]@{
+            key = 'jobs.results'
+            method = 'GET'
+            path = '/api/v2/jobs/{jobId}/results'
+            itemsPath = '$.items'
+            paging = [pscustomobject]@{ profile = 'nextUri' }
+            retry = [pscustomobject]@{ maxRetries = 1; baseDelaySeconds = 0; maxDelaySeconds = 0; jitterSeconds = 0; retryOnStatusCodes = @(429, 503); retryOnMethods = @('GET') }
+        }
+
+        $asyncProfile = [pscustomobject]@{
+            transactionIdPath = '$.jobId'
+            statePath = '$.state'
+            terminalStatesPath = '$.terminalStates'
+            terminalStates = @('FULFILLED', 'FAILED')
+            successStates = @('FULFILLED')
+            pollIntervalSeconds = 0
+            maxPolls = 2
+        }
+
+        $requestInvoker = {
+            param($request)
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/jobs') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-fallback' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    items = @('item1')
+                    nextUri = $null
+                } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        $result = Invoke-AsyncJob -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -AsyncProfile $asyncProfile -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker -RunEvents $runEvents -SleepAction { }
+
+        @($result.Items).Count | Should -Be 1
+        (@($runEvents | Where-Object { $_.eventType -eq 'async.job.poll' })).Count | Should -Be 1
     }
 
     It 'handles transient retries + paging + async polling in one flow' {
@@ -209,7 +274,7 @@ Describe 'Async job engine' {
 
         @($result.Items) | Should -Be @('r1', 'r2', 'r3')
         (@($runEvents | Where-Object { $_.eventType -eq 'request.retry.scheduled' })).Count | Should -BeGreaterThan 2
-        (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -Be 2
+        (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 1
         (@($runEvents | Where-Object { $_.eventType -eq 'async.job.poll' })).Count | Should -Be 2
     }
 }

@@ -225,9 +225,13 @@ function Get-AsyncJobStatus {
     }
 
     if ([string]::IsNullOrWhiteSpace([string]$terminalStatesPath) -eq $false) {
-        $dynamicTerminalStates = @(Get-AsyncValueFromResponse -Response $statusEnvelope -Path $terminalStatesPath)
+        $dynamicTerminalStates = @(
+            Get-AsyncValueFromResponse -Response $statusEnvelope -Path $terminalStatesPath |
+                ForEach-Object { [string]$_ } |
+                Where-Object { [string]::IsNullOrWhiteSpace([string]$_) -eq $false }
+        )
         if ($dynamicTerminalStates.Count -gt 0) {
-            $terminalStates = @($dynamicTerminalStates | ForEach-Object { [string]$_ } | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) -eq $false })
+            $terminalStates = @($dynamicTerminalStates)
         }
     }
 

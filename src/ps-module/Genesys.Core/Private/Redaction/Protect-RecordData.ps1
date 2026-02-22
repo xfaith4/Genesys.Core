@@ -68,7 +68,7 @@ function Protect-RecordData {
             $sanitizedItems += ,(Protect-RecordData -InputObject $item)
         }
 
-        return $sanitizedItems
+        return ,$sanitizedItems
     }
 
     return $InputObject

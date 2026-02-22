@@ -66,7 +66,9 @@ function Invoke-AuditLogsDataset {
 
         [hashtable]$Headers,
 
-        [scriptblock]$RequestInvoker
+        [scriptblock]$RequestInvoker,
+
+        [switch]$NoRedact
     )
 
     $datasetSpec = $Catalog.datasets['audit-logs']
@@ -94,7 +96,11 @@ function Invoke-AuditLogsDataset {
     $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($transactionResult.Items)
-    $sanitizedRecords = @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+    $sanitizedRecords = if ($NoRedact) {
+        $records
+    } else {
+        @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+    }
 
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'audit.jsonl'
     foreach ($record in $sanitizedRecords) {

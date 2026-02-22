@@ -25,8 +25,10 @@ function Invoke-RoutingQueuesDataset {
 
         [hashtable]$Headers,
 
-        [scriptblock]$RequestInvoker
+        [scriptblock]$RequestInvoker,
+
+        [switch]$NoRedact
     )
 
-    Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey 'routing-queues' -DataFileName 'routing-queues.jsonl' -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -Normalizer ${function:ConvertTo-NormalizedQueueRecord}
+    Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey 'routing-queues' -DataFileName 'routing-queues.jsonl' -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -Normalizer ${function:ConvertTo-NormalizedQueueRecord} -NoRedact:$NoRedact
 }

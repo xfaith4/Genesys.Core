@@ -34,6 +34,9 @@ function ConvertTo-CanonicalCatalog {
                 method = $value.method
                 path = $value.path
                 itemsPath = $value.itemsPath
+                defaultQueryParams = $value.defaultQueryParams
+                defaultBody = $value.defaultBody
+                notes = $value.notes
                 paging = [pscustomobject]@{ profile = $(if ($null -ne $value.paging -and $value.paging.PSObject.Properties.Name -contains 'profile') { $value.paging.profile } else { $value.pagingProfile }) }
                 retry = [pscustomobject]@{ profile = $(if ($null -ne $value.retry -and $value.retry.PSObject.Properties.Name -contains 'profile') { $value.retry.profile } else { $value.retryProfile }) }
                 transaction = $(if ($null -ne $value.transaction -or $null -ne $value.transactionProfile) { [pscustomobject]@{ profile = $(if ($null -ne $value.transaction -and $value.transaction.PSObject.Properties.Name -contains 'profile') { $value.transaction.profile } else { $value.transactionProfile }) } } else { $null })
@@ -49,6 +52,9 @@ function ConvertTo-CanonicalCatalog {
                 method = $value.method
                 path = $value.path
                 itemsPath = $value.itemsPath
+                defaultQueryParams = $value.defaultQueryParams
+                defaultBody = $value.defaultBody
+                notes = $value.notes
                 paging = [pscustomobject]@{ profile = $(if ($null -ne $value.paging -and $value.paging.PSObject.Properties.Name -contains 'profile') { $value.paging.profile } else { $value.pagingProfile }) }
                 retry = [pscustomobject]@{ profile = $(if ($null -ne $value.retry -and $value.retry.PSObject.Properties.Name -contains 'profile') { $value.retry.profile } else { $value.retryProfile }) }
                 transaction = $(if ($null -ne $value.transaction -or $null -ne $value.transactionProfile) { [pscustomobject]@{ profile = $(if ($null -ne $value.transaction -and $value.transaction.PSObject.Properties.Name -contains 'profile') { $value.transaction.profile } else { $value.transactionProfile }) } } else { $null })

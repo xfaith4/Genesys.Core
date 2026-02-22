@@ -1,0 +1,11 @@
+{
+  "datasetKey": "analytics-conversation-details",
+  "runId": "20260221T000558Z",
+  "startedAtUtc": "2026-02-21T00:05:58.2544467Z",
+  "endedAtUtc": "2026-02-21T00:06:00.5171374Z",
+  "gitSha": null,
+  "counts": {
+    "itemCount": 5
+  },
+  "warnings": []
+}

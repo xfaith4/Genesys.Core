@@ -1,0 +1,22 @@
+{
+  "datasetKey": "audit-logs",
+  "runId": "20260221T014136Z",
+  "totals": {
+    "totalRecords": 6,
+    "totalServices": 4,
+    "totalActions": 4
+  },
+  "countsByAction": {
+    "CREATE": 2,
+    "DELETE": 1,
+    "UPDATE": 2,
+    "VIEW": 1
+  },
+  "countsByServiceName": {
+    "architect": 1,
+    "platform": 1,
+    "quality": 1,
+    "routing": 3
+  },
+  "generatedAtUtc": "2026-02-21T01:41:39.6928627Z"
+}

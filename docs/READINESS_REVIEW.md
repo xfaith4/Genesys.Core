@@ -1,25 +1,49 @@
 # Readiness Review
 
+## Review date
+
+- 2026-02-22
+
 ## Scope reviewed
-- Dataset entrypoint and routing
-- Retry / rate-limit behavior
-- Paging termination safety
-- Async transaction flow
-- Artifact contract
-- Secret redaction behavior
+
+- Dataset entrypoint and routing behavior
+- Retry and rate-limit behavior
+- Paging strategy behavior and termination safeguards
+- Async transaction/job behavior
+- Output artifact contract
+- Redaction behavior
+- End-user onboarding and workflow usability
 
 ## Findings
-### Ready
-- `Invoke-Dataset` executes `audit-logs` end-to-end and writes deterministic run artifacts.
-- Retry behavior handles 429 with `Retry-After` or message parsing and bounded retries.
-- Paging implementations terminate safely (`nextUri` duplicate detection, `pageNumber` empty-page and totalHits stop conditions).
-- Workflows upload only `out/audit-logs/<runId>/` artifact folder.
-- Request event logging redacts sensitive headers and token-like query parameters.
 
-### Not yet fully ready for broad external production
-- Dataset breadth is currently narrow (`audit-logs` only).
-- Catalog model duplication exists (`catalog/genesys-core.catalog.json` and root `genesys-core.catalog.json`) and should be unified.
-- Record-level payload redaction policy should be expanded and profile-driven.
+### Ready now
+
+- `Invoke-Dataset` is functional for catalog-backed dataset execution and writes deterministic run artifacts (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`).
+- Runtime supports paging profiles `none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, and `transactionResults` via profile-driven dispatch.
+- Retry behavior handles HTTP 429 using `Retry-After` header and message parsing (`Retry the request in [x] seconds`) with bounded retries and jitter.
+- Async submit/poll/results flows are implemented and exercised for audit and analytics job patterns.
+- Request and record redaction exists for common sensitive fields/token-like values.
+- Current catalog and dispatch breadth is materially broader than initial baseline:
+  - 31 dataset keys in catalog
+  - 4 curated dataset handlers (`audit-logs`, `analytics-conversation-details`, `users`, `routing-queues`)
+  - generic catalog-driven execution for additional dataset keys
+
+### Partially ready / operational caveats
+
+- This repository is a Core runtime, not a packaged MCP server today.
+- Direct script invocation (`pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1`) does not currently expose script-level `-Headers` and `-BaseUri`; authenticated live runs should use module invocation.
+- Included GitHub workflows are currently scoped to `audit-logs` and require environment-specific auth wiring before production use.
+- Catalog duplication still exists (root canonical + legacy mirror), even though strict mismatch detection is implemented.
+- Redaction policy is heuristic and not yet fully profile-driven by dataset/endpoint sensitivity class.
 
 ## Recommendation
-Proceed with controlled external client usage for `audit-logs` while completing Phase 3 dataset expansion and catalog/profile unification.
+
+- Use for controlled external client usage where:
+  - callers use module invocation with explicit auth headers
+  - consumers rely on run artifacts under `out/<datasetKey>/<runId>/`
+  - workflow auth is explicitly implemented per environment
+- Continue roadmap execution for:
+  - onboarding hardening for workflow/script auth ergonomics
+  - catalog mirror retirement
+  - redaction policy expansion
+  - endpoint coverage expansion listed in `docs/ROADMAP.md`

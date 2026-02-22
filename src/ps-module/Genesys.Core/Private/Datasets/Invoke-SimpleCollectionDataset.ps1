@@ -22,6 +22,64 @@ function Resolve-DatasetEndpointSpec {
     }
 }
 
+function ConvertTo-EndpointDefaultParameters {
+    [CmdletBinding()]
+    param(
+        [object]$DefaultQueryParams
+    )
+
+    $result = [ordered]@{}
+    if ($null -eq $DefaultQueryParams) {
+        return $result
+    }
+
+    if ($DefaultQueryParams -is [System.Collections.IDictionary]) {
+        foreach ($key in $DefaultQueryParams.Keys) {
+            $result[[string]$key] = $DefaultQueryParams[$key]
+        }
+
+        return $result
+    }
+
+    foreach ($property in $DefaultQueryParams.PSObject.Properties) {
+        $result[[string]$property.Name] = $property.Value
+    }
+
+    return $result
+}
+
+function Resolve-EndpointInitialUri {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUri,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]$Endpoint
+    )
+
+    $routeValues = [ordered]@{}
+    $queryValues = [ordered]@{}
+    $defaultParams = ConvertTo-EndpointDefaultParameters -DefaultQueryParams $Endpoint.defaultQueryParams
+
+    foreach ($paramName in $defaultParams.Keys) {
+        $token = "{$($paramName)}"
+        if ([string]$Endpoint.path -like "*$($token)*") {
+            $routeValues[$paramName] = $defaultParams[$paramName]
+            continue
+        }
+
+        $queryValues[$paramName] = $defaultParams[$paramName]
+    }
+
+    $uri = Join-EndpointUri -BaseUri $BaseUri -Path $Endpoint.path -RouteValues $routeValues
+    foreach ($queryName in $queryValues.Keys) {
+        $uri = Add-PagingQueryValue -Uri $uri -Name $queryName -Value $queryValues[$queryName]
+    }
+
+    return $uri
+}
+
 function Write-DatasetOutputs {
     [CmdletBinding()]
     param(
@@ -78,7 +136,9 @@ function Invoke-SimpleCollectionDataset {
 
         [hashtable]$Headers,
 
-        [scriptblock]$RequestInvoker
+        [scriptblock]$RequestInvoker,
+
+        [switch]$NoRedact
     )
 
     $resolvedSpec = Resolve-DatasetEndpointSpec -Catalog $Catalog -DatasetKey $DatasetKey
@@ -86,6 +146,8 @@ function Invoke-SimpleCollectionDataset {
     $endpoint = $resolvedSpec.Endpoint
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
+    $initialUri = Resolve-EndpointInitialUri -BaseUri $BaseUri -Endpoint $endpoint
+
     $response = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
         key = $endpoint.key
         method = $endpoint.method
@@ -94,10 +156,14 @@ function Invoke-SimpleCollectionDataset {
         paging = $endpoint.paging
         retry = $endpoint.retry
         transaction = $endpoint.transaction
-    }) -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $endpoint.path) -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    }) -InitialUri $initialUri -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($response.Items | ForEach-Object { & $Normalizer $_ })
-    $sanitizedRecords = @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+    $sanitizedRecords = if ($NoRedact) {
+        $records
+    } else {
+        @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+    }
 
     $summary = [ordered]@{
         datasetKey = $RunContext.datasetKey

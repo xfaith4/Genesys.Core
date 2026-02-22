@@ -1,113 +1,143 @@
 # Genesys.Core
 
-Catalog-driven PowerShell core for running governed Genesys Cloud datasets with deterministic retries, paging, async transaction polling, and auditable run artifacts.
+Catalog-driven PowerShell Core for governed Genesys Cloud dataset execution with deterministic retry/paging behavior and auditable run artifacts.
 
-## What this repository does
+## Current state (2026-02-22)
 
-- Uses `genesys-core.catalog.json` (repo root) as the canonical runtime catalog source of truth.
-- Keeps `catalog/genesys-core.catalog.json` as a compatibility mirror during migration.
-- Executes datasets through a PowerShell module (`src/ps-module/Genesys.Core`).
-- Produces deterministic run output under `out/<datasetKey>/<runId>/`:
+- Canonical catalog source: `./genesys-core.catalog.json`.
+- Compatibility mirror: `./catalog/genesys-core.catalog.json` (still supported, not canonical).
+- Runtime entrypoint: PowerShell module `Invoke-Dataset` (`src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1`).
+- Exported module functions: `Invoke-Dataset`, `Assert-Catalog`.
+- Catalog snapshot in this repo currently contains:
+  - `31` dataset keys
+  - `74` endpoint definitions
+  - `4` curated dataset handlers (`audit-logs`, `analytics-conversation-details`, `users`, `routing-queues`)
+  - `27` additional dataset keys executed through generic catalog-driven dispatch
+- Run output contract under `out/<datasetKey>/<runId>/`:
   - `manifest.json`
   - `events.jsonl`
   - `summary.json`
   - `data/*.jsonl`
 
-## Supported datasets
+## What this repo is and is not
 
-- `audit-logs`
-  - Service mapping discovery (`GET /api/v2/audits/query/servicemapping`)
-  - Async submit/poll/results flow
-- `users`
-  - Users list with presence/routing status normalization (`GET /api/v2/users`)
-- `routing-queues`
-  - Routing queue inventory normalization (`GET /api/v2/routing/queues`)
+- It is a governed Core runtime and dataset execution engine.
+- It is not a packaged MCP server today. There is no stdio/http MCP server entrypoint in this repository.
+- UIs (including `GenesysCore-GUI.ps1`) are clients of this Core runtime.
 
-## Catalog unification behavior
+## Coverage today
 
-`Resolve-Catalog` is the only loader used at runtime.
+Curated handlers with explicit normalization/flow logic:
 
-- Precedence: root `./genesys-core.catalog.json` is canonical when present.
-- Fallback: `./catalog/genesys-core.catalog.json` is used only if root is missing.
-- If both files exist and differ:
-  - loader emits a warning with both file paths + size + modification metadata
-  - strict mode (`-StrictCatalog`) fails validation/run
+- `audit-logs` (audit async transaction flow)
+- `analytics-conversation-details` (analytics async job flow)
+- `users` (normalized user projection)
+- `routing-queues` (normalized queue projection)
 
-Migration helper: use `Copy-Item ./genesys-core.catalog.json ./catalog/genesys-core.catalog.json -Force` to reconcile the legacy mirror.
+All other dataset keys in the catalog run via generic catalog-driven collection execution (`Invoke-SimpleCollectionDataset`) when endpoint metadata is present.
 
-## Swagger-driven endpoint coverage
-
-Use `scripts/Update-CatalogFromSwagger.ps1` to keep catalog endpoint coverage aligned with the Genesys Cloud swagger operations while preserving existing curated endpoint entries.
-
-- Canonical catalog file: `./genesys-core.catalog.json`
-- Legacy mirror (optional write): `./catalog/genesys-core.catalog.json`
-- Default swagger URL: `https://api.mypurecloud.com/api/v2/docs/swagger`
-- Local swagger snapshot path: `./generated/swagger/swagger.json`
+To inspect dataset keys in your local catalog:
 
 ```powershell
-# One-command refresh from swagger + optional mirror update
-pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -WriteLegacyCopy
-
-# Use a pre-downloaded swagger file
-pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -SwaggerPath ./my/swagger.json -WriteLegacyCopy
+$catalog = Get-Content -Raw ./genesys-core.catalog.json | ConvertFrom-Json
+$catalog.datasets.PSObject.Properties.Name | Sort-Object
 ```
 
-If root and legacy catalogs diverge, `Resolve-Catalog` warns by default and fails in strict mode (`-StrictCatalog`).
+## End-user onboarding
 
-## Quick start (local)
+Detailed onboarding is documented in [docs/ONBOARDING.md](docs/ONBOARDING.md). The short version is:
+
+1. Acquire a Genesys Cloud OAuth token (client credentials).
+2. Import module.
+3. Run `Invoke-Dataset` with `-Headers @{ Authorization = "Bearer <token>" }`.
+4. Inspect outputs in `out/<datasetKey>/<runId>/`.
+
+### Quick start (authenticated module usage)
 
 ```powershell
 Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
 
-# Dry run planning
-Invoke-Dataset -Dataset 'audit-logs' -WhatIf
+$region = 'mypurecloud.com'
+$baseUri = "https://api.$region"
+$authUrl = "https://login.$region/oauth/token"
 
-# Real run (requires valid Genesys Cloud authorization headers)
-$headers = @{ Authorization = 'Bearer <token>' }
-Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri 'https://api.mypurecloud.com' -Headers $headers
+$clientId = '<client-id>'
+$clientSecret = '<client-secret>'
+
+$authResponse = Invoke-RestMethod -Uri $authUrl -Method POST -Body @{
+    grant_type = 'client_credentials'
+    client_id = $clientId
+    client_secret = $clientSecret
+} -ContentType 'application/x-www-form-urlencoded'
+
+$headers = @{ Authorization = "Bearer $($authResponse.access_token)" }
+
+Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
 ```
 
-### Standalone script invocation
+### Standalone script invocation (current limitation)
 
-The `Invoke-Dataset.ps1` script can also be run directly without importing the module (e.g., in CI/CD workflows):
+`src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1` can be called directly and bootstraps private functions, but its script-level parameters do not currently expose `-Headers` or `-BaseUri`.
+
+- Good fit today: dry runs, local bootstrap, and script bootstrap tests.
+- For authenticated live API runs: import module and call `Invoke-Dataset` function directly.
 
 ```powershell
-# Direct invocation (auto-loads required module functions)
 pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
-
-# Real run
-pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset users -OutputRoot ./out
 ```
 
-The script automatically loads required private module functions when invoked standalone.
+## Catalog loading and strict mode
+
+`Resolve-Catalog` enforces loader precedence:
+
+- Root `./genesys-core.catalog.json` is canonical when present.
+- Fallback is `./catalog/genesys-core.catalog.json` only when root is missing.
+- If both files exist and differ:
+  - warning emitted by default
+  - `-StrictCatalog` fails run/validation
+
+Migration helper:
+
+```powershell
+Copy-Item ./genesys-core.catalog.json ./catalog/genesys-core.catalog.json -Force
+```
+
+## Swagger sync
+
+Use `scripts/Update-CatalogFromSwagger.ps1` to refresh endpoint coverage while preserving curated entries.
+
+```powershell
+pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -WriteLegacyCopy
+pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -SwaggerPath ./my/swagger.json -WriteLegacyCopy
+```
 
 ## Validation and smoke checks
 
 ```powershell
-# Full tests
 $config = . ./tests/PesterConfiguration.ps1
 Invoke-Pester -Configuration $config
 
-# Catalog validation + fixture-driven dry-run ingest for all datasets
 pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
 ```
 
-For comprehensive testing documentation, including production environment testing, see [TESTING.md](TESTING.md).
+## GitHub workflows in this repo
 
-## Graphical User Interface (Windows)
+Current workflows are scoped to `audit-logs`:
 
-A WPF-based GUI is available for Windows users:
+- `.github/workflows/audit-logs.on-demand.yml`
+- `.github/workflows/audit-logs.scheduled.yml`
 
-```powershell
-# Launch the GUI
-.\GenesysCore-GUI.ps1
-```
+Artifacts are uploaded per run folder (`out/audit-logs/<runId>/`).
 
-Features:
-- OAuth authentication flow
-- Dataset selection (checkboxes for audit-logs, users, routing-queues)
-- Real-time execution logging
-- Dry run (WhatIf) support
-- Output directory selection
+Note: workflow auth setup still requires environment-specific wiring before production use.
 
-**Note:** The GUI requires Windows as WPF is Windows-only. For cross-platform use, use the PowerShell module directly.
+## GUI (Windows)
+
+`GenesysCore-GUI.ps1` provides:
+
+- OAuth client-credentials auth flow
+- dataset selection from catalog
+- run and what-if execution
+- output folder selection and execution log view
+
+WPF is Windows-only.

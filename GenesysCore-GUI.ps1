@@ -104,11 +104,11 @@ $xaml = @"
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 
-                <StackPanel Grid.Column="0">
-                    <CheckBox Name="AuditLogsCheckBox" Content="Audit Logs" Margin="5"/>
-                    <CheckBox Name="UsersCheckBox" Content="Users" Margin="5"/>
-                    <CheckBox Name="RoutingQueuesCheckBox" Content="Routing Queues" Margin="5"/>
-                </StackPanel>
+                <GroupBox Grid.Column="0" Header="Datasets" Margin="0,0,10,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="180">
+                        <StackPanel Name="DatasetCheckBoxPanel"/>
+                    </ScrollViewer>
+                </GroupBox>
                 
                 <StackPanel Grid.Column="1" Orientation="Vertical">
                     <Label Content="Output Directory:"/>
@@ -157,9 +157,7 @@ $clientIdTextBox = $window.FindName('ClientIdTextBox')
 $clientSecretBox = $window.FindName('ClientSecretBox')
 $authButton = $window.FindName('AuthButton')
 $authStatusLabel = $window.FindName('AuthStatusLabel')
-$auditLogsCheckBox = $window.FindName('AuditLogsCheckBox')
-$usersCheckBox = $window.FindName('UsersCheckBox')
-$routingQueuesCheckBox = $window.FindName('RoutingQueuesCheckBox')
+$datasetCheckBoxPanel = $window.FindName('DatasetCheckBoxPanel')
 $outputDirTextBox = $window.FindName('OutputDirTextBox')
 $browseButton = $window.FindName('BrowseButton')
 $runButton = $window.FindName('RunButton')
@@ -175,6 +173,7 @@ $regionComboBox.Text = $DefaultRegion
 $script:accessToken = $null
 $script:headers = $null
 $script:baseUri = $null
+$script:datasetCheckBoxes = @()
 
 # Helper function to append to log
 function Write-Log {
@@ -189,6 +188,68 @@ function Write-Log {
 function Update-Status {
     param([string]$Message)
     $statusTextBlock.Text = $Message
+}
+
+function Resolve-UICatalogPath {
+    $candidates = @(
+        (Join-Path -Path $PSScriptRoot -ChildPath 'genesys-core.catalog.json'),
+        (Join-Path -Path $PSScriptRoot -ChildPath 'catalog/genesys-core.catalog.json')
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-AvailableDatasets {
+    $catalogPath = Resolve-UICatalogPath
+    if ([string]::IsNullOrWhiteSpace([string]$catalogPath)) {
+        throw 'Unable to find genesys-core catalog file.'
+    }
+
+    $catalog = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json -Depth 100
+    $datasets = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($property in $catalog.datasets.PSObject.Properties) {
+        $dataset = $property.Value
+        $description = [string]$dataset.description
+        if ([string]::IsNullOrWhiteSpace($description)) {
+            $description = "Endpoint: $($dataset.endpoint)"
+        }
+
+        $datasets.Add([pscustomobject]@{
+            key = [string]$property.Name
+            endpoint = [string]$dataset.endpoint
+            description = $description
+        }) | Out-Null
+    }
+
+    return @($datasets | Sort-Object -Property key)
+}
+
+function Initialize-DatasetSelection {
+    $datasetCheckBoxPanel.Children.Clear()
+    $script:datasetCheckBoxes = @()
+
+    $datasets = Get-AvailableDatasets
+    foreach ($dataset in $datasets) {
+        $checkBox = New-Object System.Windows.Controls.CheckBox
+        $checkBox.Content = $dataset.key
+        $checkBox.ToolTip = $dataset.description
+        $checkBox.Tag = $dataset.key
+        $checkBox.Margin = [System.Windows.Thickness]::new(5, 2, 5, 2)
+
+        if (@('audit-logs', 'users', 'routing-queues') -contains $dataset.key) {
+            $checkBox.IsChecked = $true
+        }
+
+        $datasetCheckBoxPanel.Children.Add($checkBox) | Out-Null
+        $script:datasetCheckBoxes += $checkBox
+    }
 }
 
 # Authentication handler
@@ -251,9 +312,12 @@ $browseButton.Add_Click({
 # Get selected datasets
 function Get-SelectedDatasets {
     $datasets = @()
-    if ($auditLogsCheckBox.IsChecked) { $datasets += 'audit-logs' }
-    if ($usersCheckBox.IsChecked) { $datasets += 'users' }
-    if ($routingQueuesCheckBox.IsChecked) { $datasets += 'routing-queues' }
+    foreach ($checkBox in @($script:datasetCheckBoxes)) {
+        if ($checkBox.IsChecked -eq $true) {
+            $datasets += [string]$checkBox.Tag
+        }
+    }
+
     return $datasets
 }
 
@@ -340,6 +404,13 @@ $clearLogButton.Add_Click({
 })
 
 # Show window
+try {
+    Initialize-DatasetSelection
+}
+catch {
+    Write-Log "Failed to load datasets from catalog: $($_.Exception.Message)" "Red"
+}
+
 Write-Log "Genesys.Core GUI loaded"
 Write-Log "Please authenticate to begin"
 Update-Status "Ready - Please authenticate"

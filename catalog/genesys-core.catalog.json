@@ -1,7 +1,32 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-02-17T07:54:49.627772Z",
+  "generatedAt": "2026-02-20T12:49:09.7115741Z",
   "datasets": {
+    "analytics-conversation-details": {
+      "description": "Analytics conversation details using async job submit/poll/results flow.",
+      "endpoint": "analytics.create.conversation.details.job.large.query",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_jobs"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "analytics_jobs"
+      }
+    },
+    "analytics-conversation-details-query": {
+      "description": "Analytics conversation details via direct synchronous POST query with body paging.",
+      "endpoint": "analytics.conversation.details.query",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
     "audit-logs": {
       "description": "Audit logs dataset using async transaction submit/poll/results flow.",
       "endpoint": "audits.query.submit",
@@ -36,6 +61,292 @@
       },
       "retry": {
         "profile": "rateLimitAware"
+      }
+    },
+    "audits.get.service.mapping": {
+      "description": "Audit Logs - Service Mapping (catalog-derived)",
+      "endpoint": "audits.get.service.mapping",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.active.conversations": {
+      "description": "Get Active Conversations (catalog-derived)",
+      "endpoint": "conversations.get.active.conversations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "analytics.get.multiple.conversations.by.ids": {
+      "description": "Get Multiple Conversations by IDs (catalog-derived)",
+      "endpoint": "analytics.get.multiple.conversations.by.ids",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "users.division.analysis.get.users.with.division.info": {
+      "description": "Division Analysis - Get Users with Division Info (catalog-derived)",
+      "endpoint": "users.division.analysis.get.users.with.division.info",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.call.history": {
+      "description": "Get Call History (catalog-derived)",
+      "endpoint": "conversations.get.call.history",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.active.callbacks": {
+      "description": "Get Active Callbacks (catalog-derived)",
+      "endpoint": "conversations.get.active.callbacks",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.active.calls": {
+      "description": "Get Active Calls (catalog-derived)",
+      "endpoint": "conversations.get.active.calls",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.active.chats": {
+      "description": "Get Active Chats (catalog-derived)",
+      "endpoint": "conversations.get.active.chats",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.active.emails": {
+      "description": "Get Active Emails (catalog-derived)",
+      "endpoint": "conversations.get.active.emails",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "users.get.bulk.user.presences.genesys.cloud": {
+      "description": "Get Bulk User Presences (Genesys Cloud) (catalog-derived)",
+      "endpoint": "users.get.bulk.user.presences.genesys.cloud",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "users.search.users.by.name.or.email": {
+      "description": "Search Users by Name or Email (catalog-derived)",
+      "endpoint": "users.search.users.by.name.or.email",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "users.get.bulk.user.presences": {
+      "description": "Get Bulk User Presences (catalog-derived)",
+      "endpoint": "users.get.bulk.user.presences",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "authorization.get.all.divisions": {
+      "description": "Get All Divisions (catalog-derived)",
+      "endpoint": "authorization.get.all.divisions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "usage.get.api.usage.organization.summary": {
+      "description": "Get API Usage - Organization Summary (catalog-derived)",
+      "endpoint": "usage.get.api.usage.organization.summary",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "usage.get.api.usage.by.client": {
+      "description": "Get API Usage - By Client (catalog-derived)",
+      "endpoint": "usage.get.api.usage.by.client",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "usage.get.api.usage.by.user": {
+      "description": "Get API Usage - By User (catalog-derived)",
+      "endpoint": "usage.get.api.usage.by.user",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "audits.get.audit.query.results": {
+      "description": "Get Audit Query Results (catalog-derived)",
+      "endpoint": "audits.get.audit.query.results",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "presence.get.system.presence.definitions": {
+      "description": "Get System Presence Definitions (catalog-derived)",
+      "endpoint": "presence.get.system.presence.definitions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "presence.get.organization.presence.definitions": {
+      "description": "Get Organization Presence Definitions (catalog-derived)",
+      "endpoint": "presence.get.organization.presence.definitions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "routing.get.all.routing.skills": {
+      "description": "Get All Routing Skills (catalog-derived)",
+      "endpoint": "routing.get.all.routing.skills",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "routing.get.all.languages": {
+      "description": "Get All Languages (catalog-derived)",
+      "endpoint": "routing.get.all.languages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "routing.get.all.wrapup.codes": {
+      "description": "Get All Wrapup Codes (catalog-derived)",
+      "endpoint": "routing.get.all.wrapup.codes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "organization.get.organization.details": {
+      "description": "Get Organization Details (catalog-derived)",
+      "endpoint": "organization.get.organization.details",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "organization.get.organization.limits": {
+      "description": "Get Organization Limits (catalog-derived)",
+      "endpoint": "organization.get.organization.limits",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "notifications.get.notification.subscriptions": {
+      "description": "Get Notification Subscriptions (catalog-derived)",
+      "endpoint": "notifications.get.notification.subscriptions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "notifications.get.available.notification.topics": {
+      "description": "Get Available Notification Topics (catalog-derived)",
+      "endpoint": "notifications.get.available.notification.topics",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
       }
     }
   },
@@ -102,6 +413,11 @@
       "nextUri_conversations": {
         "type": "nextUri",
         "nextUriPath": "$.nextUri"
+      },
+      "analytics_jobs_results": {
+        "type": "cursor",
+        "cursorPath": "$.cursor",
+        "cursorParam": "cursor"
       }
     },
     "transaction": {
@@ -119,15 +435,21 @@
         "resultsEndpointRef": "audit_query_transaction_then_results.results"
       },
       "analytics_jobs": {
+        "transactionIdPath": "$.jobId",
         "pollIntervalSeconds": 2.0,
         "maxPolls": 300,
         "statePath": "$.state",
-        "terminalStatesPath": "$.terminalStates",
         "terminalStates": [
           "FULFILLED",
           "FAILED",
           "CANCELLED"
         ],
+        "successStates": [
+          "FULFILLED"
+        ],
+        "submittedEventType": "analytics.job.submitted",
+        "pollEventType": "analytics.job.poll",
+        "jobLabel": "Analytics conversation details job",
         "statusEndpointRef": "analytics.get.conversation.details.job.status",
         "resultsEndpointRef": "analytics.get.conversation.details.job.results"
       }
@@ -225,6 +547,18 @@
       "notes": [
         "Get Single Conversation Analytics",
         "group: Analytics"
+      ]
+    },
+    "analytics.conversation.details.query": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Analytics Conversation Details - Direct synchronous query with body paging",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-02-13T00:00:00.000Z/2026-02-20T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [],\n  \"conversationFilters\": []\n}"
       ]
     },
     "analytics.query.conversation.details.last.7.days": {
@@ -368,9 +702,9 @@
     "analytics.get.conversation.details.job.status": {
       "method": "GET",
       "path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "jobId": "job-id-goes-here"
       },
@@ -382,9 +716,9 @@
     "analytics.get.conversation.details.job.results": {
       "method": "GET",
       "path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "analytics_jobs_results",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$.conversations",
       "defaultQueryParams": {
         "jobId": "job-id-goes-here",
         "pageSize": "100"

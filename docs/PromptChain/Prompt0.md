@@ -1,25 +1,31 @@
-You are working in a new repo: genesys-core.
+You are working in an existing repo: `genesys-core`.
 
-Goal: bootstrap the repository structure for a catalog-driven Genesys Cloud "Core" that runs datasets via GitHub Actions.
+Goal: continue development from the current baseline without re-bootstrap work.
 
-Create:
-- catalog/genesys-core.catalog.json (placeholder)
-- catalog/schema/genesys-core.catalog.schema.json (draft schema)
-- src/ps-module/Genesys.Core/Genesys.Core.psd1 + .psm1
-- src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 (stub)
-- src/ps-module/Genesys.Core/Private/* (empty folders for retry/paging/runtime)
-- tests/ (Pester scaffolding)
-- .github/workflows/ci.yml (runs Pester on PR)
-- .github/workflows/audit-logs.scheduled.yml (stub, does not call Genesys yet)
-- docs/ROADMAP.md (create or update from the Roadmap in this issue)
+Current baseline (must be preserved):
+- Canonical runtime catalog: `./genesys-core.catalog.json` (legacy mirror still exists at `./catalog/genesys-core.catalog.json`).
+- Module entrypoint: `Invoke-Dataset`; exported functions are `Invoke-Dataset` and `Assert-Catalog`.
+- Run output contract already implemented:
+  - `out/<datasetKey>/<runId>/manifest.json`
+  - `out/<datasetKey>/<runId>/events.jsonl`
+  - `out/<datasetKey>/<runId>/summary.json`
+  - `out/<datasetKey>/<runId>/data/*.jsonl`
+- Curated dataset handlers implemented:
+  - `audit-logs`
+  - `analytics-conversation-details`
+  - `users`
+  - `routing-queues`
+- Generic catalog-driven dispatch is available for additional dataset keys.
+- Retry, paging, async, and redaction test suites already exist and should remain passing.
 
 Conventions:
-- PS 5.1 + 7+ compatible.
-- Provide drop-in regions with markers: ### BEGIN / ### END.
-- Avoid colon-after-variable parsing issues using $() when needed.
-- No secrets in logs.
-- Outputs go to out/<datasetKey>/<runId>/...
+- PowerShell 5.1 + 7+ compatible.
+- No secrets in logs or test fixtures.
+- Use `### BEGIN / ### END` markers for drop-in replacements.
+- Avoid colon-after-variable parsing issues in strings (`$($var):` pattern).
+- Keep behavior deterministic and artifact paths stable.
 
-Acceptance:
-- CI runs Pester successfully.
-- Running `pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf` prints what it would do and exits 0.
+Acceptance for any follow-on prompt:
+- Existing tests still pass.
+- No regression to output contract or redaction behavior.
+- Documentation and implementation remain consistent.

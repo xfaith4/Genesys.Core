@@ -1,25 +1,31 @@
-Implement Dataset: audit-logs.
+Implement the next endpoint-expansion wave from roadmap backlog.
 
-Catalog entries required for:
-- GET  /api/v2/audits/query/servicemapping
-- POST /api/v2/audits/query
-- GET  /api/v2/audits/query/{transactionId}
-- GET  /api/v2/audits/query/{transactionId}/results
-
-Implement transactionResults paging profile:
-- submit -> transactionId
-- poll status until terminal
-- fetch results using configured paging strategy (likely nextUri or pageNumber depending on response shape)
+Target endpoints:
+1. `GET /api/v2/authorization/roles`
+2. `GET /api/v2/conversations/{conversationId}/recordings`
+3. `GET /api/v2/oauth/clients`
+4. `POST /api/v2/oauth/clients/{clientId}/usage/query`
+5. `GET /api/v2/oauth/clients/{clientId}/usage/query/results/{executionId}`
+6. `GET /api/v2/speechandtextanalytics/topics`
+7. `POST /api/v2/analytics/transcripts/aggregates/query`
+8. `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturl`
 
 Files:
-- src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1
-- src/ps-module/Genesys.Core/Private/Datasets/Invoke-AuditLogsDataset.ps1
-- src/ps-module/Genesys.Core/Private/Async/Invoke-AuditTransaction.ps1
-- tests/AuditLogs.Dataset.Tests.ps1 (use mocked HTTP)
+- `genesys-core.catalog.json`
+- `catalog/genesys-core.catalog.json` (legacy mirror update until retirement)
+- `tests/CatalogSchema.Tests.ps1`
+- `tests/AdditionalDatasets.Tests.ps1` (or targeted new dataset tests)
 
-Outputs:
-- data/audit.jsonl(.gz optional later)
-- summary.json with counts by action/serviceName and basic totals
+Requirements:
+- Add schema-valid endpoint definitions with method/path/itemsPath/paging/retry.
+- Add dataset keys where simple collection behavior is sufficient.
+- For multi-step flows (usage query + results, transcript retrieval patterns), decide:
+  - curated handler, or
+  - transaction profile + generic orchestration
+- Keep retry/paging deterministic and observable through run events.
+- Ensure no secret/token leakage in logs or output artifacts.
 
 Acceptance:
-- Pester passes with mocked transaction flow and paged results.
+- Catalog validation passes.
+- Dataset execution for new keys is covered by mocked tests.
+- No regressions to existing curated datasets.

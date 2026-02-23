@@ -11,18 +11,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PowerShell
-        uses: pwsh/setup-powershell@v2
-
-      - name: Install Pester
+      - name: Install Pester (no NuGet provider)
         shell: pwsh
         run: |
-          if (-not (Get-Module -ListAvailable -Name Pester)) {
-            Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
-          }
+          $ErrorActionPreference = 'Stop'
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+          # Ensure PowerShellGet is available and modern enough
+          Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
+
+          # Install Pester
+          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+
+          Import-Module Pester -Force
+          Get-Module Pester | Format-List Name,Version,Path
 
       - name: Run Pester
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $config = . ./tests/PesterConfiguration.ps1
           Invoke-Pester -Configuration $config

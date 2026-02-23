@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pwsh -NoProfile -File -:*)",
+      "Bash(pwsh -NoProfile -Command \"[System.Management.Automation.Language.Parser]::ParseFile\\(''g:/Development/20_Staging/Genesys.Core/GenesysOps.psm1'', [ref]$null, [ref]$e\\); if \\($e.Count -eq 0\\) { ''SYNTAX OK'' } else { $e | Select-Object -ExpandProperty Message }\")",
+      "Bash(pwsh -NoProfile -c \"try { Import-Module ''g:/Development/20_Staging/Genesys.Core/GenesysOps.psd1'' -ErrorAction Stop; Write-Host ''MODULE LOADED OK''; Get-Command -Module GenesysOps | Select-Object -ExpandProperty Name | Sort-Object } catch { Write-Host \\(''ERROR: '' + $_.Exception.Message\\) }\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

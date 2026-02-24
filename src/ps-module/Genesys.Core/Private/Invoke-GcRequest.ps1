@@ -144,6 +144,8 @@ function Invoke-GcRequest {
         timestampUtc = [DateTime]::UtcNow.ToString('o')
     })
 
+    $hasBody = $PSBoundParameters.ContainsKey('Body')
+
     $operation = {
         $invokeParams = @{
             Uri = $Uri
@@ -156,8 +158,29 @@ function Invoke-GcRequest {
             $invokeParams.Headers = $Headers
         }
 
-        if ($PSBoundParameters.ContainsKey('Body')) {
+        if ($hasBody) {
             $invokeParams.Body = $Body
+
+            $hasContentTypeHeader = $false
+            if ($null -ne $Headers) {
+                foreach ($headerKey in $Headers.Keys) {
+                    if ([string]$headerKey -match '^(?i)content-type$') {
+                        $hasContentTypeHeader = $true
+                        break
+                    }
+                }
+            }
+
+            if (-not $hasContentTypeHeader) {
+                $methodName = ([string]$Method).ToUpperInvariant()
+                if ($methodName -in @('POST', 'PUT', 'PATCH')) {
+                    $bodyString = [string]$Body
+                    $trimmedBody = $bodyString.TrimStart()
+                    if ($trimmedBody.StartsWith('{') -or $trimmedBody.StartsWith('[')) {
+                        $invokeParams.ContentType = 'application/json'
+                    }
+                }
+            }
         }
 
         Invoke-RestMethod @invokeParams

@@ -548,6 +548,26 @@ $runButton.Add_Click({
 
         if ($null -ne $request.Body) {
             $invokeParams.Body = $request.Body
+
+            $hasContentTypeHeader = $false
+            if ($null -ne $request.Headers) {
+                foreach ($headerKey in $request.Headers.Keys) {
+                    if ([string]$headerKey -match '^(?i)content-type$') {
+                        $hasContentTypeHeader = $true
+                        break
+                    }
+                }
+            }
+
+            if (-not $hasContentTypeHeader) {
+                if ($method -in @('POST', 'PUT', 'PATCH')) {
+                    $bodyText = [string]$request.Body
+                    $trimmedBody = $bodyText.TrimStart()
+                    if ($trimmedBody.StartsWith('{') -or $trimmedBody.StartsWith('[')) {
+                        $invokeParams.ContentType = 'application/json'
+                    }
+                }
+            }
         }
 
         Invoke-RestMethod @invokeParams

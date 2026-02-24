@@ -2,6 +2,7 @@ function Join-EndpointUri {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
         [string]$BaseUri,
 
         [Parameter(Mandatory = $true)]
@@ -9,6 +10,11 @@ function Join-EndpointUri {
 
         [hashtable]$RouteValues
     )
+
+    $normalizedBase = $BaseUri.Trim()
+    if ($normalizedBase -notmatch '^https?://') {
+        throw "BaseUri '$normalizedBase' is not a valid absolute URI. It must begin with 'https://' or 'http://'."
+    }
 
     $resolvedPath = $Path
     if ($null -ne $RouteValues) {
@@ -21,7 +27,7 @@ function Join-EndpointUri {
         return $resolvedPath
     }
 
-    $trimmedBase = $BaseUri.TrimEnd('/')
+    $trimmedBase = $normalizedBase.TrimEnd('/')
     if ($resolvedPath.StartsWith('/')) {
         return "$($trimmedBase)$($resolvedPath)"
     }

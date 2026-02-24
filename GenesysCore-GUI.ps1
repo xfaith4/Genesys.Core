@@ -44,6 +44,57 @@ Import-Module $ModulePath -Force
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName System.Windows.Forms
 
+# ---------------------------------------------------------------------------
+# Persistent config  (genesys.env.json next to this script, not committed)
+# ---------------------------------------------------------------------------
+$script:configPath = Join-Path -Path $PSScriptRoot -ChildPath 'genesys.env.json'
+
+function Read-GenesysEnvConfig {
+    if (-not (Test-Path -Path $script:configPath)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -Path $script:configPath -Raw -Encoding utf8 | ConvertFrom-Json
+    }
+    catch {
+        Write-Warning "Failed to read Genesys env config '$($script:configPath)': $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Save-GenesysEnvConfig {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Region,
+
+        [string]$ClientId
+    )
+
+    $config = [ordered]@{
+        '_notes' = [ordered]@{
+            description = "Genesys Core persistent configuration. Region is persisted here. Credentials should NOT be stored here - use environment variables instead."
+            envVars     = [ordered]@{
+                GENESYS_CLIENT_ID     = "Your Genesys Cloud OAuth Client ID (Client Credentials grant). Set this env var so it does not need to be stored in this file."
+                GENESYS_CLIENT_SECRET = "Your Genesys Cloud OAuth Client Secret. Never store this value in a file. Set this env var at the OS or session level."
+                GENESYS_BEARER_TOKEN  = "Optional: pre-obtained bearer token. Bypasses the OAuth flow when set."
+            }
+        }
+        region = $Region.Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ClientId)) {
+        $config['clientId'] = $ClientId.Trim()
+    }
+
+    try {
+        ($config | ConvertTo-Json -Depth 10) | Set-Content -Path $script:configPath -Encoding utf8
+    }
+    catch {
+        Write-Warning "Failed to save Genesys env config '$($script:configPath)': $($_.Exception.Message)"
+    }
+}
+
 # XAML definition for the GUI
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -166,7 +217,7 @@ $clearLogButton = $window.FindName('ClearLogButton')
 $logTextBox = $window.FindName('LogTextBox')
 $statusTextBlock = $window.FindName('StatusTextBlock')
 
-# Set default region
+# Set default region — overridden below if a saved config exists
 $regionComboBox.Text = $DefaultRegion
 
 # Global state
@@ -254,42 +305,52 @@ function Initialize-DatasetSelection {
 
 # Authentication handler
 $authButton.Add_Click({
-    $clientId = $clientIdTextBox.Text
+    $clientId = $clientIdTextBox.Text.Trim()
     $clientSecret = $clientSecretBox.Password
-    $region = $regionComboBox.Text
-    
+    $region = $regionComboBox.Text.Trim()
+
     if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
         [System.Windows.MessageBox]::Show('Please enter both Client ID and Client Secret.', 'Validation Error', 'OK', 'Warning')
         return
     }
-    
-    Write-Log "Authenticating with region: $region..."
+
+    if ([string]::IsNullOrWhiteSpace($region)) {
+        [System.Windows.MessageBox]::Show('Please select or enter a region.', 'Validation Error', 'OK', 'Warning')
+        return
+    }
+
+    Write-Log "Authenticating with region: $($region)..."
     Update-Status "Authenticating..."
-    
+
     try {
-        $authUrl = "https://login.$region/oauth/token"
-        $script:baseUri = "https://api.$region"
-        
+        $authUrl = "https://login.$($region)/oauth/token"
+        $script:baseUri = "https://api.$($region)"
+
         $body = @{
-            grant_type = 'client_credentials'
-            client_id = $clientId
+            grant_type    = 'client_credentials'
+            client_id     = $clientId
             client_secret = $clientSecret
         }
-        
+
+        Write-Log "[API] POST $($authUrl) (grant_type=client_credentials, client_id=$($clientId))"
         $authResponse = Invoke-RestMethod -Uri $authUrl -Method POST -Body $body -ContentType 'application/x-www-form-urlencoded'
         $script:accessToken = $authResponse.access_token
         $script:headers = @{
             Authorization = "Bearer $($script:accessToken)"
         }
-        
-        Write-Log "Authentication successful!" "Green"
+
+        # Persist region (and client ID if the user provided one in the GUI)
+        Save-GenesysEnvConfig -Region $region -ClientId $clientId
+        Write-Log "Config saved: region='$($region)'"
+
+        Write-Log "Authentication successful!"
         $authStatusLabel.Content = "✓ Authenticated"
         $authStatusLabel.Foreground = "Green"
         $runButton.IsEnabled = $true
         Update-Status "Authenticated successfully"
     }
     catch {
-        Write-Log "Authentication failed: $($_.Exception.Message)" "Red"
+        Write-Log "Authentication failed: $($_.Exception.Message)"
         $authStatusLabel.Content = "✗ Failed"
         $authStatusLabel.Foreground = "Red"
         $runButton.IsEnabled = $false
@@ -321,7 +382,7 @@ $browseButton.Add_Click({
             }
         }
         catch {
-            Write-Log "Browse path '$($rawPath)' is invalid. Falling back to current directory." "Red"
+            Write-Log "Browse path '$($rawPath)' is invalid. Falling back to current directory."
         }
     }
 
@@ -338,7 +399,7 @@ $browseButton.Add_Click({
         }
     }
     catch {
-        Write-Log "Unable to open folder picker: $($_.Exception.Message)" "Red"
+        Write-Log "Unable to open folder picker: $($_.Exception.Message)"
         [System.Windows.MessageBox]::Show("Unable to open folder picker: $($_.Exception.Message)", 'Browse Error', 'OK', 'Error') | Out-Null
     }
     finally {
@@ -361,32 +422,74 @@ function Get-SelectedDatasets {
 # Run button handler
 $runButton.Add_Click({
     $datasets = Get-SelectedDatasets
-    
+
     if ($datasets.Count -eq 0) {
         [System.Windows.MessageBox]::Show('Please select at least one dataset.', 'Validation Error', 'OK', 'Warning')
         return
     }
-    
+
     $outputDir = $outputDirTextBox.Text
-    
-    Write-Log "========================================" 
+
+    Write-Log "========================================"
     Write-Log "Starting execution of $($datasets.Count) dataset(s)..."
     Update-Status "Running datasets..."
-    
+
     $runButton.IsEnabled = $false
     $authButton.IsEnabled = $false
-    
+
+    # RequestInvoker that logs every API call (method + URI, query params visible, auth header hidden)
+    $guiRequestInvoker = {
+        param($request)
+
+        $safeUri = [string]$request.Uri
+        $method  = ([string]$request.Method).ToUpperInvariant()
+
+        # Build a sanitized display of the headers (omit Authorization/Token values)
+        $safeHeaders = [System.Collections.Generic.List[string]]::new()
+        if ($null -ne $request.Headers) {
+            foreach ($key in $request.Headers.Keys) {
+                if ($key -match '(?i)Authorization|Token|Secret') {
+                    $safeHeaders.Add("$($key): [REDACTED]") | Out-Null
+                }
+                else {
+                    $safeHeaders.Add("$($key): $($request.Headers[$key])") | Out-Null
+                }
+            }
+        }
+
+        $headerNote = if ($safeHeaders.Count -gt 0) { " | Headers: $([string]::Join(', ', $safeHeaders))" } else { '' }
+        Write-Log "[API] $($method) $($safeUri)$($headerNote)"
+
+        # Execute the actual HTTP request
+        $invokeParams = @{
+            Uri         = $request.Uri
+            Method      = $request.Method
+            TimeoutSec  = if ($request.PSObject.Properties.Name -contains 'TimeoutSec') { $request.TimeoutSec } else { 120 }
+            ErrorAction = 'Stop'
+        }
+
+        if ($null -ne $request.Headers) {
+            $invokeParams.Headers = $request.Headers
+        }
+
+        if ($null -ne $request.Body) {
+            $invokeParams.Body = $request.Body
+        }
+
+        Invoke-RestMethod @invokeParams
+    }.GetNewClosure()
+
     try {
         foreach ($dataset in $datasets) {
             Write-Log "Executing dataset: $dataset"
-            
+
             try {
-                $runContext = Invoke-Dataset -Dataset $dataset -OutputRoot $outputDir -BaseUri $script:baseUri -Headers $script:headers
-                
+                $runContext = Invoke-Dataset -Dataset $dataset -OutputRoot $outputDir -BaseUri $script:baseUri -Headers $script:headers -RequestInvoker $guiRequestInvoker
+
                 Write-Log "  ✓ $dataset completed successfully"
                 Write-Log "    Run ID: $($runContext.runId)"
                 Write-Log "    Output: $($runContext.runFolder)"
-                
+
                 # Show summary
                 $summaryPath = Join-Path -Path $runContext.runFolder -ChildPath 'summary.json'
                 if (Test-Path $summaryPath) {
@@ -395,14 +498,14 @@ $runButton.Add_Click({
                 }
             }
             catch {
-                Write-Log "  ✗ $dataset failed: $($_.Exception.Message)" "Red"
+                Write-Log "  ✗ $dataset failed: $($_.Exception.Message)"
             }
         }
-        
+
         Write-Log "All datasets completed!"
         Write-Log "Output directory: $outputDir"
         Update-Status "Execution completed"
-        
+
         [System.Windows.MessageBox]::Show("Dataset execution completed!`nOutput: $outputDir", 'Success', 'OK', 'Information')
     }
     finally {
@@ -447,12 +550,12 @@ $dryRunButton.Add_Click({
         }
 
         if ($mockExitCode -ne 0) {
-            Write-Log "Mock dry-run script exited with code $mockExitCode. Falling back to WhatIf for those datasets." "Red"
+            Write-Log "Mock dry-run script exited with code $mockExitCode. Falling back to WhatIf for those datasets."
             $whatIfDatasets = @($whatIfDatasets + $mockDatasets)
         }
     }
     elseif ($mockDatasets.Count -gt 0) {
-        Write-Log "Mock script not found at '$mockScriptPath'. Falling back to WhatIf for mock-supported datasets." "Red"
+        Write-Log "Mock script not found at '$mockScriptPath'. Falling back to WhatIf for mock-supported datasets."
         $whatIfDatasets = @($whatIfDatasets + $mockDatasets)
     }
 
@@ -481,10 +584,29 @@ try {
     Initialize-DatasetSelection
 }
 catch {
-    Write-Log "Failed to load datasets from catalog: $($_.Exception.Message)" "Red"
+    Write-Log "Failed to load datasets from catalog: $($_.Exception.Message)"
+}
+
+# Apply persisted config (region and optional clientId)
+$persistedConfig = Read-GenesysEnvConfig
+if ($null -ne $persistedConfig -and -not [string]::IsNullOrWhiteSpace([string]$persistedConfig.region)) {
+    $regionComboBox.Text = [string]$persistedConfig.region
+    Write-Log "Loaded saved region: $($persistedConfig.region)"
+}
+
+# Client ID: GENESYS_CLIENT_ID env var takes precedence over saved config
+$envClientId = [string]$env:GENESYS_CLIENT_ID
+if (-not [string]::IsNullOrWhiteSpace($envClientId)) {
+    $clientIdTextBox.Text = $envClientId
+    Write-Log "Client ID loaded from GENESYS_CLIENT_ID environment variable."
+}
+elseif ($null -ne $persistedConfig -and -not [string]::IsNullOrWhiteSpace([string]$persistedConfig.clientId)) {
+    $clientIdTextBox.Text = [string]$persistedConfig.clientId
+    Write-Log "Client ID loaded from saved config."
 }
 
 Write-Log "Genesys.Core GUI loaded"
+Write-Log "Tip: Set GENESYS_CLIENT_ID and GENESYS_CLIENT_SECRET environment variables to avoid re-entering credentials."
 Write-Log "Please authenticate to begin"
 Update-Status "Ready - Please authenticate"
 

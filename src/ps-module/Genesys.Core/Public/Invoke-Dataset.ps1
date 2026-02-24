@@ -3,6 +3,10 @@ param(
     [string]$Dataset,
     [string]$CatalogPath,
     [string]$OutputRoot = 'out',
+    [string]$BaseUri = 'https://api.mypurecloud.com',
+    [hashtable]$Headers,
+    [scriptblock]$RequestInvoker,
+    [hashtable]$DatasetParameters,
     [switch]$StrictCatalog,
     [switch]$NoRedact
 )
@@ -55,6 +59,8 @@ function Invoke-Dataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$StrictCatalog,
 
         [switch]$NoRedact
@@ -105,7 +111,7 @@ function Invoke-Dataset {
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
     try {
-        Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -NoRedact:$NoRedact | Out-Null
+        Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -NoRedact:$NoRedact | Out-Null
         return $runContext
     }
     catch {
@@ -116,5 +122,5 @@ function Invoke-Dataset {
 }
 
 if ($PSBoundParameters.ContainsKey('Dataset')) {
-    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -StrictCatalog:$StrictCatalog -NoRedact:$NoRedact -WhatIf:$WhatIfPreference
+    Invoke-Dataset -Dataset $Dataset -CatalogPath $CatalogPath -OutputRoot $OutputRoot -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -StrictCatalog:$StrictCatalog -NoRedact:$NoRedact -WhatIf:$WhatIfPreference
 }

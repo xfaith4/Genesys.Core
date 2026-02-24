@@ -205,4 +205,66 @@ Describe 'Additional dataset implementations' {
         $records.Count | Should -Be 1
         $records[0].id | Should -Be 'abc-123'
     }
+
+
+    It 'applies DatasetParameters.Query overrides for generic datasets' {
+        $catalogPath = Join-Path -Path $TestDrive -ChildPath 'query-override.catalog.json'
+        $catalog = [ordered]@{
+            version = '1.0.0'
+            datasets = [ordered]@{
+                'dynamic-query-override' = [ordered]@{
+                    endpoint = 'dynamic.query.override'
+                    itemsPath = '$.entities'
+                    paging = [ordered]@{ profile = 'none' }
+                    retry = [ordered]@{ profile = 'default' }
+                }
+            }
+            profiles = [ordered]@{
+                paging = [ordered]@{
+                    none = [ordered]@{ type = 'none' }
+                }
+                retry = [ordered]@{
+                    default = [ordered]@{
+                        mode = 'rateLimitAware'
+                        maxRetries = 1
+                        baseDelaySeconds = 0
+                        maxDelaySeconds = 0
+                        jitterSeconds = 0
+                        retryOnStatusCodes = @(429)
+                        retryOnMethods = @('GET')
+                    }
+                }
+            }
+            endpoints = [ordered]@{
+                'dynamic.query.override' = [ordered]@{
+                    method = 'GET'
+                    path = '/api/v2/users'
+                    pagingProfile = 'none'
+                    retryProfile = 'default'
+                    itemsPath = '$.entities'
+                    defaultQueryParams = [ordered]@{
+                        pageSize = 25
+                        state = 'active'
+                    }
+                }
+            }
+        }
+        $catalog | ConvertTo-Json -Depth 100 | Set-Content -Path $catalogPath
+
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-query-override'
+        $requestInvoker = {
+            param($request)
+            if ($request.Uri -eq 'https://api.test.local/api/v2/users?pageSize=100&state=inactive') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ entities = @([pscustomobject]@{ id = 'u-override' }) } }
+            }
+
+            throw "Unexpected request: $($request.Method) $($request.Uri)"
+        }
+
+        Invoke-Dataset -Dataset 'dynamic-query-override' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters @{ Query = @{ pageSize = 100; state = 'inactive' } } -RequestInvoker $requestInvoker | Out-Null
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'dynamic-query-override') -Directory | Select-Object -First 1
+        $records = Get-Content -Path (Join-Path $runFolder.FullName 'data/dynamic-query-override.jsonl') | ForEach-Object { $_ | ConvertFrom-Json }
+        $records.Count | Should -Be 1
+        $records[0].id | Should -Be 'u-override'
+    }
 }

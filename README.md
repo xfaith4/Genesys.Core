@@ -142,7 +142,7 @@ All other keys in the catalog (27 additional) run via generic catalog-driven dis
 pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
 ```
 
-> **Note:** Script-level invocation does not currently expose `-Headers` or `-BaseUri`. For authenticated live API runs, import the module and call `Invoke-Dataset` directly.
+> **Note:** Script-level invocation now supports `-BaseUri`, `-Headers`, and `-DatasetParameters`, but importing the module is still recommended for reusable sessions.
 
 ### Windows GUI
 
@@ -171,6 +171,7 @@ The WPF GUI provides an OAuth auth flow, dataset selection from the catalog, run
 | `-BaseUri` | No* | Genesys Cloud API base URI (e.g. `https://api.mypurecloud.com`) |
 | `-Headers` | No* | Hashtable with `Authorization` bearer token |
 | `-WhatIf` | No | Dry run; validates catalog and prints plan without calling the API |
+| `-DatasetParameters` | No | Dataset runtime overrides (intervals, query overrides, dataset-specific knobs) |
 | `-StrictCatalog` | No | Fail if root and mirror catalogs diverge |
 
 \* Required for live API runs.

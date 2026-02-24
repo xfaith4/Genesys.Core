@@ -68,6 +68,8 @@ function Invoke-AuditLogsDataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$NoRedact
     )
 
@@ -84,13 +86,21 @@ function Invoke-AuditLogsDataset {
     $serviceMappings = @($mappingResponse.Items)
 
     $body = [ordered]@{
-        interval = "$(([DateTime]::UtcNow.AddHours(-1).ToString('o')))/$(([DateTime]::UtcNow.ToString('o')))"
+        interval = Resolve-DatasetInterval -DatasetParameters $DatasetParameters -DefaultLookbackHours 1
         serviceName = @()
         action = @()
     }
 
     if ($serviceMappings.Count -gt 0) {
         $body.serviceName = @($serviceMappings | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.PSObject.Properties.Name -contains 'serviceName') { $_.serviceName } } | Where-Object { $_ })
+    }
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('ServiceNames')) {
+        $body.serviceName = @($DatasetParameters['ServiceNames'])
+    }
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Actions')) {
+        $body.action = @($DatasetParameters['Actions'])
     }
 
     $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker

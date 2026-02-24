@@ -51,6 +51,13 @@ exit ([int](-not $allPresent))
         $outputStr | Should -Not -Match 'Write-Manifest.*is not recognized'
     }
 
+
+
+    It 'accepts script-level BaseUri and Headers parameters' {
+        $output = & pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -BaseUri 'https://api.test.local' -Headers @{ Authorization = 'Bearer test-value' } -OutputRoot $script:testOutputRoot -WhatIf 2>&1
+        $LASTEXITCODE | Should -Be 0
+        ($output | Out-String) | Should -Match 'WhatIf'
+    }
     It 'passes Authorization header from GENESYS_BEARER_TOKEN env var when set' {
         $script = @'
 . ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1

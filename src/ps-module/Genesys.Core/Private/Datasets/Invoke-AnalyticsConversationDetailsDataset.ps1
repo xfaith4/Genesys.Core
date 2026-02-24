@@ -13,6 +13,8 @@ function Invoke-AnalyticsConversationDetailsDataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$NoRedact
     )
 
@@ -23,9 +25,17 @@ function Invoke-AnalyticsConversationDetailsDataset {
     $runEvents = [System.Collections.Generic.List[object]]::new()
 
     $body = [ordered]@{
-        interval = "$(([DateTime]::UtcNow.AddHours(-24).ToString('o')))/$(([DateTime]::UtcNow.ToString('o')))"
+        interval = Resolve-DatasetInterval -DatasetParameters $DatasetParameters -DefaultLookbackHours 24
         order    = 'asc'
         orderBy  = 'conversationStart'
+    }
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Order')) {
+        $body.order = [string]$DatasetParameters['Order']
+    }
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('OrderBy')) {
+        $body.orderBy = [string]$DatasetParameters['OrderBy']
     }
 
     $asyncProfile = [pscustomobject]@{

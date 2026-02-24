@@ -106,6 +106,5 @@ GUI behavior:
 
 ## Important current limitations
 
-- Direct script invocation (`pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 ...`) does not currently expose script-level `-Headers` and `-BaseUri` parameters.
-- For authenticated live API calls, use imported module command `Invoke-Dataset` instead of script-level invocation.
+- Script-level invocation supports `-BaseUri`, `-Headers`, and `-DatasetParameters` for automation scenarios.
 - Included GitHub workflows are currently scoped to `audit-logs` and require environment-specific auth wiring before production operation.

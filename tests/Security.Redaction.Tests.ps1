@@ -25,3 +25,24 @@ Describe 'Request logging redaction' {
         $requestEvent.uri | Should -Match 'name=ok'
     }
 }
+
+
+Describe 'Record payload redaction hardening' {
+    BeforeAll {
+        . "$PSScriptRoot/../src/ps-module/Genesys.Core/Private/Redaction/Protect-RecordData.ps1"
+    }
+
+    It 'redacts embedded bearer and query token strings while preserving non-sensitive text' {
+        $record = [pscustomobject]@{
+            message = 'Authorization: Bearer top-secret-token'
+            callback = 'https://example.local/callback?access_token=abc123&name=ok'
+            note = 'safe text'
+        }
+
+        $sanitized = Protect-RecordData -InputObject $record
+
+        $sanitized.message | Should -Be 'Authorization: Bearer [REDACTED]'
+        $sanitized.callback | Should -Be 'https://example.local/callback?access_token=[REDACTED]&name=ok'
+        $sanitized.note | Should -Be 'safe text'
+    }
+}

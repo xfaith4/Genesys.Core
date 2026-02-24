@@ -349,135 +349,280 @@
         "profile": "default"
       }
     },
-
     "analytics.query.queue.observations.real.time.stats": {
-      "description": "Query Queue Observations — real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
+      "description": "Query Queue Observations \u2014 real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
       "endpoint": "analytics.query.queue.observations.real.time.stats",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.user.observations.real.time.status": {
-      "description": "Query User Observations — real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
+      "description": "Query User Observations \u2014 real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
       "endpoint": "analytics.query.user.observations.real.time.status",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.user.aggregates.performance.metrics": {
-      "description": "Query User Aggregates — agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
+      "description": "Query User Aggregates \u2014 agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
       "endpoint": "analytics.query.user.aggregates.performance.metrics",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.conversation.aggregates.queue.performance": {
-      "description": "Query Conversation Aggregates — queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
+      "description": "Query Conversation Aggregates \u2014 queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
       "endpoint": "analytics.query.conversation.aggregates.queue.performance",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.conversation.aggregates.agent.performance": {
-      "description": "Query Conversation Aggregates — per-agent handle/talk/ACW/connected metrics.",
+      "description": "Query Conversation Aggregates \u2014 per-agent handle/talk/ACW/connected metrics.",
       "endpoint": "analytics.query.conversation.aggregates.agent.performance",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.flow.aggregates.execution.metrics": {
-      "description": "Query Flow Aggregates — Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
+      "description": "Query Flow Aggregates \u2014 Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
       "endpoint": "analytics.query.flow.aggregates.execution.metrics",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.rate.limit.aggregates": {
-      "description": "Query Rate Limit Aggregates — API rate-limit hits and over-limit events: nError, nOverLimit.",
+      "description": "Query Rate Limit Aggregates \u2014 API rate-limit hits and over-limit events: nError, nOverLimit.",
       "endpoint": "analytics.query.rate.limit.aggregates",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
     "analytics.query.user.details.activity.report": {
-      "description": "Query User Details — agent presence and routing activity report.",
+      "description": "Query User Details \u2014 agent presence and routing activity report.",
       "endpoint": "analytics.query.user.details.activity.report",
       "itemsPath": "$.userDetails",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     },
-
     "oauth.get.clients": {
-      "description": "Get OAuth Clients — all configured OAuth client applications and their grant types.",
+      "description": "Get OAuth Clients \u2014 all configured OAuth client applications and their grant types.",
       "endpoint": "oauth.get.clients",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "oauth.get.authorizations": {
-      "description": "Get OAuth Authorizations — active client authorization grants issued to users.",
+      "description": "Get OAuth Authorizations \u2014 active client authorization grants issued to users.",
       "endpoint": "oauth.get.authorizations",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
-
     "outbound.get.campaigns": {
-      "description": "Get Outbound Campaigns — voice and preview dialing campaigns with status and progress.",
+      "description": "Get Outbound Campaigns \u2014 voice and preview dialing campaigns with status and progress.",
       "endpoint": "outbound.get.campaigns",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "outbound.get.contact.lists": {
-      "description": "Get Outbound Contact Lists — contact list definitions used by dialing campaigns.",
+      "description": "Get Outbound Contact Lists \u2014 contact list definitions used by dialing campaigns.",
       "endpoint": "outbound.get.contact.lists",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "outbound.get.messaging.campaigns": {
-      "description": "Get Outbound Messaging Campaigns — SMS and digital outbound messaging campaigns.",
+      "description": "Get Outbound Messaging Campaigns \u2014 SMS and digital outbound messaging campaigns.",
       "endpoint": "outbound.get.messaging.campaigns",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "outbound.get.events": {
-      "description": "Get Outbound Dialer Events — campaign and contact disposition events from the dialer.",
+      "description": "Get Outbound Dialer Events \u2014 campaign and contact disposition events from the dialer.",
       "endpoint": "outbound.get.events",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
-
     "flows.get.all.flows": {
-      "description": "Get All Architect Flows — IVR, inbound call, outbound call, bot, and in-queue flows.",
+      "description": "Get All Architect Flows \u2014 IVR, inbound call, outbound call, bot, and in-queue flows.",
       "endpoint": "flows.get.all.flows",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "flows.get.flow.outcomes": {
-      "description": "Get Flow Outcome Definitions — configurable outcome labels used to classify flow exits.",
+      "description": "Get Flow Outcome Definitions \u2014 configurable outcome labels used to classify flow exits.",
       "endpoint": "flows.get.flow.outcomes",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "flows.get.flow.milestones": {
-      "description": "Get Flow Milestone Definitions — named checkpoints within Architect flows for analytics tracking.",
+      "description": "Get Flow Milestone Definitions \u2014 named checkpoints within Architect flows for analytics tracking.",
       "endpoint": "flows.get.flow.milestones",
       "itemsPath": "$.entities",
-      "paging": { "profile": "nextUri_default" },
-      "retry": { "profile": "default" }
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
     },
     "analytics.query.flow.observations": {
-      "description": "Query Flow Observations — real-time Architect flow execution status: oFlow, oFlowDisconnect.",
+      "description": "Query Flow Observations \u2014 real-time Architect flow execution status: oFlow, oFlowDisconnect.",
       "endpoint": "analytics.query.flow.observations",
       "itemsPath": "$.results",
-      "paging": { "profile": "analytics_details_query" },
-      "retry": { "profile": "rateLimitAware" }
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "authorization.get.roles": {
+      "description": "Authorization roles catalog dataset.",
+      "endpoint": "authorization.get.roles",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.recordings": {
+      "description": "Conversation recordings for a single conversation id.",
+      "endpoint": "conversations.get.recordings",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "oauth.post.client.usage.query": {
+      "description": "Submit OAuth client usage analytics query job.",
+      "endpoint": "oauth.post.client.usage.query",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "oauth.get.client.usage.query.results": {
+      "description": "Fetch OAuth client usage query execution results.",
+      "endpoint": "oauth.get.client.usage.query.results",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "speechandtextanalytics.get.topics": {
+      "description": "Speech and Text Analytics topics.",
+      "endpoint": "speechandtextanalytics.get.topics",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "analytics.post.transcripts.aggregates.query": {
+      "description": "Transcript aggregates analytics query.",
+      "endpoint": "analytics.post.transcripts.aggregates.query",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "speechandtextanalytics.get.conversation.communication.transcripturl": {
+      "description": "Fetch transcript URL for a specific conversation communication.",
+      "endpoint": "speechandtextanalytics.get.conversation.communication.transcripturl",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
     }
   },
   "profiles": {
@@ -1604,15 +1749,19 @@
         "Compatibility alias for audit results endpoint."
       ]
     },
-
     "oauth.get.clients": {
       "method": "GET",
       "path": "/api/v2/oauth/clients",
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100" },
-      "notes": [ "Get OAuth Clients", "group: OAuth" ]
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get OAuth Clients",
+        "group: OAuth"
+      ]
     },
     "oauth.get.authorizations": {
       "method": "GET",
@@ -1620,18 +1769,29 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100" },
-      "notes": [ "Get OAuth Authorizations", "group: OAuth" ]
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get OAuth Authorizations",
+        "group: OAuth"
+      ]
     },
-
     "outbound.get.campaigns": {
       "method": "GET",
       "path": "/api/v2/outbound/campaigns",
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100", "pageNumber": "1", "sortBy": "name" },
-      "notes": [ "Get Outbound Campaigns", "group: Outbound" ]
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortBy": "name"
+      },
+      "notes": [
+        "Get Outbound Campaigns",
+        "group: Outbound"
+      ]
     },
     "outbound.get.contact.lists": {
       "method": "GET",
@@ -1639,8 +1799,14 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100", "pageNumber": "1" },
-      "notes": [ "Get Outbound Contact Lists", "group: Outbound" ]
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get Outbound Contact Lists",
+        "group: Outbound"
+      ]
     },
     "outbound.get.messaging.campaigns": {
       "method": "GET",
@@ -1648,8 +1814,15 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100", "pageNumber": "1", "sortBy": "name" },
-      "notes": [ "Get Outbound Messaging Campaigns", "group: Outbound" ]
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortBy": "name"
+      },
+      "notes": [
+        "Get Outbound Messaging Campaigns",
+        "group: Outbound"
+      ]
     },
     "outbound.get.events": {
       "method": "GET",
@@ -1657,18 +1830,31 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100", "pageNumber": "1" },
-      "notes": [ "Get Outbound Dialer Events", "group: Outbound" ]
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get Outbound Dialer Events",
+        "group: Outbound"
+      ]
     },
-
     "flows.get.all.flows": {
       "method": "GET",
       "path": "/api/v2/flows",
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100", "pageNumber": "1", "sortBy": "name", "sortOrder": "ASC" },
-      "notes": [ "Get All Architect Flows", "group: Flows" ]
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "sortBy": "name",
+        "sortOrder": "ASC"
+      },
+      "notes": [
+        "Get All Architect Flows",
+        "group: Flows"
+      ]
     },
     "flows.get.flow.outcomes": {
       "method": "GET",
@@ -1676,8 +1862,13 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100" },
-      "notes": [ "Get Flow Outcome Definitions", "group: Flows" ]
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get Flow Outcome Definitions",
+        "group: Flows"
+      ]
     },
     "flows.get.flow.milestones": {
       "method": "GET",
@@ -1685,10 +1876,14 @@
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": { "pageSize": "100" },
-      "notes": [ "Get Flow Milestone Definitions", "group: Flows" ]
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get Flow Milestone Definitions",
+        "group: Flows"
+      ]
     },
-
     "analytics.query.flow.observations": {
       "method": "POST",
       "path": "/api/v2/analytics/flows/observations/query",
@@ -1696,9 +1891,97 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Flow Observations — Real-Time Architect Flow Status",
+        "Query Flow Observations \u2014 Real-Time Architect Flow Status",
         "group: Analytics",
         "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"flowType\",\n        \"value\": \"inboundcall\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oFlow\",\n    \"oFlowDisconnect\"\n  ]\n}"
+      ]
+    },
+    "authorization.get.roles": {
+      "method": "GET",
+      "path": "/api/v2/authorization/roles",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get authorization roles",
+        "phase4"
+      ]
+    },
+    "conversations.get.recordings": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/recordings",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Get conversation recordings",
+        "phase4"
+      ]
+    },
+    "oauth.post.client.usage.query": {
+      "method": "POST",
+      "path": "/api/v2/oauth/clients/{clientId}/usage/query",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Submit OAuth client usage query",
+        "phase4"
+      ]
+    },
+    "oauth.get.client.usage.query.results": {
+      "method": "GET",
+      "path": "/api/v2/oauth/clients/{clientId}/usage/query/results/{executionId}",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": [
+        "Get OAuth client usage query results",
+        "phase4"
+      ]
+    },
+    "speechandtextanalytics.get.topics": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/topics",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get speech and text analytics topics",
+        "phase4"
+      ]
+    },
+    "analytics.post.transcripts.aggregates.query": {
+      "method": "POST",
+      "path": "/api/v2/analytics/transcripts/aggregates/query",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Query transcript aggregates",
+        "phase4"
+      ]
+    },
+    "speechandtextanalytics.get.conversation.communication.transcripturl": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturl",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Get transcript URL",
+        "phase4"
       ]
     }
   }

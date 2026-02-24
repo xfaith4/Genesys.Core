@@ -28,8 +28,10 @@ function Invoke-UsersDataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$NoRedact
     )
 
-    Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey 'users' -DataFileName 'users.jsonl' -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -Normalizer ${function:ConvertTo-NormalizedUserRecord} -NoRedact:$NoRedact
+    Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey 'users' -DataFileName 'users.jsonl' -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -Normalizer ${function:ConvertTo-NormalizedUserRecord} -NoRedact:$NoRedact
 }

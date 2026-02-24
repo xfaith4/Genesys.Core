@@ -1,7 +1,6 @@
 Describe 'Genesys Core bootstrap' {
     It 'has canonical root catalog and schema' {
         Test-Path -Path './genesys-core.catalog.json' | Should -BeTrue
-        Test-Path -Path './catalog/genesys-core.catalog.json' | Should -BeTrue
         Test-Path -Path './catalog/schema/genesys-core.catalog.schema.json' | Should -BeTrue
     }
 

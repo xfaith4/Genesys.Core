@@ -54,19 +54,21 @@ function Invoke-RegisteredDataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$NoRedact
     )
 
     $registry = Get-DatasetRegistry
     if ($registry.ContainsKey($Dataset)) {
         $commandName = $registry[$Dataset]
-        & $commandName -RunContext $RunContext -Catalog $Catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -NoRedact:$NoRedact
+        & $commandName -RunContext $RunContext -Catalog $Catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -NoRedact:$NoRedact
         return
     }
 
     if ($null -ne $Catalog.datasets -and $Catalog.datasets.ContainsKey($Dataset)) {
         $dataFileName = ConvertTo-DatasetDataFileName -Dataset $Dataset
-        Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey $Dataset -DataFileName $dataFileName -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -Normalizer ${function:ConvertTo-IdentityRecord} -NoRedact:$NoRedact
+        Invoke-SimpleCollectionDataset -RunContext $RunContext -Catalog $Catalog -DatasetKey $Dataset -DataFileName $dataFileName -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -Normalizer ${function:ConvertTo-IdentityRecord} -NoRedact:$NoRedact
         return
     }
 

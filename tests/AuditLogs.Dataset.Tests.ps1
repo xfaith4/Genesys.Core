@@ -5,7 +5,7 @@ Describe 'Audit logs dataset' {
 
     It 'runs submit->poll->results flow and writes audit outputs' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
-        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../catalog/genesys-core.catalog.json'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../genesys-core.catalog.json'
 
         $script:pollCount = 0
         $requestInvoker = {
@@ -86,9 +86,60 @@ Describe 'Audit logs dataset' {
         (@($events | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 0
     }
 
+
+
+    It 'supports dataset parameter overrides for interval, service names, and actions' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-parameterized'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../genesys-core.catalog.json'
+
+        $script:capturedSubmitBody = $null
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing', 'platform') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                $script:capturedSubmitBody = $request.Body | ConvertFrom-Json -Depth 20
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-params' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-params') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-params/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    results = @([pscustomobject]@{ id = '1'; action = 'delete'; serviceName = 'routing' })
+                    nextUri = $null
+                } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        $parameters = @{
+            StartUtc = '2026-02-20T00:00:00Z'
+            EndUtc = '2026-02-20T01:00:00Z'
+            ServiceNames = @('routing')
+            Actions = @('delete')
+        }
+
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters $parameters -RequestInvoker $requestInvoker | Out-Null
+
+        $script:capturedSubmitBody.interval | Should -Be '2026-02-20T00:00:00.0000000Z/2026-02-20T01:00:00.0000000Z'
+        @($script:capturedSubmitBody.serviceName).Count | Should -Be 1
+        ($script:capturedSubmitBody.serviceName | Select-Object -First 1) | Should -Be 'routing'
+        @($script:capturedSubmitBody.action).Count | Should -Be 1
+        ($script:capturedSubmitBody.action | Select-Object -First 1) | Should -Be 'delete'
+    }
     It 'fails when transaction reaches FAILED terminal state' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
-        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../catalog/genesys-core.catalog.json'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../genesys-core.catalog.json'
 
         $requestInvoker = {
             param($request)
@@ -118,7 +169,7 @@ Describe 'Audit logs dataset' {
 
     It 'fails when transaction reaches CANCELLED terminal state' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
-        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../catalog/genesys-core.catalog.json'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../genesys-core.catalog.json'
 
         $requestInvoker = {
             param($request)

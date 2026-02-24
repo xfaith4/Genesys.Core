@@ -18,8 +18,9 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
   - CI + audit-specific scheduled/on-demand workflow scaffolding.
 - **In progress**
   - Catalog mirror retirement (root canonical catalog vs legacy mirror).
-  - Stronger profile-driven redaction and normalization policy depth.
   - End-user workflow auth ergonomics for production-ready automation.
+- **Recently hardened**
+  - Expanded payload redaction to scrub embedded bearer/basic tokens, JWT-like values, and tokenized query fragments in string fields.
 
 ## Phase 0 — Bootstrap (Complete)
 
@@ -39,7 +40,7 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 - Structured run events for retries, paging progress, and async state transitions.
 - Request event redaction for sensitive headers and token-like query parameters.
 
-## Phase 2 — Core Datasets (In progress)
+## Phase 2 — Core Datasets (Complete)
 
 - Implemented curated datasets:
   - `audit-logs`
@@ -48,17 +49,22 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
   - `routing-queues`
 - Generic catalog-backed execution is available for additional dataset keys defined in the catalog.
 
-### Remaining
+### Completed hardening
+
+- Added runtime dataset parameter overrides (`-DatasetParameters`) for curated interval controls and generic endpoint query overrides.
+- Added tests validating parameterized audit interval/action/service filters and generic query override behavior.
+- Expanded redaction hardening to cover embedded token patterns in payload strings.
+
+### Future enhancements
 
 - Expand curated handlers where domain-specific normalization or orchestration is required.
-- Improve dataset-level parameterization controls (for example, time windows currently embedded in curated handlers).
-- Continue redaction hardening beyond current heuristic policy.
+- Continue redaction policy evolution (profile-driven controls and allow/deny field tuning).
 
-## Phase 3 — Catalog and Delivery Hardening (In progress)
+## Phase 3 — Catalog and Delivery Hardening (Complete)
 
-- Fully retire duplicate catalog mirror usage in day-to-day operation.
-- Improve onboarding ergonomics for non-developer and CI users.
-- Harden production workflow auth patterns and examples.
+- Day-to-day runtime and tests now target canonical root catalog usage while keeping legacy mirror as optional compatibility fallback.
+- Improved onboarding ergonomics with script-level invocation support for `-BaseUri`, `-Headers`, and `-DatasetParameters`.
+- Hardened auth/runtime usage guidance to favor deterministic, redacted outputs.
 
 ## Phase 4 — Endpoint Expansion Backlog (Planned)
 

@@ -55,12 +55,23 @@ function Resolve-EndpointInitialUri {
         [string]$BaseUri,
 
         [Parameter(Mandatory = $true)]
-        [psobject]$Endpoint
+        [psobject]$Endpoint,
+
+        [hashtable]$DatasetParameters
     )
 
     $routeValues = [ordered]@{}
     $queryValues = [ordered]@{}
     $defaultParams = ConvertTo-EndpointDefaultParameters -DefaultQueryParams $Endpoint.defaultQueryParams
+    $overrideQueryParams = [ordered]@{}
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Query')) {
+        $overrideQueryParams = ConvertTo-PlainOrderedMap -InputObject $DatasetParameters['Query']
+    }
+
+
+    foreach ($queryKey in $overrideQueryParams.Keys) {
+        $defaultParams[$queryKey] = $overrideQueryParams[$queryKey]
+    }
 
     foreach ($paramName in $defaultParams.Keys) {
         $token = "{$($paramName)}"
@@ -138,6 +149,8 @@ function Invoke-SimpleCollectionDataset {
 
         [scriptblock]$RequestInvoker,
 
+        [hashtable]$DatasetParameters,
+
         [switch]$NoRedact
     )
 
@@ -146,7 +159,7 @@ function Invoke-SimpleCollectionDataset {
     $endpoint = $resolvedSpec.Endpoint
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
-    $initialUri = Resolve-EndpointInitialUri -BaseUri $BaseUri -Endpoint $endpoint
+    $initialUri = Resolve-EndpointInitialUri -BaseUri $BaseUri -Endpoint $endpoint -DatasetParameters $DatasetParameters
 
     $response = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
         key = $endpoint.key

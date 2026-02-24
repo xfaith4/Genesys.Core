@@ -69,6 +69,34 @@
         'Get-GenesysContactCentreStatus'
         'Invoke-GenesysDailyHealthReport'
         'Export-GenesysConfigurationSnapshot'
+
+        # Operational events — observations & aggregates
+        'Get-GenesysQueueObservation'
+        'Get-GenesysUserObservation'
+        'Get-GenesysQueuePerformance'
+
+        # OAuth clients & authorizations
+        'Get-GenesysOAuthClient'
+        'Get-GenesysOAuthAuthorization'
+        'Get-GenesysRateLimitEvent'
+
+        # Outbound campaigns & events
+        'Get-GenesysOutboundCampaign'
+        'Get-GenesysOutboundContactList'
+        'Get-GenesysOutboundEvent'
+        'Get-GenesysMessagingCampaign'
+
+        # Flow / Architect performance
+        'Get-GenesysFlow'
+        'Get-GenesysFlowOutcome'
+        'Get-GenesysFlowMilestone'
+        'Get-GenesysFlowAggregate'
+        'Get-GenesysFlowObservation'
+
+        # Agent performance & voice quality
+        'Get-GenesysAgentPerformance'
+        'Get-GenesysUserActivity'
+        'Get-GenesysAgentVoiceQuality'
     )
 
     CmdletsToExport   = @()

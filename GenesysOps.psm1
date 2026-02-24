@@ -1355,3 +1355,911 @@ function Export-GenesysConfigurationSnapshot {
 }
 
 #endregion
+
+# ---------------------------------------------------------------------------
+#region Private normalizers — analytics result flatteners (not exported)
+# ---------------------------------------------------------------------------
+
+function ConvertFrom-ObservationResult {
+    <#
+    Private. Flattens a Genesys analytics observation result record
+    { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count}}]}] }
+    into a single PSCustomObject with group dimensions + each metric as a named
+    property (using the raw metric name, e.g. oInteracting, oWaiting).
+    #>
+    param(
+        [Parameter(ValueFromPipeline)]
+        [object] $InputObject
+    )
+    process {
+        $r = $InputObject
+        $props = [ordered]@{}
+        if ($r.group) {
+            $r.group.psobject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
+        }
+        if ($r.data -and $r.data.Count -gt 0) {
+            $props['Interval'] = $r.data[0].interval
+            foreach ($m in @($r.data[0].metrics)) {
+                $props[$m.metric] = $m.stats.count
+            }
+        }
+        [PSCustomObject]$props
+    }
+}
+
+function ConvertFrom-AggregateResult {
+    <#
+    Private. Flattens a Genesys analytics aggregate result record
+    { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count,sum,min,max}}]}] }
+    into one PSCustomObject per group+interval with columns:
+        <metric>_count, <metric>_sum, <metric>_min, <metric>_max
+    #>
+    param(
+        [Parameter(ValueFromPipeline)]
+        [object] $InputObject
+    )
+    process {
+        $r = $InputObject
+        foreach ($d in @($r.data)) {
+            $props = [ordered]@{ Interval = $d.interval }
+            if ($r.group) {
+                $r.group.psobject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
+            }
+            foreach ($m in @($d.metrics)) {
+                $key = $m.metric
+                $props["${key}_count"] = $m.stats.count
+                $props["${key}_sum"]   = $m.stats.sum
+                $props["${key}_min"]   = $m.stats.min
+                $props["${key}_max"]   = $m.stats.max
+            }
+            [PSCustomObject]$props
+        }
+    }
+}
+
+function Get-MosCategory ([object]$Mos) {
+    if ($null -eq $Mos) { return 'Unknown' }
+    $v = [double]$Mos
+    if ($v -ge 4.0) { return 'Good' }
+    if ($v -ge 3.6) { return 'Fair' }
+    if ($v -ge 3.1) { return 'Poor' }
+    return 'Bad'
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Operational Events — Observations & Aggregates
+# ---------------------------------------------------------------------------
+
+function Get-GenesysQueueObservation {
+    <#
+    .SYNOPSIS
+        Returns real-time queue observation metrics.
+    .DESCRIPTION
+        Queries the analytics observations endpoint and returns one flattened record
+        per queue/mediaType combination.  Each record contains instantaneous counts:
+
+            QueueId        — Genesys queue GUID
+            MediaType      — voice, chat, email, etc.
+            Interval       — observation snapshot timestamp
+            oInteracting   — agents currently interacting with a contact
+            oWaiting       — contacts waiting in queue
+            oOnQueueUsers  — agents joined and on-queue
+            oOffQueueUsers — agents joined but off-queue (e.g. in ACW)
+            oActiveUsers   — agents in an active state
+
+        Note: the catalog default body filters on a specific queueId.  Update the
+        catalog entry or request body to query all queues or a specific subset.
+    .EXAMPLE
+        # Current queue floor view
+        Get-GenesysQueueObservation | Sort-Object oWaiting -Descending | Format-Table QueueId, oWaiting, oInteracting, oOnQueueUsers
+    .EXAMPLE
+        # Alert if any queue has more than 10 contacts waiting
+        Get-GenesysQueueObservation | Where-Object { $_.oWaiting -gt 10 } |
+            ForEach-Object { Write-Warning "Queue $($_.QueueId): $($_.oWaiting) waiting" }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.queue.observations.real.time.stats' |
+        ConvertFrom-ObservationResult
+}
+
+function Get-GenesysUserObservation {
+    <#
+    .SYNOPSIS
+        Returns real-time agent observation records (presence and routing status).
+    .DESCRIPTION
+        Returns one record per agent with current oUserPresence and oUserRoutingStatus.
+        More granular than the users dataset — useful for event-driven monitoring
+        scripts where you need raw observation values rather than normalised labels.
+
+            UserId             — Genesys user GUID
+            Interval           — observation snapshot timestamp
+            oUserPresence      — current presence state count
+            oUserRoutingStatus — current routing status count
+
+        Note: the catalog default body filters on a specific userId.  Update for
+        organisation-wide observation.
+    .EXAMPLE
+        Get-GenesysUserObservation | Format-Table UserId, Interval, oUserPresence, oUserRoutingStatus
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.user.observations.real.time.status' |
+        ConvertFrom-ObservationResult
+}
+
+function Get-GenesysQueuePerformance {
+    <#
+    .SYNOPSIS
+        Returns historical queue conversation aggregate metrics.
+    .DESCRIPTION
+        Fetches the conversation aggregates dataset grouped by queue and returns
+        flattened records ready for performance reporting.  Each record covers one
+        queue+mediaType+interval combination with columns for each metric:
+
+            queueId                  — queue GUID
+            mediaType                — voice, chat, email, etc.
+            Interval                 — aggregate time bucket
+            nConnected_count         — number of connected conversations
+            tHandle_sum              — total handle time (ms)
+            tTalk_sum                — total talk time (ms)
+            tAcw_sum                 — total after-call work time (ms)
+            tAnswered_sum            — total time to answer (ms)
+            nOffered_count           — contacts offered to queue
+
+        Derive averages: tHandle_sum / nConnected_count / 1000 = avg handle seconds.
+    .EXAMPLE
+        $perf = Get-GenesysQueuePerformance
+        $perf | Select-Object queueId, Interval, nConnected_count,
+            @{ n='AvgHandleSec'; e={ if ($_.nConnected_count) { [int]($_.tHandle_sum / $_.nConnected_count / 1000) } } } |
+            Format-Table
+    .EXAMPLE
+        # Find queues where avg handle time > 600 s
+        Get-GenesysQueuePerformance |
+            Where-Object { $_.nConnected_count -and ($_.tHandle_sum / $_.nConnected_count / 1000) -gt 600 } |
+            Format-Table queueId, nConnected_count
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' |
+        ConvertFrom-AggregateResult
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region OAuth Clients & Authorizations
+# ---------------------------------------------------------------------------
+
+function Get-GenesysOAuthClient {
+    <#
+    .SYNOPSIS
+        Returns all OAuth client applications registered in the organisation.
+    .DESCRIPTION
+        OAuth clients represent integrations, bots, or service accounts that
+        authenticate to Genesys Cloud via the API.  Audit this list to:
+          - Identify stale or unknown client IDs
+          - Review which grant types are in use (client_credentials, code, implicit)
+          - Confirm clients are not over-scoped
+
+        Key fields per record:
+            id            — Client GUID (the clientId used in token requests)
+            name          — Display name
+            description   — Free-text description
+            authorizedGrantTypes — Array of OAuth grant types
+            scope         — Approved API scopes
+            registeredRedirectUri — Redirect URIs for code/implicit grants
+            createdDate   — When the client was registered
+    .PARAMETER Name
+        Wildcard filter on client display name.
+    .PARAMETER GrantType
+        Filter by grant type (client_credentials, authorization_code, implicit, etc.).
+    .EXAMPLE
+        Get-GenesysOAuthClient | Format-Table id, name, authorizedGrantTypes
+    .EXAMPLE
+        # Find all client-credentials service accounts (no user interaction)
+        Get-GenesysOAuthClient -GrantType 'client_credentials' |
+            Format-Table id, name, createdDate
+    .EXAMPLE
+        # Security review — export all OAuth clients
+        Get-GenesysOAuthClient | Select-Object id, name, authorizedGrantTypes, createdDate |
+            Export-Csv .\oauth-clients-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
+    .EXAMPLE
+        # Find clients with no description (undocumented integrations)
+        Get-GenesysOAuthClient | Where-Object { -not $_.description } | Format-Table id, name
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name,
+        [string] $GrantType
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'oauth.get.clients'
+    if ($Name)      { $results = $results | Where-Object { $_.name -like $Name } }
+    if ($GrantType) { $results = $results | Where-Object { $_.authorizedGrantTypes -contains $GrantType } }
+    $results
+}
+
+function Get-GenesysOAuthAuthorization {
+    <#
+    .SYNOPSIS
+        Returns active OAuth authorization grants issued to users.
+    .DESCRIPTION
+        An authorization represents a user's consent for an OAuth client to act
+        on their behalf.  Review this list to identify:
+          - Users who have authorized third-party apps you don't recognise
+          - Authorizations for clients that have since been decommissioned
+          - Unexpectedly broad scope grants
+
+        Key fields per record:
+            client.id     — OAuth client GUID
+            client.name   — Client display name
+            scope         — Scopes the user consented to
+            dateCreated   — When the user granted authorization
+    .EXAMPLE
+        Get-GenesysOAuthAuthorization | Format-Table client.name, scope, dateCreated
+    .EXAMPLE
+        # Find all authorizations for a specific client (e.g. investigating a compromised client)
+        $clientId = (Get-GenesysOAuthClient -Name 'Reporting Bot').id
+        Get-GenesysOAuthAuthorization | Where-Object { $_.client.id -eq $clientId }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'oauth.get.authorizations'
+}
+
+function Get-GenesysRateLimitEvent {
+    <#
+    .SYNOPSIS
+        Returns API rate-limit aggregate data (errors and over-limit events).
+    .DESCRIPTION
+        Queries the rate-limit aggregates analytics endpoint.  Returns flattened
+        records with columns:
+
+            userId           — User or client that hit the limit
+            Interval         — Time bucket
+            nError_count     — Number of error responses in the interval
+            nOverLimit_count — Number of 429 rate-limit responses
+
+        Use this to identify which users or automated scripts are generating the
+        most rate-limit pressure, enabling proactive throttling or backoff tuning.
+    .EXAMPLE
+        Get-GenesysRateLimitEvent | Where-Object { $_.nOverLimit_count -gt 0 } |
+            Sort-Object nOverLimit_count -Descending | Format-Table
+    .EXAMPLE
+        # Combine with OAuth client data for enriched reporting
+        $limits = Get-GenesysRateLimitEvent
+        $clients = Get-GenesysApiUsageByClient
+        $limits | Select-Object userId, Interval, nOverLimit_count |
+            Sort-Object nOverLimit_count -Descending | Select-Object -First 10 | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.rate.limit.aggregates' |
+        ConvertFrom-AggregateResult
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Outbound Campaigns & Events
+# ---------------------------------------------------------------------------
+
+function Get-GenesysOutboundCampaign {
+    <#
+    .SYNOPSIS
+        Returns outbound dialing campaigns with current status and configuration.
+    .DESCRIPTION
+        Each record describes one campaign.  Key fields:
+
+            id              — Campaign GUID
+            name            — Campaign display name
+            campaignStatus  — on / off / complete / stopping / invalid
+            dialingMode     — preview, power, progressive, agentless, etc.
+            contactListId   — Associated contact list
+            queueId         — Destination queue for connected calls
+            callerName      — Caller ID name presented to contacts
+            callerAddress   — Caller ID number
+            noAnswerTimeout — Seconds before no-answer disposition
+            abandonRate     — Maximum acceptable abandon rate (%)
+    .PARAMETER Name
+        Wildcard filter on campaign name.
+    .PARAMETER Status
+        Filter by campaignStatus (on, off, complete, stopping, invalid).
+    .EXAMPLE
+        # Which campaigns are currently running?
+        Get-GenesysOutboundCampaign -Status 'on' | Format-Table name, dialingMode, callerAddress
+    .EXAMPLE
+        # Campaigns that completed — ready for reconciliation
+        Get-GenesysOutboundCampaign -Status 'complete' | Select-Object name, id | Format-Table
+    .EXAMPLE
+        Get-GenesysOutboundCampaign | Sort-Object campaignStatus | Format-Table name, campaignStatus, dialingMode
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name,
+        [ValidateSet('on','off','complete','stopping','invalid')]
+        [string] $Status
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'outbound.get.campaigns'
+    if ($Name)   { $results = $results | Where-Object { $_.name           -like $Name   } }
+    if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq   $Status } }
+    $results
+}
+
+function Get-GenesysOutboundContactList {
+    <#
+    .SYNOPSIS
+        Returns outbound contact list definitions.
+    .DESCRIPTION
+        Contact lists hold the records dialled by outbound campaigns.  Each list
+        definition includes:
+
+            id              — Contact list GUID
+            name            — Display name
+            columnNames     — Data columns in the list (phone, firstName, etc.)
+            phoneNumberColumns — Which columns are phone-number fields
+            size            — Number of contacts in the list
+            importStatus    — Whether the most recent import succeeded
+    .PARAMETER Name
+        Wildcard filter on contact list name.
+    .EXAMPLE
+        Get-GenesysOutboundContactList | Format-Table id, name, size, importStatus.importState
+    .EXAMPLE
+        # Find lists that failed to import — potential data pipeline issue
+        Get-GenesysOutboundContactList |
+            Where-Object { $_.importStatus.importState -eq 'Failed' } |
+            Format-Table name, id
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'outbound.get.contact.lists'
+    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+    $results
+}
+
+function Get-GenesysOutboundEvent {
+    <#
+    .SYNOPSIS
+        Returns outbound dialer events — campaign and contact disposition records.
+    .DESCRIPTION
+        Dialer events capture each attempt outcome: connected, no-answer, busy,
+        voicemail, etc.  Use for campaign reconciliation, compliance auditing, and
+        contact-attempt frequency analysis.
+
+        Key fields:
+            id              — Event GUID
+            type            — Event type (e.g. campaignStart, contactCallCompleted)
+            campaignId      — Source campaign
+            timestamp       — When the event occurred
+            contactId       — The contact record that was dialled
+            callResult      — Attempt outcome (Connected, NoAnswer, Busy, etc.)
+    .PARAMETER EventType
+        Wildcard filter on event type.
+    .EXAMPLE
+        Get-GenesysOutboundEvent | Group-Object callResult | Select-Object Name, Count | Sort-Object Count -Descending
+    .EXAMPLE
+        # Find all connected outbound calls for reconciliation
+        Get-GenesysOutboundEvent | Where-Object { $_.callResult -eq 'Connected' } | Format-Table timestamp, campaignId, contactId
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $EventType
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'outbound.get.events'
+    if ($EventType) { $results = $results | Where-Object { $_.type -like $EventType } }
+    $results
+}
+
+function Get-GenesysMessagingCampaign {
+    <#
+    .SYNOPSIS
+        Returns outbound messaging (SMS / digital) campaigns.
+    .DESCRIPTION
+        Messaging campaigns send proactive outbound messages via SMS or other
+        digital channels.  Key fields:
+
+            id              — Campaign GUID
+            name            — Campaign display name
+            campaignStatus  — on / off / complete / stopping
+            messagesPerMinute — Send rate
+            contactListId   — Source contact list
+            smsConfig       — SMS-specific configuration (sender, contentTemplate)
+    .PARAMETER Name
+        Wildcard filter on campaign name.
+    .PARAMETER Status
+        Filter by campaignStatus (on, off, complete, stopping).
+    .EXAMPLE
+        Get-GenesysMessagingCampaign | Format-Table name, campaignStatus, messagesPerMinute
+    .EXAMPLE
+        Get-GenesysMessagingCampaign -Status 'on' | Select-Object name, smsConfig | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name,
+        [string] $Status
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'outbound.get.messaging.campaigns'
+    if ($Name)   { $results = $results | Where-Object { $_.name           -like $Name   } }
+    if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq   $Status } }
+    $results
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Flow / Architect Performance
+# ---------------------------------------------------------------------------
+
+function Get-GenesysFlow {
+    <#
+    .SYNOPSIS
+        Returns all Architect flow definitions.
+    .DESCRIPTION
+        Architect flows control the routing logic for inbound calls, outbound calls,
+        in-queue music/messaging, bots, and more.  Each record includes:
+
+            id              — Flow GUID
+            name            — Flow name
+            type            — inboundcall, outboundcall, inqueuecall, bot, etc.
+            publishedVersion.id — Currently published version GUID
+            activeVersion.id    — Active (potentially unpublished) version GUID
+            locked          — Whether the flow is locked for editing
+    .PARAMETER Name
+        Wildcard filter on flow name.
+    .PARAMETER FlowType
+        Filter by flow type (inboundcall, outboundcall, inqueuecall, bot, etc.).
+    .EXAMPLE
+        Get-GenesysFlow | Group-Object type | Select-Object Name, Count | Format-Table
+    .EXAMPLE
+        # Find all inbound IVR flows
+        Get-GenesysFlow -FlowType 'inboundcall' | Format-Table name, id
+    .EXAMPLE
+        # Export flow inventory for documentation
+        Get-GenesysFlow | Select-Object id, name, type, @{n='Version';e={$_.publishedVersion.id}} |
+            Export-Csv .\flows-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
+    .EXAMPLE
+        # Find flows without a published version (draft / broken)
+        Get-GenesysFlow | Where-Object { -not $_.publishedVersion } | Format-Table name, type, id
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name,
+        [string] $FlowType
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'flows.get.all.flows'
+    if ($Name)     { $results = $results | Where-Object { $_.name -like $Name     } }
+    if ($FlowType) { $results = $results | Where-Object { $_.type -eq   $FlowType } }
+    $results
+}
+
+function Get-GenesysFlowOutcome {
+    <#
+    .SYNOPSIS
+        Returns flow outcome definitions.
+    .DESCRIPTION
+        Flow outcomes are configurable labels applied when a contact exits an
+        Architect flow.  They appear in analytics as nFlowOutcome and can be
+        used to measure self-service success rates.
+
+        Key fields: id, name, description, divisionId
+    .PARAMETER Name
+        Wildcard filter on outcome name.
+    .EXAMPLE
+        Get-GenesysFlowOutcome | Format-Table id, name, description
+    .EXAMPLE
+        # Build a lookup table for enriching flow aggregate reports
+        $outcomeMap = Get-GenesysFlowOutcome | Group-Object id -AsHashTable -AsString
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name
+    )
+
+    Assert-GenesysConnected
+    $results = Invoke-GenesysDataset -Dataset 'flows.get.flow.outcomes'
+    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+    $results
+}
+
+function Get-GenesysFlowMilestone {
+    <#
+    .SYNOPSIS
+        Returns flow milestone definitions.
+    .DESCRIPTION
+        Flow milestones are named checkpoints placed inside Architect flows to
+        track how far through a self-service journey each contact progresses.
+        Analytics count them as nFlowMilestone.
+
+        Key fields: id, name, description, divisionId
+    .EXAMPLE
+        Get-GenesysFlowMilestone | Format-Table id, name, description
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'flows.get.flow.milestones'
+}
+
+function Get-GenesysFlowAggregate {
+    <#
+    .SYNOPSIS
+        Returns Architect flow execution aggregate metrics.
+    .DESCRIPTION
+        Fetches flow aggregates and returns flattened records — one per
+        flowId+flowType+interval combination.  Metric columns:
+
+            flowId                  — Architect flow GUID
+            flowType                — inboundcall, bot, etc.
+            Interval                — Time bucket
+            nFlow_count             — Conversations that entered the flow
+            nFlowOutcome_count      — Exits with a defined outcome
+            nFlowOutcomeFailed_count — Exits with a FAILED outcome
+            nFlowMilestone_count    — Milestone events triggered
+
+        Self-service rate = nFlowOutcome_count / nFlow_count (where outcome ≠ transfer)
+        Failure rate      = nFlowOutcomeFailed_count / nFlow_count
+    .EXAMPLE
+        $agg = Get-GenesysFlowAggregate
+        $agg | Select-Object flowId, Interval, nFlow_count, nFlowOutcomeFailed_count,
+            @{ n='FailRate%'; e={ if ($_.nFlow_count) { [int]($_.nFlowOutcomeFailed_count / $_.nFlow_count * 100) } else { 0 } } } |
+            Sort-Object 'FailRate%' -Descending | Format-Table
+    .EXAMPLE
+        # Enrich with flow names
+        $flowMap = Get-GenesysFlow | Group-Object id -AsHashTable -AsString
+        Get-GenesysFlowAggregate |
+            Select-Object @{n='FlowName';e={$flowMap[$_.flowId].name}}, nFlow_count, nFlowOutcomeFailed_count |
+            Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.flow.aggregates.execution.metrics' |
+        ConvertFrom-AggregateResult
+}
+
+function Get-GenesysFlowObservation {
+    <#
+    .SYNOPSIS
+        Returns real-time Architect flow observation metrics.
+    .DESCRIPTION
+        Returns current execution counts for flows: oFlow (contacts currently
+        executing), oFlowDisconnect (contacts that disconnected inside the flow).
+
+            flowId          — Architect flow GUID
+            flowType        — Flow category
+            Interval        — Observation snapshot timestamp
+            oFlow           — Contacts currently executing this flow
+            oFlowDisconnect — Contacts disconnected mid-flow (self-service abandons)
+
+        Note: the catalog default body filters on a specific flowType.  Update the
+        catalog entry for broader observation coverage.
+    .EXAMPLE
+        Get-GenesysFlowObservation | Where-Object { $_.oFlowDisconnect -gt 0 } |
+            Format-Table flowId, oFlow, oFlowDisconnect
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.flow.observations' |
+        ConvertFrom-ObservationResult
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Agent Performance & Voice Quality
+# ---------------------------------------------------------------------------
+
+function Get-GenesysAgentPerformance {
+    <#
+    .SYNOPSIS
+        Returns historical agent performance metrics from conversation aggregates.
+    .DESCRIPTION
+        Fetches the user-aggregates dataset and returns one record per
+        userId+mediaType+interval with all handle-time metrics pre-calculated:
+
+            userId                   — Agent GUID
+            mediaType                — voice, chat, email, etc.
+            Interval                 — Aggregate time bucket (from catalog body)
+            ConversationsHandled     — nConnected count (calls answered)
+            TotalHandleMs            — Total handle time (ms)
+            TotalTalkMs              — Total talk time in-segment (ms)
+            TotalAcwMs               — Total after-call work (ms)
+            TotalAnsweredMs          — Total time from offer to answer (ms)
+            AvgHandleSec             — Average handle time (seconds) — derived
+            AvgTalkSec               — Average talk time (seconds)   — derived
+            AvgAcwSec                — Average ACW (seconds)         — derived
+
+        All Ms fields are in milliseconds as returned by the API.
+        Avg columns are rounded integers for easy display.
+    .PARAMETER MinConversations
+        Only return agents who handled at least this many conversations.
+    .EXAMPLE
+        # Who handled the most calls?
+        Get-GenesysAgentPerformance |
+            Sort-Object ConversationsHandled -Descending |
+            Select-Object -First 20 | Format-Table userId, ConversationsHandled, AvgHandleSec
+    .EXAMPLE
+        # Agents with average handle time over 10 minutes — coaching candidates
+        Get-GenesysAgentPerformance |
+            Where-Object { $_.AvgHandleSec -gt 600 -and $_.ConversationsHandled -ge 5 } |
+            Sort-Object AvgHandleSec -Descending | Format-Table
+    .EXAMPLE
+        # Enrich with agent names
+        $agents = Get-GenesysAgent | Group-Object id -AsHashTable -AsString
+        Get-GenesysAgentPerformance |
+            Select-Object @{n='Name';e={$agents[$_.userId].name}},
+                          ConversationsHandled, AvgHandleSec, AvgTalkSec, AvgAcwSec |
+            Sort-Object ConversationsHandled -Descending | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [int] $MinConversations = 0
+    )
+
+    Assert-GenesysConnected
+
+    $raw = Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.performance.metrics'
+
+    $records = foreach ($r in @($raw)) {
+        foreach ($d in @($r.data)) {
+            $mHash = @{}
+            foreach ($m in @($d.metrics)) { $mHash[$m.metric] = $m.stats }
+
+            $handled = if ($mHash['nConnected']) { $mHash['nConnected'].count } else { 0 }
+            $handleMs = if ($mHash['tHandle'])   { $mHash['tHandle'].sum    } else { $null }
+            $talkMs   = if ($mHash['tTalk'])     { $mHash['tTalk'].sum      } else { $null }
+            $acwMs    = if ($mHash['tAcw'])      { $mHash['tAcw'].sum       } else { $null }
+            $ansMs    = if ($mHash['tAnswered'])  { $mHash['tAnswered'].sum  } else { $null }
+
+            [PSCustomObject]@{
+                UserId               = $r.group.userId
+                MediaType            = $r.group.mediaType
+                Interval             = $d.interval
+                ConversationsHandled = $handled
+                TotalHandleMs        = $handleMs
+                TotalTalkMs          = $talkMs
+                TotalAcwMs           = $acwMs
+                TotalAnsweredMs      = $ansMs
+                AvgHandleSec         = if ($handled -and $handleMs) { [int]($handleMs / $handled / 1000) } else { $null }
+                AvgTalkSec           = if ($handled -and $talkMs)   { [int]($talkMs   / $handled / 1000) } else { $null }
+                AvgAcwSec            = if ($handled -and $acwMs)    { [int]($acwMs    / $handled / 1000) } else { $null }
+            }
+        }
+    }
+
+    if ($MinConversations -gt 0) {
+        $records = $records | Where-Object { $_.ConversationsHandled -ge $MinConversations }
+    }
+    $records
+}
+
+function Get-GenesysUserActivity {
+    <#
+    .SYNOPSIS
+        Returns detailed agent activity records (presence state timeline).
+    .DESCRIPTION
+        Pulls the user details analytics dataset which contains a full presence
+        and routing-status timeline for each agent across the query interval.
+
+        Each record represents one user's activity detail block.  The raw
+        presenceDetail, routingStatusDetail, and primaryPresenceSummary arrays
+        are preserved for downstream processing.
+
+        Use this for:
+          - Adherence monitoring (was agent in the right state at the right time?)
+          - Absence reporting (total time in OFFLINE state)
+          - Compliance audit trails
+    .EXAMPLE
+        $activity = Get-GenesysUserActivity
+        # Total time each agent spent AVAILABLE
+        $activity | ForEach-Object {
+            $avail = ($_.primaryPresenceSummary | Where-Object systemPresence -eq 'AVAILABLE').durationMs
+            [PSCustomObject]@{ UserId = $_.userId; AvailableMs = $avail }
+        } | Sort-Object AvailableMs -Descending | Format-Table
+    .EXAMPLE
+        Get-GenesysUserActivity | Select-Object userId, @{n='Records';e={@($_.presenceDetail).Count}} | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    Invoke-GenesysDataset -Dataset 'analytics.query.user.details.activity.report'
+}
+
+function Get-GenesysAgentVoiceQuality {
+    <#
+    .SYNOPSIS
+        Extracts per-session voice quality metrics (MOS, WebRTC errors, disconnect
+        codes, latency indicators) from conversation detail records.
+    .DESCRIPTION
+        Processes conversation detail records — either supplied via the pipeline from
+        a prior Get-GenesysConversationDetail call, or fetched fresh if no input is
+        provided.
+
+        For every voice session belonging to an agent (purpose = 'agent', mediaType
+        = 'voice'), the function emits a flat record:
+
+            ConversationId    — Conversation GUID
+            ConversationStart — Start timestamp (ISO-8601 string)
+            AgentUserId       — Agent's Genesys user GUID
+            ParticipantId     — Participant GUID within the conversation
+            SessionId         — Session GUID (one per leg)
+            Provider          — Transport layer: WebRTC, SIP, PSTN, Edge, etc.
+            MediaType         — voice (always for this function)
+            SessionMos        — mediaStatsMinConversationMos at session level
+            ConversationMos   — mediaStatsMinConversationMos at conversation level
+                                (minimum across all participants — use as fallback)
+            MosCategory       — Derived quality band:
+                                  Good  ≥ 4.0   (ITU-T P.800 acceptable)
+                                  Fair  ≥ 3.6
+                                  Poor  ≥ 3.1
+                                  Bad   < 3.1   (unacceptable — investigate)
+                                  Unknown — no MOS data in the record
+            RFactor           — mediaStatsMinConversationRFactor (R-factor score)
+            DisconnectType    — How the agent leg disconnected:
+                                  client, server, transfer, endpoint, peer, other
+            ErrorCode         — Last segment error code, if any:
+                                  webrtc, ice, stun, turn, rtp, media, sip, etc.
+            SegmentCount      — Number of segments in this session
+            QueueId           — Queue from the first ACD segment (if present)
+            QueueName         — Queue display name (if present in segment)
+            DivisionId        — First division ID on the conversation
+
+        Records with Provider = 'WebRTC' and MosCategory = 'Bad' or 'Poor' are
+        the primary candidates for WebRTC quality investigation.
+
+        Records with non-empty ErrorCode indicate a technical failure in the media
+        path — STUN/TURN/ICE errors point to network/firewall issues; RTP errors
+        indicate codec or bandwidth problems.
+    .PARAMETER InputObject
+        Conversation detail records from Get-GenesysConversationDetail (pipeline).
+        When omitted the function fetches the last-24-hours dataset internally.
+    .PARAMETER KeepArtifacts
+        Passed through to Get-GenesysConversationDetail when fetching internally.
+    .PARAMETER ArtifactPath
+        Passed through to Get-GenesysConversationDetail when fetching internally.
+    .EXAMPLE
+        # All voice quality records for the last 24 hours
+        Get-GenesysAgentVoiceQuality | Format-Table ConversationId, AgentUserId, Provider, SessionMos, MosCategory
+    .EXAMPLE
+        # Bad MOS — conversations needing immediate investigation
+        Get-GenesysAgentVoiceQuality | Where-Object MosCategory -eq 'Bad' |
+            Select-Object ConversationId, AgentUserId, SessionMos, Provider, ErrorCode, DisconnectType |
+            Export-Csv .\bad-mos-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
+    .EXAMPLE
+        # WebRTC-specific error analysis
+        Get-GenesysAgentVoiceQuality |
+            Where-Object { $_.Provider -eq 'WebRTC' -and $_.ErrorCode } |
+            Group-Object ErrorCode | Select-Object Name, Count | Sort-Object Count -Descending | Format-Table
+    .EXAMPLE
+        # MOS distribution by provider
+        Get-GenesysAgentVoiceQuality |
+            Group-Object Provider, MosCategory |
+            Select-Object Name, Count | Sort-Object Name | Format-Table
+    .EXAMPLE
+        # Pipeline from an existing fetch — avoids pulling conversation details twice
+        $convs = Get-GenesysConversationDetail
+        $mosIssues = $convs | Get-GenesysAgentVoiceQuality | Where-Object { $_.SessionMos -lt 3.1 }
+        $disconnects = $convs | Get-GenesysAgentVoiceQuality | Where-Object { $_.ErrorCode -match 'webrtc|ice|stun|turn' }
+    .EXAMPLE
+        # Enrich with agent names for a management report
+        $agents = Get-GenesysAgent | Group-Object id -AsHashTable -AsString
+        Get-GenesysAgentVoiceQuality |
+            Where-Object { $_.MosCategory -in @('Poor','Bad') } |
+            Select-Object @{n='AgentName';e={$agents[$_.AgentUserId].name}},
+                          ConversationStart, SessionMos, MosCategory, Provider, ErrorCode |
+            Sort-Object SessionMos | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline)]
+        [object[]] $InputObject,
+
+        [switch] $KeepArtifacts,
+        [string] $ArtifactPath
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+
+    process {
+        if ($null -ne $InputObject) {
+            foreach ($item in $InputObject) { $buffer.Add($item) }
+        }
+    }
+
+    end {
+        # If nothing piped in, fetch internally
+        $conversations = if ($buffer.Count -gt 0) {
+            $buffer.ToArray()
+        }
+        else {
+            Assert-GenesysConnected
+            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details' `
+                -KeepArtifacts:($KeepArtifacts -or ($ArtifactPath -ne '')) `
+                -ArtifactPath $ArtifactPath)
+        }
+
+        foreach ($conv in $conversations) {
+            $convMos   = $conv.mediaStatsMinConversationMos
+            $divId     = if ($conv.divisionIds -and $conv.divisionIds.Count -gt 0) { $conv.divisionIds[0] } else { $null }
+
+            foreach ($p in @($conv.participants)) {
+                # Only agent legs (users) on voice
+                if ($p.purpose -ne 'agent' -and $p.purpose -ne 'user') { continue }
+                if (-not $p.userId) { continue }
+
+                foreach ($sess in @($p.sessions)) {
+                    if ($sess.mediaType -ne 'voice') { continue }
+
+                    $segments     = @(if ($sess.segments) { $sess.segments } else { @() })
+                    $lastSeg      = if ($segments.Count -gt 0) { $segments[-1] } else { $null }
+
+                    # Last segment that carries an errorCode
+                    $errorSeg     = $segments | Where-Object { $_.errorCode } | Select-Object -Last 1
+
+                    # Queue from first ACD segment
+                    $acdSeg       = $segments | Where-Object { $_.queueId } | Select-Object -First 1
+
+                    $sessionMos   = $sess.mediaStatsMinConversationMos
+                    $effectiveMos = if ($null -ne $sessionMos)  { $sessionMos }
+                                   elseif ($null -ne $convMos)  { $convMos    }
+                                   else                         { $null       }
+
+                    [PSCustomObject]@{
+                        ConversationId    = $conv.conversationId
+                        ConversationStart = $conv.conversationStart
+                        AgentUserId       = $p.userId
+                        ParticipantId     = $p.participantId
+                        SessionId         = $sess.sessionId
+                        Provider          = $sess.provider
+                        MediaType         = $sess.mediaType
+                        SessionMos        = $sessionMos
+                        ConversationMos   = $convMos
+                        MosCategory       = Get-MosCategory $effectiveMos
+                        RFactor           = $sess.mediaStatsMinConversationRFactor
+                        DisconnectType    = if ($lastSeg) { $lastSeg.disconnectType } else { $null }
+                        ErrorCode         = if ($errorSeg) { $errorSeg.errorCode } else { $null }
+                        SegmentCount      = $segments.Count
+                        QueueId           = if ($acdSeg)  { $acdSeg.queueId   } else { $null }
+                        QueueName         = if ($acdSeg)  { $acdSeg.queueName } else { $null }
+                        DivisionId        = $divId
+                    }
+                }
+            }
+        }
+    }
+}
+
+#endregion

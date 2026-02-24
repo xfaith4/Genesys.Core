@@ -7,13 +7,43 @@ function Protect-GcUri {
         [string]$Uri
     )
 
-    $builder = [System.UriBuilder]::new($Uri)
-    if ([string]::IsNullOrWhiteSpace($builder.Query)) {
-        return $builder.Uri.AbsoluteUri
+    $builder = $null
+    $queryText = $null
+    $pathPrefix = $null
+    $isAbsolute = $true
+
+    try {
+        $builder = [System.UriBuilder]::new($Uri)
+        $queryText = $builder.Query
+        $pathPrefix = $builder.Uri.GetLeftPart([System.UriPartial]::Path)
+    }
+    catch {
+        $isAbsolute = $false
+        $rawUri = [string]$Uri
+        $questionIndex = $rawUri.IndexOf('?')
+        if ($questionIndex -lt 0) {
+            return $rawUri
+        }
+
+        $pathPrefix = $rawUri.Substring(0, $questionIndex)
+        if ($questionIndex -lt ($rawUri.Length - 1)) {
+            $queryText = $rawUri.Substring($questionIndex + 1)
+        }
+        else {
+            $queryText = ''
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$queryText)) {
+        if ($isAbsolute) {
+            return $builder.Uri.AbsoluteUri
+        }
+
+        return $pathPrefix
     }
 
     $safePairs = New-Object System.Collections.Generic.List[string]
-    foreach ($pair in ($builder.Query.TrimStart('?') -split '&')) {
+    foreach ($pair in ($queryText.TrimStart('?') -split '&')) {
         if ([string]::IsNullOrWhiteSpace($pair)) {
             continue
         }
@@ -36,8 +66,18 @@ function Protect-GcUri {
         $safePairs.Add("$([System.Uri]::EscapeDataString($name))=$([System.Uri]::EscapeDataString($safeValue))") | Out-Null
     }
 
-    $builder.Query = [string]::Join('&', $safePairs.ToArray())
-    return $builder.Uri.AbsoluteUri
+    $safeQuery = [string]::Join('&', $safePairs.ToArray())
+
+    if ($isAbsolute) {
+        $builder.Query = $safeQuery
+        return $builder.Uri.AbsoluteUri
+    }
+
+    if ([string]::IsNullOrWhiteSpace($safeQuery)) {
+        return $pathPrefix
+    }
+
+    return "$($pathPrefix)?$($safeQuery)"
 }
 
 function Invoke-GcRequest {

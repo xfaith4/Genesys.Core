@@ -153,6 +153,46 @@ function Get-PagingValueFromResponse {
     return $target
 }
 
+function Resolve-PagingNextUri {
+    [CmdletBinding()]
+    param(
+        [string]$NextUri,
+
+        [string]$CurrentUri,
+
+        [string]$InitialUri
+    )
+
+    if ([string]::IsNullOrWhiteSpace([string]$NextUri)) {
+        return $null
+    }
+
+    $normalizedNextUri = [string]$NextUri
+
+    $absoluteNextUri = $null
+    if ([System.Uri]::TryCreate($normalizedNextUri, [System.UriKind]::Absolute, [ref]$absoluteNextUri)) {
+        return $absoluteNextUri.AbsoluteUri
+    }
+
+    foreach ($baseCandidate in @($CurrentUri, $InitialUri)) {
+        if ([string]::IsNullOrWhiteSpace([string]$baseCandidate)) {
+            continue
+        }
+
+        $baseUri = $null
+        if ([System.Uri]::TryCreate([string]$baseCandidate, [System.UriKind]::Absolute, [ref]$baseUri) -eq $false) {
+            continue
+        }
+
+        $combinedUri = $null
+        if ([System.Uri]::TryCreate($baseUri, $normalizedNextUri, [ref]$combinedUri)) {
+            return $combinedUri.AbsoluteUri
+        }
+    }
+
+    return $normalizedNextUri
+}
+
 function Invoke-PagingNextUri {
     [CmdletBinding()]
     param(
@@ -230,7 +270,7 @@ function Invoke-PagingNextUri {
 
         $nextUri = $null
         if ($null -ne $response -and $response.PSObject.Properties.Name -contains 'nextUri') {
-            $nextUri = [string]$response.nextUri
+            $nextUri = Resolve-PagingNextUri -NextUri ([string]$response.nextUri) -CurrentUri $currentUri -InitialUri $InitialUri
         }
 
         $totalHits = Get-PagingTotalHitsFromResponse -Response $response

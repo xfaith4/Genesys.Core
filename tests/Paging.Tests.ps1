@@ -46,6 +46,44 @@ Describe 'Paging strategies' {
         $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
     }
 
+    It 'resolves relative nextUri values to absolute URIs' {
+        $responses = @{
+            'https://example.test/api/v2/users?pageNumber=1&pageSize=100' = [pscustomobject]@{
+                entities = @('u1')
+                nextUri = '/api/v2/users?pageNumber=2&pageSize=100'
+                total = 2
+            }
+            'https://example.test/api/v2/users?pageNumber=2&pageSize=100' = [pscustomobject]@{
+                entities = @('u2')
+                nextUri = $null
+                total = 2
+            }
+        }
+
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key = 'users.relative'
+            method = 'GET'
+            itemsPath = '$.entities'
+            paging = [pscustomobject]@{ profile = 'nextUri' }
+        }) -InitialUri 'https://example.test/api/v2/users?pageNumber=1&pageSize=100' -RequestInvoker {
+            param($request)
+            $calls.Add([string]$request.Uri) | Out-Null
+
+            if (-not $responses.ContainsKey([string]$request.Uri)) {
+                throw "Unexpected request URI: $($request.Uri)"
+            }
+
+            return [pscustomobject]@{ Result = $responses[[string]$request.Uri] }
+        }
+
+        @($result.Items) | Should -Be @('u1', 'u2')
+        $calls.Count | Should -Be 2
+        $calls[1] | Should -Be 'https://example.test/api/v2/users?pageNumber=2&pageSize=100'
+        $result.PagingTelemetry[0].nextUri | Should -Be 'https://example.test/api/v2/users?pageNumber=2&pageSize=100'
+        $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
+    }
+
     It 'enumerates pageNumber pages and stops when totalHits reached' {
         $responses = @{
             'https://example.test/api/v2/users?pageNumber=1' = [pscustomobject]@{

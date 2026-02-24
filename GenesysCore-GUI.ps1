@@ -30,7 +30,8 @@
 [CmdletBinding()]
 param(
     [string]$DefaultRegion = 'mypurecloud.com',
-    [string]$ModulePath = "$PSScriptRoot/src/ps-module/Genesys.Core/Genesys.Core.psd1"
+    [string]$ModulePath = "$PSScriptRoot/src/ps-module/Genesys.Core/Genesys.Core.psd1",
+    [string]$ConfigPath
 )
 
 # Verify Windows platform
@@ -45,9 +46,42 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName System.Windows.Forms
 
 # ---------------------------------------------------------------------------
-# Persistent config  (genesys.env.json next to this script, not committed)
+# Persistent config (JSON next to this script, not committed)
 # ---------------------------------------------------------------------------
-$script:configPath = Join-Path -Path $PSScriptRoot -ChildPath 'genesys.env.json'
+function Resolve-UIConfigPath {
+    param([string]$ExplicitPath)
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ([string]::IsNullOrWhiteSpace([string]$ExplicitPath) -eq $false) {
+        $candidates.Add([string]$ExplicitPath) | Out-Null
+    }
+
+    $candidates.Add('GenesysCore-GUI.config.json') | Out-Null
+    $candidates.Add('genesys.env.json') | Out-Null
+
+    foreach ($candidate in @($candidates)) {
+        $resolvedCandidate = $candidate
+        if ([System.IO.Path]::IsPathRooted([string]$candidate) -eq $false) {
+            $resolvedCandidate = Join-Path -Path $PSScriptRoot -ChildPath $candidate
+        }
+
+        if (Test-Path -Path $resolvedCandidate -PathType Leaf) {
+            return (Resolve-Path -Path $resolvedCandidate).Path
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$ExplicitPath) -eq $false) {
+        if ([System.IO.Path]::IsPathRooted([string]$ExplicitPath)) {
+            return $ExplicitPath
+        }
+
+        return (Join-Path -Path $PSScriptRoot -ChildPath $ExplicitPath)
+    }
+
+    return (Join-Path -Path $PSScriptRoot -ChildPath 'GenesysCore-GUI.config.json')
+}
+
+$script:configPath = Resolve-UIConfigPath -ExplicitPath $ConfigPath
 
 function Read-GenesysEnvConfig {
     if (-not (Test-Path -Path $script:configPath)) {
@@ -73,10 +107,10 @@ function Save-GenesysEnvConfig {
 
     $config = [ordered]@{
         '_notes' = [ordered]@{
-            description = "Genesys Core persistent configuration. Region is persisted here. Credentials should NOT be stored here - use environment variables instead."
+            description = "Genesys Core persistent configuration. Region and client ID are persisted here. clientSecret may be provided for startup auto-authentication, but environment variables are recommended."
             envVars     = [ordered]@{
                 GENESYS_CLIENT_ID     = "Your Genesys Cloud OAuth Client ID (Client Credentials grant). Set this env var so it does not need to be stored in this file."
-                GENESYS_CLIENT_SECRET = "Your Genesys Cloud OAuth Client Secret. Never store this value in a file. Set this env var at the OS or session level."
+                GENESYS_CLIENT_SECRET = "Your Genesys Cloud OAuth Client Secret. Preferred over file storage for security."
                 GENESYS_BEARER_TOKEN  = "Optional: pre-obtained bearer token. Bypasses the OAuth flow when set."
             }
         }
@@ -93,6 +127,28 @@ function Save-GenesysEnvConfig {
     catch {
         Write-Warning "Failed to save Genesys env config '$($script:configPath)': $($_.Exception.Message)"
     }
+}
+
+function Get-ConfigString {
+    param(
+        [object]$ConfigObject,
+        [string[]]$PropertyNames
+    )
+
+    if ($null -eq $ConfigObject) {
+        return $null
+    }
+
+    foreach ($name in @($PropertyNames)) {
+        if ($ConfigObject.PSObject.Properties.Name -contains $name) {
+            $value = [string]$ConfigObject.$name
+            if ([string]::IsNullOrWhiteSpace($value) -eq $false) {
+                return $value
+            }
+        }
+    }
+
+    return $null
 }
 
 # XAML definition for the GUI
@@ -303,20 +359,27 @@ function Initialize-DatasetSelection {
     }
 }
 
-# Authentication handler
-$authButton.Add_Click({
+function Invoke-UIAuthentication {
+    param([switch]$Interactive)
+
     $clientId = $clientIdTextBox.Text.Trim()
     $clientSecret = $clientSecretBox.Password
     $region = $regionComboBox.Text.Trim()
 
     if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
-        [System.Windows.MessageBox]::Show('Please enter both Client ID and Client Secret.', 'Validation Error', 'OK', 'Warning')
-        return
+        if ($Interactive) {
+            [System.Windows.MessageBox]::Show('Please enter both Client ID and Client Secret.', 'Validation Error', 'OK', 'Warning') | Out-Null
+        }
+
+        return $false
     }
 
     if ([string]::IsNullOrWhiteSpace($region)) {
-        [System.Windows.MessageBox]::Show('Please select or enter a region.', 'Validation Error', 'OK', 'Warning')
-        return
+        if ($Interactive) {
+            [System.Windows.MessageBox]::Show('Please select or enter a region.', 'Validation Error', 'OK', 'Warning') | Out-Null
+        }
+
+        return $false
     }
 
     Write-Log "Authenticating with region: $($region)..."
@@ -348,6 +411,7 @@ $authButton.Add_Click({
         $authStatusLabel.Foreground = "Green"
         $runButton.IsEnabled = $true
         Update-Status "Authenticated successfully"
+        return $true
     }
     catch {
         Write-Log "Authentication failed: $($_.Exception.Message)"
@@ -355,8 +419,18 @@ $authButton.Add_Click({
         $authStatusLabel.Foreground = "Red"
         $runButton.IsEnabled = $false
         Update-Status "Authentication failed"
-        [System.Windows.MessageBox]::Show("Authentication failed: $($_.Exception.Message)", 'Authentication Error', 'OK', 'Error')
+
+        if ($Interactive) {
+            [System.Windows.MessageBox]::Show("Authentication failed: $($_.Exception.Message)", 'Authentication Error', 'OK', 'Error') | Out-Null
+        }
+
+        return $false
     }
+}
+
+# Authentication handler
+$authButton.Add_Click({
+    Invoke-UIAuthentication -Interactive | Out-Null
 })
 
 # Browse button handler
@@ -587,11 +661,19 @@ catch {
     Write-Log "Failed to load datasets from catalog: $($_.Exception.Message)"
 }
 
-# Apply persisted config (region and optional clientId)
+# Apply persisted config
 $persistedConfig = Read-GenesysEnvConfig
-if ($null -ne $persistedConfig -and -not [string]::IsNullOrWhiteSpace([string]$persistedConfig.region)) {
-    $regionComboBox.Text = [string]$persistedConfig.region
-    Write-Log "Loaded saved region: $($persistedConfig.region)"
+if ($null -ne $persistedConfig) {
+    Write-Log "Loaded config file: $($script:configPath)"
+}
+else {
+    Write-Log "Config file not found: $($script:configPath)"
+}
+
+$configRegion = Get-ConfigString -ConfigObject $persistedConfig -PropertyNames @('region')
+if (-not [string]::IsNullOrWhiteSpace($configRegion)) {
+    $regionComboBox.Text = $configRegion
+    Write-Log "Loaded saved region: $configRegion"
 }
 
 # Client ID: GENESYS_CLIENT_ID env var takes precedence over saved config
@@ -600,14 +682,42 @@ if (-not [string]::IsNullOrWhiteSpace($envClientId)) {
     $clientIdTextBox.Text = $envClientId
     Write-Log "Client ID loaded from GENESYS_CLIENT_ID environment variable."
 }
-elseif ($null -ne $persistedConfig -and -not [string]::IsNullOrWhiteSpace([string]$persistedConfig.clientId)) {
-    $clientIdTextBox.Text = [string]$persistedConfig.clientId
-    Write-Log "Client ID loaded from saved config."
+else {
+    $configClientId = Get-ConfigString -ConfigObject $persistedConfig -PropertyNames @('clientId', 'client_id')
+    if (-not [string]::IsNullOrWhiteSpace($configClientId)) {
+        $clientIdTextBox.Text = $configClientId
+        Write-Log "Client ID loaded from config."
+    }
+}
+
+# Client Secret: GENESYS_CLIENT_SECRET env var takes precedence over saved config
+$envClientSecret = [string]$env:GENESYS_CLIENT_SECRET
+if (-not [string]::IsNullOrWhiteSpace($envClientSecret)) {
+    $clientSecretBox.Password = $envClientSecret
+    Write-Log "Client Secret loaded from GENESYS_CLIENT_SECRET environment variable."
+}
+else {
+    $configClientSecret = Get-ConfigString -ConfigObject $persistedConfig -PropertyNames @('clientSecret', 'client_secret')
+    if (-not [string]::IsNullOrWhiteSpace($configClientSecret)) {
+        $clientSecretBox.Password = $configClientSecret
+        Write-Log "Client Secret loaded from config."
+    }
 }
 
 Write-Log "Genesys.Core GUI loaded"
-Write-Log "Tip: Set GENESYS_CLIENT_ID and GENESYS_CLIENT_SECRET environment variables to avoid re-entering credentials."
-Write-Log "Please authenticate to begin"
-Update-Status "Ready - Please authenticate"
+
+$hasStartupCredentials = -not [string]::IsNullOrWhiteSpace([string]$clientIdTextBox.Text) -and -not [string]::IsNullOrWhiteSpace([string]$clientSecretBox.Password)
+if ($hasStartupCredentials) {
+    Write-Log "Credentials detected at startup. Attempting automatic authentication..."
+    if (-not (Invoke-UIAuthentication)) {
+        Write-Log "Automatic authentication failed. Please review credentials and authenticate manually."
+        Update-Status "Ready - Authentication required"
+    }
+}
+else {
+    Write-Log "Tip: Set GENESYS_CLIENT_ID and GENESYS_CLIENT_SECRET environment variables, or provide clientId/clientSecret in $($script:configPath)."
+    Write-Log "Please authenticate to begin"
+    Update-Status "Ready - Please authenticate"
+}
 
 $window.ShowDialog() | Out-Null

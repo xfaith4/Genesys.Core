@@ -66,9 +66,9 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 - Improved onboarding ergonomics with script-level invocation support for `-BaseUri`, `-Headers`, and `-DatasetParameters`.
 - Hardened auth/runtime usage guidance to favor deterministic, redacted outputs.
 
-## Phase 4 — Endpoint Expansion Backlog (Planned)
+## Phase 4 — Endpoint Expansion Backlog (In Progress)
 
-Upcoming endpoint additions requested for roadmap tracking:
+Tracked endpoint additions for roadmap delivery:
 
 1. `GET /api/v2/authorization/roles`
 2. `GET /api/v2/conversations/{conversationId}/recordings`
@@ -79,11 +79,16 @@ Upcoming endpoint additions requested for roadmap tracking:
 7. `POST /api/v2/analytics/transcripts/aggregates/query`
 8. `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturl`
 
-Implementation intent:
+Delivered in this phase increment:
 
-- Add endpoint definitions to canonical catalog with schema-valid paging/retry metadata.
-- Add dataset keys or curated handlers where orchestration requires multi-step logic.
-- Add Pester coverage for endpoint profile mapping and termination safety.
+- Added catalog endpoint and dataset definitions for all tracked Phase 4 endpoints.
+- Added Phase 4 Pester coverage to assert dataset/endpoint wiring and profile resolution.
+
+Remaining implementation tasks:
+
+- Validate each Phase 4 endpoint against live API behavior to confirm `itemsPath` and paging strategy choices.
+- Add curated handler(s) for OAuth usage submit/results orchestration if async transaction chaining is required in production.
+- Add mock-based paging termination tests for newly introduced `pageNumber_default` and `nextUri_default` endpoint selections.
 
 ## External client readiness
 

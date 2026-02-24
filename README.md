@@ -123,28 +123,8 @@ $catalog.datasets.PSObject.Properties.Name | Sort-Object
 # Audit logs (async transaction flow)
 Invoke-Dataset -Dataset 'audit-logs' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
 
-<<<<<<< HEAD
-$region = 'usw2.pure.cloud'
-$baseUri = "https://api.$region"
-$authUrl = "https://login.$region/oauth/token"
-
-$clientId = '<client-id>'
-$clientSecret = '<client-secret>'
-
-$authResponse = Invoke-RestMethod -Uri $authUrl -Method POST -Body @{
-    grant_type = 'client_credentials'
-    client_id = $clientId
-    client_secret = $clientSecret
-} -ContentType 'application/x-www-form-urlencoded'
-
-$headers = @{
-    "Authorization" = "Bearer $($authResponse.access_token)"
-    "Content-Type"  = "application/json"
-}
-=======
 # Analytics conversation details (async job flow)
 Invoke-Dataset -Dataset 'analytics-conversation-details' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
->>>>>>> 165460301f03b7723da3cdb7210d89f3889bc58a
 
 # Users (normalized user projection, paginated)
 Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers

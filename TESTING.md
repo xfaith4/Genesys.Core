@@ -3,6 +3,7 @@
 This document provides comprehensive instructions for testing the Genesys.Core PowerShell module in various environments.
 
 ## Table of Contents
+
 - [Quick Start](#quick-start)
 - [End-user Onboarding](#end-user-onboarding)
 - [Local Development Testing](#local-development-testing)
@@ -14,11 +15,13 @@ This document provides comprehensive instructions for testing the Genesys.Core P
 ## Quick Start
 
 ### Prerequisites
+
 - PowerShell 5.1 or PowerShell 7+
 - Pester 5.x (for unit tests)
 - Valid Genesys Cloud credentials (for production testing)
 
 ### Running All Tests
+
 ```powershell
 # Load test configuration and run all tests
 $config = . ./tests/PesterConfiguration.ps1
@@ -26,6 +29,7 @@ Invoke-Pester -Configuration $config
 ```
 
 ### Running Smoke Tests
+
 ```powershell
 # Quick validation without real API calls
 pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
@@ -45,6 +49,7 @@ Current behavior to be aware of:
 ## Local Development Testing
 
 ### Unit Tests
+
 The test suite includes comprehensive coverage of core functionality:
 
 ```powershell
@@ -68,7 +73,7 @@ Invoke-Pester -Path ./tests/Retry.Tests.ps1
 
 3. **Paging Strategies** (`Paging.Tests.ps1`)
    - NextUri pagination
-   - PageNumber pagination  
+   - PageNumber pagination
    - Cursor pagination
    - BodyPaging with totalHits
    - ItemsPath resolution
@@ -107,7 +112,7 @@ Before running tests against a production Genesys Cloud environment, set up auth
 # Option 1: OAuth Client Credentials
 $clientId = 'your-client-id'
 $clientSecret = 'your-client-secret'
-$authUrl = 'https://login.mypurecloud.com/oauth/token'
+$authUrl = 'https://login.usw2.pure.cloud/oauth/token'
 
 $body = @{
     grant_type = 'client_credentials'
@@ -131,6 +136,7 @@ $headers = @{
 ### Running Production Tests
 
 #### Dry Run (WhatIf)
+
 ```powershell
 Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
 
@@ -141,9 +147,10 @@ Invoke-Dataset -Dataset 'routing-queues' -WhatIf
 ```
 
 #### Actual Execution
+
 ```powershell
 # Run against production with authentication
-$baseUri = 'https://api.mypurecloud.com'  # Or your region's API endpoint
+$baseUri = 'https://api.usw2.pure.cloud'  # Or your region's API endpoint
 $outputRoot = './out'
 
 # Execute users dataset
@@ -192,6 +199,7 @@ $summary | ConvertTo-Json -Depth 5
 ## Variable Passing and Context
 
 ### RunContext Structure
+
 The `RunContext` object is the primary mechanism for passing state through the execution pipeline:
 
 ```powershell
@@ -210,6 +218,7 @@ The `RunContext` object is the primary mechanism for passing state through the e
 ```
 
 ### Context Passing Flow
+
 1. **Invoke-Dataset** → Creates RunContext
 2. **Invoke-RegisteredDataset** → Receives RunContext, routes to dataset handler
 3. **Dataset Handler** (e.g., Invoke-UsersDataset) → Uses RunContext for output paths
@@ -218,34 +227,36 @@ The `RunContext` object is the primary mechanism for passing state through the e
 6. **Write-DatasetOutputs** → Uses RunContext to write files
 
 ### Variable Scoping Notes
+
 - All context is passed **explicitly via parameters** (no global variables)
 - `RunEvents` uses `List<object>` passed by reference for efficient event collection
 - Catalog and Headers are passed through the call chain
 - Scriptblocks in tests should use `$script:` scope for variables modified inside the block
 
 ### Example: Custom Dataset Handler
+
 ```powershell
 function Invoke-CustomDataset {
     param(
         [Parameter(Mandatory = $true)]
         [psobject]$RunContext,          # Run metadata and paths
-        
+
         [Parameter(Mandatory = $true)]
         [psobject]$Catalog,             # Catalog object with endpoints
-        
-        [string]$BaseUri = 'https://api.mypurecloud.com',
+
+        [string]$BaseUri = 'https://api.usw2.pure.cloud',
         [hashtable]$Headers,            # Authentication headers
         [scriptblock]$RequestInvoker    # Optional mock for testing
     )
-    
+
     # RunContext provides all output paths
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'custom.jsonl'
-    
+
     # Events are collected and written to RunContext.eventsPath
     Write-RunEvent -RunContext $RunContext -EventType 'custom.started' -Payload @{}
-    
+
     # ... dataset logic ...
-    
+
     Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $count }
 }
 ```
@@ -253,6 +264,7 @@ function Invoke-CustomDataset {
 ## CI/CD Integration
 
 ### GitHub Actions
+
 The repository includes example workflows in `.github/workflows/`:
 
 - `ci.yml` - Runs Pester tests on PR and push
@@ -262,16 +274,18 @@ The repository includes example workflows in `.github/workflows/`:
 Current workflow scope is `audit-logs` only.
 
 ### Environment Variables
+
 ```yaml
 env:
   GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
   GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
-  GENESYS_REGION: 'mypurecloud.com'
+  GENESYS_REGION: 'usw2.pure.cloud'
 ```
 
 Note: this repository does not yet include a built-in workflow auth bootstrap step that injects `Authorization` headers into `Invoke-Dataset`. You should adapt workflow steps for your environment before production use.
 
 ### Artifact Upload
+
 ```yaml
 - name: Upload run artifacts
   uses: actions/upload-artifact@v4
@@ -286,16 +300,21 @@ Note: this repository does not yet include a built-in workflow auth bootstrap st
 ### Common Issues
 
 **Issue:** Tests fail with "Assert-Catalog is not recognized"
+
 - **Solution:** Ensure module is imported with `-Force`: `Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force`
 
 **Issue:** Paging profile not found (e.g., "nextUri_auditResults")
+
 - **Solution:** This is fixed in the latest version. The code now normalizes variant profiles (nextUri_* → nexturi)
 
 **Issue:** Retry tests fail with attempt count mismatch
+
 - **Solution:** Use `$script:` scope for variables modified inside scriptblocks
 
 **Issue:** Network errors in CI
+
 - **Solution:** Expected for tests that make real HTTP calls. Use `RequestInvoker` parameter to mock HTTP calls:
+
 ```powershell
 $mockInvoker = {
     param($request)
@@ -317,6 +336,7 @@ Invoke-Dataset -Dataset 'users' -RequestInvoker $mockInvoker
 ## Support
 
 For issues or questions:
+
 - Review AGENTS.md for architectural guidelines
 - Check existing tests for usage examples
 - Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys-core.catalog.schema.json`

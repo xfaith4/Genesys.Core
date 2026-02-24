@@ -27,3 +27,6 @@ temp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Persistent user config (region, optional clientId) - not committed to source control
+genesys.env.json

@@ -968,9 +968,9 @@
       "retryProfile": "default",
       "itemsPath": "$",
       "notes": [
-        "Create Conversation Details Job - Large Query",
+        "Create Conversation Details Job - Large Query (async submit/poll/results)",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"conversationFilters\": [],\n  \"segmentFilters\": []\n}"
+        "defaultBody:\n{\n  \"interval\": \"2026-03-03T00:00:00.000Z/2026-03-03T23:59:59.999Z\",\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\",\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ],\n  \"segmentFilters\": [],\n  \"evaluationFilters\": [],\n  \"surveyFilters\": [],\n  \"resolutionFilters\": []\n}"
       ],
       "transactionProfile": "analytics_jobs"
     },
@@ -988,6 +988,20 @@
         "group: Analytics"
       ]
     },
+    "analytics.delete.conversation.details.job": {
+      "method": "DELETE",
+      "path": "/api/v2/analytics/conversations/details/jobs/{jobId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Delete/Cancel Conversation Details Job",
+        "group: Analytics"
+      ]
+    },
     "analytics.get.conversation.details.job.results": {
       "method": "GET",
       "path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
@@ -999,7 +1013,18 @@
         "pageSize": "100"
       },
       "notes": [
-        "Get Conversation Details Job Results",
+        "Get Conversation Details Job Results - cursor-paginated",
+        "group: Analytics"
+      ]
+    },
+    "analytics.get.conversation.details.jobs.availability": {
+      "method": "GET",
+      "path": "/api/v2/analytics/conversations/details/jobs/availability",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Get Conversation Details Jobs Availability - Lookup datalake availability date and time",
         "group: Analytics"
       ]
     },

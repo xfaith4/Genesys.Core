@@ -3,9 +3,9 @@
     ModuleVersion     = '1.0.0'
     GUID              = 'a3f2c1e7-84b6-4d29-9f53-1c8e7d3b0a5f'
     Author            = 'IT Operations'
-    CompanyName       = 'Contoso'
+    CompanyName       = ''
     Description       = 'IT Operations wrapper around Genesys.Core for day-to-day Genesys Cloud administration.'
-    Copyright         = '(c) Contoso. All rights reserved.'
+    Copyright         = '(c) xfaith. All rights reserved.'
 
     # Runtime requirements
     PowerShellVersion = '5.1'

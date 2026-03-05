@@ -10,7 +10,10 @@
       "Bash(/tmp/validate-catalog.ps1:*)",
       "Bash(pwsh -NoProfile -File /tmp/validate-catalog.ps1)",
       "Bash(/tmp/check2.ps1:*)",
-      "Bash(pwsh -NoProfile -File /tmp/check2.ps1)"
+      "Bash(pwsh -NoProfile -File /tmp/check2.ps1)",
+      "Bash(python -c \":*)",
+      "Bash(/tmp/check_ps.ps1:*)",
+      "Bash(pwsh -NoProfile -File /tmp/check_ps.ps1)"
     ],
     "additionalDirectories": [
       "\\tmp"

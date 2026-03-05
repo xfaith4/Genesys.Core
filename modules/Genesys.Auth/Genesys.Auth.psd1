@@ -12,26 +12,22 @@
         'New-GenesysPkceChallenge'
         'Get-GenesysPkceAuthorizeUrl'
         'Complete-GenesysPkceAuth'
+        'Connect-GenesysCloud'
+
+        # AuthContext accessor
+        'Get-GenesysAuthContext'
+
+        # Full OAuth flows
+        'Connect-GenesysCloudApp'
+        'Connect-GenesysCloudPkce'
+        'New-GenesysPkceChallenge'
+
+        # Legacy header helpers (preserved for back-compat)
+        'Get-StoredHeaders'
+        'Test-GenesysConnection'
+        'Get-ConnectionInfo'
+        'Clear-StoredToken'
     )
-    'Connect-GenesysCloud'
-
-    # AuthContext accessor
-    'Get-GenesysAuthContext'
-
-    # Full OAuth flows
-    'Connect-GenesysCloudApp'
-    'Connect-GenesysCloudPkce'
-    'New-GenesysPkceChallenge'
-    'Get-GenesysPkceAuthorizeUrl'
-    'Complete-GenesysPkceAuth'
-
-    # Legacy header helpers (preserved for back-compat)
-    'Get-StoredHeaders'
-    'Test-GenesysConnection'
-    'Get-ConnectionInfo'
-    'Clear-StoredToken'
-)
-
 CmdletsToExport = @()
 AliasesToExport = @()
 VariablesToExport = @()

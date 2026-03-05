@@ -75,6 +75,102 @@ function _NewAuthContext {
 }
 
 # ── Public functions ─────────────────────────────────────────────────────────
+
+function Connect-GenesysCloud {
+    <#
+    .SYNOPSIS
+        Establishes an in-memory Genesys Cloud session from a pre-obtained bearer token.
+    .DESCRIPTION
+        Stores the supplied bearer token and region in module-scoped state and returns
+        a stable AuthContext object (Token, ExpiresAt, Region, BaseUri, Headers).
+        Token lifecycle (expiry, refresh) is the caller's responsibility.
+        For full OAuth flows use Connect-GenesysCloudApp (client_credentials) or
+        Connect-GenesysCloudPkce (Authorization Code + PKCE).
+    .PARAMETER AccessToken
+        A valid Genesys Cloud OAuth2 bearer token.
+    .PARAMETER Region
+        Genesys Cloud region API hostname suffix (e.g. usw2.pure.cloud).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AccessToken,
+
+        [string]$Region = 'usw2.pure.cloud'
+    )
+
+    # Bearer tokens from Genesys Cloud are valid for 86400 s by default; assume 24 h.
+    $expiresAt = [datetime]::UtcNow.AddHours(24)
+
+    $script:StoredHeaders = @{ Authorization = "Bearer $AccessToken" }
+    $script:ConnectionInfo = [pscustomobject]@{
+        Region    = $Region
+        Flow      = 'bearer'
+        ExpiresAt = $expiresAt
+    }
+
+    return _NewAuthContext -Token $AccessToken -ExpiresAt $expiresAt -Region $Region -Flow 'bearer'
+}
+
+function Get-GenesysAuthContext {
+    <#
+    .SYNOPSIS
+        Returns the current AuthContext if a valid session exists, otherwise $null.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers) { return $null }
+
+    $token = ($headers['Authorization'] -replace '^Bearer ', '')
+    $expiry = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.ExpiresAt } else { [datetime]::UtcNow }
+    $region = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.Region }  else { 'unknown' }
+    $flow = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.Flow }    else { 'unknown' }
+
+    return _NewAuthContext -Token $token -ExpiresAt $expiry -Region $region -Flow $flow
+}
+
+function Connect-GenesysCloudApp {
+    <#
+    .SYNOPSIS
+        Authenticates using OAuth 2.0 client credentials flow.
+    .DESCRIPTION
+        POSTs to login.{Region}/oauth/token with Basic credentials.
+        Stores the resulting bearer token via DPAPI.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$ClientId,
+        [Parameter(Mandatory)][string]$ClientSecret,
+        [Parameter(Mandatory)][string]$Region
+    )
+    $loginUrl = "https://login.$($Region)/oauth/token"
+    $encoded = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::ASCII.GetBytes("$($ClientId):$($ClientSecret)"))
+    $body = 'grant_type=client_credentials'
+    $headers = @{
+        Authorization  = "Basic $encoded"
+        'Content-Type' = 'application/x-www-form-urlencoded'
+    }
+
+    $response = Invoke-RestMethod -Uri $loginUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
+    $token = $response.access_token
+    $expiresAt = [datetime]::UtcNow.AddSeconds([int]$response.expires_in - 30)
+
+    _SaveTokenPayload @{
+        token     = $token
+        expiresAt = $expiresAt.ToString('o')
+        region    = $Region
+        flow      = 'client_credentials'
+    }
+    $script:StoredHeaders = @{ Authorization = "Bearer $token" }
+    $script:ConnectionInfo = [pscustomobject]@{
+        Region    = $Region
+        Flow      = 'client_credentials'
+        ExpiresAt = $expiresAt
+    }
+    return _NewAuthContext -Token $token -ExpiresAt $expiresAt -Region $Region -Flow 'client_credentials'
+}
 ### BEGIN: PKCE_TwoStep_Helpers (Genesys.Auth)
 function New-GenesysPkceChallenge {
     <#
@@ -201,102 +297,6 @@ function Complete-GenesysPkceAuth {
     return _NewAuthContext -Token $token -ExpiresAt $expiresAt -Region $Region -Flow 'pkce'
 }
 ### END: PKCE_TwoStep_Helpers (Genesys.Auth)
-function Connect-GenesysCloud {
-    <#
-    .SYNOPSIS
-        Establishes an in-memory Genesys Cloud session from a pre-obtained bearer token.
-    .DESCRIPTION
-        Stores the supplied bearer token and region in module-scoped state and returns
-        a stable AuthContext object (Token, ExpiresAt, Region, BaseUri, Headers).
-        Token lifecycle (expiry, refresh) is the caller's responsibility.
-        For full OAuth flows use Connect-GenesysCloudApp (client_credentials) or
-        Connect-GenesysCloudPkce (Authorization Code + PKCE).
-    .PARAMETER AccessToken
-        A valid Genesys Cloud OAuth2 bearer token.
-    .PARAMETER Region
-        Genesys Cloud region API hostname suffix (e.g. usw2.pure.cloud).
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$AccessToken,
-
-        [string]$Region = 'usw2.pure.cloud'
-    )
-
-    # Bearer tokens from Genesys Cloud are valid for 86400 s by default; assume 24 h.
-    $expiresAt = [datetime]::UtcNow.AddHours(24)
-
-    $script:StoredHeaders = @{ Authorization = "Bearer $AccessToken" }
-    $script:ConnectionInfo = [pscustomobject]@{
-        Region    = $Region
-        Flow      = 'bearer'
-        ExpiresAt = $expiresAt
-    }
-
-    return _NewAuthContext -Token $AccessToken -ExpiresAt $expiresAt -Region $Region -Flow 'bearer'
-}
-
-function Get-GenesysAuthContext {
-    <#
-    .SYNOPSIS
-        Returns the current AuthContext if a valid session exists, otherwise $null.
-    #>
-    [CmdletBinding()]
-    param()
-
-    $headers = Get-StoredHeaders
-    if ($null -eq $headers) { return $null }
-
-    $token = ($headers['Authorization'] -replace '^Bearer ', '')
-    $expiry = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.ExpiresAt } else { [datetime]::UtcNow }
-    $region = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.Region }  else { 'unknown' }
-    $flow = if ($null -ne $script:ConnectionInfo) { $script:ConnectionInfo.Flow }    else { 'unknown' }
-
-    return _NewAuthContext -Token $token -ExpiresAt $expiry -Region $region -Flow $flow
-}
-
-function Connect-GenesysCloudApp {
-    <#
-    .SYNOPSIS
-        Authenticates using OAuth 2.0 client credentials flow.
-    .DESCRIPTION
-        POSTs to login.{Region}/oauth/token with Basic credentials.
-        Stores the resulting bearer token via DPAPI.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$ClientId,
-        [Parameter(Mandatory)][string]$ClientSecret,
-        [Parameter(Mandatory)][string]$Region
-    )
-    $loginUrl = "https://login.$($Region)/oauth/token"
-    $encoded = [System.Convert]::ToBase64String(
-        [System.Text.Encoding]::ASCII.GetBytes("$($ClientId):$($ClientSecret)"))
-    $body = 'grant_type=client_credentials'
-    $headers = @{
-        Authorization  = "Basic $encoded"
-        'Content-Type' = 'application/x-www-form-urlencoded'
-    }
-
-    $response = Invoke-RestMethod -Uri $loginUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
-    $token = $response.access_token
-    $expiresAt = [datetime]::UtcNow.AddSeconds([int]$response.expires_in - 30)
-
-    _SaveTokenPayload @{
-        token     = $token
-        expiresAt = $expiresAt.ToString('o')
-        region    = $Region
-        flow      = 'client_credentials'
-    }
-    $script:StoredHeaders = @{ Authorization = "Bearer $token" }
-    $script:ConnectionInfo = [pscustomobject]@{
-        Region    = $Region
-        Flow      = 'client_credentials'
-        ExpiresAt = $expiresAt
-    }
-    return _NewAuthContext -Token $token -ExpiresAt $expiresAt -Region $Region -Flow 'client_credentials'
-}
-
 ### BEGIN: Connect-GenesysCloudPkce_DetectAndSplit
 function Connect-GenesysCloudPkce {
     <#
@@ -422,6 +422,61 @@ Use the two-step PKCE helpers instead:
     return Complete-GenesysPkceAuth -Code $code -ReturnedState $returnedState -ClientId $ClientId -Region $Region -RedirectUri $RedirectUri -Pkce $pkce
 }
 ### END: Connect-GenesysCloudPkce_DetectAndSplit
+
+
+if ($CancellationToken.IsCancellationRequested) { break }
+
+$ctx = $ctxTask.Result
+$rawQuery = $ctx.Request.Url.Query.TrimStart('?')
+$pairs = $rawQuery -split '&'
+$qp = @{}
+foreach ($p in $pairs) {
+    $kv = $p -split '=', 2
+    if ($kv.Count -eq 2) { $qp[$kv[0]] = [System.Uri]::UnescapeDataString($kv[1]) }
+}
+$code = $qp['code']
+
+$respHtml = '<html><body><h2>Authentication complete. You may close this tab.</h2></body></html>'
+$respBytes = [System.Text.Encoding]::UTF8.GetBytes($respHtml)
+$ctx.Response.ContentType = 'text/html'
+$ctx.Response.ContentLength64 = $respBytes.Length
+$ctx.Response.OutputStream.Write($respBytes, 0, $respBytes.Length)
+$ctx.Response.OutputStream.Close()
+break
+}
+} finally {
+    $listener.Stop()
+}
+
+if (-not $code) { throw 'PKCE authorization was cancelled or did not return a code.' }
+
+$tokenUrl = "https://login.$($Region)/oauth/token"
+$body = "grant_type=authorization_code" +
+"&code=$($code)" +
+"&redirect_uri=$([System.Uri]::EscapeDataString($RedirectUri))" +
+"&client_id=$($ClientId)" +
+"&code_verifier=$($verifier)"
+$headers = @{ 'Content-Type' = 'application/x-www-form-urlencoded' }
+
+$response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
+$token = $response.access_token
+$expiresAt = [datetime]::UtcNow.AddSeconds([int]$response.expires_in - 30)
+
+_SaveTokenPayload @{
+    token     = $token
+    expiresAt = $expiresAt.ToString('o')
+    region    = $Region
+    flow      = 'pkce'
+}
+$script:StoredHeaders = @{ Authorization = "Bearer $token" }
+$script:ConnectionInfo = [pscustomobject]@{
+    Region    = $Region
+    Flow      = 'pkce'
+    ExpiresAt = $expiresAt
+}
+return _NewAuthContext -Token $token -ExpiresAt $expiresAt -Region $Region -Flow 'pkce'
+}
+
 function Get-StoredHeaders {
     <#
     .SYNOPSIS
@@ -434,8 +489,7 @@ function Get-StoredHeaders {
 
     try {
         $expiresAt = [datetime]::Parse($payload.expiresAt)
-    }
-    catch {
+    } catch {
         return $null
     }
     if ([datetime]::UtcNow -ge $expiresAt) { return $null }
@@ -447,6 +501,57 @@ function Get-StoredHeaders {
         ExpiresAt = $expiresAt
     }
     return $script:StoredHeaders
+}
+
+function Test-GenesysConnection {
+    <#
+    .SYNOPSIS
+        Returns $true if a valid (non-expired) stored token exists.
+    #>
+    $h = Get-StoredHeaders
+    return ($null -ne $h)
+}
+
+function Get-ConnectionInfo {
+    <#
+    .SYNOPSIS
+        Returns connection metadata (Region, Flow, ExpiresAt) or $null.
+    #>
+    Get-StoredHeaders | Out-Null
+    return $script:ConnectionInfo
+}
+
+function Clear-StoredToken {
+    <#
+    .SYNOPSIS
+        Removes the in-memory token and deletes the DPAPI-encrypted auth.dat file.
+    #>
+    $script:StoredHeaders = $null
+    $script:ConnectionInfo = $null
+    if ([System.IO.File]::Exists($script:AuthFile)) {
+        [System.IO.File]::Delete($script:AuthFile)
+    }
+}
+
+Export-ModuleMember -Function Connect-GenesysCloud, Get-GenesysAuthContext, `
+    Connect-GenesysCloudApp, Connect-GenesysCloudPkce, `
+    Get-StoredHeaders, Test-GenesysConnection, Get-ConnectionInfo, Clear-StoredToken
+if ($null -eq $payload) { return $null }
+
+try {
+    $expiresAt = [datetime]::Parse($payload.expiresAt)
+} catch {
+    return $null
+}
+if ([datetime]::UtcNow -ge $expiresAt) { return $null }
+
+$script:StoredHeaders = @{ Authorization = "Bearer $($payload.token)" }
+$script:ConnectionInfo = [pscustomobject]@{
+    Region    = $payload.region
+    Flow      = $payload.flow
+    ExpiresAt = $expiresAt
+}
+return $script:StoredHeaders
 }
 
 function Test-GenesysConnection {

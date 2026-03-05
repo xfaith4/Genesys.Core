@@ -1,42 +1,45 @@
 @{
-    RootModule        = 'Genesys.Auth.psm1'
-    ModuleVersion     = '1.0.0'
-    GUID              = 'c2a1b3d4-e5f6-4789-abcd-ef0123456789'
-    Author            = 'Genesys.Core'
-    CompanyName       = 'Genesys.Core'
-    Description       = 'Authentication lane for Genesys Cloud. Owns OAuth flows, token lifecycle, and AuthContext.'
-    Copyright         = '(c) Genesys.Core. All rights reserved.'
+    RootModule = 'Genesys.Auth.psm1'
+    ModuleVersion = '1.0.0'
+    GUID = 'c2a1b3d4-e5f6-4789-abcd-ef0123456789'
+    Author = 'Genesys.Core'
+    CompanyName = 'Genesys.Core'
+    Description = 'Authentication lane for Genesys Cloud. Owns OAuth flows, token lifecycle, and AuthContext.'
+    Copyright = '(c) Genesys.Core. All rights reserved.'
     PowerShellVersion = '5.1'
 
     FunctionsToExport = @(
-        # Primary session entry point (accepts pre-obtained bearer token)
-        'Connect-GenesysCloud'
-
-        # AuthContext accessor
-        'Get-GenesysAuthContext'
-
-        # Full OAuth flows
-        'Connect-GenesysCloudApp'
-        'Connect-GenesysCloudPkce'
         'New-GenesysPkceChallenge'
         'Get-GenesysPkceAuthorizeUrl'
         'Complete-GenesysPkceAuth'
-
-        # Legacy header helpers (preserved for back-compat)
-        'Get-StoredHeaders'
-        'Test-GenesysConnection'
-        'Get-ConnectionInfo'
-        'Clear-StoredToken'
     )
+    'Connect-GenesysCloud'
 
-    CmdletsToExport   = @()
-    AliasesToExport   = @()
-    VariablesToExport = @()
+    # AuthContext accessor
+    'Get-GenesysAuthContext'
 
-    PrivateData = @{
-        PSData = @{
-            Tags       = @('Genesys', 'GenesysCloud', 'Auth', 'OAuth')
-            ProjectUri = 'https://github.com/xfaith4/Genesys.Core'
-        }
+    # Full OAuth flows
+    'Connect-GenesysCloudApp'
+    'Connect-GenesysCloudPkce'
+    'New-GenesysPkceChallenge'
+    'Get-GenesysPkceAuthorizeUrl'
+    'Complete-GenesysPkceAuth'
+
+    # Legacy header helpers (preserved for back-compat)
+    'Get-StoredHeaders'
+    'Test-GenesysConnection'
+    'Get-ConnectionInfo'
+    'Clear-StoredToken'
+)
+
+CmdletsToExport = @()
+AliasesToExport = @()
+VariablesToExport = @()
+
+PrivateData = @{
+    PSData = @{
+        Tags = @('Genesys', 'GenesysCloud', 'Auth', 'OAuth')
+        ProjectUri = 'https://github.com/xfaith4/Genesys.Core'
     }
+}
 }

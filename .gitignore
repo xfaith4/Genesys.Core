@@ -1,6 +1,6 @@
-# Output directories
+# Output directories (runtime artifacts - never committed)
 out/
-out-smoke/
+out-*/
 
 # Generated files
 generated/

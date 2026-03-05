@@ -1,4 +1,0 @@
-{"recordType":"routingQueue","id":"queueid-0001-0001-0001-aabbccddeeff","name":"Tier-1 Support","divisionId":"div-main-0001-aabbccddeeff","memberCount":12,"joined":true}
-{"recordType":"routingQueue","id":"queueid-0002-0002-0002-aabbccddeeff","name":"Tier-2 Escalation","divisionId":"div-main-0001-aabbccddeeff","memberCount":5,"joined":true}
-{"recordType":"routingQueue","id":"queueid-0003-0003-0003-aabbccddeeff","name":"Chat Support","divisionId":"div-digital-0002-aabbccddeeff","memberCount":8,"joined":false}
-{"recordType":"routingQueue","id":"queueid-0004-0004-0004-aabbccddeeff","name":"Callback Queue","divisionId":null,"memberCount":0,"joined":false}

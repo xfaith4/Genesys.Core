@@ -1,5 +1,0 @@
-{"recordType":"user","id":"user-agent-0001-alice","name":"Alice Support","email":"[REDACTED]","state":"active","presence":"AVAILABLE","routingStatus":"IDLE"}
-{"recordType":"user","id":"user-agent-0002-bob","name":"Bob Chat","email":"[REDACTED]","state":"active","presence":"BUSY","routingStatus":"INTERACTING"}
-{"recordType":"user","id":"user-agent-0003-carol","name":"Carol Specialist","email":"[REDACTED]","state":"active","presence":"AVAILABLE","routingStatus":"IDLE"}
-{"recordType":"user","id":"user-agent-0004-dan","name":"Dan Outreach","email":"[REDACTED]","state":"active","presence":"AWAY","routingStatus":"OFF_QUEUE"}
-{"recordType":"user","id":"user-agent-0005-eve","name":"Eve Email","email":"[REDACTED]","state":"inactive","presence":null,"routingStatus":null}

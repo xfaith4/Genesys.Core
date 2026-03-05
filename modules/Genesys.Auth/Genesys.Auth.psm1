@@ -422,39 +422,6 @@ Use the two-step PKCE helpers instead:
     return Complete-GenesysPkceAuth -Code $code -ReturnedState $returnedState -ClientId $ClientId -Region $Region -RedirectUri $RedirectUri -Pkce $pkce
 }
 ### END: Connect-GenesysCloudPkce_DetectAndSplit
-
-
-if ($CancellationToken.IsCancellationRequested) { break }
-
-$ctx = $ctxTask.Result
-$rawQuery = $ctx.Request.Url.Query.TrimStart('?')
-$pairs = $rawQuery -split '&'
-$qp = @{}
-foreach ($p in $pairs) {
-    $kv = $p -split '=', 2
-    if ($kv.Count -eq 2) { $qp[$kv[0]] = [System.Uri]::UnescapeDataString($kv[1]) }
-}
-$code = $qp['code']
-
-$respHtml = '<html><body><h2>Authentication complete. You may close this tab.</h2></body></html>'
-$respBytes = [System.Text.Encoding]::UTF8.GetBytes($respHtml)
-$ctx.Response.ContentType = 'text/html'
-$ctx.Response.ContentLength64 = $respBytes.Length
-$ctx.Response.OutputStream.Write($respBytes, 0, $respBytes.Length)
-$ctx.Response.OutputStream.Close()
-break
-}
-} finally {
-    $listener.Stop()
-}
-
-if (-not $code) { throw 'PKCE authorization was cancelled or did not return a code.' }
-
-$tokenUrl = "https://login.$($Region)/oauth/token"
-$body = "grant_type=authorization_code" +
-"&code=$($code)" +
-"&redirect_uri=$([System.Uri]::EscapeDataString($RedirectUri))" +
-
 function Get-StoredHeaders {
     <#
     .SYNOPSIS
@@ -479,57 +446,6 @@ function Get-StoredHeaders {
         ExpiresAt = $expiresAt
     }
     return $script:StoredHeaders
-}
-
-function Test-GenesysConnection {
-    <#
-    .SYNOPSIS
-        Returns $true if a valid (non-expired) stored token exists.
-    #>
-    $h = Get-StoredHeaders
-    return ($null -ne $h)
-}
-
-function Get-ConnectionInfo {
-    <#
-    .SYNOPSIS
-        Returns connection metadata (Region, Flow, ExpiresAt) or $null.
-    #>
-    Get-StoredHeaders | Out-Null
-    return $script:ConnectionInfo
-}
-
-function Clear-StoredToken {
-    <#
-    .SYNOPSIS
-        Removes the in-memory token and deletes the DPAPI-encrypted auth.dat file.
-    #>
-    $script:StoredHeaders = $null
-    $script:ConnectionInfo = $null
-    if ([System.IO.File]::Exists($script:AuthFile)) {
-        [System.IO.File]::Delete($script:AuthFile)
-    }
-}
-
-Export-ModuleMember -Function Connect-GenesysCloud, Get-GenesysAuthContext, `
-    Connect-GenesysCloudApp, Connect-GenesysCloudPkce, `
-    Get-StoredHeaders, Test-GenesysConnection, Get-ConnectionInfo, Clear-StoredToken
-if ($null -eq $payload) { return $null }
-
-try {
-    $expiresAt = [datetime]::Parse($payload.expiresAt)
-} catch {
-    return $null
-}
-if ([datetime]::UtcNow -ge $expiresAt) { return $null }
-
-$script:StoredHeaders = @{ Authorization = "Bearer $($payload.token)" }
-$script:ConnectionInfo = [pscustomobject]@{
-    Region    = $payload.region
-    Flow      = $payload.flow
-    ExpiresAt = $expiresAt
-}
-return $script:StoredHeaders
 }
 
 function Test-GenesysConnection {

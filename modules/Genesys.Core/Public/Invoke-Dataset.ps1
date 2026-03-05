@@ -66,7 +66,7 @@ function Invoke-Dataset {
         [switch]$NoRedact
     )
 
-    $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\..\catalog\schema\genesys.catalog.schema.json'
+    $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '../../../catalog/schema/genesys.catalog.schema.json'
     $catalogResolution = Resolve-Catalog -CatalogPath $CatalogPath -SchemaPath $schemaPath -StrictCatalog:$StrictCatalog
 
     foreach ($warning in @($catalogResolution.warnings)) {

@@ -2631,14 +2631,14 @@ function Get-GenesysWrapupDistribution {
         Queries conversation aggregates grouped by queue and wrapup code.  Useful
         for understanding outcome patterns, training needs, and process compliance.
 
-            QueueId        — Queue GUID
-            WrapUpCode     — Wrapup code GUID or name from groupBy dimension
-            Interval       — Aggregate time bucket (daily by default)
-            nConnected     — Conversations with this wrapup code
-            tHandle_sum    — Total handle time for this wrapup group (ms)
+            QueueId            — Queue GUID
+            WrapUpCode         — Wrapup code GUID or name from groupBy dimension
+            Interval           — Aggregate time bucket (daily by default)
+            nConnected_count   — Conversations with this wrapup code
+            tHandle_sum        — Total handle time for this wrapup group (ms)
     .EXAMPLE
         $dist = Get-GenesysWrapupDistribution
-        $dist | Group-Object WrapUpCode | Sort-Object { ($_.Group | Measure-Object nConnected -Sum).Sum } -Descending |
+        $dist | Group-Object WrapUpCode | Sort-Object { ($_.Group | Measure-Object nConnected_count -Sum).Sum } -Descending |
             Select-Object -First 10 Name, Count | Format-Table
     .EXAMPLE
         # Export for a weekly report
@@ -2660,13 +2660,13 @@ function Get-GenesysDigitalChannelVolume {
         Queries conversation aggregates grouped by mediaType and queueId.  Returns
         hourly or daily volume per channel — voice, chat, email, messaging, callback.
 
-            QueueId        — Queue GUID
-            MediaType      — voice | chat | email | message | callback
-            Interval       — Time bucket
-            nOffered       — Contacts offered
-            nConnected     — Contacts connected to agent
-            nAbandoned     — Contacts abandoned
-            tHandle_sum    — Total handle time (ms)
+            QueueId            — Queue GUID
+            MediaType          — voice | chat | email | message | callback
+            Interval           — Time bucket
+            nOffered_count     — Contacts offered
+            nConnected_count   — Contacts connected to agent
+            nAbandoned_count   — Contacts abandoned
+            tHandle_sum        — Total handle time (ms)
     .EXAMPLE
         # Compare voice vs digital volume over the last week
         Get-GenesysDigitalChannelVolume |

@@ -97,6 +97,53 @@
         'Get-GenesysAgentPerformance'
         'Get-GenesysUserActivity'
         'Get-GenesysAgentVoiceQuality'
+
+        # Edge / Telephony Telemetry  (Roadmap ideas 1–5)
+        'Get-GenesysEdge'
+        'Get-GenesysTrunk'
+        'Get-GenesysTrunkMetrics'
+        'Get-GenesysStation'
+        'Get-GenesysEdgeHealthSnapshot'
+
+        # Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
+        'Get-GenesysQueueAbandonRate'
+        'Get-GenesysQueueServiceLevel'
+        'Get-GenesysTransferAnalysis'
+        'Get-GenesysWrapupDistribution'
+        'Get-GenesysDigitalChannelVolume'
+
+        # Quality & CSAT  (Roadmap ideas 11–13)
+        'Get-GenesysEvaluation'
+        'Get-GenesysSurvey'
+        'Get-GenesysSentimentTrend'
+
+        # Alerting  (Roadmap ideas 14–15)
+        'Get-GenesysAlertingRule'
+        'Get-GenesysAlert'
+
+        # Agent Insights  (Roadmap ideas 16–18)
+        'Get-GenesysAgentLoginActivity'
+        'Get-GenesysLongHandleConversation'
+        'Get-GenesysRepeatCaller'
+
+        # WebRTC & Media Quality Trending  (Roadmap ideas 19–20)
+        'Get-GenesysWebRtcDisconnectSummary'
+        'Get-GenesysConversationLatencyTrend'
+
+        # ACW Anomaly Detection  (Roadmap idea 21)
+        'Get-GenesysAgentAcwAnomaly'
+
+        # Workforce Management  (Roadmap idea 22)
+        'Get-GenesysWorkforceManagementUnit'
+
+        # Journey / Predictive Engagement  (Roadmap idea 23)
+        'Get-GenesysJourneyActionMap'
+
+        # Composite Dashboard Snapshots  (Roadmap ideas 24–30)
+        'Get-GenesysAbandonRateDashboard'
+        'Get-GenesysQueueHealthSnapshot'
+        'Get-GenesysAgentQualitySnapshot'
+        'Invoke-GenesysOperationsReport'
     )
 
     CmdletsToExport   = @()

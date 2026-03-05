@@ -2263,3 +2263,1389 @@ function Get-GenesysAgentVoiceQuality {
 }
 
 #endregion
+
+# ---------------------------------------------------------------------------
+#region Edge / Telephony Telemetry  (Roadmap ideas 1–5)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysEdge {
+    <#
+    .SYNOPSIS
+        Returns all Edge appliances with registration and connectivity status.
+    .DESCRIPTION
+        Fetches the Edge list from the telephony providers API.  Each record
+        contains the edge GUID, name, edge group, software version, online
+        state, and whether the edge is currently in a managed state.
+
+        Use for:
+          - Edge health dashboards (are all edges online / registered?)
+          - Pre-flight checks before routing changes
+          - Inventory snapshots for large multi-site deployments
+
+        Key fields returned:
+            id             — Edge GUID
+            name           — Display name
+            state          — ACTIVE | INACTIVE | DELETED
+            onlineStatus   — ONLINE | OFFLINE
+            edgeGroup      — Associated edge group name/id
+            softwareVersion — Installed Edge software version
+            managed        — Whether centrally managed
+    .EXAMPLE
+        # Show all offline edges
+        Get-GenesysEdge | Where-Object { $_.onlineStatus -ne 'ONLINE' } | Format-Table name, onlineStatus, state
+    .EXAMPLE
+        # Count edges per edge group
+        Get-GenesysEdge | Group-Object { $_.edgeGroup.name } | Select-Object Name, Count | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'telephony.get.edges')
+}
+
+function Get-GenesysTrunk {
+    <#
+    .SYNOPSIS
+        Returns all SIP trunks across the organisation.
+    .DESCRIPTION
+        Lists every trunk defined under the Edge telephony provider.  Useful for
+        monitoring SIP trunk health, capacity, and connectivity across all sites.
+
+        Key fields returned:
+            id             — Trunk GUID
+            name           — Display name
+            trunkType      — EXTERNAL | PHONE | EDGE
+            state          — ACTIVE | INACTIVE
+            edge           — Edge the trunk belongs to
+            trunkBase      — Trunk base configuration reference
+    .EXAMPLE
+        # Show only active external trunks
+        Get-GenesysTrunk | Where-Object { $_.trunkType -eq 'EXTERNAL' -and $_.state -eq 'ACTIVE' } | Format-Table name, edge
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'telephony.get.trunks')
+}
+
+function Get-GenesysTrunkMetrics {
+    <#
+    .SYNOPSIS
+        Returns aggregate SIP trunk utilisation and capacity metrics.
+    .DESCRIPTION
+        Calls the trunk metrics summary endpoint which provides organisation-wide
+        counts of:
+            - Total available channels
+            - Channels currently in use (active calls)
+            - Calls in setup/alerting state
+            - Number of trunks in error state
+
+        Use alongside Get-GenesysTrunk for a trunk health and capacity dashboard.
+    .EXAMPLE
+        $m = Get-GenesysTrunkMetrics
+        $m | Format-List
+    .EXAMPLE
+        # Alert on near-capacity
+        $m = Get-GenesysTrunkMetrics
+        foreach ($t in $m) {
+            if ($t.logicalInterfaceId -and $t.callsIn + $t.callsOut -gt 80) {
+                Write-Warning "Trunk $($t.name) nearing capacity"
+            }
+        }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'telephony.get.trunk.metrics.summary')
+}
+
+function Get-GenesysStation {
+    <#
+    .SYNOPSIS
+        Returns all station (phone/softphone) registrations and statuses.
+    .DESCRIPTION
+        Fetches the organisation's station inventory.  Stations represent physical
+        phones, WebRTC softphones, and Genesys Cloud WebRTC media helper devices.
+
+        Key fields returned:
+            id             — Station GUID
+            name           — Display name
+            type           — inin_webrtc_softphone | inin_remote | ...
+            status         — AVAILABLE | ON_CALL | RINGING | OFF_HOOK
+            userId         — Associated user GUID (if assigned)
+            lineAppearance — Assigned line number
+    .EXAMPLE
+        # How many stations are available vs on a call?
+        Get-GenesysStation | Group-Object status | Select-Object Name, Count | Format-Table
+    .EXAMPLE
+        # Find all unassigned stations
+        Get-GenesysStation | Where-Object { -not $_.userId } | Format-Table id, name, type
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'stations.get.stations')
+}
+
+function Get-GenesysEdgeHealthSnapshot {
+    <#
+    .SYNOPSIS
+        Returns a combined edge + trunk health summary suitable for a dashboard widget.
+    .DESCRIPTION
+        Aggregates edge online status and trunk state into a single summary object
+        for at-a-glance visibility into telephony infrastructure health.
+
+        Returns:
+            Timestamp         — Snapshot time
+            EdgesTotal        — Total Edge appliances
+            EdgesOnline       — Edges reporting ONLINE
+            EdgesOffline      — Edges reporting OFFLINE
+            TrunksTotal       — Total SIP trunks
+            TrunksActive      — Active/registered trunks
+            TrunksInactive    — Trunks not in ACTIVE state
+            OfflineEdgeNames  — List of offline edge names (for alerting)
+    .EXAMPLE
+        Get-GenesysEdgeHealthSnapshot | Format-List
+    .EXAMPLE
+        # Alert if any edge is offline
+        $snap = Get-GenesysEdgeHealthSnapshot
+        if ($snap.EdgesOffline -gt 0) {
+            Write-Warning "ALERT: $($snap.EdgesOffline) edges offline: $($snap.OfflineEdgeNames -join ', ')"
+        }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $edges  = @(Get-GenesysEdge)
+    $trunks = @(Get-GenesysTrunk)
+
+    $offlineEdges = @($edges | Where-Object { $_.onlineStatus -ne 'ONLINE' })
+
+    [PSCustomObject]@{
+        Timestamp        = Get-Date -Format 'o'
+        EdgesTotal       = $edges.Count
+        EdgesOnline      = @($edges | Where-Object { $_.onlineStatus -eq 'ONLINE'  }).Count
+        EdgesOffline     = $offlineEdges.Count
+        TrunksTotal      = $trunks.Count
+        TrunksActive     = @($trunks | Where-Object { $_.state -eq 'ACTIVE'        }).Count
+        TrunksInactive   = @($trunks | Where-Object { $_.state -ne 'ACTIVE'        }).Count
+        OfflineEdgeNames = $offlineEdges | ForEach-Object { $_.name }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysQueueAbandonRate {
+    <#
+    .SYNOPSIS
+        Returns per-queue abandon rate metrics for a given interval.
+    .DESCRIPTION
+        Queries conversation aggregates and derives abandon rate (%) for each
+        queue+mediaType+interval combination.  The AbandonRate field is:
+
+            AbandonRate = nAbandoned / nOffered * 100
+
+        All raw counts are also included for custom calculations:
+
+            QueueId        — Queue GUID
+            MediaType      — voice, chat, email, etc.
+            Interval       — Aggregate time bucket
+            nOffered       — Contacts offered (entered queue)
+            nAbandoned     — Contacts who abandoned before answer
+            nConnected     — Contacts connected to an agent
+            AbandonRate    — Abandon percentage (0–100, rounded to 1 dp)
+            AvgAbandonSec  — Average time in queue before abandon (seconds)
+    .EXAMPLE
+        # Current-day abandon rate per queue
+        Get-GenesysQueueAbandonRate | Sort-Object AbandonRate -Descending |
+            Select-Object QueueId, MediaType, nOffered, nAbandoned, AbandonRate |
+            Format-Table
+    .EXAMPLE
+        # Alert on queues with abandon rate > 10%
+        Get-GenesysQueueAbandonRate |
+            Where-Object { $_.AbandonRate -gt 10 } |
+            ForEach-Object { Write-Warning "Queue $($_.QueueId) abandon rate: $($_.AbandonRate)%" }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.abandon.metrics' |
+             ConvertFrom-AggregateResult)
+
+    foreach ($r in $raw) {
+        $offered   = if ($r.nOffered_count)    { $r.nOffered_count    } else { 0 }
+        $abandoned = if ($r.nAbandoned_count)  { $r.nAbandoned_count  } else { 0 }
+        $connected = if ($r.nConnected_count)  { $r.nConnected_count  } else { 0 }
+        $tAbandon  = if ($r.tAbandoned_sum)    { $r.tAbandoned_sum    } else { $null }
+
+        $rate = if ($offered -gt 0) { [math]::Round($abandoned / $offered * 100, 1) } else { 0.0 }
+        $avgAbandonSec = if ($abandoned -gt 0 -and $null -ne $tAbandon) {
+            [math]::Round($tAbandon / $abandoned / 1000, 1)
+        } else { $null }
+
+        [PSCustomObject]@{
+            QueueId       = $r.queueId
+            MediaType     = $r.mediaType
+            Interval      = $r.Interval
+            nOffered      = $offered
+            nAbandoned    = $abandoned
+            nConnected    = $connected
+            AbandonRate   = $rate
+            AvgAbandonSec = $avgAbandonSec
+        }
+    }
+}
+
+function Get-GenesysQueueServiceLevel {
+    <#
+    .SYNOPSIS
+        Returns queue service level (SLA) metrics — percentage answered within threshold.
+    .DESCRIPTION
+        Fetches conversation aggregates with answer-speed metrics and computes the
+        percentage of contacts answered within 20, 30, and 60 seconds.
+
+            QueueId            — Queue GUID
+            MediaType          — voice, chat, email, etc.
+            Interval           — Aggregate time bucket
+            nOffered           — Contacts offered
+            nAnsweredIn20      — Answered in ≤ 20 s
+            nAnsweredIn30      — Answered in ≤ 30 s
+            nAnsweredIn60      — Answered in ≤ 60 s
+            ServiceLevel20Pct  — % answered in 20 s
+            ServiceLevel30Pct  — % answered in 30 s (common SLA threshold)
+            ServiceLevel60Pct  — % answered in 60 s
+    .EXAMPLE
+        Get-GenesysQueueServiceLevel |
+            Select-Object QueueId, nOffered, ServiceLevel20Pct, ServiceLevel30Pct |
+            Sort-Object ServiceLevel30Pct | Format-Table
+    .EXAMPLE
+        # Flag queues missing 80% SLA target at 30 s
+        Get-GenesysQueueServiceLevel |
+            Where-Object { $_.ServiceLevel30Pct -lt 80 -and $_.nOffered -gt 0 } |
+            Format-Table QueueId, nOffered, ServiceLevel30Pct
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.queue.aggregates.service.level' |
+             ConvertFrom-AggregateResult)
+
+    foreach ($r in $raw) {
+        $offered = if ($r.nOffered_count) { $r.nOffered_count } else { 0 }
+
+        $in20 = if ($r.nAnsweredIn20_count) { $r.nAnsweredIn20_count } else { 0 }
+        $in30 = if ($r.nAnsweredIn30_count) { $r.nAnsweredIn30_count } else { 0 }
+        $in60 = if ($r.nAnsweredIn60_count) { $r.nAnsweredIn60_count } else { 0 }
+
+        $sl20 = if ($offered -gt 0) { [math]::Round($in20 / $offered * 100, 1) } else { $null }
+        $sl30 = if ($offered -gt 0) { [math]::Round($in30 / $offered * 100, 1) } else { $null }
+        $sl60 = if ($offered -gt 0) { [math]::Round($in60 / $offered * 100, 1) } else { $null }
+
+        [PSCustomObject]@{
+            QueueId           = $r.queueId
+            MediaType         = $r.mediaType
+            Interval          = $r.Interval
+            nOffered          = $offered
+            nAnsweredIn20     = $in20
+            nAnsweredIn30     = $in30
+            nAnsweredIn60     = $in60
+            ServiceLevel20Pct = $sl20
+            ServiceLevel30Pct = $sl30
+            ServiceLevel60Pct = $sl60
+        }
+    }
+}
+
+function Get-GenesysTransferAnalysis {
+    <#
+    .SYNOPSIS
+        Returns transfer rate metrics (blind, consult) per queue.
+    .DESCRIPTION
+        Fetches conversation aggregates with transfer counts and derives the
+        transfer rate as a percentage of connected conversations.
+
+            QueueId               — Queue GUID
+            MediaType             — voice, chat, email, etc.
+            Interval              — Aggregate time bucket
+            nConnected            — Conversations connected to agent
+            nTransferred          — Total transfers initiated
+            nBlindTransferred     — Blind (cold) transfers
+            nConsultTransferred   — Consult (warm) transfers
+            TransferRate          — nTransferred / nConnected * 100
+    .EXAMPLE
+        Get-GenesysTransferAnalysis | Sort-Object TransferRate -Descending | Format-Table
+    .EXAMPLE
+        # Identify queues with high blind transfer rate (potential training need)
+        Get-GenesysTransferAnalysis |
+            Where-Object { $_.nConnected -gt 0 -and $_.nBlindTransferred / $_.nConnected -gt 0.15 } |
+            Format-Table QueueId, nConnected, nBlindTransferred, TransferRate
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.transfer.metrics' |
+             ConvertFrom-AggregateResult)
+
+    foreach ($r in $raw) {
+        $connected  = if ($r.nConnected_count)          { $r.nConnected_count          } else { 0 }
+        $xfer       = if ($r.nTransferred_count)        { $r.nTransferred_count        } else { 0 }
+        $blind      = if ($r.nBlindTransferred_count)   { $r.nBlindTransferred_count   } else { 0 }
+        $consult    = if ($r.nConsultTransferred_count) { $r.nConsultTransferred_count } else { 0 }
+
+        $rate = if ($connected -gt 0) { [math]::Round($xfer / $connected * 100, 1) } else { 0.0 }
+
+        [PSCustomObject]@{
+            QueueId             = $r.queueId
+            MediaType           = $r.mediaType
+            Interval            = $r.Interval
+            nConnected          = $connected
+            nTransferred        = $xfer
+            nBlindTransferred   = $blind
+            nConsultTransferred = $consult
+            TransferRate        = $rate
+        }
+    }
+}
+
+function Get-GenesysWrapupDistribution {
+    <#
+    .SYNOPSIS
+        Returns wrapup code usage distribution per queue.
+    .DESCRIPTION
+        Queries conversation aggregates grouped by queue and wrapup code.  Useful
+        for understanding outcome patterns, training needs, and process compliance.
+
+            QueueId        — Queue GUID
+            WrapUpCode     — Wrapup code GUID or name from groupBy dimension
+            Interval       — Aggregate time bucket (daily by default)
+            nConnected     — Conversations with this wrapup code
+            tHandle_sum    — Total handle time for this wrapup group (ms)
+    .EXAMPLE
+        $dist = Get-GenesysWrapupDistribution
+        $dist | Group-Object WrapUpCode | Sort-Object { ($_.Group | Measure-Object nConnected -Sum).Sum } -Descending |
+            Select-Object -First 10 Name, Count | Format-Table
+    .EXAMPLE
+        # Export for a weekly report
+        Get-GenesysWrapupDistribution | Export-Csv .\wrapup-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.wrapup.distribution' |
+      ConvertFrom-AggregateResult)
+}
+
+function Get-GenesysDigitalChannelVolume {
+    <#
+    .SYNOPSIS
+        Returns conversation volume trends broken down by media type (channel).
+    .DESCRIPTION
+        Queries conversation aggregates grouped by mediaType and queueId.  Returns
+        hourly or daily volume per channel — voice, chat, email, messaging, callback.
+
+            QueueId        — Queue GUID
+            MediaType      — voice | chat | email | message | callback
+            Interval       — Time bucket
+            nOffered       — Contacts offered
+            nConnected     — Contacts connected to agent
+            nAbandoned     — Contacts abandoned
+            tHandle_sum    — Total handle time (ms)
+    .EXAMPLE
+        # Compare voice vs digital volume over the last week
+        Get-GenesysDigitalChannelVolume |
+            Group-Object MediaType |
+            Select-Object Name, @{n='TotalOffered';e={($_.Group|Measure-Object nOffered_count -Sum).Sum}} |
+            Sort-Object TotalOffered -Descending | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.digital.channels' |
+      ConvertFrom-AggregateResult)
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Quality & CSAT  (Roadmap ideas 11–13)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysEvaluation {
+    <#
+    .SYNOPSIS
+        Returns quality evaluations for agent interactions.
+    .DESCRIPTION
+        Queries the quality evaluations endpoint.  Each record represents one
+        completed evaluation form scored against a specific conversation.
+
+        Key fields returned:
+            id                — Evaluation GUID
+            conversation      — Associated conversation reference
+            evaluator         — Evaluator user reference
+            agent             — Evaluated agent reference
+            evaluationForm    — Form name/id used
+            totalScore        — Numeric total score
+            totalCriticalScore — Score on critical questions
+            status            — FINISHED | INPROGRESS | CALIBRATION_IN_PROGRESS
+            releaseDate       — When the evaluation was released to the agent
+    .EXAMPLE
+        # Average score by evaluator
+        $evals = Get-GenesysEvaluation
+        $evals | Group-Object { $_.evaluator.name } |
+            Select-Object Name, @{n='AvgScore';e={($_.Group|Measure-Object totalScore -Average).Average}} |
+            Sort-Object AvgScore | Format-Table
+    .EXAMPLE
+        # Flag evaluations with critical score below 70
+        Get-GenesysEvaluation | Where-Object { $_.totalCriticalScore -lt 70 } |
+            Select-Object id, conversation, agent, totalScore, totalCriticalScore | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'quality.get.evaluations.query')
+}
+
+function Get-GenesysSurvey {
+    <#
+    .SYNOPSIS
+        Returns post-call customer survey results (CSAT / NPS).
+    .DESCRIPTION
+        Fetches completed customer surveys.  Each record contains the survey
+        response, linked conversation, agent, queue, and individual question
+        scores — ready for CSAT/NPS trending dashboards.
+
+        Key fields returned:
+            id                — Survey GUID
+            conversation      — Linked conversation reference
+            agent             — Agent associated with the survey
+            queue             — Queue where the conversation took place
+            surveyForm        — Survey form reference
+            status            — PENDING | SENT | IN_PROGRESS | FINISHED | PENDING_NO_INVITATION
+            completedDate     — When the customer completed the survey
+            npsScore          — Net Promoter Score (if configured)
+    .EXAMPLE
+        # Average NPS by queue
+        Get-GenesysSurvey | Where-Object { $_.npsScore -ne $null } |
+            Group-Object { $_.queue.name } |
+            Select-Object Name, @{n='AvgNPS';e={($_.Group|Measure-Object npsScore -Average).Average}} |
+            Sort-Object AvgNPS | Format-Table
+    .EXAMPLE
+        # Response rate — completed vs total sent
+        $surveys = Get-GenesysSurvey
+        $total     = $surveys.Count
+        $completed = @($surveys | Where-Object { $_.status -eq 'FINISHED' }).Count
+        "Response rate: $([math]::Round($completed/$total*100,1))%"
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'quality.get.surveys')
+}
+
+function Get-GenesysSentimentTrend {
+    <#
+    .SYNOPSIS
+        Returns speech-analytics sentiment data for recent conversations.
+    .DESCRIPTION
+        Derives per-conversation sentiment scores from conversation detail records.
+        Each record contains the aggregate sentiment score across all participants.
+
+        Each record contains:
+            ConversationId    — Conversation GUID
+            ConversationStart — Start timestamp
+            OverallScore      — Average sentiment score (-1.0 to +1.0)
+            ParticipantCount  — Participants with sentiment data
+
+        Requires speech and text analytics to be enabled and transcription
+        configured on the queue(s) of interest.
+    .EXAMPLE
+        $sentiments = Get-GenesysSentimentTrend
+        $sentiments | Measure-Object OverallScore -Average | Select-Object Average
+    .EXAMPLE
+        # Show most negative conversations first
+        Get-GenesysSentimentTrend | Sort-Object OverallScore | Select-Object -First 10 | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $conversations = @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+
+    foreach ($conv in $conversations) {
+        # Collect sentiment scores across all participants
+        $scores = foreach ($p in @($conv.participants)) {
+            foreach ($sess in @($p.sessions)) {
+                if ($null -ne $sess.sentimentScore) { $sess.sentimentScore }
+            }
+        }
+        $avgScore = if ($scores.Count -gt 0) {
+            [math]::Round(($scores | Measure-Object -Average).Average, 3)
+        } else { $null }
+
+        [PSCustomObject]@{
+            ConversationId    = $conv.conversationId
+            ConversationStart = $conv.conversationStart
+            OverallScore      = $avgScore
+            ParticipantCount  = @($conv.participants).Count
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Alerting  (Roadmap ideas 14–15)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysAlertingRule {
+    <#
+    .SYNOPSIS
+        Returns all configured alerting rules (threshold definitions).
+    .DESCRIPTION
+        Lists every alerting rule in the organisation.  Rules define the KPI,
+        threshold, and notification targets for automated platform alerts.
+
+        Key fields returned:
+            id             — Rule GUID
+            name           — Display name
+            alertTypes     — Metrics monitored (e.g. WAITING_CALLS, ABANDON_RATE)
+            enabled        — Whether the rule is active
+            inAlarm        — Whether the rule is currently in alarm state
+            conditions     — Threshold conditions list
+    .EXAMPLE
+        # Show only enabled rules currently in alarm
+        Get-GenesysAlertingRule | Where-Object { $_.enabled -and $_.inAlarm } | Format-Table name, alertTypes
+    .EXAMPLE
+        # List all disabled rules (potential oversight)
+        Get-GenesysAlertingRule | Where-Object { -not $_.enabled } | Select-Object name, id | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'alerting.get.rules')
+}
+
+function Get-GenesysAlert {
+    <#
+    .SYNOPSIS
+        Returns all currently firing platform alerts.
+    .DESCRIPTION
+        Fetches active alerts from the alerting engine.  Each record represents
+        a threshold breach still in an active/un-cleared state.
+
+        Key fields returned:
+            id              — Alert GUID
+            name            — Alert name
+            alertTypes      — Metric category
+            startDate       — When the alert first triggered
+            endDate         — When the alert cleared (null if still active)
+            unread          — Whether the alert has been acknowledged
+            ruleId          — Associated alerting rule GUID
+    .EXAMPLE
+        # Show all unacknowledged active alerts
+        Get-GenesysAlert | Where-Object { $_.unread -and -not $_.endDate } |
+            Sort-Object startDate | Format-Table name, alertTypes, startDate
+    .EXAMPLE
+        # Count active alerts by type
+        Get-GenesysAlert | Group-Object alertTypes | Select-Object Name, Count | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'alerting.get.alerts')
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Agent Insights  (Roadmap ideas 16–18)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysAgentLoginActivity {
+    <#
+    .SYNOPSIS
+        Returns per-agent login and queue-time activity metrics.
+    .DESCRIPTION
+        Queries user aggregate analytics for on-queue, off-queue, idle, and
+        not-responding time.  Useful for staffing adherence analysis, scheduling
+        validation, and identifying agents who are frequently off-queue.
+
+            UserId                 — Agent user GUID
+            Interval               — Aggregate time bucket
+            tOnQueueTime_sum       — Total on-queue time (ms)
+            tOffQueueTime_sum      — Total off-queue time (ms)
+            tIdleTime_sum          — Total idle time on-queue (ms)
+            tNotRespondingTime_sum — Time in not-responding state (ms)
+            nConnected_count       — Conversations handled
+
+        Derive utilisation: tOnQueueTime_sum / (tOnQueueTime_sum + tOffQueueTime_sum)
+    .EXAMPLE
+        $activity = Get-GenesysAgentLoginActivity
+        $activity | Select-Object UserId, Interval,
+            @{n='OnQueueMin'; e={ [int]($_.tOnQueueTime_sum / 60000) }},
+            @{n='IdleMin';    e={ [int]($_.tIdleTime_sum    / 60000) }} |
+            Format-Table
+    .EXAMPLE
+        # Find agents with more than 50% idle time
+        Get-GenesysAgentLoginActivity |
+            Where-Object {
+                $_.tOnQueueTime_sum -gt 0 -and
+                $_.tIdleTime_sum / $_.tOnQueueTime_sum -gt 0.5
+            } | Format-Table UserId, Interval
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.login.activity' |
+      ConvertFrom-AggregateResult)
+}
+
+function Get-GenesysLongHandleConversation {
+    <#
+    .SYNOPSIS
+        Returns conversations whose total handle time exceeds a threshold.
+    .DESCRIPTION
+        Scans the 24-hour conversation detail dataset and flags any conversation
+        where the agent leg handle duration exceeds -ThresholdSeconds.
+
+        Useful for:
+          - Identifying calls that may need supervisor review
+          - Detecting stuck/frozen agent states
+          - Feeding handle-time anomaly dashboards
+
+        Each record includes:
+            ConversationId    — Conversation GUID
+            ConversationStart — Start timestamp
+            AgentUserId       — Agent's user GUID
+            HandleSec         — Actual handle time in seconds
+            QueueId           — Queue from the first ACD segment
+            MediaType         — Media type of the session
+    .PARAMETER ThresholdSeconds
+        Minimum handle time (in seconds) to include in results.  Default: 600 (10 min).
+    .PARAMETER InputObject
+        Conversation detail records from Get-GenesysConversationDetail (pipeline).
+    .EXAMPLE
+        # Conversations over 15 minutes
+        Get-GenesysLongHandleConversation -ThresholdSeconds 900 | Format-Table ConversationId, AgentUserId, HandleSec
+    .EXAMPLE
+        # Use existing data to avoid a second fetch
+        $convs = Get-GenesysConversationDetail
+        $convs | Get-GenesysLongHandleConversation -ThresholdSeconds 600 | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [int] $ThresholdSeconds = 600,
+
+        [Parameter(ValueFromPipeline)]
+        [object[]] $InputObject
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+    process {
+        if ($null -ne $InputObject) {
+            foreach ($item in $InputObject) { $buffer.Add($item) }
+        }
+    }
+    end {
+        $conversations = if ($buffer.Count -gt 0) {
+            $buffer.ToArray()
+        } else {
+            Assert-GenesysConnected
+            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+        }
+
+        foreach ($conv in $conversations) {
+            foreach ($p in @($conv.participants)) {
+                if ($p.purpose -ne 'agent' -and $p.purpose -ne 'user') { continue }
+                if (-not $p.userId) { continue }
+
+                foreach ($sess in @($p.sessions)) {
+                    $segs   = @(if ($sess.segments) { $sess.segments } else { @() })
+                    $acdSeg = $segs | Where-Object { $_.queueId } | Select-Object -First 1
+
+                    # Sum segment durations for this session
+                    $handleMs = 0
+                    foreach ($seg in $segs) {
+                        if ($seg.segmentStart -and $seg.segmentEnd) {
+                            try {
+                                $start = [datetime]::Parse($seg.segmentStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $end   = [datetime]::Parse($seg.segmentEnd,   $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $handleMs += ($end - $start).TotalMilliseconds
+                            } catch { }
+                        }
+                    }
+
+                    $handleSec = [math]::Round($handleMs / 1000, 1)
+                    if ($handleSec -ge $ThresholdSeconds) {
+                        [PSCustomObject]@{
+                            ConversationId    = $conv.conversationId
+                            ConversationStart = $conv.conversationStart
+                            AgentUserId       = $p.userId
+                            HandleSec         = $handleSec
+                            QueueId           = if ($acdSeg) { $acdSeg.queueId } else { $null }
+                            MediaType         = $sess.mediaType
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function Get-GenesysRepeatCaller {
+    <#
+    .SYNOPSIS
+        Detects customers who contacted the centre more than once within a window.
+    .DESCRIPTION
+        Groups the 24-hour conversation details dataset by the customer's ANI
+        (caller ID / DNIS) and returns any caller that appears more than once —
+        a proxy for First Contact Resolution (FCR) failures.
+
+        Each record contains:
+            CallerAni         — Customer phone number / ANI
+            CallCount         — Number of contacts in the window
+            ConversationIds   — List of conversation GUIDs for the caller
+            FirstContact      — Timestamp of the first contact
+            LastContact       — Timestamp of the most recent contact
+
+        This is a statistical proxy only — the same ANI may represent a different
+        person on a shared line.  Use in conjunction with conversationId details
+        for deeper investigation.
+    .PARAMETER MinCallCount
+        Minimum number of contacts before a caller is included.  Default: 2.
+    .PARAMETER InputObject
+        Conversation detail records from Get-GenesysConversationDetail (pipeline).
+    .EXAMPLE
+        # Find all repeat callers in the last 24 hours
+        Get-GenesysRepeatCaller | Sort-Object CallCount -Descending | Format-Table CallerAni, CallCount
+    .EXAMPLE
+        # Top 10 most frequent callers
+        Get-GenesysRepeatCaller | Sort-Object CallCount -Descending | Select-Object -First 10 | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [int] $MinCallCount = 2,
+
+        [Parameter(ValueFromPipeline)]
+        [object[]] $InputObject
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+    process {
+        if ($null -ne $InputObject) {
+            foreach ($item in $InputObject) { $buffer.Add($item) }
+        }
+    }
+    end {
+        $conversations = if ($buffer.Count -gt 0) {
+            $buffer.ToArray()
+        } else {
+            Assert-GenesysConnected
+            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+        }
+
+        # Extract ANI from customer participants
+        $byAni = @{}
+        foreach ($conv in $conversations) {
+            $custPart = @($conv.participants) | Where-Object { $_.purpose -eq 'customer' } | Select-Object -First 1
+            if (-not $custPart) { continue }
+
+            $ani = $null
+            foreach ($sess in @($custPart.sessions)) {
+                if ($sess.ani)  { $ani = $sess.ani;  break }
+                if ($sess.dnis) { $ani = $sess.dnis; break }
+            }
+            if (-not $ani) { continue }
+
+            if (-not $byAni.ContainsKey($ani)) {
+                $byAni[$ani] = [System.Collections.Generic.List[object]]::new()
+            }
+            $byAni[$ani].Add([PSCustomObject]@{
+                ConversationId    = $conv.conversationId
+                ConversationStart = $conv.conversationStart
+            })
+        }
+
+        foreach ($ani in $byAni.Keys) {
+            $records = @($byAni[$ani])
+            if ($records.Count -ge $MinCallCount) {
+                $sorted = $records | Sort-Object ConversationStart
+                [PSCustomObject]@{
+                    CallerAni       = $ani
+                    CallCount       = $records.Count
+                    ConversationIds = $records | ForEach-Object { $_.ConversationId }
+                    FirstContact    = $sorted[0].ConversationStart
+                    LastContact     = $sorted[-1].ConversationStart
+                }
+            }
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region WebRTC & Media Quality Trending  (Roadmap ideas 19–20)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysWebRtcDisconnectSummary {
+    <#
+    .SYNOPSIS
+        Summarises WebRTC disconnect events by error code and time bucket.
+    .DESCRIPTION
+        Processes agent voice quality records and produces a summary of WebRTC
+        disconnect events grouped by ErrorCode and hour.  Use this as the
+        backing data for a WebRTC disconnect heatmap or trend chart.
+
+        Each record contains:
+            Hour            — Truncated conversation start (YYYY-MM-DDTHH:00)
+            ErrorCode       — webrtc | ice | stun | turn | rtp | media | sip | etc.
+            DisconnectType  — client | server | transfer | endpoint | peer | other
+            Count           — Number of sessions with this error in this hour
+    .PARAMETER InputObject
+        Voice quality records from Get-GenesysAgentVoiceQuality (pipeline).
+        When omitted, data is fetched internally.
+    .EXAMPLE
+        # WebRTC disconnect trend for the last 24 hours
+        Get-GenesysWebRtcDisconnectSummary | Sort-Object Hour, Count -Descending | Format-Table
+    .EXAMPLE
+        # Feed from an existing quality pull to avoid double-fetching
+        $q = Get-GenesysConversationDetail | Get-GenesysAgentVoiceQuality
+        $q | Get-GenesysWebRtcDisconnectSummary | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline)]
+        [object[]] $InputObject
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+    process {
+        if ($null -ne $InputObject) {
+            foreach ($item in $InputObject) { $buffer.Add($item) }
+        }
+    }
+    end {
+        $qualityRecords = if ($buffer.Count -gt 0) {
+            $buffer.ToArray()
+        } else {
+            Assert-GenesysConnected
+            @(Get-GenesysAgentVoiceQuality)
+        }
+
+        # Filter to WebRTC sessions with an error code
+        $errored = $qualityRecords | Where-Object {
+            $_.Provider -eq 'WebRTC' -and $_.ErrorCode
+        }
+
+        $groups = $errored | Group-Object {
+            # Truncate to hour
+            try {
+                $dt = [datetime]::Parse($_.ConversationStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $dt.ToString('yyyy-MM-ddTHH:00')
+            } catch { $_.ConversationStart }
+        }, ErrorCode, DisconnectType
+
+        foreach ($g in $groups) {
+            $parts = $g.Name -split ', '
+            [PSCustomObject]@{
+                Hour           = if ($parts.Count -ge 1) { $parts[0] } else { $g.Name }
+                ErrorCode      = if ($parts.Count -ge 2) { $parts[1] } else { $null }
+                DisconnectType = if ($parts.Count -ge 3) { $parts[2] } else { $null }
+                Count          = $g.Count
+            }
+        }
+    }
+}
+
+function Get-GenesysConversationLatencyTrend {
+    <#
+    .SYNOPSIS
+        Returns hourly conversation latency (handle time, talk time, ACW) trends.
+    .DESCRIPTION
+        Queries conversation aggregates and flattens queue-level performance into
+        hourly latency buckets.  Use as the data source for a "latency trending"
+        line chart or sparkline.
+
+        Each record contains:
+            QueueId        — Queue GUID
+            MediaType      — voice, chat, email, etc.
+            Interval       — Hour bucket (PT1H granularity)
+            AvgHandleSec   — Average handle time in seconds
+            AvgTalkSec     — Average talk time in seconds
+            AvgAcwSec      — Average after-call work time in seconds
+            AvgAnswerSec   — Average speed of answer (time to connect)
+            nConnected     — Conversations connected
+    .EXAMPLE
+        $trend = Get-GenesysConversationLatencyTrend
+        $trend | Sort-Object Interval | Select-Object QueueId, Interval, AvgHandleSec | Format-Table
+    .EXAMPLE
+        # Find the peak handle-time hour across all queues
+        Get-GenesysConversationLatencyTrend | Sort-Object AvgHandleSec -Descending | Select-Object -First 5 | Format-Table
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $raw = @(Get-GenesysQueuePerformance)
+
+    foreach ($r in $raw) {
+        $n = if ($r.nConnected_count) { $r.nConnected_count } else { 0 }
+
+        $avgHandle = if ($n -gt 0 -and $r.tHandle_sum)   { [math]::Round($r.tHandle_sum   / $n / 1000, 1) } else { $null }
+        $avgTalk   = if ($n -gt 0 -and $r.tTalk_sum)     { [math]::Round($r.tTalk_sum     / $n / 1000, 1) } else { $null }
+        $avgAcw    = if ($n -gt 0 -and $r.tAcw_sum)      { [math]::Round($r.tAcw_sum      / $n / 1000, 1) } else { $null }
+        $avgAnswer = if ($n -gt 0 -and $r.tAnswered_sum) { [math]::Round($r.tAnswered_sum / $n / 1000, 1) } else { $null }
+
+        [PSCustomObject]@{
+            QueueId      = $r.queueId
+            MediaType    = $r.mediaType
+            Interval     = $r.Interval
+            AvgHandleSec = $avgHandle
+            AvgTalkSec   = $avgTalk
+            AvgAcwSec    = $avgAcw
+            AvgAnswerSec = $avgAnswer
+            nConnected   = $n
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region ACW Anomaly Detection  (Roadmap idea 21)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysAgentAcwAnomaly {
+    <#
+    .SYNOPSIS
+        Identifies agents with unusually high after-call work (ACW) time.
+    .DESCRIPTION
+        Computes average ACW per agent from the agent performance dataset and
+        flags agents whose ACW exceeds the organisation-wide mean by more than
+        the specified standard deviation multiplier.
+
+        Each record contains:
+            UserId         — Agent user GUID
+            AvgAcwSec      — Agent's mean ACW duration in seconds
+            OrgAvgAcwSec   — Organisation-wide mean ACW in seconds
+            DeviationPct   — How far above the mean (%)
+            nHandled       — Conversations handled in the window
+
+        Agents far above the mean may need coaching, or their ACW reason codes
+        (wrapup) may reveal process complexity in certain queues.
+    .PARAMETER StdDevMultiplier
+        How many multiples of the population standard deviation above the mean
+        to use as the alert threshold.  Default: 2.0.
+    .EXAMPLE
+        Get-GenesysAgentAcwAnomaly | Sort-Object DeviationPct -Descending | Format-Table UserId, AvgAcwSec, OrgAvgAcwSec, DeviationPct
+    .EXAMPLE
+        Get-GenesysAgentAcwAnomaly -StdDevMultiplier 1.5 | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [double] $StdDevMultiplier = 2.0
+    )
+
+    Assert-GenesysConnected
+
+    $perf = @(Get-GenesysAgentPerformance | Where-Object { $_.ConversationsHandled -gt 0 })
+    if ($perf.Count -eq 0) { return }
+
+    $agentAcw = foreach ($a in $perf) {
+        $avgAcwSec = if ($a.AvgAcwSec) { $a.AvgAcwSec } else { 0.0 }
+        [PSCustomObject]@{ UserId = $a.UserId; AvgAcwSec = $avgAcwSec; nHandled = $a.ConversationsHandled }
+    }
+
+    $mean     = ($agentAcw | Measure-Object AvgAcwSec -Average).Average
+    $variance = ($agentAcw | ForEach-Object { [math]::Pow($_.AvgAcwSec - $mean, 2) } | Measure-Object -Average).Average
+    $stdDev   = [math]::Sqrt($variance)
+    $threshold = $mean + $StdDevMultiplier * $stdDev
+
+    foreach ($a in $agentAcw) {
+        $deviation = if ($mean -gt 0) { [math]::Round(($a.AvgAcwSec - $mean) / $mean * 100, 1) } else { 0.0 }
+        if ($a.AvgAcwSec -ge $threshold) {
+            [PSCustomObject]@{
+                UserId       = $a.UserId
+                AvgAcwSec    = [math]::Round($a.AvgAcwSec, 1)
+                OrgAvgAcwSec = [math]::Round($mean, 1)
+                DeviationPct = $deviation
+                nHandled     = $a.nHandled
+            }
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Workforce Management  (Roadmap idea 22)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysWorkforceManagementUnit {
+    <#
+    .SYNOPSIS
+        Returns WFM management units (team groupings for scheduling).
+    .DESCRIPTION
+        Fetches all workforce management units in the organisation.  Management
+        units contain agents, scheduling rules, and adherence settings.
+
+        Key fields returned:
+            id             — Management unit GUID
+            name           — Display name
+            timezone       — Timezone for scheduling
+            division       — Associated division reference
+            agentCount     — Number of agents in the unit
+    .EXAMPLE
+        Get-GenesysWorkforceManagementUnit | Format-Table name, timezone, agentCount
+    .EXAMPLE
+        # Find management units with no agents
+        Get-GenesysWorkforceManagementUnit | Where-Object { $_.agentCount -eq 0 } | Format-Table name, id
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'workforce.get.management.units')
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Journey / Predictive Engagement  (Roadmap idea 23)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysJourneyActionMap {
+    <#
+    .SYNOPSIS
+        Returns Journey action maps (predictive engagement triggers).
+    .DESCRIPTION
+        Lists all action maps in the Journey platform.  Action maps define
+        the conditions under which proactive engagement actions (chat offers,
+        callbacks, content cards) are triggered for web visitors.
+
+        Key fields returned:
+            id             — Action map GUID
+            displayName    — Display name
+            trigger        — Trigger type (e.g. VISIT_COUNT, WAIT_TIME)
+            action         — Action type (CHAT_OFFER, CONTENT_OFFER, etc.)
+            isActive       — Whether the action map is enabled
+            startDate      — Activation start date
+            endDate        — Activation end date
+    .EXAMPLE
+        # List all active action maps
+        Get-GenesysJourneyActionMap | Where-Object { $_.isActive } | Format-Table displayName, trigger, action
+    .EXAMPLE
+        # Find action maps that have expired
+        $now = Get-Date
+        Get-GenesysJourneyActionMap | Where-Object {
+            $_.endDate -and [datetime]$_.endDate -lt $now
+        } | Format-Table displayName, endDate
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Invoke-GenesysDataset -Dataset 'journey.get.action.maps')
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Composite Dashboard Snapshots  (Roadmap ideas 24–30)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysAbandonRateDashboard {
+    <#
+    .SYNOPSIS
+        Returns a multi-queue abandon rate dashboard snapshot.
+    .DESCRIPTION
+        Combines real-time queue observations with historical abandon aggregates
+        to produce a dashboard-ready per-queue KPI record.
+
+        Each record contains:
+            QueueId           — Queue GUID
+            QueueName         — Queue display name (if found in queue list)
+            MediaType         — voice, chat, email, etc.
+            Interval          — Aggregate time bucket
+            nOffered          — Contacts offered
+            nAbandoned        — Contacts abandoned
+            AbandonRate       — Abandon % (nAbandoned / nOffered)
+            oWaiting          — Contacts currently waiting (real-time)
+            oInteracting      — Agents currently interacting (real-time)
+    .EXAMPLE
+        Get-GenesysAbandonRateDashboard | Sort-Object AbandonRate -Descending | Format-Table
+    .EXAMPLE
+        # Alert on any queue > 8% abandon
+        Get-GenesysAbandonRateDashboard |
+            Where-Object { $_.AbandonRate -gt 8 } |
+            ForEach-Object { Write-Warning "HIGH ABANDON: $($_.QueueName) — $($_.AbandonRate)%" }
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $abandonData  = @(Get-GenesysQueueAbandonRate)
+    $observations = @(Get-GenesysQueueObservation)
+    $queues       = @(Get-GenesysQueue)
+
+    # Index observations by queueId+mediaType
+    $obsIndex = @{}
+    foreach ($o in $observations) {
+        $key = "$($o.QueueId)|$($o.MediaType)"
+        $obsIndex[$key] = $o
+    }
+
+    # Index queue names by id
+    $queueNames = @{}
+    foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
+
+    foreach ($a in $abandonData) {
+        $key = "$($a.QueueId)|$($a.MediaType)"
+        $obs = $obsIndex[$key]
+
+        [PSCustomObject]@{
+            QueueId      = $a.QueueId
+            QueueName    = $queueNames[$a.QueueId]
+            MediaType    = $a.MediaType
+            Interval     = $a.Interval
+            nOffered     = $a.nOffered
+            nAbandoned   = $a.nAbandoned
+            AbandonRate  = $a.AbandonRate
+            oWaiting     = if ($obs) { $obs.oWaiting     } else { $null }
+            oInteracting = if ($obs) { $obs.oInteracting } else { $null }
+        }
+    }
+}
+
+function Get-GenesysQueueHealthSnapshot {
+    <#
+    .SYNOPSIS
+        Returns a multi-queue health snapshot combining observations and SLA.
+    .DESCRIPTION
+        Merges real-time queue observations (waiting, interacting, on-queue agents)
+        with service level performance into a single per-queue health record.
+
+        Fields:
+            QueueId           — Queue GUID
+            QueueName         — Display name
+            MediaType         — voice, chat, email, etc.
+            oWaiting          — Contacts currently waiting
+            oInteracting      — Agents currently interacting
+            oOnQueueUsers     — Agents on-queue
+            ServiceLevel30Pct — % answered in 30 s (historical SLA)
+            nOffered          — Offered count (from SLA window)
+            HealthStatus      — GREEN (SL ≥ 80%, oWaiting < 5)
+                                AMBER (SL 60–80% or oWaiting 5–10)
+                                RED   (SL < 60% or oWaiting > 10)
+    .EXAMPLE
+        Get-GenesysQueueHealthSnapshot | Sort-Object HealthStatus | Format-Table
+    .EXAMPLE
+        # Show only queues in RED
+        Get-GenesysQueueHealthSnapshot | Where-Object HealthStatus -eq 'RED' | Format-Table QueueName, oWaiting, ServiceLevel30Pct
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $observations = @(Get-GenesysQueueObservation)
+    $sla          = @(Get-GenesysQueueServiceLevel)
+    $queues       = @(Get-GenesysQueue)
+
+    $queueNames = @{}
+    foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
+
+    $slaIndex = @{}
+    foreach ($s in $sla) {
+        $key = "$($s.QueueId)|$($s.MediaType)"
+        if (-not $slaIndex.ContainsKey($key)) { $slaIndex[$key] = $s }
+    }
+
+    foreach ($o in $observations) {
+        $key    = "$($o.QueueId)|$($o.MediaType)"
+        $slaRec = $slaIndex[$key]
+
+        $waiting = if ($o.oWaiting) { [int]$o.oWaiting } else { 0 }
+        $sl30    = if ($slaRec)     { $slaRec.ServiceLevel30Pct } else { $null }
+
+        $health = 'GREEN'
+        if     ($null -ne $sl30 -and $sl30 -lt 60) { $health = 'RED'   }
+        elseif ($waiting -gt 10)                    { $health = 'RED'   }
+        elseif ($null -ne $sl30 -and $sl30 -lt 80)  { $health = 'AMBER' }
+        elseif ($waiting -ge 5)                     { $health = 'AMBER' }
+
+        [PSCustomObject]@{
+            QueueId           = $o.QueueId
+            QueueName         = $queueNames[$o.QueueId]
+            MediaType         = $o.MediaType
+            oWaiting          = $o.oWaiting
+            oInteracting      = $o.oInteracting
+            oOnQueueUsers     = $o.oOnQueueUsers
+            ServiceLevel30Pct = $sl30
+            nOffered          = if ($slaRec) { $slaRec.nOffered } else { $null }
+            HealthStatus      = $health
+        }
+    }
+}
+
+function Get-GenesysAgentQualitySnapshot {
+    <#
+    .SYNOPSIS
+        Returns a per-agent quality KPI snapshot combining performance metrics.
+    .DESCRIPTION
+        Returns agent performance aggregates (handle time, ACW, talk time)
+        ready for an agent quality leaderboard or coaching priority list.
+
+        Fields:
+            UserId               — Agent user GUID
+            ConversationsHandled — Conversations handled in window
+            AvgHandleSec         — Average handle time in seconds
+            AvgAcwSec            — Average ACW in seconds
+            AvgTalkSec           — Average talk time in seconds
+    .EXAMPLE
+        Get-GenesysAgentQualitySnapshot | Sort-Object AvgHandleSec -Descending | Format-Table
+    .EXAMPLE
+        Get-GenesysAgentQualitySnapshot | Export-Csv .\agent-quality-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+    @(Get-GenesysAgentPerformance)
+}
+
+function Invoke-GenesysOperationsReport {
+    <#
+    .SYNOPSIS
+        Generates an enhanced operations report including abandon rate, SLA, and edge health.
+    .DESCRIPTION
+        Extends the standard daily health report with new KPI sections:
+          - Queue abandon rates
+          - Service level (SLA) compliance
+          - Edge and trunk infrastructure health
+          - Active platform alerts
+          - WebRTC disconnect summary
+
+        Use -OutputPath to write the report as UTF-8 JSON for downstream
+        consumption (dashboards, ticketing, log aggregation).
+    .PARAMETER OutputPath
+        If specified, the report is serialised to this path as UTF-8 JSON.
+    .PARAMETER PassThru
+        Return the report object even when -OutputPath is used.
+    .EXAMPLE
+        Invoke-GenesysOperationsReport | ConvertTo-Json -Depth 8
+    .EXAMPLE
+        Invoke-GenesysOperationsReport -OutputPath "D:\Reports\OpsReport-$(Get-Date -f yyyyMMdd).json" -PassThru
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $OutputPath,
+        [switch] $PassThru
+    )
+
+    Assert-GenesysConnected
+
+    Write-Verbose 'Collecting organisation details...'
+    $org = Get-GenesysOrganization
+
+    Write-Verbose 'Collecting contact centre status...'
+    $ccStatus = Get-GenesysContactCentreStatus
+
+    Write-Verbose 'Collecting queue abandon rates...'
+    $abandon = @(Get-GenesysQueueAbandonRate)
+
+    Write-Verbose 'Collecting queue service levels...'
+    $sla = @(Get-GenesysQueueServiceLevel)
+
+    Write-Verbose 'Collecting edge health...'
+    $edgeSnap = Get-GenesysEdgeHealthSnapshot
+
+    Write-Verbose 'Collecting active alerts...'
+    $alerts = @(Get-GenesysAlert)
+
+    Write-Verbose 'Collecting voice quality / WebRTC disconnects...'
+    $webrtcSummary = @(Get-GenesysWebRtcDisconnectSummary)
+
+    $highAbandon = @($abandon | Where-Object { $_.AbandonRate -gt 10 })
+    $avgAbandon  = if ($abandon.Count -gt 0) {
+        [math]::Round(($abandon | Measure-Object AbandonRate -Average).Average, 1)
+    } else { $null }
+
+    $belowSla = @($sla | Where-Object { $_.nOffered -gt 0 -and $_.ServiceLevel30Pct -lt 80 })
+    $avgSla   = if ($sla.Count -gt 0) {
+        [math]::Round(($sla | Where-Object ServiceLevel30Pct | Measure-Object ServiceLevel30Pct -Average).Average, 1)
+    } else { $null }
+
+    $report = [PSCustomObject]@{
+        GeneratedAt   = Get-Date -Format 'o'
+        Organisation  = [PSCustomObject]@{
+            Name = $org.name
+            Id   = $org.id
+        }
+        ContactCentre = $ccStatus
+        AbandonRate   = [PSCustomObject]@{
+            AverageAbandonPct   = $avgAbandon
+            QueuesAbove10Pct    = $highAbandon.Count
+            HighAbandonQueueIds = $highAbandon | ForEach-Object { $_.QueueId }
+        }
+        ServiceLevel  = [PSCustomObject]@{
+            AverageSL30Pct      = $avgSla
+            QueuesBelowTarget   = $belowSla.Count
+            BelowTargetQueueIds = $belowSla | ForEach-Object { $_.QueueId }
+        }
+        EdgeHealth    = $edgeSnap
+        ActiveAlerts  = [PSCustomObject]@{
+            Count  = $alerts.Count
+            Alerts = $alerts | Select-Object -First 10 | ForEach-Object { $_.name }
+        }
+        WebRtcDisconnects = [PSCustomObject]@{
+            TotalErrorEvents = ($webrtcSummary | Measure-Object Count -Sum).Sum
+            ByErrorCode      = $webrtcSummary |
+                Group-Object ErrorCode |
+                Select-Object Name, @{n='Count';e={($_.Group|Measure-Object Count -Sum).Sum}} |
+                Sort-Object Count -Descending
+        }
+    }
+
+    if ($OutputPath) {
+        $report | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath -Encoding UTF8
+        Write-Verbose "Report saved: $OutputPath"
+    }
+
+    if ($PassThru -or -not $OutputPath) { $report }
+}
+
+#endregion

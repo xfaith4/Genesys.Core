@@ -623,6 +623,182 @@
       "retry": {
         "profile": "default"
       }
+    },
+    "telephony.get.edges": {
+      "description": "List all Edge appliances with registration and connectivity status.",
+      "endpoint": "telephony.get.edges",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "telephony.get.trunks": {
+      "description": "List all SIP trunks across the organisation.",
+      "endpoint": "telephony.get.trunks",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "telephony.get.trunk.metrics.summary": {
+      "description": "Aggregate SIP trunk capacity and utilisation metrics.",
+      "endpoint": "telephony.get.trunk.metrics.summary",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "stations.get.stations": {
+      "description": "List all station registrations (phones/softphones) and statuses.",
+      "endpoint": "stations.get.stations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "quality.get.evaluations.query": {
+      "description": "Quality evaluations with scores, forms, agents, and calibration status.",
+      "endpoint": "quality.get.evaluations.query",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "quality.get.surveys": {
+      "description": "Post-call customer survey results (CSAT / NPS).",
+      "endpoint": "quality.get.surveys",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "alerting.get.rules": {
+      "description": "All configured alerting rules and their threshold definitions.",
+      "endpoint": "alerting.get.rules",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "alerting.get.alerts": {
+      "description": "Currently firing platform alerts.",
+      "endpoint": "alerting.get.alerts",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "workforce.get.management.units": {
+      "description": "WFM management units (team groupings for scheduling and adherence).",
+      "endpoint": "workforce.get.management.units",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.conversation.aggregates.abandon.metrics": {
+      "description": "Abandon rate aggregates \u2014 nAbandoned, tAbandoned, nOffered grouped by queue.",
+      "endpoint": "analytics.query.conversation.aggregates.abandon.metrics",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.queue.aggregates.service.level": {
+      "description": "Service level / SLA aggregates \u2014 nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
+      "endpoint": "analytics.query.queue.aggregates.service.level",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.conversation.aggregates.transfer.metrics": {
+      "description": "Transfer analysis \u2014 nTransferred, nBlindTransferred, nConsultTransferred by queue.",
+      "endpoint": "analytics.query.conversation.aggregates.transfer.metrics",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.conversation.aggregates.wrapup.distribution": {
+      "description": "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
+      "endpoint": "analytics.query.conversation.aggregates.wrapup.distribution",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.conversation.aggregates.digital.channels": {
+      "description": "Digital channel volume trends \u2014 nOffered, nConnected, nAbandoned by mediaType.",
+      "endpoint": "analytics.query.conversation.aggregates.digital.channels",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.user.aggregates.login.activity": {
+      "description": "Agent login activity \u2014 tOnQueueTime, tOffQueueTime, tIdleTime grouped by userId.",
+      "endpoint": "analytics.query.user.aggregates.login.activity",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "journey.get.action.maps": {
+      "description": "Journey action maps (predictive engagement triggers and conditions).",
+      "endpoint": "journey.get.action.maps",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     }
   },
   "profiles": {
@@ -1982,6 +2158,199 @@
       "notes": [
         "Get transcript URL",
         "phase4"
+      ]
+    },
+    "telephony.get.edges": {
+      "method": "GET",
+      "path": "/api/v2/telephony/providers/edges",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List all Edge appliances with registration and status details.",
+        "group: Telephony"
+      ]
+    },
+    "telephony.get.edge.metrics": {
+      "method": "GET",
+      "path": "/api/v2/telephony/providers/edges/{edgeId}/metrics",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Real-time performance metrics for a single Edge appliance.",
+        "group: Telephony"
+      ]
+    },
+    "telephony.get.trunks": {
+      "method": "GET",
+      "path": "/api/v2/telephony/providers/edges/trunks",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List all SIP trunks across the organisation.",
+        "group: Telephony"
+      ]
+    },
+    "telephony.get.trunk.metrics.summary": {
+      "method": "GET",
+      "path": "/api/v2/telephony/providers/edges/trunks/metrics",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "notes": [
+        "Aggregate SIP trunk capacity and utilisation metrics.",
+        "group: Telephony"
+      ]
+    },
+    "stations.get.stations": {
+      "method": "GET",
+      "path": "/api/v2/stations",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List all station (phone/softphone) registrations and statuses.",
+        "group: Stations"
+      ]
+    },
+    "quality.get.evaluations.query": {
+      "method": "GET",
+      "path": "/api/v2/quality/evaluations/query",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Query agent quality evaluations with scores and calibration status.",
+        "group: Quality"
+      ]
+    },
+    "quality.get.surveys": {
+      "method": "GET",
+      "path": "/api/v2/quality/surveys",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List post-call customer survey results (CSAT/NPS).",
+        "group: Quality"
+      ]
+    },
+    "alerting.get.rules": {
+      "method": "GET",
+      "path": "/api/v2/alerting/rules",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List all configured alerting rules (thresholds for queues, agents, etc.).",
+        "group: Alerting"
+      ]
+    },
+    "alerting.get.alerts": {
+      "method": "GET",
+      "path": "/api/v2/alerting/alerts",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List currently firing (active) platform alerts.",
+        "group: Alerting"
+      ]
+    },
+    "workforce.get.management.units": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/managementunits",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List WFM management units (team groupings for scheduling).",
+        "group: WorkforceManagement"
+      ]
+    },
+    "analytics.query.conversation.aggregates.abandon.metrics": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Abandon rate metrics \u2014 nAbandoned, tAbandoned, nOffered grouped by queue.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nAbandoned\", \"tAbandoned\", \"nOffered\", \"nConnected\", \"tAbandon\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "analytics.query.queue.aggregates.service.level": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Service level / SLA metrics \u2014 nAnsweredIn20, nOffered, tServiceLevel grouped by queue.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nOffered\", \"nAnsweredIn20\", \"nAnsweredIn30\", \"nAnsweredIn60\", \"tServiceLevel\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.transfer.metrics": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Transfer analysis metrics \u2014 nTransferred, nBlindTransferred, nConsultTransferred.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nTransferred\", \"nBlindTransferred\", \"nConsultTransferred\", \"nConnected\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.wrapup.distribution": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1D\",\n  \"groupBy\": [\"queueId\", \"wrapUpCode\"],\n  \"metrics\": [\"nConnected\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.digital.channels": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Digital channel volume trends \u2014 nConnected, nOffered grouped by mediaType.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"mediaType\", \"queueId\"],\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nAbandoned\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "analytics.query.user.aggregates.login.activity": {
+      "method": "POST",
+      "path": "/api/v2/analytics/users/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Agent login/logout activity \u2014 tOnQueueTime, tNotRespondingTime, tOffQueueTime grouped by userId.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"tOnQueueTime\", \"tOffQueueTime\", \"tNotRespondingTime\", \"tIdleTime\", \"nConnected\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "journey.get.action.maps": {
+      "method": "GET",
+      "path": "/api/v2/journey/actionmaps",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "List Journey action maps (predictive engagement triggers).",
+        "group: Journey"
       ]
     }
   }

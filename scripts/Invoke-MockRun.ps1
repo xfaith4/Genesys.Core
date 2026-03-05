@@ -49,7 +49,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-Import-Module "$repoRoot/src/ps-module/Genesys.Core/Genesys.Core.psd1" -Force
+Import-Module "$repoRoot/modules/Genesys.Core/Genesys.Core.psd1" -Force
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -721,7 +721,7 @@ $analyticsQueryRequestInvoker = {
 # ---------------------------------------------------------------------------
 # Run datasets
 # ---------------------------------------------------------------------------
-$catalogPath = Join-Path -Path $repoRoot -ChildPath 'genesys-core.catalog.json'
+$catalogPath = Join-Path -Path $repoRoot -ChildPath 'catalog/genesys.catalog.json'
 $baseUri     = 'https://api.mock.local'
 $availableMockDatasets = @(
     'audit-logs'
@@ -908,3 +908,5 @@ Write-Host ''
 Write-Host '  Mock run complete.' -ForegroundColor White
 Write-Host "  Inspect artifacts at: $(Resolve-Path -Path $OutputRoot)" -ForegroundColor Cyan
 Write-Host ''
+
+

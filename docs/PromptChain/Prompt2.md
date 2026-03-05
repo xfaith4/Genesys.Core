@@ -1,9 +1,9 @@
 Harden and extend retry/runtime behavior from the existing implementation.
 
 Files:
-- `src/ps-module/Genesys.Core/Private/Invoke-GcRequest.ps1`
-- `src/ps-module/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1`
-- `src/ps-module/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1`
+- `modules/Genesys.Core/Private/Invoke-GcRequest.ps1`
+- `modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1`
+- `modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1`
 - `tests/Retry.Tests.ps1`
 
 Current behavior already implemented (must remain):
@@ -21,3 +21,4 @@ Enhancement targets:
 Acceptance:
 - Existing retry tests remain green.
 - New tests cover profile-precedence and deterministic jitter behavior.
+

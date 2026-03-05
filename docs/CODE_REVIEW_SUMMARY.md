@@ -23,42 +23,42 @@ This PR successfully completes a comprehensive code review and hardening of the 
 - **Problem:** Smoke tests failed because Assert-Catalog was not exported from the module
 - **Fix:** Added `Assert-Catalog` to the `FunctionsToExport` array in module manifest
 - **Impact:** Smoke tests now pass completely
-- **File:** `src/ps-module/Genesys.Core/Genesys.Core.psd1`
+- **File:** `modules/Genesys.Core/Genesys.Core.psd1`
 
 #### Issue: Paging Profile Compatibility
 
 - **Problem:** Catalog uses flat `pagingProfile` but code expected nested `paging.profile`
 - **Fix:** Added compatibility layer to support both formats
 - **Impact:** Works with both legacy and new catalog structures
-- **File:** `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
+- **File:** `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
 
 #### Issue: Paging Profile Variant Normalization
 
 - **Problem:** Profiles like `nextUri_auditResults` weren't recognized
 - **Fix:** Added regex-based normalization to strip variant suffixes
 - **Impact:** All paging profile variants now work correctly
-- **File:** `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
+- **File:** `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
 
 #### Issue: Retry Profile Not Extracted
 
 - **Problem:** RetryProfile from EndpointSpec wasn't being used
 - **Fix:** Extract retry configuration from EndpointSpec when not provided as parameter
 - **Impact:** Retry logic now works correctly for all endpoints
-- **File:** `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
+- **File:** `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
 
 #### Issue: Redaction Pattern Too Restrictive
 
 - **Problem:** Fields like `userEmail` weren't being redacted (only `user_email` would match)
 - **Fix:** Simplified pattern to match any field containing sensitive terms
 - **Impact:** Better PII protection, catches camelCase field names
-- **File:** `src/ps-module/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
+- **File:** `modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
 
 #### Issue: Protect-RecordData Null Handling
 
 - **Problem:** Function rejected null inputs due to `Mandatory = $true`
 - **Fix:** Changed to `Mandatory = $false` (function already handles null correctly)
 - **Impact:** No crashes when normalizer returns null or empty values
-- **File:** `src/ps-module/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
+- **File:** `modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
 
 ### 2. Test Fixes
 
@@ -201,8 +201,8 @@ All files are in their proper locations:
 
 **catalog/**:
 
-- ✓ `schema/genesys-core.catalog.schema.json` exists
-- ✓ Root `genesys-core.catalog.json` is canonical
+- ✓ `schema/genesys.catalog.schema.json` exists
+- ✓ Root `genesys.catalog.json` is canonical
 
 ## Security Review
 
@@ -330,3 +330,4 @@ This PR successfully addresses all requirements from the problem statement:
 **Overall Status:** ✅ APPROVED FOR MERGE
 
 All changes are minimal, surgical, and follow the existing patterns. Test coverage is excellent (91% pass rate). Documentation is comprehensive. The codebase is production-ready.
+

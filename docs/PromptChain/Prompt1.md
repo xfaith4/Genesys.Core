@@ -1,9 +1,9 @@
 Strengthen catalog integrity checks for the current mixed catalog model.
 
 Files:
-- `catalog/schema/genesys-core.catalog.schema.json`
+- `catalog/schema/genesys.catalog.schema.json`
 - `tests/CatalogSchema.Tests.ps1`
-- `src/ps-module/Genesys.Core/Private/Assert-Catalog.ps1`
+- `modules/Genesys.Core/Private/Assert-Catalog.ps1`
 - `tests/CatalogResolution.Tests.ps1`
 
 Requirements:
@@ -27,3 +27,4 @@ Tests:
 Acceptance:
 - Pester fails on unresolved endpoint references and missing required fields.
 - Pester passes for current canonical catalog and legacy compatibility shape.
+

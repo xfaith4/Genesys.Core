@@ -11,8 +11,8 @@ Target endpoints:
 8. `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturl`
 
 Files:
-- `genesys-core.catalog.json`
-- `catalog/genesys-core.catalog.json` (legacy mirror update until retirement)
+- `genesys.catalog.json`
+- `catalog/genesys.catalog.json` (legacy mirror update until retirement)
 - `tests/CatalogSchema.Tests.ps1`
 - `tests/AdditionalDatasets.Tests.ps1` (or targeted new dataset tests)
 
@@ -29,3 +29,4 @@ Acceptance:
 - Catalog validation passes.
 - Dataset execution for new keys is covered by mocked tests.
 - No regressions to existing curated datasets.
+

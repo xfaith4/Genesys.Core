@@ -1,11 +1,8 @@
-### BEGIN: ModuleBootstrap
-$privatePath = Join-Path -Path $PSScriptRoot -ChildPath 'Private'
-Get-ChildItem -Path $privatePath -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-    . $_.FullName
+### BEGIN: LegacyShim
+Write-Warning '[Genesys.Core] src/ps-module path is deprecated. Use ./modules/Genesys.Core/Genesys.Core.psd1'
+$modulePath = Join-Path $PSScriptRoot '../../../modules/Genesys.Core/Genesys.Core.psd1'
+if (-not (Test-Path $modulePath)) {
+    throw "Genesys.Core module not found at '$modulePath'."
 }
-
-$publicPath = Join-Path -Path $PSScriptRoot -ChildPath 'Public'
-Get-ChildItem -Path $publicPath -Filter '*.ps1' -ErrorAction SilentlyContinue | ForEach-Object {
-    . $_.FullName
-}
-### END: ModuleBootstrap
+Import-Module $modulePath -Global -Force -ErrorAction Stop
+### END: LegacyShim

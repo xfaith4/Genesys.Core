@@ -6,7 +6,7 @@ Note: this report was generated before the documentation reconciliation pass com
 
 ## **Surface Area Summary** ##
 
-- Local Genesys Core: 31 datasets in catalog, mapping to 29 unique dataset API paths; 74 endpoint definitions total (61 unique paths) from `genesys-core.catalog.json` (parsed locally).
+- Local Genesys Core: 31 datasets in catalog, mapping to 29 unique dataset API paths; 74 endpoint definitions total (61 unique paths) from `genesys.catalog.json` (parsed locally).
 - MakingChatbots MCP: 10 MCP tools, 17 unique API paths from `docs/tools.md` and `manifest.json`.
 
 ## **Similar Endpoints (Direct overlap at dataset/tool surface)** ##
@@ -80,7 +80,7 @@ Local dataset-surface unique (not used by remote MCP tools):
   - It is an actual MCP server with `registerTool` calls and stdio transport (`.tmp_compare/genesys-cloud-mcp-server/src/index.ts:49`, `.tmp_compare/genesys-cloud-mcp-server/src/index.ts:177`).
   - It provides install-ready packaging via npm + MCP bundle (`.tmp_compare/genesys-cloud-mcp-server/README.md:23`, `.tmp_compare/genesys-cloud-mcp-server/manifest.json:26`).
 - For governed data pipeline integration: local Genesys Core is easier.
-  - Catalog-driven execution, deterministic artifacts, structured events, retry/paging profiles, PS 5.1 support (`README.md:15`, `README.md:20`, `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1:56`, `src/ps-module/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1:33`, `src/ps-module/Genesys.Core/Genesys.Core.psd1:9`).
+  - Catalog-driven execution, deterministic artifacts, structured events, retry/paging profiles, PS 5.1 support (`README.md:15`, `README.md:20`, `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1:56`, `modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1:33`, `modules/Genesys.Core/Genesys.Core.psd1:9`).
 
 Inference: local repo is currently a Core engine rather than a packaged MCP server (no MCP server classes/registration in `src/`).
 
@@ -94,7 +94,7 @@ Inference: local repo is currently a Core engine rather than a packaged MCP serv
   - Async polling/retry logic is tool-specific and fixed-attempt based rather than centrally policy-driven (`queryQueueVolumes.ts:18`, `queryQueueVolumes.ts:102`; `sampleConversationsByQueue.ts:18`, `sampleConversationsByQueue.ts:98`).
 - Local Genesys Core strengths:
   - Strong governance/testing posture (schema validation, paging/retry/redaction/run-contract tests) (`TESTING.md:47`, `TESTING.md:57`, `TESTING.md:64`, `TESTING.md:76`, `TESTING.md:82`).
-  - Centralized retry/paging engine behavior with profile-based routing (`src/ps-module/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1:53`, `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1:56`).
+  - Centralized retry/paging engine behavior with profile-based routing (`modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1:53`, `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1:56`).
 - Local Genesys Core gaps:
   - Workflow auth ergonomics still require environment-specific wiring before production automation.
   - Standalone script-level invocation does not currently expose `-Headers` and `-BaseUri` parameters.
@@ -111,3 +111,4 @@ Inference: local repo is currently a Core engine rather than a packaged MCP serv
 - <https://github.com/MakingChatbots/genesys-cloud-mcp-server/blob/b0ca3a0cd38e81a37f059fbcb746d9073650e352/docs/tools.md>
 - <https://github.com/MakingChatbots/genesys-cloud-mcp-server/blob/b0ca3a0cd38e81a37f059fbcb746d9073650e352/src/index.ts>
 - <https://github.com/MakingChatbots/genesys-cloud-mcp-server/blob/b0ca3a0cd38e81a37f059fbcb746d9073650e352/manifest.json>
+

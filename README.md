@@ -20,7 +20,7 @@ Genesys.Core solves this with a **catalog-driven execution engine**: endpoint be
 
 ## Key Features
 
-- **Catalog-as-source-of-truth** — 31 dataset keys, 74 endpoint definitions in `genesys-core.catalog.json`; schema-validated before every run
+- **Catalog-as-source-of-truth** — 31 dataset keys, 74 endpoint definitions in `genesys.catalog.json`; schema-validated before every run
 - **Pluggable paging strategies** — `none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `transactionResults` — selected per endpoint from the catalog
 - **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
 - **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs
@@ -38,7 +38,7 @@ Genesys.Core solves this with a **catalog-driven execution engine**: endpoint be
 
 ```powershell
 Set-Location <path-to-Genesys.Core>
-Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
+Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
 Get-Command -Module Genesys.Core   # Invoke-Dataset, Assert-Catalog
 ```
 
@@ -76,6 +76,7 @@ Get-Content (Join-Path $runFolder.FullName 'summary.json') | ConvertFrom-Json
 ```
 
 For full onboarding steps, see [docs/ONBOARDING.md](docs/ONBOARDING.md).
+For engineering integration/auth patterns across PowerShell, HTML/JS, .NET, and Go, see [docs/ENGINEER_INTEGRATIONS_AUTH.md](docs/ENGINEER_INTEGRATIONS_AUTH.md).
 
 ---
 
@@ -98,10 +99,10 @@ git clone https://github.com/xfaith4/Genesys.Core.git
 Set-Location Genesys.Core
 
 # Import the module
-Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
+Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
 
 # (Optional) Validate catalog schema
-Assert-Catalog -SchemaPath ./catalog/schema/genesys-core.catalog.schema.json
+Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json
 ```
 
 No additional package installation is required for runtime use. Pester is only needed for running tests.
@@ -113,7 +114,7 @@ No additional package installation is required for runtime use. Pester is only n
 ### List available dataset keys
 
 ```powershell
-$catalog = Get-Content -Raw ./genesys-core.catalog.json | ConvertFrom-Json
+$catalog = Get-Content -Raw ./catalog/genesys.catalog.json | ConvertFrom-Json
 $catalog.datasets.PSObject.Properties.Name | Sort-Object
 ```
 
@@ -139,7 +140,7 @@ All other keys in the catalog (27 additional) run via generic catalog-driven dis
 
 ```powershell
 # WhatIf — validates catalog and prints plan; no API calls made
-pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
+pwsh -NoProfile -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
 ```
 
 > **Note:** Script-level invocation now supports `-BaseUri`, `-Headers`, and `-DatasetParameters`, but importing the module is still recommended for reusable sessions.
@@ -180,16 +181,10 @@ The WPF GUI provides an OAuth auth flow, dataset selection from the catalog, run
 
 `Resolve-Catalog` loads catalogs in this order:
 
-1. Root `./genesys-core.catalog.json` ← **canonical**
-2. Fallback: `./catalog/genesys-core.catalog.json` (compatibility mirror)
+1. `./catalog/genesys.catalog.json` ← **canonical**
+2. Fallback: deprecated shim files (temporary deprecation window)
 
-If both exist and differ, a warning is emitted. Use `-StrictCatalog` to fail instead.
-
-To sync the mirror from the canonical root:
-
-```powershell
-Copy-Item ./genesys-core.catalog.json ./catalog/genesys-core.catalog.json -Force
-```
+If canonical is missing and a deprecated path is used, a warning is emitted. Use `-StrictCatalog` to fail instead.
 
 ---
 
@@ -224,11 +219,10 @@ Every run writes under `out/<datasetKey>/<runId>/`:
 ### Repository layout
 
 ```
-genesys-core.catalog.json          # Catalog (source of truth)
 catalog/
-  schema/genesys-core.catalog.schema.json  # JSON Schema
-  genesys-core.catalog.json        # Compatibility mirror
-src/ps-module/Genesys.Core/
+  genesys.catalog.json        # Catalog (source of truth)
+  schema/genesys.catalog.schema.json  # JSON Schema
+modules/Genesys.Core/
   Genesys.Core.psd1                # Module manifest (v0.1.0, PS 5.1+)
   Genesys.Core.psm1
   Public/
@@ -365,3 +359,5 @@ This project may also be described as:
 - Genesys Cloud PowerShell ETL
 - Genesys Cloud audit log automation
 - Governed dataset collection engine for Genesys
+
+

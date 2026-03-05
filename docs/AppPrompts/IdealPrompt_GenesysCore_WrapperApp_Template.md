@@ -29,8 +29,8 @@ The application MUST focus on **UX, drilldown, exports, and presentation**, whil
 * Core module + catalog:
 
   * Core module: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1
-  * Catalog: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys-core.catalog.json
-  * Schema: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json
+  * Catalog: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys.catalog.json
+  * Schema: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys.catalog.schema.json
 * App goal: <APP_GOAL>
 * Output requirements: <OUTPUT_REQUIREMENTS>
 * Persona: <USER_PERSONA>
@@ -43,7 +43,7 @@ If ANY gate fails, the work is rejected.
 ## Gate A — Import + Validate Core & Catalog
 
 * Import Genesys.Core from G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1 **by reference** (dependency).
-* Call `Assert-Catalog` against G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys-core.catalog.json and G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json at startup.
+* Call `Assert-Catalog` against G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys.catalog.json and G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys.catalog.schema.json at startup.
 * If invalid: show UI error, stop.
 
 ## Gate B — Dataset-driven extraction ONLY (Preview + Full)
@@ -212,3 +212,4 @@ Return:
 * code for each file
 * brief run instructions
 * manual test steps
+

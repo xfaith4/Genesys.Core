@@ -1,11 +1,11 @@
 Maintain the paging strategy engine and keep termination behavior deterministic.
 
 Files:
-- `src/ps-module/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
-- `src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1`
-- `src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1`
-- `src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1`
-- `src/ps-module/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1`
+- `modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1`
+- `modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1`
+- `modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1`
+- `modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1`
+- `modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1`
 - `tests/Paging.Tests.ps1`
 
 Current supported paging profiles (must remain):
@@ -28,3 +28,4 @@ Requirements:
 
 Acceptance:
 - Paging tests verify enumeration, telemetry, and termination for all supported profile types.
+

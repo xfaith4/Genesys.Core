@@ -31,9 +31,9 @@
 ### Partially ready / operational caveats
 
 - This repository is a Core runtime, not a packaged MCP server today.
-- Direct script invocation (`pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1`) does not currently expose script-level `-Headers` and `-BaseUri`; authenticated live runs should use module invocation.
+- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) does not currently expose script-level `-Headers` and `-BaseUri`; authenticated live runs should use module invocation.
 - Included GitHub workflows are currently scoped to `audit-logs` and require environment-specific auth wiring before production use.
-- Catalog duplication still exists (root canonical + legacy mirror), even though strict mismatch detection is implemented.
+- Legacy catalog shims still exist for one deprecation cycle, while runtime defaults target `catalog/genesys.catalog.json`.
 - Redaction policy is heuristic and not yet fully profile-driven by dataset/endpoint sensitivity class.
 
 ## Recommendation
@@ -47,3 +47,4 @@
   - catalog mirror retirement
   - redaction policy expansion
   - endpoint coverage expansion listed in `docs/ROADMAP.md`
+

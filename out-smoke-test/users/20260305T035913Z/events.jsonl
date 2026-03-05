@@ -1,0 +1,2 @@
+{"timestampUtc":"2026-03-05T03:59:13.8366476Z","datasetKey":"users","runId":"20260305T035913Z","eventType":"run.started","payload":{"catalogPath":"G:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\catalog\\genesys.catalog.json"}}
+{"timestampUtc":"2026-03-05T03:59:13.9148756Z","datasetKey":"users","runId":"20260305T035913Z","eventType":"run.failed","payload":{"message":"Unexpected smoke request: GET https://api.smoke.local/api/v2/users?pageSize=100&pageNumber=1&sortOrder=ASC&expand=presence%2CroutingStatus%2CconversationSummary"}}

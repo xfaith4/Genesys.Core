@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Genesys Interactive Onboarding (Auth/Core/Ops)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #f4f6f2;
+      --surface: #ffffff;
+      --ink: #13201a;
+      --muted: #5b6b62;
+      --accent: #0d9f6e;
+      --accent-2: #006d77;
+      --stroke: #cfdad3;
+      --warn: #ffcc66;
+      --ok: #00a86b;
+      --shadow: 0 16px 42px rgba(19, 32, 26, 0.12);
+      --r-lg: 22px;
+      --r-md: 14px;
+      --r-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 520px at 10% -10%, #d9efe4 0%, transparent 65%),
+        radial-gradient(1300px 520px at 90% 0%, #d6eaec 0%, transparent 68%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1180px, 94vw);
+      margin: 24px auto 40px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      background: linear-gradient(130deg, #11382a, #0f2f34 62%, #154e3a);
+      color: #f3fff8;
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      padding: clamp(20px, 2.8vw, 36px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -110px -130px auto;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.24), transparent 65%);
+      transform: rotate(12deg);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.45rem, 3vw, 2.2rem);
+      line-height: 1.15;
+      letter-spacing: 0.02em;
+      max-width: 820px;
+    }
+
+    .sub {
+      margin-top: 10px;
+      color: #d7f5e8;
+      max-width: 820px;
+      font-size: 0.98rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-lg);
+      box-shadow: 0 8px 24px rgba(19, 32, 26, 0.06);
+    }
+
+    .steps {
+      padding: 14px;
+      position: sticky;
+      top: 14px;
+      align-self: start;
+    }
+
+    .steps h2,
+    .content h2 {
+      margin: 6px 8px 12px;
+      font-size: 0.94rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .step-btn {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-md);
+      background: #f9fcfa;
+      color: var(--ink);
+      padding: 11px 12px;
+      margin: 0 0 8px;
+      cursor: pointer;
+      transition: 160ms ease;
+      font: inherit;
+      font-size: 0.95rem;
+    }
+
+    .step-btn:hover { transform: translateY(-1px); }
+
+    .step-btn.active {
+      border-color: rgba(13,159,110,0.55);
+      background: linear-gradient(120deg, rgba(13,159,110,0.14), rgba(0,109,119,0.12));
+      box-shadow: inset 0 0 0 1px rgba(13,159,110,0.18);
+    }
+
+    .content {
+      padding: clamp(16px, 2.5vw, 30px);
+    }
+
+    .step-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border-radius: 999px;
+      border: 1px solid rgba(19,32,26,0.16);
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      color: var(--muted);
+      background: #f3f8f4;
+    }
+
+    .desc {
+      margin: 10px 0 16px;
+      color: #33423b;
+      line-height: 1.45;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      grid-column: span 6;
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-md);
+      background: #f9fcfb;
+      padding: 12px;
+      min-height: 98px;
+    }
+
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 0.93rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.38;
+    }
+
+    .codebox {
+      position: relative;
+      margin-top: 14px;
+    }
+
+    pre {
+      margin: 0;
+      background: #111a16;
+      color: #d8ffe4;
+      border-radius: var(--r-md);
+      border: 1px solid #244437;
+      padding: 14px;
+      overflow: auto;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      min-height: 116px;
+    }
+
+    .copy {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      border: 1px solid rgba(255,255,255,0.26);
+      border-radius: var(--r-sm);
+      background: rgba(255,255,255,0.12);
+      color: #f1fffa;
+      font-family: inherit;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .copy.done { border-color: #7dd8a9; color: #aef0cb; }
+
+    .mode-switch {
+      display: inline-flex;
+      background: #edf4ef;
+      border: 1px solid var(--stroke);
+      border-radius: 999px;
+      padding: 4px;
+      margin: 4px 0 2px;
+      gap: 4px;
+    }
+
+    .mode-switch button {
+      border: 0;
+      background: transparent;
+      border-radius: 999px;
+      padding: 7px 11px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: #365046;
+    }
+
+    .mode-switch button.active {
+      background: linear-gradient(120deg, #0d9f6e, #0b7f89);
+      color: #fff;
+    }
+
+    .diagram {
+      margin-top: 14px;
+      border: 1px dashed var(--stroke);
+      background: #fbfefd;
+      border-radius: var(--r-md);
+      padding: 10px;
+    }
+
+    svg text {
+      font-family: "Space Grotesk", sans-serif;
+      fill: #123126;
+      font-size: 12px;
+    }
+
+    .note {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      border: 1px solid #c9e6d8;
+      background: #eaf8f1;
+      color: #22553f;
+      font-size: 0.9rem;
+    }
+
+    .checklist {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .check {
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      padding: 9px 10px;
+      background: #fcfffd;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 0.9rem;
+    }
+
+    .check input { accent-color: var(--ok); }
+
+    .footer {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    @media (max-width: 940px) {
+      .layout { grid-template-columns: 1fr; }
+      .steps { position: static; }
+      .card { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero panel">
+      <h1>Genesys New User Training (Auth / Core / Ops)</h1>
+      <p class="sub">Interactive walkthrough for first-time users: understand repo layers, choose auth path, run datasets, and read deterministic output artifacts.</p>
+    </section>
+
+    <section class="layout">
+      <aside class="steps panel" aria-label="Onboarding steps">
+        <h2>Steps</h2>
+        <div id="stepButtons"></div>
+      </aside>
+
+      <article class="content panel">
+        <h2>Step Detail</h2>
+        <div class="step-head">
+          <h3 id="title">Step title</h3>
+          <span class="pill" id="tag">Tag</span>
+        </div>
+        <p class="desc" id="desc"></p>
+
+        <div class="cards" id="cards"></div>
+
+        <div class="mode-switch" id="modeSwitch" aria-label="Auth mode switch">
+          <button type="button" data-mode="core" class="active">Core Headers</button>
+          <button type="button" data-mode="ops">Genesys.Ops Session</button>
+        </div>
+
+        <div class="codebox">
+          <button class="copy" id="copyBtn" type="button">Copy</button>
+          <pre><code id="code"></code></pre>
+        </div>
+
+        <div class="diagram" id="diagram"></div>
+
+        <div class="checklist" id="checklist"></div>
+
+        <p class="note" id="note"></p>
+        <p class="footer">Source anchors: README.md, docs/ONBOARDING.md, docs/REPO_SCHEMATIC.md, modules/Genesys.Auth, modules/Genesys.Core, modules/Genesys.Ops.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const steps = [
+      {
+        id: "map",
+        title: "1. Understand The Layered Repo",
+        tag: "Architecture",
+        desc: "Start with the separation of concerns. Genesys.Auth owns token lifecycle. Genesys.Core is the catalog-driven engine. Genesys.Ops is an optional operator-friendly wrapper.",
+        cards: [
+          { title: "Core module", body: "Exports only Invoke-Dataset and Assert-Catalog. Most runtime behavior is driven by the catalog + private engines." },
+          { title: "Ops wrapper", body: "Adds Connect-GenesysCloud, Get-Genesys* convenience cmdlets, and operational reports/snapshots." }
+        ],
+        code: {
+          core: "# Inspect exported Core commands\nImport-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force\nGet-Command -Module Genesys.Core\n\n# You should see: Invoke-Dataset, Assert-Catalog",
+          ops: "# Inspect exported wrapper commands\nImport-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force\nGet-Command -Module Genesys.Ops | Sort-Object Name"
+        },
+        note: "Rule of thumb: keep API execution concerns in Core; keep user-facing convenience and reporting in Ops.",
+        checklist: ["I can explain Core vs Ops responsibilities.", "I know where dataset runtime logic lives (modules/Genesys.Core/Private)."],
+        diagram: "map"
+      },
+      {
+        id: "auth",
+        title: "2. Pick Authentication Style",
+        tag: "Auth",
+        desc: "You can run Core directly with headers, or use Genesys.Ops session helpers. Both paths end up calling Invoke-Dataset.",
+        cards: [
+          { title: "Core direct", body: "You acquire token and pass -Headers / -BaseUri to Invoke-Dataset." },
+          { title: "Ops session", body: "You call Connect-GenesysCloud once, then Get-Genesys* cmdlets reuse in-memory session state." }
+        ],
+        code: {
+          core: "$region = 'mypurecloud.com'\n$baseUri = \"https://api.$region\"\n$authUrl = \"https://login.$region/oauth/token\"\n\n$auth = Invoke-RestMethod -Uri $authUrl -Method POST -Body @{\n  grant_type = 'client_credentials'\n  client_id = $env:GENESYS_CLIENT_ID\n  client_secret = $env:GENESYS_CLIENT_SECRET\n} -ContentType 'application/x-www-form-urlencoded'\n\n$headers = @{ Authorization = \"Bearer $($auth.access_token)\" }",
+          ops: "$token = (Get-Secret -Name 'GenesysToken').GetNetworkCredential().Password\nImport-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force\nConnect-GenesysCloud -AccessToken $token -Region 'usw2.pure.cloud'\n\n# later\nDisconnect-GenesysCloud"
+        },
+        note: "Auth ownership: Genesys.Auth owns all OAuth flows. Core expects -Headers or GENESYS_BEARER_TOKEN. Ops delegates to Auth.",
+        checklist: ["I chose my auth path for day-to-day use.", "I know where token lifecycle is managed."],
+        diagram: "auth"
+      },
+      {
+        id: "first-run",
+        title: "3. Run First Dataset",
+        tag: "Execution",
+        desc: "Start with a small dataset and inspect generated artifacts. Dry-run first, then live run.",
+        cards: [
+          { title: "WhatIf", body: "Validates catalog and prints the plan with no API calls." },
+          { title: "Live run", body: "Writes deterministic output under out/<datasetKey>/<runId>/." }
+        ],
+        code: {
+          core: "# Dry run\nInvoke-Dataset -Dataset 'users' -WhatIf\n\n# Live run\nInvoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers",
+          ops: "# Wrapper call\nGet-GenesysAgent\n\n# Under the hood, this calls Invoke-Dataset for the 'users' dataset\n# and returns parsed PSCustomObjects"
+        },
+        note: "If you are new, begin with users or routing-queues before async datasets like audit-logs and analytics-conversation-details.",
+        checklist: ["I successfully executed a dry run.", "I successfully produced one live run folder."],
+        diagram: "run"
+      },
+      {
+        id: "artifacts",
+        title: "4. Read Output Artifacts",
+        tag: "Data Contract",
+        desc: "Every run produces structured files that make automation and audits predictable.",
+        cards: [
+          { title: "manifest.json", body: "Run metadata: timing, dataset key, counts, warnings." },
+          { title: "events.jsonl", body: "Structured runtime events: retries, paging, async states." },
+          { title: "summary.json", body: "High-level quick view of the run." },
+          { title: "data/*.jsonl", body: "Normalized dataset records for downstream processing." }
+        ],
+        code: {
+          core: "$run = Get-ChildItem ./out/users -Directory | Sort-Object Name -Descending | Select-Object -First 1\nGet-Content (Join-Path $run.FullName 'summary.json') | ConvertFrom-Json\nGet-Content (Join-Path $run.FullName 'manifest.json') | ConvertFrom-Json",
+          ops: "# Optional Ops report output\nInvoke-GenesysDailyHealthReport -OutputPath ./out/health-report.json -PassThru"
+        },
+        note: "Most integrations should parse data/*.jsonl and keep summary/manifest/events for traceability.",
+        checklist: ["I can locate summary.json and manifest.json.", "I can explain what events.jsonl is used for."],
+        diagram: "artifact"
+      },
+      {
+        id: "test",
+        title: "5. Validate And Extend",
+        tag: "Contributor Flow",
+        desc: "Use smoke tests for fast confidence and full Pester suite before merging changes.",
+        cards: [
+          { title: "Fast check", body: "scripts/Invoke-Smoke.ps1 for quick contract confidence." },
+          { title: "Full check", body: "scripts/Invoke-Tests.ps1 for full suite validation." }
+        ],
+        code: {
+          core: "# quick\n./scripts/Invoke-Smoke.ps1\n\n# full\n./scripts/Invoke-Tests.ps1",
+          ops: "# wrapper verification examples\nImport-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force\nGet-Command -Module Genesys.Ops | Measure-Object"
+        },
+        note: "When adding new capabilities, start with catalog and Core runtime. Add Ops wrappers only when operator ergonomics are needed.",
+        checklist: ["I can run smoke and test scripts.", "I know when to add behavior in Core versus Ops."],
+        diagram: "test"
+      }
+    ];
+
+    const stepButtons = document.getElementById("stepButtons");
+    const title = document.getElementById("title");
+    const tag = document.getElementById("tag");
+    const desc = document.getElementById("desc");
+    const cards = document.getElementById("cards");
+    const code = document.getElementById("code");
+    const note = document.getElementById("note");
+    const checklist = document.getElementById("checklist");
+    const diagram = document.getElementById("diagram");
+    const copyBtn = document.getElementById("copyBtn");
+    const modeSwitch = document.getElementById("modeSwitch");
+
+    let currentIndex = 0;
+    let mode = "core";
+
+    function drawDiagram(kind) {
+      const common = {
+        map: `
+<svg viewBox="0 0 720 180" width="100%" role="img" aria-label="Layer diagram">
+  <rect x="15" y="55" width="180" height="64" rx="10" fill="#def5ea" stroke="#8ccdb3"/>
+  <text x="32" y="90">User Script / GUI</text>
+  <rect x="260" y="55" width="180" height="64" rx="10" fill="#dff0f4" stroke="#8ec0ca"/>
+  <text x="288" y="90">Genesys.Ops (Optional)</text>
+  <rect x="505" y="55" width="200" height="64" rx="10" fill="#f1f6e8" stroke="#c3d88f"/>
+  <text x="545" y="90">Genesys.Core Engine</text>
+  <path d="M196 87 L258 87" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M441 87 L503 87" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#1f5a46"/></marker></defs>
+</svg>`,
+        auth: `
+<svg viewBox="0 0 720 190" width="100%" role="img" aria-label="Authentication flow">
+  <rect x="20" y="30" width="220" height="60" rx="10" fill="#fff6df" stroke="#e0be72"/>
+  <text x="36" y="63">Token source (OAuth / Secret)</text>
+  <rect x="280" y="18" width="180" height="60" rx="10" fill="#def5ea" stroke="#8ccdb3"/>
+  <text x="304" y="52">Core path: -Headers</text>
+  <rect x="280" y="102" width="180" height="60" rx="10" fill="#dff0f4" stroke="#8ec0ca"/>
+  <text x="300" y="136">Ops path: Connect-*</text>
+  <rect x="500" y="60" width="190" height="60" rx="10" fill="#f1f6e8" stroke="#c3d88f"/>
+  <text x="530" y="95">Invoke-Dataset</text>
+  <path d="M242 58 L278 47" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M242 62 L278 128" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M462 47 L498 86" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M462 132 L498 96" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#1f5a46"/></marker></defs>
+</svg>`,
+        run: `
+<svg viewBox="0 0 720 170" width="100%" role="img" aria-label="Run flow">
+  <rect x="20" y="52" width="150" height="56" rx="10" fill="#def5ea" stroke="#8ccdb3"/>
+  <text x="52" y="84">Invoke-Dataset</text>
+  <rect x="210" y="52" width="120" height="56" rx="10" fill="#dff0f4" stroke="#8ec0ca"/>
+  <text x="233" y="84">Catalog</text>
+  <rect x="370" y="52" width="120" height="56" rx="10" fill="#e9eefb" stroke="#a2b6e8"/>
+  <text x="395" y="84">Engine</text>
+  <rect x="530" y="52" width="170" height="56" rx="10" fill="#f1f6e8" stroke="#c3d88f"/>
+  <text x="548" y="84">out/<dataset>/<run>/</text>
+  <path d="M172 80 L208 80" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M332 80 L368 80" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M492 80 L528 80" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#1f5a46"/></marker></defs>
+</svg>`,
+        artifact: `
+<svg viewBox="0 0 720 180" width="100%" role="img" aria-label="Artifact tree">
+  <rect x="24" y="22" width="145" height="42" rx="8" fill="#f2f8f4" stroke="#c5d9cd"/>
+  <text x="36" y="48">out/users/runId/</text>
+  <rect x="220" y="20" width="132" height="40" rx="8" fill="#def5ea" stroke="#8ccdb3"/><text x="232" y="45">manifest.json</text>
+  <rect x="380" y="20" width="132" height="40" rx="8" fill="#dff0f4" stroke="#8ec0ca"/><text x="393" y="45">events.jsonl</text>
+  <rect x="540" y="20" width="132" height="40" rx="8" fill="#e9eefb" stroke="#a2b6e8"/><text x="556" y="45">summary.json</text>
+  <rect x="300" y="102" width="170" height="44" rx="8" fill="#f1f6e8" stroke="#c3d88f"/><text x="322" y="130">data/users.jsonl</text>
+  <path d="M171 43 L218 40" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M171 43 L378 40" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M171 43 L538 40" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M171 48 L298 122" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#1f5a46"/></marker></defs>
+</svg>`,
+        test: `
+<svg viewBox="0 0 720 170" width="100%" role="img" aria-label="Validation flow">
+  <rect x="24" y="50" width="160" height="58" rx="10" fill="#fff6df" stroke="#e0be72"/><text x="50" y="84">Code / Catalog Change</text>
+  <rect x="260" y="50" width="160" height="58" rx="10" fill="#def5ea" stroke="#8ccdb3"/><text x="294" y="84">Invoke-Smoke</text>
+  <rect x="496" y="50" width="160" height="58" rx="10" fill="#dff0f4" stroke="#8ec0ca"/><text x="534" y="84">Invoke-Tests</text>
+  <path d="M186 80 L258 80" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M422 80 L494 80" stroke="#1f5a46" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#1f5a46"/></marker></defs>
+</svg>`
+      };
+      diagram.innerHTML = common[kind] || "";
+    }
+
+    function renderButtons() {
+      stepButtons.innerHTML = "";
+      steps.forEach((s, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "step-btn" + (i === currentIndex ? " active" : "");
+        b.textContent = s.title;
+        b.addEventListener("click", () => {
+          currentIndex = i;
+          render();
+        });
+        stepButtons.appendChild(b);
+      });
+    }
+
+    function renderChecklist(items, stepId) {
+      checklist.innerHTML = "";
+      items.forEach((t, idx) => {
+        const key = `gc-training-${stepId}-${idx}`;
+        const row = document.createElement("label");
+        row.className = "check";
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = localStorage.getItem(key) === "1";
+        input.addEventListener("change", () => localStorage.setItem(key, input.checked ? "1" : "0"));
+
+        const text = document.createElement("span");
+        text.textContent = t;
+
+        row.appendChild(input);
+        row.appendChild(text);
+        checklist.appendChild(row);
+      });
+    }
+
+    function renderCards(cardData) {
+      cards.innerHTML = "";
+      cardData.forEach(c => {
+        const el = document.createElement("section");
+        el.className = "card";
+        el.innerHTML = `<h3>${c.title}</h3><p>${c.body}</p>`;
+        cards.appendChild(el);
+      });
+    }
+
+    function render() {
+      const step = steps[currentIndex];
+      title.textContent = step.title;
+      tag.textContent = step.tag;
+      desc.textContent = step.desc;
+      note.textContent = step.note;
+      code.textContent = step.code[mode];
+      renderCards(step.cards);
+      renderChecklist(step.checklist, step.id);
+      drawDiagram(step.diagram);
+      renderButtons();
+      copyBtn.classList.remove("done");
+      copyBtn.textContent = "Copy";
+    }
+
+    modeSwitch.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-mode]");
+      if (!b) return;
+      mode = b.getAttribute("data-mode");
+      modeSwitch.querySelectorAll("button").forEach(btn => btn.classList.toggle("active", btn === b));
+      render();
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent);
+        copyBtn.classList.add("done");
+        copyBtn.textContent = "Copied";
+      } catch {
+        copyBtn.textContent = "Copy failed";
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
+
+

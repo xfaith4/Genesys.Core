@@ -1,0 +1,4 @@
+{"timestampUtc":"2026-03-05T04:01:46.5066228Z","datasetKey":"routing-queues","runId":"20260305T040146Z","eventType":"run.started","payload":{"catalogPath":"G:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\catalog\\genesys.catalog.json"}}
+{"timestampUtc":"2026-03-05T04:01:46.5483682Z","datasetKey":"routing-queues","runId":"20260305T040146Z","eventType":"request.attempt.succeeded","payload":{"eventType":"request.attempt.succeeded","attempt":1,"method":"GET","timestampUtc":"2026-03-05T04:01:46.5324261Z"}}
+{"timestampUtc":"2026-03-05T04:01:46.5514977Z","datasetKey":"routing-queues","runId":"20260305T040146Z","eventType":"paging.progress","payload":{"eventType":"paging.progress","profile":"nextUri","page":1,"nextUri":null,"totalHits":null,"itemCount":1,"timestampUtc":"2026-03-05T04:01:46.5333331Z"}}
+{"timestampUtc":"2026-03-05T04:01:46.5606298Z","datasetKey":"routing-queues","runId":"20260305T040146Z","eventType":"run.completed","payload":{"itemCount":1}}

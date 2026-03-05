@@ -29,11 +29,12 @@
 ### Changed
 
 - Introduced unified catalog loader (`Resolve-Catalog`) and canonical in-memory normalization.
-- Canonical runtime precedence is now root `genesys-core.catalog.json`; `catalog/genesys-core.catalog.json` is treated as compatibility mirror.
-- Added strict catalog mode (`-StrictCatalog`) to fail when root and mirror catalogs diverge.
+- Canonical runtime precedence is now `catalog/genesys.catalog.json`.
+- Added strict catalog mode (`-StrictCatalog`) to fail when canonical catalog is missing.
 
 ### Migration notes
 
-- Reconcile legacy mirror from canonical root:
-  - `Copy-Item ./genesys-core.catalog.json ./catalog/genesys-core.catalog.json -Force`
+- Ensure the canonical catalog is present:
+  - `catalog/genesys.catalog.json`
 - Existing callers passing `-CatalogPath` remain supported.
+

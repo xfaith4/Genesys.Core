@@ -18,7 +18,7 @@
 
 .NOTES
     Requirements : Windows, PowerShell 5.1+, Genesys Cloud OAuth client credentials
-    Depends on   : Genesys.Core module (src/ps-module/Genesys.Core)
+    Depends on   : Genesys.Core module (modules/Genesys.Core)
     Reuses       : Auth + config patterns from GenesysCore-GUI.ps1
 
 .EXAMPLE
@@ -31,7 +31,7 @@
 [CmdletBinding()]
 param(
     [string]$DefaultRegion = 'usw2.pure.cloud',
-    [string]$ModulePath    = "$PSScriptRoot/src/ps-module/Genesys.Core/Genesys.Core.psd1",
+    [string]$ModulePath    = "$PSScriptRoot/modules/Genesys.Core/Genesys.Core.psd1",
     [string]$ConfigPath
 )
 
@@ -1444,3 +1444,4 @@ if (-not [string]::IsNullOrWhiteSpace([string]$clientIdBox.Text) -and -not [stri
 # ─────────────────────────────────────────────────────────────────────────────
 
 $window.ShowDialog() | Out-Null
+

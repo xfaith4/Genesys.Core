@@ -3,7 +3,7 @@ You are working in an existing repo: `genesys-core`.
 Goal: continue development from the current baseline without re-bootstrap work.
 
 Current baseline (must be preserved):
-- Canonical runtime catalog: `./genesys-core.catalog.json` (legacy mirror still exists at `./catalog/genesys-core.catalog.json`).
+- Canonical runtime catalog: `./catalog/genesys.catalog.json`.
 - Module entrypoint: `Invoke-Dataset`; exported functions are `Invoke-Dataset` and `Assert-Catalog`.
 - Run output contract already implemented:
   - `out/<datasetKey>/<runId>/manifest.json`
@@ -29,3 +29,4 @@ Acceptance for any follow-on prompt:
 - Existing tests still pass.
 - No regression to output contract or redaction behavior.
 - Documentation and implementation remain consistent.
+

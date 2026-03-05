@@ -1,0 +1,1178 @@
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04  9:30 PM                .agents
+d----          2026-03-03  6:43 PM                .claude
+d----          2026-02-17  4:00 AM                .github
+d----          2026-02-22  3:24 PM                .tmp_compare
+d----          2026-02-17  7:51 PM                .vscode
+d----          2026-03-04 10:48 PM                catalog
+d----          2026-03-04 11:05 PM                docs
+d----          2026-03-04 10:42 PM                modules
+d----          2026-02-20  8:13 AM                out-contract-smoke
+d----          2026-02-20  8:41 PM                out-mock
+d----          2026-02-22  4:14 PM                out-mock-gui-test
+d----          2026-03-04 11:18 PM                out-smoke
+d----          2026-02-20  2:04 AM                out-smoke-audit
+d----          2026-03-04 11:01 PM                out-smoke-test
+d----          2026-03-04 11:05 PM                scripts
+d----          2026-03-04 11:12 PM                src
+d----          2026-03-04 11:13 PM                tests
+-a---          2026-02-23 10:42 PM            395 .gitignore
+-a---          2026-02-23 10:42 PM            940 genesys.env.json.example
+-----          2025-07-28  8:17 PM       28737392 GenesysCloudAPIEndpoints.json
+-a---          2026-03-04 11:13 PM          72320 GenesysConvAnalyzer.ps1
+-a---          2026-03-04 11:15 PM          27505 GenesysCore-GUI.ps1
+-a---          2026-03-04 11:12 PM            883 GenesysOps.psd1
+-a---          2026-03-04 11:05 PM            856 GenesysOps.psm1
+-a---          2026-03-04 11:07 PM          61255 inventory.txt
+-a---          2026-02-17  2:46 AM           1084 LICENSE
+-a---          2026-03-04 11:17 PM          13640 README.md
+-a---          2026-03-04 11:13 PM          11399 TESTING.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.agents
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04  2:08 AM                skills
+-a---          2026-02-20  1:04 AM           3952 AGENTS.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.agents\skills
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04  2:08 AM                builderskill
+d----          2026-03-04  2:08 AM                criticskill
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.agents\skills\builderskill
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04  2:07 AM           8895 Genesys Core App Builder Skill.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.agents\skills\criticskill
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04  2:05 AM          11149 SKILL.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.claude
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-03  6:43 PM           1271 settings.local.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.github
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-23  4:12 AM                workflows
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.github\workflows
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:51 PM           3348 audit-logs.on-demand.yml
+-a---          2026-02-22  3:51 PM           1787 audit-logs.scheduled.yml
+-a---          2026-02-23  4:12 AM            982 ci.yml
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                genesys-cloud-mcp-server
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                .github
+d----          2026-02-22  3:24 PM                docs
+d----          2026-02-22  3:24 PM                src
+d----          2026-02-22  3:24 PM                tests
+-a---          2026-02-22  3:24 PM           2308 .gitignore
+-a---          2026-02-22  3:24 PM              7 .npmignore
+-a---          2026-02-22  3:24 PM              9 .nvmrc
+-a---          2026-02-22  3:24 PM            794 biome.json
+-a---          2026-02-22  3:24 PM            508 Dockerfile
+-a---          2026-02-22  3:24 PM           1061 LICENSE
+-a---          2026-02-22  3:24 PM           5573 manifest.json
+-a---          2026-02-22  3:24 PM         169543 package-lock.json
+-a---          2026-02-22  3:24 PM           2834 package.json
+-a---          2026-02-22  3:24 PM           5233 README.md
+-a---          2026-02-22  3:24 PM            136 tsconfig.build-mcpb.json
+-a---          2026-02-22  3:24 PM             70 tsconfig.build.json
+-a---          2026-02-22  3:24 PM            498 tsconfig.json
+-a---          2026-02-22  3:24 PM            120 tsconfig.test.json
+-a---          2026-02-22  3:24 PM            687 vitest.config.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\.github
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                workflows
+-a---          2026-02-22  3:24 PM            533 dependabot.yml
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\.github\workflows
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           2997 release.yml
+-a---          2026-02-22  3:24 PM           1479 test.yml
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\docs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM          11569 tools.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                auth
+d----          2026-02-22  3:24 PM                tools
+-a---          2026-02-22  3:24 PM             43 cli.ts
+-a---          2026-02-22  3:24 PM           1798 createConfigRetriever.ts
+-a---          2026-02-22  3:24 PM           6258 index.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\auth
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           1770 OAuthClientCredentialsWrapper.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                conversationSentiment
+d----          2026-02-22  3:24 PM                conversationTopics
+d----          2026-02-22  3:24 PM                conversationTranscription
+d----          2026-02-22  3:24 PM                oauthClients
+d----          2026-02-22  3:24 PM                oauthClientUsage
+d----          2026-02-22  3:24 PM                queryQueueVolumes
+d----          2026-02-22  3:24 PM                sampleConversationsByQueue
+d----          2026-02-22  3:24 PM                utils
+d----          2026-02-22  3:24 PM                voiceCallQuality
+-a---          2026-02-22  3:24 PM           6154 searchQueues.test.ts
+-a---          2026-02-22  3:24 PM           4415 searchQueues.ts
+-a---          2026-02-22  3:24 PM          10174 searchVoiceConversations.test.ts
+-a---          2026-02-22  3:24 PM           5850 searchVoiceConversations.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\conversationSentiment
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           7768 conversationSentiment.test.ts
+-a---          2026-02-22  3:24 PM           3979 conversationSentiment.ts
+-a---          2026-02-22  3:24 PM            351 interpretSentiment.ts
+-a---          2026-02-22  3:24 PM            804 isConversationNotFoundError.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\conversationTopics
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM            269 chunks.ts
+-a---          2026-02-22  3:24 PM           4572 conversationTopics.test.ts
+-a---          2026-02-22  3:24 PM           5789 conversationTopics.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\conversationTranscription
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           7153 conversationTranscription.test.ts
+-a---          2026-02-22  3:24 PM           8415 conversationTranscription.ts
+-a---          2026-02-22  3:24 PM            629 formatTimeUtteranceStarted.ts
+-a---          2026-02-22  3:24 PM           2875 TranscriptResponse.ts
+-a---          2026-02-22  3:24 PM            192 Utterance.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\oauthClients
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           2112 formatOAuthClientJson.ts
+-a---          2026-02-22  3:24 PM           6764 oauthClients.test.ts
+-a---          2026-02-22  3:24 PM           4310 oauthClients.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\oauthClientUsage
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           6033 oauthClientUsage.test.ts
+-a---          2026-02-22  3:24 PM           5563 oauthClientUsage.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\queryQueueVolumes
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM            376 isQueueUsedInConvo.ts
+-a---          2026-02-22  3:24 PM           9195 queryQueueVolumes.test.ts
+-a---          2026-02-22  3:24 PM           5469 queryQueueVolumes.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\sampleConversationsByQueue
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           8450 sampleConversationsByQueue.test.ts
+-a---          2026-02-22  3:24 PM           5140 sampleConversationsByQueue.ts
+-a---          2026-02-22  3:24 PM            637 sampleEvenly.test.ts
+-a---          2026-02-22  3:24 PM            265 sampleEvenly.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\utils
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                genesys
+-a---          2026-02-22  3:24 PM            782 createTool.ts
+-a---          2026-02-22  3:24 PM            302 errorResult.ts
+-a---          2026-02-22  3:24 PM           1468 paginationSection.test.ts
+-a---          2026-02-22  3:24 PM           1183 paginationSection.ts
+-a---          2026-02-22  3:24 PM            110 waitFor.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\utils\genesys
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM            399 isMissingPermissionsError.ts
+-a---          2026-02-22  3:24 PM            378 isUnauthorisedError.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\src\tools\voiceCallQuality
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM            206 interpretCallQuality.ts
+-a---          2026-02-22  3:24 PM           6272 voiceCallQuality.test.ts
+-a---          2026-02-22  3:24 PM           3178 voiceCallQuality.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\tests
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                evaluations
+d----          2026-02-22  3:24 PM                integration
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\tests\evaluations
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  3:24 PM                utils
+-a---          2026-02-22  3:24 PM           3777 gemini-tool-efficiency.test.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\tests\evaluations\utils
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           1418 callToolInterceptor.ts
+-a---          2026-02-22  3:24 PM            280 index.ts
+-a---          2026-02-22  3:24 PM            801 spyOnClientCallTool.ts
+-a---          2026-02-22  3:24 PM           1554 toolUsageEvaluator.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.tmp_compare\genesys-cloud-mcp-server\tests\integration
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  3:24 PM           4243 serverRuns.test.ts
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\.vscode
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04  9:26 PM           1263 settings.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:48 PM                schema
+-a---          2026-03-04 11:12 PM            169 genesys-core.catalog.json
+-a---          2026-03-04 10:48 PM          70106 genesys.catalog.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:12 PM            264 genesys-core.catalog.schema.json
+-a---          2026-03-04 10:48 PM           2960 genesys.catalog.schema.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\docs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:07 PM                AppPrompts
+d----          2026-02-17  2:46 AM                PromptChain
+d----          2026-03-04 10:58 PM                training
+-a---          2026-03-04 11:16 PM           1838 CHANGELOG.md
+-a---          2026-03-04 11:13 PM           4535 Clean-upPrompt.md
+-a---          2026-03-04 11:13 PM          11064 CODE_REVIEW_SUMMARY.md
+-a---          2026-03-04 11:13 PM           6889 Comparison Report (as of 2026-02-22).md
+-a---          2026-03-04 11:16 PM          10548 ENGINEER_INTEGRATIONS_AUTH.md
+-a---          2026-03-04 11:16 PM           3885 ONBOARDING.md
+-a---          2026-03-04 11:17 PM           2464 READINESS_REVIEW.md
+-a---          2026-03-04 11:16 PM           2529 REPO_SCHEMATIC.md
+-a---          2026-03-04 11:17 PM           5166 ROADMAP.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\docs\AppPrompts
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-03  5:57 PM           6765 ElasticSearchPromptLibrary.md
+-a---          2026-03-04 11:13 PM          13951 IdealPrompt_GenesysCore_ConversationsAnalysis.md
+-a---          2026-03-04 11:13 PM           8061 IdealPrompt_GenesysCore_WrapperApp_Template.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\docs\PromptChain
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:16 PM           1315 Prompt0.md
+-a---          2026-03-04 11:13 PM           1148 Prompt1.md
+-a---          2026-03-04 11:13 PM           1011 Prompt2.md
+-a---          2026-03-04 11:13 PM           1121 Prompt3.md
+-a---          2026-03-04 11:13 PM           1040 Prompt4.md
+-a---          2026-03-04 11:13 PM           1380 Prompt5.md
+-a---          2026-02-22  3:55 PM            945 Prompt6.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\docs\training
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:13 PM            539 genesys-core-onboarding.html
+-a---          2026-03-04 11:18 PM          22887 genesys-onboarding.html
+-a---          2026-03-04 11:13 PM            477 Training.md
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:43 PM                Genesys.Auth
+d----          2026-03-04 10:45 PM                Genesys.Core
+d----          2026-03-04 10:47 PM                Genesys.Ops
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Auth
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:43 PM           1234 Genesys.Auth.psd1
+-a---          2026-03-04 10:43 PM          12932 Genesys.Auth.psm1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:45 PM                Private
+d----          2026-03-04 10:45 PM                Public
+-a---          2026-03-04 10:45 PM            560 Genesys.Core.psd1
+-a---          2026-03-04 10:45 PM            438 Genesys.Core.psm1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:45 PM                Async
+d----          2026-03-04 11:01 PM                Catalog
+d----          2026-03-04 10:45 PM                Datasets
+d----          2026-03-04 10:45 PM                Http
+d----          2026-03-04 10:45 PM                Paging
+d----          2026-03-04 10:45 PM                Redaction
+d----          2026-03-04 10:45 PM                Retry
+d----          2026-03-04 10:45 PM                Run
+d----          2026-03-04 10:45 PM                runtime
+-a---          2026-03-04 10:45 PM           2412 Assert-Catalog.ps1
+-a---          2026-03-04 10:45 PM           6647 Invoke-CoreEndpoint.ps1
+-a---          2026-03-04 10:45 PM           5644 Invoke-GcRequest.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Async
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM          13957 Invoke-AsyncJob.ps1
+-a---          2026-03-04 10:45 PM           3126 Invoke-AuditTransaction.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Catalog
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:14 PM          19896 Resolve-Catalog.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Datasets
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM           2439 DatasetRegistry.ps1
+-a---          2026-03-04 10:45 PM           3547 Invoke-AnalyticsConversationDetailsDataset.ps1
+-a---          2026-03-04 10:45 PM           6798 Invoke-AuditLogsDataset.ps1
+-a---          2026-03-04 10:45 PM           1214 Invoke-RoutingQueuesDataset.ps1
+-a---          2026-03-04 10:45 PM           6058 Invoke-SimpleCollectionDataset.ps1
+-a---          2026-03-04 10:45 PM           1316 Invoke-UsersDataset.ps1
+-a---          2026-03-04 10:45 PM           2551 Resolve-DatasetRuntime.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Http
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM           1041 Join-EndpointUri.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Paging
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM              0 .gitkeep
+-a---          2026-03-04 10:45 PM           4612 Invoke-PagingBodyPaging.ps1
+-a---          2026-03-04 10:45 PM           5956 Invoke-PagingCursor.ps1
+-a---          2026-03-04 10:45 PM           8315 Invoke-PagingNextUri.ps1
+-a---          2026-03-04 10:45 PM           5118 Invoke-PagingPageNumber.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Redaction
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM           3062 Protect-RecordData.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Retry
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM              0 .gitkeep
+-a---          2026-03-04 10:45 PM           3036 Invoke-RequestWithRetry.ps1
+-a---          2026-03-04 10:45 PM           7145 Invoke-WithRetry.ps1
+-a---          2026-03-04 10:45 PM           3295 Resolve-RetryRuntimeSettings.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\Run
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM           1080 New-RunContext.ps1
+-a---          2026-03-04 10:45 PM            532 Write-Jsonl.ps1
+-a---          2026-03-04 10:45 PM           1085 Write-Manifest.ps1
+-a---          2026-03-04 10:45 PM            666 Write-RunEvent.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Private\runtime
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:45 PM              0 .gitkeep
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Core\Public
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:11 PM           5134 Invoke-Dataset.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\modules\Genesys.Ops
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:46 PM           3569 Genesys.Ops.psd1
+-a---          2026-03-04 11:11 PM          91540 Genesys.Ops.psm1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-contract-smoke
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:13 AM                audit-logs
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-contract-smoke\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:13 AM                20260220T130344Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-contract-smoke\audit-logs\20260220T130344Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:13 AM            225 events.jsonl
+-a---          2026-02-20  8:13 AM            332 manifest.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                analytics-conversation-details
+d----          2026-02-20  8:42 PM                analytics-conversation-details-query
+d----          2026-02-20  8:42 PM                audit-logs
+d----          2026-02-20  8:25 PM                noredact-test
+d----          2026-02-20  8:42 PM                routing-queues
+d----          2026-02-20  8:42 PM                users
+-a---          2026-02-20  7:24 PM           1630 check-arrays.ps1
+-a---          2026-02-20  8:23 PM           2547 check-noredact.ps1
+-a---          2026-02-20  7:25 PM            932 check2.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:06 PM                20260221T000558Z
+d----          2026-02-20  7:17 PM                20260221T001754Z
+d----          2026-02-20  7:22 PM                20260221T002216Z
+d----          2026-02-20  8:41 PM                20260221T014139Z
+d----          2026-02-20  8:42 PM                20260221T014242Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T000558Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:06 PM                data
+-a---          2026-02-20  7:06 PM           4477 events.jsonl
+-a---          2026-02-20  7:06 PM            267 manifest.json
+-a---          2026-02-20  7:06 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T000558Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:06 PM           5211 analytics-conversation-details.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T001754Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:17 PM                data
+-a---          2026-02-20  7:17 PM           4477 events.jsonl
+-a---          2026-02-20  7:17 PM            267 manifest.json
+-a---          2026-02-20  7:17 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T001754Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:17 PM           5211 analytics-conversation-details.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T002216Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:22 PM                data
+-a---          2026-02-20  7:22 PM           4477 events.jsonl
+-a---          2026-02-20  7:22 PM            267 manifest.json
+-a---          2026-02-20  7:22 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T002216Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:22 PM           5253 analytics-conversation-details.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T014139Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                data
+-a---          2026-02-20  8:41 PM           4477 events.jsonl
+-a---          2026-02-20  8:41 PM            267 manifest.json
+-a---          2026-02-20  8:41 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T014139Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:41 PM           5253 analytics-conversation-details.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T014242Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                data
+-a---          2026-02-20  8:42 PM           4477 events.jsonl
+-a---          2026-02-20  8:42 PM            267 manifest.json
+-a---          2026-02-20  8:42 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details\20260221T014242Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:42 PM           5253 analytics-conversation-details.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details-query
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                20260221T014142Z
+d----          2026-02-20  8:42 PM                20260221T014245Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details-query\20260221T014142Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                data
+-a---          2026-02-20  8:41 PM           1741 events.jsonl
+-a---          2026-02-20  8:41 PM            273 manifest.json
+-a---          2026-02-20  8:41 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details-query\20260221T014142Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:41 PM           1126 analytics-conversation-details-query.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details-query\20260221T014245Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                data
+-a---          2026-02-20  8:42 PM           1741 events.jsonl
+-a---          2026-02-20  8:42 PM            273 manifest.json
+-a---          2026-02-20  8:42 PM            191 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\analytics-conversation-details-query\20260221T014245Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:42 PM           1126 analytics-conversation-details-query.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:05 PM                20260221T000555Z
+d----          2026-02-20  7:17 PM                20260221T001751Z
+d----          2026-02-20  7:22 PM                20260221T002213Z
+d----          2026-02-20  8:41 PM                20260221T014136Z
+d----          2026-02-20  8:42 PM                20260221T014240Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T000555Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:05 PM                data
+-a---          2026-02-20  7:05 PM           4675 events.jsonl
+-a---          2026-02-20  7:05 PM            247 manifest.json
+-a---          2026-02-20  7:05 PM            424 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T000555Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:05 PM           1935 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T001751Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:17 PM                data
+-a---          2026-02-20  7:17 PM           4675 events.jsonl
+-a---          2026-02-20  7:17 PM            247 manifest.json
+-a---          2026-02-20  7:17 PM            424 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T001751Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:17 PM           1935 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T002213Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  7:22 PM                data
+-a---          2026-02-20  7:22 PM           4675 events.jsonl
+-a---          2026-02-20  7:22 PM            247 manifest.json
+-a---          2026-02-20  7:22 PM            424 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T002213Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  7:22 PM           1937 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T014136Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                data
+-a---          2026-02-20  8:41 PM           4675 events.jsonl
+-a---          2026-02-20  8:41 PM            247 manifest.json
+-a---          2026-02-20  8:41 PM            424 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T014136Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:41 PM           1937 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T014240Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                data
+-a---          2026-02-20  8:42 PM           4675 events.jsonl
+-a---          2026-02-20  8:42 PM            247 manifest.json
+-a---          2026-02-20  8:42 PM            424 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\audit-logs\20260221T014240Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:42 PM           1937 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                redacted
+d----          2026-02-20  8:25 PM                unredacted
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\redacted
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                audit-logs
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\redacted\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                20260221T012556Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\redacted\audit-logs\20260221T012556Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                data
+-a---          2026-02-20  8:25 PM           3173 events.jsonl
+-a---          2026-02-20  8:25 PM            247 manifest.json
+-a---          2026-02-20  8:25 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\redacted\audit-logs\20260221T012556Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:25 PM            102 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\unredacted
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                audit-logs
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\unredacted\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                20260221T012557Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\unredacted\audit-logs\20260221T012557Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:25 PM                data
+-a---          2026-02-20  8:25 PM           3173 events.jsonl
+-a---          2026-02-20  8:25 PM            247 manifest.json
+-a---          2026-02-20  8:25 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\noredact-test\unredacted\audit-logs\20260221T012557Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:25 PM            108 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\routing-queues
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                20260221T014142Z
+d----          2026-02-20  8:42 PM                20260221T014245Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\routing-queues\20260221T014142Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                data
+-a---          2026-02-20  8:41 PM           1582 events.jsonl
+-a---          2026-02-20  8:41 PM            251 manifest.json
+-a---          2026-02-20  8:41 PM            169 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\routing-queues\20260221T014142Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:41 PM            663 routing-queues.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\routing-queues\20260221T014245Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                data
+-a---          2026-02-20  8:42 PM           1582 events.jsonl
+-a---          2026-02-20  8:42 PM            251 manifest.json
+-a---          2026-02-20  8:42 PM            169 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\routing-queues\20260221T014245Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:42 PM            663 routing-queues.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\users
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                20260221T014141Z
+d----          2026-02-20  8:42 PM                20260221T014245Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\users\20260221T014141Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:41 PM                data
+-a---          2026-02-20  8:41 PM           1519 events.jsonl
+-a---          2026-02-20  8:41 PM            242 manifest.json
+-a---          2026-02-20  8:41 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\users\20260221T014141Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:41 PM            777 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\users\20260221T014245Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  8:42 PM                data
+-a---          2026-02-20  8:42 PM           1519 events.jsonl
+-a---          2026-02-20  8:42 PM            242 manifest.json
+-a---          2026-02-20  8:42 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock\users\20260221T014245Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  8:42 PM            777 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock-gui-test
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  4:14 PM                users
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock-gui-test\users
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  4:15 PM                20260222T211459Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock-gui-test\users\20260222T211459Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-22  4:14 PM                data
+-a---          2026-02-22  4:15 PM           1519 events.jsonl
+-a---          2026-02-22  4:15 PM            242 manifest.json
+-a---          2026-02-22  4:15 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-mock-gui-test\users\20260222T211459Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-22  4:14 PM            777 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:21 PM                audit-logs
+d----          2026-03-04 11:21 PM                routing-queues
+d----          2026-03-04 11:21 PM                users
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                20260305T041850Z
+d----          2026-03-04 11:21 PM                20260305T042158Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\audit-logs\20260305T041850Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                data
+-a---          2026-03-04 11:18 PM           3189 events.jsonl
+-a---          2026-03-04 11:18 PM            247 manifest.json
+-a---          2026-03-04 11:18 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\audit-logs\20260305T041850Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:18 PM             84 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\audit-logs\20260305T042158Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:21 PM                data
+-a---          2026-03-04 11:21 PM           3189 events.jsonl
+-a---          2026-03-04 11:21 PM            247 manifest.json
+-a---          2026-03-04 11:21 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\audit-logs\20260305T042158Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:21 PM             84 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\routing-queues
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                20260305T041851Z
+d----          2026-03-04 11:21 PM                20260305T042159Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\routing-queues\20260305T041851Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                data
+-a---          2026-03-04 11:18 PM            977 events.jsonl
+-a---          2026-03-04 11:18 PM            251 manifest.json
+-a---          2026-03-04 11:18 PM            169 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\routing-queues\20260305T041851Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:18 PM            110 routing-queues.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\routing-queues\20260305T042159Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:21 PM                data
+-a---          2026-03-04 11:21 PM            977 events.jsonl
+-a---          2026-03-04 11:21 PM            251 manifest.json
+-a---          2026-03-04 11:21 PM            169 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\routing-queues\20260305T042159Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:21 PM            110 routing-queues.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\users
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                20260305T041851Z
+d----          2026-03-04 11:21 PM                20260305T042159Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\users\20260305T041851Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:18 PM                data
+-a---          2026-03-04 11:18 PM            941 events.jsonl
+-a---          2026-03-04 11:18 PM            242 manifest.json
+-a---          2026-03-04 11:18 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\users\20260305T041851Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:18 PM            128 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\users\20260305T042159Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:21 PM                data
+-a---          2026-03-04 11:21 PM            941 events.jsonl
+-a---          2026-03-04 11:21 PM            242 manifest.json
+-a---          2026-03-04 11:21 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke\users\20260305T042159Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:21 PM            128 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-audit
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  2:04 AM                audit-logs
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-audit\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-02-20  2:04 AM                20260220T065406Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-audit\audit-logs\20260220T065406Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-20  2:04 AM            225 events.jsonl
+-a---          2026-02-20  2:04 AM            332 manifest.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:01 PM                audit-logs
+d----          2026-03-04 11:01 PM                routing-queues
+d----          2026-03-04 11:01 PM                users
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\audit-logs
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:59 PM                20260305T035913Z
+d----          2026-03-04 11:01 PM                20260305T040145Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\audit-logs\20260305T035913Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:59 PM                data
+-a---          2026-03-04 10:59 PM           3189 events.jsonl
+-a---          2026-03-04 10:59 PM            247 manifest.json
+-a---          2026-03-04 10:59 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\audit-logs\20260305T035913Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 10:59 PM             84 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\audit-logs\20260305T040145Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:01 PM                data
+-a---          2026-03-04 11:01 PM           3189 events.jsonl
+-a---          2026-03-04 11:01 PM            247 manifest.json
+-a---          2026-03-04 11:01 PM            312 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\audit-logs\20260305T040145Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:01 PM             84 audit.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\routing-queues
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:01 PM                20260305T040146Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\routing-queues\20260305T040146Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:01 PM                data
+-a---          2026-03-04 11:01 PM            977 events.jsonl
+-a---          2026-03-04 11:01 PM            251 manifest.json
+-a---          2026-03-04 11:01 PM            169 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\routing-queues\20260305T040146Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:01 PM            110 routing-queues.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\users
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:59 PM                20260305T035913Z
+d----          2026-03-04 11:01 PM                20260305T040145Z
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\users\20260305T035913Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 10:59 PM                data
+-a---          2026-03-04 10:59 PM            545 events.jsonl
+-a---          2026-03-04 10:59 PM            414 manifest.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\users\20260305T040145Z
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:01 PM                data
+-a---          2026-03-04 11:01 PM            941 events.jsonl
+-a---          2026-03-04 11:01 PM            242 manifest.json
+-a---          2026-03-04 11:01 PM            160 summary.json
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\out-smoke-test\users\20260305T040145Z\data
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:01 PM            128 users.jsonl
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\scripts
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-02-18  6:10 PM           1630 Get-GenesysSwagger.ps1
+-a---          2026-03-04 10:50 PM           3026 Invoke-GenesysCoreBridge.ps1
+-a---          2026-03-04 11:14 PM          43467 Invoke-MockRun.ps1
+-a---          2026-03-04 11:05 PM           2386 Invoke-Smoke.ps1
+-a---          2026-03-04 11:20 PM           1969 Invoke-Tests.ps1
+-a---          2026-03-04 11:17 PM           8501 Sync-SwaggerEndpoints.ps1
+-a---          2026-03-04 11:14 PM           1798 Update-CatalogFromSwagger.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:12 PM                ps-module
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:12 PM                Genesys.Core
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:12 PM                Public
+-a---          2026-03-04 11:12 PM            558 Genesys.Core.psd1
+-a---          2026-03-04 11:12 PM            398 Genesys.Core.psm1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Public
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:12 PM            988 Invoke-Dataset.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d----          2026-03-04 11:13 PM                integration
+d----          2026-03-04 11:05 PM                unit
+-a---          2026-02-17  4:00 AM            141 PesterConfiguration.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\integration
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:13 PM           4703 workflow-simulation.ps1
+
+    Directory: G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\unit
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a---          2026-03-04 11:14 PM          13404 AdditionalDatasets.Tests.ps1
+-a---          2026-03-04 11:14 PM           9167 AnalyticsConversationDetails.Dataset.Tests.ps1
+-a---          2026-03-04 11:13 PM          13335 AsyncJob.Engine.Tests.ps1
+-a---          2026-03-04 11:14 PM           9701 AuditLogs.Dataset.Tests.ps1
+-a---          2026-03-04 11:13 PM           5448 CatalogProfileResolution.Tests.ps1
+-a---          2026-03-04 11:21 PM           3371 CatalogResolution.Tests.ps1
+-a---          2026-03-04 11:14 PM           1681 CatalogSchema.Tests.ps1
+-a---          2026-03-04 11:13 PM           1149 DatasetRuntime.Tests.ps1
+-a---          2026-03-04 11:14 PM           1120 Genesys.Core.Tests.ps1
+-a---          2026-03-04 11:13 PM          11074 Paging.Tests.ps1
+-a---          2026-03-04 11:14 PM           2533 Phase4Endpoints.Tests.ps1
+-a---          2026-03-04 11:13 PM           8417 Retry.Tests.ps1
+-a---          2026-03-04 11:14 PM           5467 RunContract.Tests.ps1
+-a---          2026-03-04 11:21 PM           2049 Security.Redaction.Tests.ps1
+-a---          2026-03-04 11:20 PM           5279 StandaloneInvocation.Tests.ps1
+-a---          2026-03-04 11:14 PM           2819 SwaggerCoverage.Tests.ps1
+

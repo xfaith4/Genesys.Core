@@ -4,7 +4,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$SwaggerPath,
 
-    [string]$CatalogPath = './genesys-core.catalog.json',
+    [string]$CatalogPath = './catalog/genesys.catalog.json',
 
     [switch]$WriteLegacyCopy
 )
@@ -241,14 +241,10 @@ if ($PSCmdlet.ShouldProcess($resolvedCatalogPath, 'Sync swagger operations into 
     Set-Content -Path $resolvedCatalogPath -Value $catalogJson -Encoding UTF8
 
     if ($WriteLegacyCopy) {
-        $legacyPath = Join-Path -Path (Split-Path -Path $resolvedCatalogPath -Parent) -ChildPath 'catalog/genesys-core.catalog.json'
-        $legacyDir = Split-Path -Path $legacyPath -Parent
-        if (-not (Test-Path -Path $legacyDir)) {
-            New-Item -Path $legacyDir -ItemType Directory -Force | Out-Null
-        }
-
-        Set-Content -Path $legacyPath -Value $catalogJson -Encoding UTF8
+        Write-Warning '-WriteLegacyCopy is deprecated and ignored in v2. Canonical output remains catalog/genesys.catalog.json.'
     }
 }
 
 return $report
+
+

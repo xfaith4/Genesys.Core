@@ -17,7 +17,7 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
   - Test coverage for catalog validation, retry, paging, async flows, redaction, run contract, and standalone bootstrap.
   - CI + audit-specific scheduled/on-demand workflow scaffolding.
 - **In progress**
-  - Catalog mirror retirement (root canonical catalog vs legacy mirror).
+  - Catalog mirror retirement and full cutover to `catalog/genesys.catalog.json`.
   - End-user workflow auth ergonomics for production-ready automation.
 - **Recently hardened**
   - Expanded payload redaction to scrub embedded bearer/basic tokens, JWT-like values, and tokenized query fragments in string fields.
@@ -26,9 +26,9 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 
 ### Delivered
 
-- Catalog placeholder at `catalog/genesys-core.catalog.json`
-- Draft schema at `catalog/schema/genesys-core.catalog.schema.json`
-- PowerShell module scaffold under `src/ps-module/Genesys.Core/`
+- Catalog placeholder at `catalog/genesys.catalog.json`
+- Draft schema at `catalog/schema/genesys.catalog.schema.json`
+- PowerShell module scaffold under `modules/Genesys.Core/`
 - Pester scaffolding under `tests/`
 - CI workflow to run Pester on pull requests
 - Scheduled/on-demand audit logs workflows that write deterministic output files under `out/<datasetKey>/<runId>/...`
@@ -62,7 +62,7 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 
 ## Phase 3 — Catalog and Delivery Hardening (Complete)
 
-- Day-to-day runtime and tests now target canonical root catalog usage while keeping legacy mirror as optional compatibility fallback.
+- Day-to-day runtime and tests now target canonical `catalog/genesys.catalog.json` usage.
 - Improved onboarding ergonomics with script-level invocation support for `-BaseUri`, `-Headers`, and `-DatasetParameters`.
 - Hardened auth/runtime usage guidance to favor deterministic, redacted outputs.
 
@@ -99,3 +99,4 @@ Before broad production automation, complete:
 - workflow auth wiring and examples
 - mirror-catalog consolidation
 - redaction/profile hardening
+

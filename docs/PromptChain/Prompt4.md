@@ -1,11 +1,11 @@
 Maintain and harden run artifact contract and redaction guarantees.
 
 Files:
-- `src/ps-module/Genesys.Core/Private/Run/New-RunContext.ps1`
-- `src/ps-module/Genesys.Core/Private/Run/Write-RunEvent.ps1`
-- `src/ps-module/Genesys.Core/Private/Run/Write-Manifest.ps1`
-- `src/ps-module/Genesys.Core/Private/Run/Write-Jsonl.ps1`
-- `src/ps-module/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
+- `modules/Genesys.Core/Private/Run/New-RunContext.ps1`
+- `modules/Genesys.Core/Private/Run/Write-RunEvent.ps1`
+- `modules/Genesys.Core/Private/Run/Write-Manifest.ps1`
+- `modules/Genesys.Core/Private/Run/Write-Jsonl.ps1`
+- `modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1`
 - `tests/RunContract.Tests.ps1`
 - `tests/Security.Redaction.Tests.ps1`
 
@@ -22,3 +22,4 @@ Requirements:
 Acceptance:
 - Run contract tests pass.
 - Redaction tests pass with no secret/token leakage in persisted artifacts.
+

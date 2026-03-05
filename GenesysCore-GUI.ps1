@@ -30,7 +30,7 @@
 [CmdletBinding()]
 param(
     [string]$DefaultRegion = 'mypurecloud.com',
-    [string]$ModulePath = "$PSScriptRoot/src/ps-module/Genesys.Core/Genesys.Core.psd1",
+    [string]$ModulePath = "$PSScriptRoot/modules/Genesys.Core/Genesys.Core.psd1",
     [string]$ConfigPath
 )
 
@@ -299,8 +299,7 @@ function Update-Status {
 
 function Resolve-UICatalogPath {
     $candidates = @(
-        (Join-Path -Path $PSScriptRoot -ChildPath 'genesys-core.catalog.json'),
-        (Join-Path -Path $PSScriptRoot -ChildPath 'catalog/genesys-core.catalog.json')
+        (Join-Path -Path $PSScriptRoot -ChildPath 'catalog/genesys.catalog.json')
     )
 
     foreach ($candidate in $candidates) {
@@ -315,7 +314,7 @@ function Resolve-UICatalogPath {
 function Get-AvailableDatasets {
     $catalogPath = Resolve-UICatalogPath
     if ([string]::IsNullOrWhiteSpace([string]$catalogPath)) {
-        throw 'Unable to find genesys-core catalog file.'
+        throw 'Unable to find catalog/genesys.catalog.json.'
     }
 
     $catalog = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json -Depth 100
@@ -741,3 +740,5 @@ else {
 }
 
 $window.ShowDialog() | Out-Null
+
+

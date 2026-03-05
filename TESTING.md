@@ -44,7 +44,7 @@ For an end-to-end onboarding flow (auth setup, dataset discovery, first run, out
 Current behavior to be aware of:
 
 - Authenticated live calls should use module invocation (`Import-Module` + `Invoke-Dataset -Headers ...`).
-- Direct script invocation (`pwsh -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1`) currently does not expose script-level `-Headers` and `-BaseUri`.
+- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) currently does not expose script-level `-Headers` and `-BaseUri`.
 
 ## Local Development Testing
 
@@ -138,7 +138,7 @@ $headers = @{
 #### Dry Run (WhatIf)
 
 ```powershell
-Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force
+Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
 
 # Preview what would happen without making API calls
 Invoke-Dataset -Dataset 'users' -WhatIf
@@ -301,7 +301,7 @@ Note: this repository does not yet include a built-in workflow auth bootstrap st
 
 **Issue:** Tests fail with "Assert-Catalog is not recognized"
 
-- **Solution:** Ensure module is imported with `-Force`: `Import-Module ./src/ps-module/Genesys.Core/Genesys.Core.psd1 -Force`
+- **Solution:** Ensure module is imported with `-Force`: `Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force`
 
 **Issue:** Paging profile not found (e.g., "nextUri_auditResults")
 
@@ -339,4 +339,5 @@ For issues or questions:
 
 - Review AGENTS.md for architectural guidelines
 - Check existing tests for usage examples
-- Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys-core.catalog.schema.json`
+- Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json`
+

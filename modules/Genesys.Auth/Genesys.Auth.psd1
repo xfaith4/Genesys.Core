@@ -21,16 +21,15 @@
         'Connect-GenesysCloudApp'
         'Connect-GenesysCloudPkce'
 
-
         # Legacy header helpers (preserved for back-compat)
         'Get-StoredHeaders'
         'Test-GenesysConnection'
         'Get-ConnectionInfo'
         'Clear-StoredToken'
     )
-CmdletsToExport = @()
-AliasesToExport = @()
-VariablesToExport = @()
+    CmdletsToExport   = @()
+    AliasesToExport   = @()
+    VariablesToExport = @()
 
 PrivateData = @{
     PSData = @{

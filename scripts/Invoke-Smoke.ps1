@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$OutputRoot = 'out-smoke',
+    [string]$OutputRoot = 'out/smoke',
     [switch]$StrictCatalog
 )
 

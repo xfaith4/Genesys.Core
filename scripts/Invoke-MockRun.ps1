@@ -36,11 +36,11 @@
 .EXAMPLE
     pwsh -NoProfile -File ./scripts/Invoke-MockRun.ps1
     pwsh -NoProfile -File ./scripts/Invoke-MockRun.ps1 -NoRedact
-    pwsh -NoProfile -File ./scripts/Invoke-MockRun.ps1 -OutputRoot ./out-mock-custom
+    pwsh -NoProfile -File ./scripts/Invoke-MockRun.ps1 -OutputRoot ./out/mock-custom
 #>
 [CmdletBinding()]
 param(
-    [string]$OutputRoot = 'out-mock',
+    [string]$OutputRoot = 'out/mock',
     [string[]]$Datasets,
     [switch]$NoRedact,
     [switch]$NoReport

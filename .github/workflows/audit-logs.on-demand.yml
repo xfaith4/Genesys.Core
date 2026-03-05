@@ -57,7 +57,7 @@ jobs:
 
           Write-Host "Running dataset '$($env:DATASET_KEY)' for window $($start) to $($end)."
 
-          & pwsh -NoProfile -File ./src/ps-module/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset $env:DATASET_KEY -OutputRoot out
+          & pwsh -NoProfile -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset $env:DATASET_KEY -OutputRoot out
 
           $runFolder = Get-ChildItem -Path (Join-Path -Path 'out' -ChildPath $env:DATASET_KEY) -Directory |
             Sort-Object LastWriteTimeUtc -Descending |

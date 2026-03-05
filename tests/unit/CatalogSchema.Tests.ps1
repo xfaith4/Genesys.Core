@@ -1,7 +1,7 @@
 Describe 'Catalog schema validation' {
     BeforeAll {
         . "$PSScriptRoot/../../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Assert-Catalog.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Public/Assert-Catalog.ps1"
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
         $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/schema/genesys.catalog.schema.json'
     }

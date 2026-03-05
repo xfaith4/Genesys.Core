@@ -170,7 +170,8 @@ function Resolve-PagingNextUri {
     $normalizedNextUri = [string]$NextUri
 
     $absoluteNextUri = $null
-    if ([System.Uri]::TryCreate($normalizedNextUri, [System.UriKind]::Absolute, [ref]$absoluteNextUri)) {
+    if ([System.Uri]::TryCreate($normalizedNextUri, [System.UriKind]::Absolute, [ref]$absoluteNextUri) -and
+        ($absoluteNextUri.Scheme -eq 'https' -or $absoluteNextUri.Scheme -eq 'http')) {
         return $absoluteNextUri.AbsoluteUri
     }
 

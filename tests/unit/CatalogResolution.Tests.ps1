@@ -13,7 +13,7 @@ Describe 'Catalog resolution precedence and strict mode' {
     It 'uses catalog folder file when root is missing' {
         Push-Location $TestDrive
         try {
-            New-Item -ItemType Directory -Path (Join-Path $TestDrive 'catalog') | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $TestDrive 'catalog') -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $TestDrive 'catalog/schema') -Force | Out-Null
             Copy-Item -Path (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json') -Destination (Join-Path $TestDrive 'catalog/genesys.catalog.json')
             Copy-Item -Path (Join-Path $PSScriptRoot '../../catalog/schema/genesys.catalog.schema.json') -Destination (Join-Path $TestDrive 'catalog/schema/genesys.catalog.schema.json')

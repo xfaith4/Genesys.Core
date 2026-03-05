@@ -454,28 +454,6 @@ $tokenUrl = "https://login.$($Region)/oauth/token"
 $body = "grant_type=authorization_code" +
 "&code=$($code)" +
 "&redirect_uri=$([System.Uri]::EscapeDataString($RedirectUri))" +
-"&client_id=$($ClientId)" +
-"&code_verifier=$($verifier)"
-$headers = @{ 'Content-Type' = 'application/x-www-form-urlencoded' }
-
-$response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
-$token = $response.access_token
-$expiresAt = [datetime]::UtcNow.AddSeconds([int]$response.expires_in - 30)
-
-_SaveTokenPayload @{
-    token     = $token
-    expiresAt = $expiresAt.ToString('o')
-    region    = $Region
-    flow      = 'pkce'
-}
-$script:StoredHeaders = @{ Authorization = "Bearer $token" }
-$script:ConnectionInfo = [pscustomobject]@{
-    Region    = $Region
-    Flow      = 'pkce'
-    ExpiresAt = $expiresAt
-}
-return _NewAuthContext -Token $token -ExpiresAt $expiresAt -Region $Region -Flow 'pkce'
-}
 
 function Get-StoredHeaders {
     <#

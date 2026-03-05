@@ -20,7 +20,7 @@
         # Full OAuth flows
         'Connect-GenesysCloudApp'
         'Connect-GenesysCloudPkce'
-        'New-GenesysPkceChallenge'
+
 
         # Legacy header helpers (preserved for back-compat)
         'Get-StoredHeaders'

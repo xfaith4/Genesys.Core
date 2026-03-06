@@ -103,6 +103,115 @@ Describe 'Analytics conversation details dataset' {
         } | Should -Throw "*Analytics conversation details job ended in state 'FAILED'.*"
     }
 
+    It 'sends segmentFilters when QueueIds DatasetParameter is provided' {
+        $outputRoot  = Join-Path -Path $TestDrive -ChildPath 'out-queuefilter'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedBody = $null
+        $script:pollCount2   = 0
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                $script:capturedBody = $request.Body | ConvertFrom-Json
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-qf' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-qf') {
+                $script:pollCount2++
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -like '*/jobs/job-qf/results*') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @([pscustomobject]@{ conversationId = 'qf-1' }); cursor = $null } }
+            }
+            throw "Unexpected: $method $uri"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath `
+            -OutputRoot $outputRoot -BaseUri 'https://api.test.local' `
+            -RequestInvoker $requestInvoker `
+            -DatasetParameters @{ QueueIds = 'q-id-1,q-id-2' } | Out-Null
+
+        $script:capturedBody | Should -Not -BeNullOrEmpty
+        $script:capturedBody.segmentFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBody.segmentFilters[0].type | Should -Be 'or'
+        $script:capturedBody.segmentFilters[0].predicates.Count | Should -Be 2
+        ($script:capturedBody.segmentFilters[0].predicates | Where-Object { $_.value -eq 'q-id-1' }) | Should -Not -BeNullOrEmpty
+        ($script:capturedBody.segmentFilters[0].predicates | Where-Object { $_.value -eq 'q-id-2' }) | Should -Not -BeNullOrEmpty
+    }
+
+    It 'sends conversationFilters when ConversationId DatasetParameter is provided' {
+        $outputRoot  = Join-Path -Path $TestDrive -ChildPath 'out-convfilter'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedBodyConv = $null
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                $script:capturedBodyConv = $request.Body | ConvertFrom-Json
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-cf' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-cf') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -like '*/jobs/job-cf/results*') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @([pscustomobject]@{ conversationId = 'specific-conv' }); cursor = $null } }
+            }
+            throw "Unexpected: $method $uri"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath `
+            -OutputRoot $outputRoot -BaseUri 'https://api.test.local' `
+            -RequestInvoker $requestInvoker `
+            -DatasetParameters @{ ConversationId = 'specific-conv' } | Out-Null
+
+        $script:capturedBodyConv | Should -Not -BeNullOrEmpty
+        $script:capturedBodyConv.conversationFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyConv.conversationFilters[0].type | Should -Be 'and'
+        $script:capturedBodyConv.conversationFilters[0].predicates[0].dimension | Should -Be 'conversationId'
+        $script:capturedBodyConv.conversationFilters[0].predicates[0].value | Should -Be 'specific-conv'
+    }
+
+    It 'sends conversationFilters when DivisionIds DatasetParameter is provided' {
+        $outputRoot  = Join-Path -Path $TestDrive -ChildPath 'out-divfilter'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedBodyDiv = $null
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                $script:capturedBodyDiv = $request.Body | ConvertFrom-Json
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-df' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-df') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -like '*/jobs/job-df/results*') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @([pscustomobject]@{ conversationId = 'div-conv' }); cursor = $null } }
+            }
+            throw "Unexpected: $method $uri"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath `
+            -OutputRoot $outputRoot -BaseUri 'https://api.test.local' `
+            -RequestInvoker $requestInvoker `
+            -DatasetParameters @{ DivisionIds = @('div-id-1', 'div-id-2') } | Out-Null
+
+        $script:capturedBodyDiv | Should -Not -BeNullOrEmpty
+        $script:capturedBodyDiv.conversationFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyDiv.conversationFilters[0].type | Should -Be 'or'
+        $script:capturedBodyDiv.conversationFilters[0].predicates.Count | Should -Be 2
+        ($script:capturedBodyDiv.conversationFilters[0].predicates | Where-Object { $_.value -eq 'div-id-1' }) | Should -Not -BeNullOrEmpty
+        ($script:capturedBodyDiv.conversationFilters[0].predicates | Where-Object { $_.value -eq 'div-id-2' }) | Should -Not -BeNullOrEmpty
+    }
+
     It 'runs analytics-conversation-details-query with body paging via generic dispatch' {
         $catalogPath = Join-Path -Path $TestDrive -ChildPath 'query.catalog.json'
         $catalog = [ordered]@{

@@ -75,7 +75,8 @@ The tool indexes and renders results immediately — no server round-trip.
 
 | Feature | Details |
 |---------|---------|
-| **Columns** | Conv ID · Start Time · Duration · Direction · Media · Queue · Disconnect · MOS · Participants |
+| **Default Columns** | Conv ID · Start Time · Duration · Direction · Media · Queue · **Flow Name** · Disconnect · MOS · Participants · **Divisions** · **Agent Name** |
+| **Optional Columns** | End Time · Trunk/Provider · Error Code · Agent User ID (via ⚙ Columns picker) |
 | **Paging** | 25 / 50 / 100 / 250 per page with First/Prev/Next/Last + page buttons |
 | **Sorting** | Click any column header; toggle asc/desc |
 | **Search** | Fuzzy match on conv ID, queue name, participant name, direction, disconnect type |
@@ -85,16 +86,27 @@ The tool indexes and renders results immediately — no server round-trip.
 
 ### Conversation Drilldown Panel
 
-Slide-in panel with 6 tabs:
+Slide-in panel with 7 tabs:
 
 | Tab | Content |
 |-----|---------|
-| **Summary** | Key timestamps, duration, direction, queue, hold time, division IDs |
+| **Summary** | Key timestamps, duration, direction, queue, flow name, agent names, hold time, division IDs · **📊 View Timeline** button |
 | **Participants** | Purpose, name, userId, ANI/DNIS, media type, session count |
 | **Segments** | Chronological timeline — type, participant, queue, duration, disconnect, wrap-up |
+| **🕐 Timeline** | **3D visual conversation timeline** — per-participant lanes, color-coded segment bars, MOS/latency badges, problem area highlighting |
 | **Attributes** | Custom key/value attribute pairs on the conversation |
 | **MOS / Quality** | Per-session MOS bar meters + sentiment/quality signals if present |
 | **Raw JSON** | Full pretty-printed JSON viewer with one-click Copy |
+
+#### Timeline View Features
+
+The **🕐 Timeline** tab renders a rich interactive visualization of the full conversation:
+
+- **Per-participant lanes** — each participant (customer, agent, ACD, etc.) gets its own horizontal lane with a color-coded left border
+- **3D segment bars** — colored, raised bars representing each segment type (Talk/Hold/Routing/Wrap-up/Alert/Dialing/Contacting) positioned proportionally on a time axis with hover tooltips
+- **Problem highlighting** — lanes with low MOS (< 3.5), high latency (> 150 ms), or error codes get a hatched red overlay and warning badges
+- **Quality badges** — each lane shows MOS score (green if ≥ 3.5, red if < 3.5), latency (⚡ if > 150 ms), and error codes
+- **Footer stats** — total duration, participant count, min MOS, max latency, error count
 
 ### Exports
 

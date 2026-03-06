@@ -38,6 +38,60 @@ function Invoke-AnalyticsConversationDetailsDataset {
         $body.orderBy = [string]$DatasetParameters['OrderBy']
     }
 
+    # Queue filter — segment-level attribute, passed as segmentFilters
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('QueueIds')) {
+        $rawQueueIds = $DatasetParameters['QueueIds']
+        $queueIds = if ($rawQueueIds -is [array]) {
+            @($rawQueueIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        } else {
+            @([string]$rawQueueIds -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+        }
+        if ($queueIds.Count -gt 0) {
+            $body.segmentFilters = @(
+                [ordered]@{
+                    type       = 'or'
+                    predicates = @($queueIds | ForEach-Object {
+                        [ordered]@{ type = 'dimension'; dimension = 'queueId'; operator = 'matches'; value = [string]$_ }
+                    })
+                }
+            )
+        }
+    }
+
+    # Conversation-level filters: conversationId and/or divisionIds
+    $conversationFilters = [System.Collections.Generic.List[object]]::new()
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('ConversationId')) {
+        $convId = [string]$DatasetParameters['ConversationId']
+        if (-not [string]::IsNullOrWhiteSpace($convId)) {
+            $conversationFilters.Add([ordered]@{
+                type       = 'and'
+                predicates = @([ordered]@{ type = 'dimension'; dimension = 'conversationId'; operator = 'matches'; value = $convId })
+            })
+        }
+    }
+
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('DivisionIds')) {
+        $rawDivisionIds = $DatasetParameters['DivisionIds']
+        $divisionIds = if ($rawDivisionIds -is [array]) {
+            @($rawDivisionIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        } else {
+            @([string]$rawDivisionIds -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+        }
+        if ($divisionIds.Count -gt 0) {
+            $conversationFilters.Add([ordered]@{
+                type       = 'or'
+                predicates = @($divisionIds | ForEach-Object {
+                    [ordered]@{ type = 'dimension'; dimension = 'divisionId'; operator = 'matches'; value = [string]$_ }
+                })
+            })
+        }
+    }
+
+    if ($conversationFilters.Count -gt 0) {
+        $body.conversationFilters = $conversationFilters.ToArray()
+    }
+
     $asyncProfile = [pscustomobject]@{
         transactionIdPath  = '$.jobId'
         statePath          = '$.state'

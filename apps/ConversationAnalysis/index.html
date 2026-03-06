@@ -614,6 +614,92 @@
       .nav-logo { font-size: .95rem; }
       #main { padding: 14px 12px 30px; }
     }
+
+    /* ─── Column Picker ─────────────────────────────────────────── */
+    #col-picker-backdrop {
+      position: fixed; inset: 0; z-index: 400;
+      display: none;
+    }
+    #col-picker-backdrop.open { display: block; }
+
+    #col-picker {
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--stroke2);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-lg);
+      z-index: 401;
+      width: 300px;
+      max-height: 72vh;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #col-picker.open { display: flex; }
+
+    .cp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--stroke);
+      flex-shrink: 0;
+    }
+    .cp-header h3 { font-size: .82rem; font-weight: 700; color: var(--ink2); text-transform: none; letter-spacing: 0; }
+    .cp-reset { font-size: .75rem; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
+    .cp-reset:hover { text-decoration: underline; }
+    .cp-list { overflow-y: auto; padding: 6px 0; flex: 1; }
+    .cp-section-hdr {
+      padding: 7px 14px 3px;
+      font-size: .7rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .07em;
+    }
+    .cp-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6px 14px; cursor: pointer; transition: background .12s;
+      font-size: .84rem; color: var(--ink2);
+    }
+    .cp-item:hover { background: var(--surface2); }
+    .cp-item input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* ─── Facet Filter Panel ─────────────────────────────────────── */
+    #facet-panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .facet-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; cursor: pointer; user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color .15s, background .12s;
+    }
+    .facet-hdr:hover { background: var(--surface2); }
+    #facet-panel.open .facet-hdr { border-bottom-color: var(--stroke); }
+    .facet-hdr-title { font-size: .85rem; font-weight: 600; color: var(--ink2); }
+    .facet-arrow { color: var(--muted); font-size: .75rem; transition: transform .2s; margin-left: auto; }
+    #facet-panel.open .facet-arrow { transform: rotate(180deg); }
+    .facet-active-ct {
+      background: var(--accent); color: #fff;
+      padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700;
+    }
+    #facet-body { display: none; padding: 14px 16px 18px; }
+    #facet-panel.open #facet-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+    @media (max-width: 700px) { #facet-panel.open #facet-body { grid-template-columns: 1fr; } }
+    .facet-sec-label {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px;
+    }
+    .facet-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .facet-chip {
+      padding: 3px 10px; border: 1px solid var(--stroke); border-radius: 999px;
+      font-size: .77rem; font-weight: 500; color: var(--muted); background: var(--surface2);
+      cursor: pointer; transition: all .14s; white-space: nowrap;
+      max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .facet-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+    .facet-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .facet-chip .chip-ct { opacity: .72; font-size: .7rem; margin-left: 3px; }
+    .facet-empty { font-size: .8rem; color: var(--muted); font-style: italic; }
   </style>
 </head>
 <body>
@@ -745,6 +831,39 @@
           <canvas id="chart-duration"></canvas>
         </div>
       </div>
+      <div class="chart-card" id="error-chart-card" style="display:none">
+        <div class="chart-header"><h2>Error Codes &amp; Phrases</h2></div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-errors"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Facet Filter Panel -->
+    <div id="facet-panel">
+      <div class="facet-hdr" id="facet-toggle">
+        <span class="facet-hdr-title">Dimension Filters</span>
+        <span id="facet-active-ct" class="facet-active-ct" style="display:none">0</span>
+        <span class="facet-arrow">▼</span>
+      </div>
+      <div id="facet-body">
+        <div>
+          <div class="facet-sec-label">Divisions</div>
+          <div class="facet-chips" id="facet-chips-divisions"></div>
+        </div>
+        <div>
+          <div class="facet-sec-label">Queues</div>
+          <div class="facet-chips" id="facet-chips-queues"></div>
+        </div>
+        <div>
+          <div class="facet-sec-label">Users (Agents)</div>
+          <div class="facet-chips" id="facet-chips-users"></div>
+        </div>
+        <div>
+          <div class="facet-sec-label">Trunks / Providers</div>
+          <div class="facet-chips" id="facet-chips-trunks"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Toolbar -->
@@ -757,6 +876,7 @@
         <span class="filter-chip" data-filter="hasMos">Has MOS</span>
         <span class="filter-chip" data-filter="hasHolds">Has Holds</span>
         <span class="filter-chip" data-filter="disconnected">Disconnected</span>
+        <span class="filter-chip" data-filter="hasError">Has Error</span>
       </div>
       <div class="spacer"></div>
       <label for="page-size-sel" class="muted" style="font-size:.8rem">Show:</label>
@@ -766,6 +886,7 @@
         <option value="100">100</option>
         <option value="250">250</option>
       </select>
+      <button class="btn btn-ghost btn-sm" id="btn-columns">&#9881; Columns</button>
       <button class="btn btn-ghost btn-sm" id="btn-clear-filters">Clear Filters</button>
     </div>
 
@@ -779,19 +900,7 @@
       </div>
       <div id="grid-wrap">
         <table id="conv-table">
-          <thead>
-            <tr>
-              <th data-col="id">Conv ID <span class="sort-arrow">↕</span></th>
-              <th data-col="start">Start Time <span class="sort-arrow">↕</span></th>
-              <th data-col="duration">Duration <span class="sort-arrow">↕</span></th>
-              <th data-col="direction">Direction <span class="sort-arrow">↕</span></th>
-              <th data-col="media">Media</th>
-              <th data-col="queue">Queue <span class="sort-arrow">↕</span></th>
-              <th data-col="disconnect">Disconnect <span class="sort-arrow">↕</span></th>
-              <th data-col="mos">MOS <span class="sort-arrow">↕</span></th>
-              <th data-col="participants"># Parts</th>
-            </tr>
-          </thead>
+          <thead id="conv-thead"></thead>
           <tbody id="conv-tbody"></tbody>
         </table>
         <div id="pager">
@@ -840,6 +949,37 @@
   <div class="ctx-item" id="ctx-export-json">⬇ Export as JSON</div>
 </div>
 
+
+<!-- ═══ COLUMN PICKER ═══ -->
+<div id="col-picker-backdrop"></div>
+<div id="col-picker">
+  <div class="cp-header">
+    <h3>Configure Columns</h3>
+    <button class="cp-reset" id="cp-reset">Reset defaults</button>
+  </div>
+  <div class="cp-list" id="cp-list"></div>
+</div>
+
+<!-- ═══ ATTRIBUTES DEEP-DIVE ═══ -->
+<div id="attr-drill-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:300;opacity:0;pointer-events:none;transition:opacity .22s"></div>
+<div id="attr-drill-panel" style="position:fixed;top:0;right:0;bottom:0;width:min(720px,100vw);background:var(--surface);box-shadow:-8px 0 40px rgba(0,0,0,.18);z-index:310;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)">
+  <div style="background:linear-gradient(110deg,#11382a 0%,#0f2f34 80%);color:#f3fff8;padding:16px 22px;display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div style="font-size:.78rem;color:#9ecfb6;margin-bottom:3px">Attribute Explorer</div>
+      <div style="font-size:1rem;font-weight:700;color:#fff">Filter &amp; Sort by Attributes</div>
+    </div>
+    <button id="attr-drill-close" style="background:rgba(255,255,255,.12);border:none;color:#d1f5e6;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">&#x2715;</button>
+  </div>
+  <div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--stroke);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="text" id="attr-search" placeholder="&#128269; Filter by attribute key or value…" style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.85rem;background:var(--surface);color:var(--ink);outline:none" />
+    <select id="attr-sort-key" style="padding:6px 10px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.82rem;background:var(--surface);color:var(--ink)">
+      <option value="">Sort by attribute…</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" id="attr-clear">Clear</button>
+  </div>
+  <div id="attr-drill-body" style="flex:1;overflow-y:auto;padding:0"></div>
+</div>
+
 <!-- ═══ TOAST ═══ -->
 <div id="toast"></div>
 
@@ -867,12 +1007,46 @@ const DURATION_BUCKETS = [
   { label:'30m+',   max:Infinity },
 ];
 
+// ── Column Definitions ────────────────────────────────────────────────────
+const COLUMN_DEFS = [
+  { key:'id',         label:'Conv ID',       sortKey:'id',        dflt:true,
+    render:r=>`<td class="cell-id mono trunc" title="${escHtml(r.id)}">${escHtml(shortId(r.id))}</td>` },
+  { key:'start',      label:'Start Time',    sortKey:'start',     dflt:true,
+    render:r=>`<td class="cell-time">${escHtml(fmtTs(r.start))}</td>` },
+  { key:'end',        label:'End Time',      sortKey:'end',       dflt:false,
+    render:r=>`<td class="cell-time">${escHtml(fmtTs(r.end))}</td>` },
+  { key:'duration',   label:'Duration',      sortKey:'duration',  dflt:true,
+    render:r=>`<td class="cell-dur">${escHtml(fmtDuration(r.durationMs))}</td>` },
+  { key:'direction',  label:'Direction',     sortKey:'direction', dflt:true,
+    render:r=>r.direction
+      ?`<td><span class="pill ${r.direction==='inbound'?'pill-green':'pill-blue'}">${escHtml(r.direction)}</span></td>`
+      :`<td><span class="muted">—</span></td>` },
+  { key:'media',      label:'Media',         sortKey:null,        dflt:true,
+    render:r=>`<td>${r.mediaTypes.length?r.mediaTypes.map(m=>`<span class="pill ${mediaPillClass(m)}">${escHtml(m)}</span>`).join(' '):'<span class="muted">—</span>'}</td>` },
+  { key:'queue',      label:'Queue',         sortKey:'queue',     dflt:true,
+    render:r=>`<td class="trunc" title="${escHtml(r.queueName)}" style="max-width:140px">${escHtml(r.queueName||'—')}</td>` },
+  { key:'disconnect', label:'Disconnect',    sortKey:'disconnect',dflt:true,
+    render:r=>`<td class="trunc" style="max-width:110px"><span class="muted">${escHtml(r.disconnectType||'—')}</span></td>` },
+  { key:'mos',        label:'MOS',           sortKey:'mos',       dflt:true,
+    render:r=>`<td class="${r.hasMos?mosColorClass(r.mos):''}" style="font-weight:600">${r.hasMos?r.mos.toFixed(2):'—'}</td>` },
+  { key:'participants',label:'# Parts',      sortKey:null,        dflt:true,
+    render:r=>`<td style="text-align:center">${r.participantCount||'—'}</td>` },
+  { key:'division',   label:'Divisions',     sortKey:null,        dflt:false,
+    render:r=>`<td class="trunc" style="max-width:160px" title="${escHtml((r.divisionIds||[]).join(', '))}">${escHtml((r.divisionIds||[]).join(', ')||'—')}</td>` },
+  { key:'trunkName',  label:'Trunk/Provider',sortKey:null,        dflt:false,
+    render:r=>`<td class="trunc" style="max-width:130px">${escHtml((r.trunkNames||[]).join(', ')||'—')}</td>` },
+  { key:'errorCode',  label:'Error Code',    sortKey:null,        dflt:false,
+    render:r=>`<td class="trunc danger" style="max-width:130px">${escHtml((r.errorCodes||[]).join(', ')||'—')}</td>` },
+  { key:'userId',     label:'Agent User',    sortKey:null,        dflt:false,
+    render:r=>`<td class="trunc mono" style="max-width:130px;font-size:.76rem">${escHtml((r.userIds||[]).slice(0,2).join(', ')||'—')}</td>` },
+];
+
 // ───────────────────────────────────────────────────────────────────────────
 // APP STATE
 // ───────────────────────────────────────────────────────────────────────────
 const State = {
   allRecords: [],      // array of full parsed conversation objects
-  index: [],           // lightweight index {idx,id,start,end,duration,direction,mediaTypes,queueName,disconnectType,mos,hasHolds,hasMos,participantCount}
+  index: [],           // lightweight index entries
   filtered: [],        // currently filtered index entries
   sortCol: 'start',
   sortDir: 'desc',
@@ -885,6 +1059,17 @@ const State = {
   charts: {},
   ctxRecord: null,
   manifest: null,
+  // Column config
+  visibleColumns: new Set(COLUMN_DEFS.filter(c=>c.dflt).map(c=>c.key)),
+  dynamicColumns: [],   // attribute-based columns discovered from data
+  // Dimension (facet) filters
+  facetFilters: { divisions: new Set(), queues: new Set(), users: new Set(), trunks: new Set() },
+  discoveredFacets: { divisions: new Map(), queues: new Map(), users: new Map(), trunks: new Map() },
+  // Discovered attribute keys (for attr explorer + column picker)
+  discoveredAttrs: [],
+  // Attribute drill-down state
+  attrFilter: '',
+  attrSortKey: '',
 };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -896,6 +1081,51 @@ const $$ = sel => document.querySelectorAll(sel);
 // ───────────────────────────────────────────────────────────────────────────
 // UTILITIES
 // ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute conversation duration in ms from a raw conversation record.
+ *
+ * Problem: When a callback session is opened at call-end but never properly
+ * closed by the Genesys platform, conversationEnd is set to the date the
+ * stuck session finally expired — often weeks or months after the real call.
+ * This inflates every duration to hundreds or thousands of hours.
+ *
+ * Fix: mediaEndpointStats[].eventTime values are real-time RTP measurements
+ * that cannot be "stuck". Callback/overflow sessions that cause the problem
+ * never have mediaEndpointStats. So max(mediaEndpointStats.eventTime) across
+ * all sessions gives the actual end of the real media flow, and we use that
+ * in place of conversationEnd whenever it produces a shorter duration.
+ */
+function computeConvDurationMs(conv) {
+  const start = conv.conversationStart || conv.startTime || '';
+  const end   = conv.conversationEnd   || conv.endTime   || '';
+  if (!start) return conv.durationMs || 0;
+
+  const participants = Array.isArray(conv.participants) ? conv.participants : [];
+  const sessions = participants.flatMap(p => Array.isArray(p.sessions) ? p.sessions : []);
+
+  const mediaEventTimes = sessions
+    .flatMap(s => Array.isArray(s.mediaEndpointStats) ? s.mediaEndpointStats : [])
+    .map(e => e.eventTime)
+    .filter(Boolean);
+
+  if (end) {
+    const startMs = new Date(start).getTime();
+    const rawMs   = new Date(end).getTime() - startMs;
+    if (mediaEventTimes.length > 0) {
+      const maxMediaMs = Math.max(...mediaEventTimes.map(t => new Date(t).getTime()));
+      if (maxMediaMs > startMs) {
+        // Use whichever end is earlier — the real media end or conversationEnd.
+        // For normal calls these are within seconds of each other.
+        // For stuck-callback calls this collapses weeks → real call length.
+        return Math.min(maxMediaMs - startMs, rawMs > 0 ? rawMs : Infinity);
+      }
+    }
+    return rawMs > 0 ? rawMs : 0;
+  }
+  return conv.durationMs || 0;
+}
+
 function fmtDuration(ms) {
   if (!ms || isNaN(ms)) return '—';
   const s = Math.round(ms / 1000);
@@ -989,13 +1219,8 @@ function buildIndexEntry(conv, idx) {
   const start = conv.conversationStart || conv.startTime || '';
   const end   = conv.conversationEnd   || conv.endTime   || '';
 
-  // duration in ms
-  let durationMs = 0;
-  if (start && end) {
-    durationMs = new Date(end) - new Date(start);
-  } else if (conv.durationMs) {
-    durationMs = conv.durationMs;
-  }
+  // duration in ms — uses computeConvDurationMs to handle stuck-session data
+  const durationMs = computeConvDurationMs(conv);
 
   // participants
   const participants = Array.isArray(conv.participants) ? conv.participants : [];
@@ -1042,16 +1267,52 @@ function buildIndexEntry(conv, idx) {
   // holds
   const hasHolds = segments.some(s => s.segmentType === 'hold' || s.type === 'hold');
 
-  // MOS
+  // MOS — Genesys Analytics API stores MOS in several places:
+  //   1. conv.mediaStatsMinConversationMos  (top-level, most reliable)
+  //   2. session.mediaEndpointStats[n].minMos  (per RTP endpoint)
+  //   3. sess.mos / sess.mediaStats.mos  (older schema variants)
   let mos = null;
-  for (const sess of sessions) {
-    if (sess.mos != null) { mos = parseFloat(sess.mos); break; }
-    if (sess.mediaStats && sess.mediaStats.mos != null) { mos = parseFloat(sess.mediaStats.mos); break; }
+  if (conv.mediaStatsMinConversationMos != null)
+    mos = parseFloat(conv.mediaStatsMinConversationMos);
+  if (mos == null || isNaN(mos)) {
+    for (const sess of sessions) {
+      for (const ep of (sess.mediaEndpointStats || [])) {
+        if (ep.minMos != null) { mos = parseFloat(ep.minMos); break; }
+      }
+      if (mos != null && !isNaN(mos)) break;
+      if (sess.mos != null) { mos = parseFloat(sess.mos); break; }
+      if (sess.mediaStats?.mos != null) { mos = parseFloat(sess.mediaStats.mos); break; }
+    }
   }
-  // Also check top-level mos field
-  if (mos == null && conv.mos != null) mos = parseFloat(conv.mos);
+  if ((mos == null || isNaN(mos)) && conv.mos != null) mos = parseFloat(conv.mos);
 
   const hasMos = mos != null && !isNaN(mos);
+
+  // division IDs
+  const divisionIds = Array.isArray(conv.divisionIds) ? conv.divisionIds : [];
+
+  // agent user IDs
+  const userIds = [...new Set(
+    participants
+      .filter(p => p.purpose === 'agent' || p.purpose === 'user')
+      .map(p => p.userId).filter(Boolean)
+  )];
+
+  // trunk / provider names (voice sessions)
+  const trunkNames = [...new Set(
+    sessions
+      .filter(s => s.mediaType === 'voice' || s.mediaType === 'callback')
+      .map(s => s.provider || s.trunkId || s.edgeId).filter(Boolean)
+  )];
+
+  // error codes & phrases from segments + top-level
+  const errorCodes = [...new Set([
+    ...segments.map(s => s.errorCode  ? String(s.errorCode)  : null).filter(Boolean),
+    ...segments.map(s => s.errorPhrase? String(s.errorPhrase): null).filter(Boolean),
+    ...(conv.errorCode   ? [String(conv.errorCode)]   : []),
+    ...(conv.errorPhrase ? [String(conv.errorPhrase)] : []),
+  ])];
+  const hasError = errorCodes.length > 0;
 
   return {
     idx,
@@ -1067,6 +1328,11 @@ function buildIndexEntry(conv, idx) {
     hasMos,
     mos: hasMos ? mos : null,
     participantCount: participants.length,
+    divisionIds,
+    userIds,
+    trunkNames,
+    errorCodes,
+    hasError,
   };
 }
 
@@ -1108,22 +1374,52 @@ async function loadFiles(files) {
 
   for (const f of jsonlFiles) {
     const text = await readFileText(f);
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const obj = JSON.parse(trimmed);
-        // Detect if this looks like a conversation record
-        if (obj.conversationId || obj.id || obj.participants) {
-          allRecords.push(obj);
-        } else if (Array.isArray(obj.conversations)) {
-          allRecords.push(...obj.conversations);
-        } else if (Array.isArray(obj)) {
-          allRecords.push(...obj.filter(o => o.conversationId || o.participants));
-        }
-      } catch { /* skip malformed lines */ }
+
+    // Try parsing the whole file as a single JSON document first.
+    // This handles pretty-printed JSON, Genesys API paged responses
+    // (entities/conversations wrapper), plain arrays, and single records.
+    // Line-by-line JSONL parsing only runs as a fallback.
+    let wholeParsed = false;
+    try {
+      const obj = JSON.parse(text);
+      if (obj.conversationId || obj.id || obj.participants) {
+        allRecords.push(obj);
+        wholeParsed = true;
+      } else if (Array.isArray(obj.conversations)) {
+        allRecords.push(...obj.conversations);
+        wholeParsed = true;
+      } else if (obj.entities && Array.isArray(obj.entities)) {
+        // Genesys Cloud paged API response: { "entities": [...], "total": N }
+        allRecords.push(...obj.entities.filter(o => o.conversationId || o.participants));
+        wholeParsed = true;
+      } else if (Array.isArray(obj)) {
+        const filtered = obj.filter(o => o.conversationId || o.participants);
+        if (filtered.length) { allRecords.push(...filtered); wholeParsed = true; }
+      }
+    } catch { /* not a whole-JSON file — fall through to JSONL */ }
+
+    // Fall back to JSONL: one JSON object per line
+    if (!wholeParsed) {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          // Detect if this looks like a conversation record
+          if (obj.conversationId || obj.id || obj.participants) {
+            allRecords.push(obj);
+          } else if (Array.isArray(obj.conversations)) {
+            allRecords.push(...obj.conversations);
+          } else if (obj.entities && Array.isArray(obj.entities)) {
+            allRecords.push(...obj.entities.filter(o => o.conversationId || o.participants));
+          } else if (Array.isArray(obj)) {
+            allRecords.push(...obj.filter(o => o.conversationId || o.participants));
+          }
+        } catch { /* skip malformed lines */ }
+      }
     }
+
     filesDone++;
     setProgress(5 + (filesDone / totalFiles) * 50);
   }
@@ -1165,6 +1461,11 @@ async function loadFiles(files) {
   runInfo.innerHTML = `<strong>${allRecords.length.toLocaleString()}</strong> conversations · <strong>${dsKey}</strong> · ${dateStr}`;
 
   setProgress(90);
+  discoverFacets();
+  discoverAttributeColumns();
+  renderFacetPanel();
+  renderColumnPicker();
+  renderTableHeader();
   renderKPIs();
   renderCharts();
   applyFilters();
@@ -1201,14 +1502,22 @@ function renderKPIs() {
   const avgDurMs = durArr.length ? durArr.reduce((a,b)=>a+b,0) / durArr.length : 0;
   $('kpi-aht').textContent = fmtDuration(avgDurMs);
 
-  // Talk time — approximate from interact segments
+  // Talk time — sum interact segments only from voice sessions that have
+  // confirmed real media flow (mediaEndpointStats present).  This excludes
+  // stuck callback/overflow sessions whose interact segment spans weeks/months
+  // (same root cause as the per-conversation duration fix).
   const talkArr = idx.map(r => {
     const conv = State.allRecords[r.idx];
     const sessions = (conv.participants || []).flatMap(p => p.sessions || []);
-    const interactSegs = sessions.flatMap(s => s.segments || [])
+    const voiceSessions = sessions.filter(s =>
+      s.mediaType === 'voice' &&
+      Array.isArray(s.mediaEndpointStats) && s.mediaEndpointStats.length > 0
+    );
+    const interactSegs = voiceSessions.flatMap(s => s.segments || [])
       .filter(s => s.segmentType === 'interact' || s.type === 'interact');
     return interactSegs.reduce((sum, s) => {
-      if (s.segmentStart && s.segmentEnd) return sum + (new Date(s.segmentEnd) - new Date(s.segmentStart));
+      if (s.segmentStart && s.segmentEnd)
+        return sum + (new Date(s.segmentEnd) - new Date(s.segmentStart));
       return sum;
     }, 0);
   }).filter(t => t > 0);
@@ -1255,6 +1564,7 @@ function renderCharts() {
   renderQueueChart();
   renderDisconnectChart();
   renderDurationChart();
+  renderErrorChart();
 }
 
 function renderVolumeChart() {
@@ -1434,38 +1744,38 @@ function renderDurationChart() {
 function applyFilters() {
   const term = State.searchTerm.toLowerCase().trim();
   const active = State.activeFilters;
+  const ff = State.facetFilters;
 
   State.filtered = State.index.filter(r => {
-    // Quick filters
-    if (active.has('inbound')     && r.direction !== 'inbound') return false;
-    if (active.has('outbound')    && r.direction !== 'outbound') return false;
-    if (active.has('voice')       && !r.mediaTypes.includes('voice')) return false;
-    if (active.has('hasMos')      && !r.hasMos) return false;
-    if (active.has('hasHolds')    && !r.hasHolds) return false;
+    // ── Quick filters ──
+    if (active.has('inbound')      && r.direction !== 'inbound')  return false;
+    if (active.has('outbound')     && r.direction !== 'outbound') return false;
+    if (active.has('voice')        && !r.mediaTypes.includes('voice')) return false;
+    if (active.has('hasMos')       && !r.hasMos)  return false;
+    if (active.has('hasHolds')     && !r.hasHolds) return false;
     if (active.has('disconnected') && !r.disconnectType) return false;
+    if (active.has('hasError')     && !r.hasError) return false;
 
-    // Search
+    // ── Dimension (facet) filters ──
+    if (ff.divisions.size && !r.divisionIds.some(d => ff.divisions.has(d))) return false;
+    if (ff.queues.size    && !ff.queues.has(r.queueName)) return false;
+    if (ff.users.size     && !r.userIds.some(u => ff.users.has(u))) return false;
+    if (ff.trunks.size    && !r.trunkNames.some(t => ff.trunks.has(t))) return false;
+
+    // ── Full-text search across entire JSON ──
     if (term) {
       const conv = State.allRecords[r.idx];
-      const searchable = [
-        r.id,
-        r.queueName,
-        r.direction,
-        r.disconnectType,
-        ...(conv.participants || []).map(p => p.participantName || p.userId || ''),
-      ].join(' ').toLowerCase();
-      if (!searchable.includes(term)) return false;
+      if (!JSON.stringify(conv).toLowerCase().includes(term)) return false;
     }
 
     return true;
   });
 
-  // Re-sort
   sortFiltered();
-
   State.page = 0;
   renderGrid();
   updateResultCount();
+  updateFacetBadge();
 }
 
 function sortFiltered() {
@@ -1481,6 +1791,7 @@ function sortFiltered() {
       case 'direction':  va = a.direction; vb = b.direction; break;
       case 'queue':      va = a.queueName; vb = b.queueName; break;
       case 'disconnect': va = a.disconnectType; vb = b.disconnectType; break;
+      case 'end':        va = a.end; vb = b.end; break;
       case 'mos':        va = a.mos ?? -1; vb = b.mos ?? -1; break;
       default:           return 0;
     }
@@ -1514,34 +1825,22 @@ function renderGrid() {
 
   const tbody = $('conv-tbody');
 
+  const visibleCols = [
+    ...COLUMN_DEFS.filter(cd => State.visibleColumns.has(cd.key)),
+    ...State.dynamicColumns.filter(dc => State.visibleColumns.has(dc.key)),
+  ];
+  const colSpan = visibleCols.length || 1;
+
   if (slice.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="es-icon">🔍</div><div class="es-msg">No conversations match the current filters.</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colSpan}"><div class="empty-state"><div class="es-icon">🔍</div><div class="es-msg">No conversations match the current filters.</div></div></td></tr>`;
     renderPager(totalPages, totalRows, start, end);
     return;
   }
 
   const rows = slice.map(r => {
     const isActive = State.selectedRecord && State.selectedRecord.idx === r.idx;
-    const mediaBadges = r.mediaTypes.length
-      ? r.mediaTypes.map(m => `<span class="pill ${mediaPillClass(m)}">${escHtml(m)}</span>`).join(' ')
-      : '<span class="muted">—</span>';
-    const dirBadge = r.direction
-      ? `<span class="pill ${r.direction === 'inbound' ? 'pill-green' : 'pill-blue'}">${escHtml(r.direction)}</span>`
-      : '<span class="muted">—</span>';
-    const mosTxt = r.hasMos ? r.mos.toFixed(2) : '—';
-    const mosCls = r.hasMos ? mosColorClass(r.mos) : '';
-
-    return `<tr data-idx="${r.idx}" class="${isActive ? 'active' : ''}">
-      <td class="cell-id mono trunc" title="${escHtml(r.id)}">${escHtml(shortId(r.id))}</td>
-      <td class="cell-time">${escHtml(fmtTs(r.start))}</td>
-      <td class="cell-dur">${escHtml(fmtDuration(r.durationMs))}</td>
-      <td>${dirBadge}</td>
-      <td>${mediaBadges}</td>
-      <td class="trunc" title="${escHtml(r.queueName)}" style="max-width:140px">${escHtml(r.queueName || '—')}</td>
-      <td class="trunc" title="${escHtml(r.disconnectType)}" style="max-width:110px"><span class="muted">${escHtml(r.disconnectType || '—')}</span></td>
-      <td class="${mosCls}" style="font-weight:600">${escHtml(mosTxt)}</td>
-      <td style="text-align:center">${escHtml(String(r.participantCount || '—'))}</td>
-    </tr>`;
+    const cells = visibleCols.map(cd => cd.render(r)).join('');
+    return `<tr data-idx="${r.idx}" class="${isActive ? 'active' : ''}">${cells}</tr>`;
   });
 
   tbody.innerHTML = rows.join('');
@@ -1565,7 +1864,7 @@ function mosColorClass(mos) {
 }
 
 function renderSortIndicators() {
-  $$('#conv-table th').forEach(th => {
+  $$('#conv-thead th').forEach(th => {
     th.classList.remove('sort-asc','sort-desc');
     const arrow = th.querySelector('.sort-arrow');
     if (th.dataset.col === State.sortCol) {
@@ -1682,7 +1981,7 @@ function renderDdSummary(conv) {
   const id    = conv.conversationId || conv.id || '—';
   const start = conv.conversationStart || conv.startTime || '';
   const end   = conv.conversationEnd   || conv.endTime   || '';
-  const durMs = (start && end) ? new Date(end) - new Date(start) : 0;
+  const durMs = computeConvDurationMs(conv);
 
   const participants = conv.participants || [];
   const sessions = participants.flatMap(p => p.sessions || []);
@@ -1800,12 +2099,20 @@ function renderDdSegments(conv) {
 }
 
 function renderDdAttributes(conv) {
-  const attrs = conv.attributes || conv.conversationAttributes || {};
-  const entries = Object.entries(attrs);
+  // Genesys Analytics API stores attributes on participants, not on the
+  // conversation root. Merge all participant attributes together, then
+  // supplement with any top-level conv.attributes if present.
+  const merged = {};
+  for (const p of (conv.participants || [])) {
+    Object.assign(merged, p.attributes || {});
+  }
+  Object.assign(merged, conv.attributes || conv.conversationAttributes || {});
+
+  const entries = Object.entries(merged).sort((a, b) => a[0].localeCompare(b[0]));
 
   if (!entries.length) return `<div class="empty-state"><div class="es-icon">🏷</div><div class="es-msg">No attributes on this conversation</div></div>`;
 
-  const rows = entries.map(([k,v]) =>
+  const rows = entries.map(([k, v]) =>
     `<tr><td>${escHtml(k)}</td><td class="mono">${escHtml(String(v))}</td></tr>`
   );
 
@@ -1816,43 +2123,86 @@ function renderDdAttributes(conv) {
 }
 
 function renderDdQuality(conv) {
-  const participants = conv.participants || [];
-  const sessions = participants.flatMap(p => {
-    return (p.sessions || []).map(s => ({ ...s, _purpose: p.purpose, _name: p.participantName || p.purpose }));
-  });
-
-  const mosSessions = sessions.filter(s => s.mos != null || (s.mediaStats && s.mediaStats.mos != null));
-
   let html = '';
 
-  if (!mosSessions.length) {
-    html += `<div class="empty-state" style="padding:30px 0"><div class="es-icon">📶</div><div class="es-msg">No MOS / quality data on this conversation</div></div>`;
-  } else {
-    html += `<div class="dd-section"><div class="dd-section-title">MOS Scores</div>`;
-    for (const sess of mosSessions) {
-      const mos = sess.mos ?? sess.mediaStats?.mos;
-      const mosPct = Math.min(Math.max((parseFloat(mos) - 1) / 4, 0), 1);
-      const color = parseFloat(mos) >= 4.0 ? '#0d9f6e' : parseFloat(mos) >= 3.5 ? '#c8860a' : '#c0392b';
-      html += `<div style="margin-bottom:12px">
-        <div style="font-size:.82rem;font-weight:600;margin-bottom:4px">${escHtml(sess._name)} <span class="muted">(${escHtml(sess.mediaType || '?')})</span></div>
-        <div class="mos-bar-wrap">
-          <div class="mos-bar-bg"><div class="mos-bar-fill" style="width:${mosPct*100}%;background:${color}"></div></div>
-          <span class="mos-label" style="color:${color}">${parseFloat(mos).toFixed(2)}</span>
-        </div>
-        <div class="muted" style="font-size:.76rem">MOS scale: 1 (poor) → 5 (excellent)</div>
-      </div>`;
+  // ── Conversation-level MOS (mediaStatsMinConversationMos) ────────────────
+  // This is the most reliable field in the Genesys Analytics API response.
+  const convMos    = conv.mediaStatsMinConversationMos    != null ? parseFloat(conv.mediaStatsMinConversationMos)    : null;
+  const convRFact  = conv.mediaStatsMinConversationRFactor != null ? parseFloat(conv.mediaStatsMinConversationRFactor) : null;
+
+  const mosBar = (label, mos, sub) => {
+    if (mos == null || isNaN(mos)) return '';
+    const pct   = Math.min(Math.max((mos - 1) / 4, 0), 1);
+    const color = mos >= 4.0 ? '#0d9f6e' : mos >= 3.5 ? '#c8860a' : '#c0392b';
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:4px">${escHtml(label)}</div>
+      <div class="mos-bar-wrap">
+        <div class="mos-bar-bg"><div class="mos-bar-fill" style="width:${pct*100}%;background:${color}"></div></div>
+        <span class="mos-label" style="color:${color}">${mos.toFixed(2)}</span>
+      </div>
+      ${sub ? `<div class="muted" style="font-size:.76rem">${escHtml(sub)}</div>` : ''}
+    </div>`;
+  };
+
+  if (convMos != null) {
+    html += `<div class="dd-section"><div class="dd-section-title">Conversation Quality</div>`;
+    html += mosBar('Min MOS (conversation)', convMos, 'MOS scale: 1 (poor) → 5 (excellent)');
+    if (convRFact != null && !isNaN(convRFact)) {
+      html += `<div style="font-size:.82rem;margin-bottom:4px"><span class="muted">Min R-Factor:</span> <strong>${convRFact.toFixed(2)}</strong> <span class="muted">(scale 0–100)</span></div>`;
     }
     html += `</div>`;
   }
 
-  // Show any other quality-related fields
+  // ── Per-session / per-endpoint MOS (mediaEndpointStats[].minMos) ─────────
+  const participants = conv.participants || [];
+  const sessions = participants.flatMap(p =>
+    (p.sessions || []).map(s => ({ ...s, _name: p.participantName || p.purpose || '?' }))
+  );
+  const voiceSessions = sessions.filter(s =>
+    s.mediaType === 'voice' && Array.isArray(s.mediaEndpointStats) && s.mediaEndpointStats.length > 0
+  );
+
+  if (voiceSessions.length) {
+    html += `<div class="dd-section"><div class="dd-section-title">Per-Endpoint MOS</div>`;
+    for (const sess of voiceSessions) {
+      sess.mediaEndpointStats.forEach((ep, i) => {
+        if (ep.minMos == null) return;
+        const label = `${sess._name} — endpoint ${i + 1}`;
+        const codec = (ep.codecs || []).join(', ');
+        const sub   = [
+          codec ? `Codec: ${codec}` : '',
+          ep.maxLatencyMs != null ? `Max latency: ${ep.maxLatencyMs}ms` : '',
+          ep.receivedPackets != null ? `Packets: ${ep.receivedPackets.toLocaleString()}` : '',
+          ep.minRFactor != null ? `R-Factor: ${parseFloat(ep.minRFactor).toFixed(2)}` : '',
+        ].filter(Boolean).join(' · ');
+        html += mosBar(label, parseFloat(ep.minMos), sub);
+      });
+    }
+    html += `</div>`;
+  }
+
+  // ── Fallback: older schema variants ──────────────────────────────────────
+  if (!convMos && !voiceSessions.length) {
+    const legacySessions = sessions.filter(s => s.mos != null || s.mediaStats?.mos != null);
+    if (legacySessions.length) {
+      html += `<div class="dd-section"><div class="dd-section-title">MOS Scores</div>`;
+      for (const sess of legacySessions) {
+        const mos = sess.mos ?? sess.mediaStats?.mos;
+        html += mosBar(`${sess._name} (${sess.mediaType || '?'})`, parseFloat(mos), 'MOS scale: 1 (poor) → 5 (excellent)');
+      }
+      html += `</div>`;
+    } else {
+      html += `<div class="empty-state" style="padding:30px 0"><div class="es-icon">📶</div><div class="es-msg">No MOS / quality data on this conversation</div></div>`;
+    }
+  }
+
+  // ── Additional quality signals ────────────────────────────────────────────
   const qualityFields = ['sentimentScore','surveyScore','qualityScore','transcriptTopics'];
-  const extras = qualityFields.filter(f => conv[f] != null);
+  const extras = qualityFields.filter(field => conv[field] != null);
   if (extras.length) {
-    html += `<div class="dd-section"><div class="dd-section-title">Additional Quality Signals</div>`;
-    html += `<div class="dd-grid-2">`;
-    for (const f of extras) {
-      html += `<div><div class="dd-field-label">${escHtml(f)}</div><div class="dd-field-value">${escHtml(String(conv[f]))}</div></div>`;
+    html += `<div class="dd-section"><div class="dd-section-title">Additional Quality Signals</div><div class="dd-grid-2">`;
+    for (const field of extras) {
+      html += `<div><div class="dd-field-label">${escHtml(field)}</div><div class="dd-field-value">${escHtml(String(conv[field]))}</div></div>`;
     }
     html += `</div></div>`;
   }
@@ -1942,6 +2292,306 @@ function hideCtxMenu() {
   $('ctx-menu').style.display = 'none';
 }
 
+
+// ───────────────────────────────────────────────────────────────────────────
+// TABLE HEADER (dynamic columns)
+// ───────────────────────────────────────────────────────────────────────────
+function renderTableHeader() {
+  const visibleCols = [
+    ...COLUMN_DEFS.filter(cd => State.visibleColumns.has(cd.key)),
+    ...State.dynamicColumns.filter(dc => State.visibleColumns.has(dc.key)),
+  ];
+  const ths = visibleCols.map(cd => {
+    const arrow = cd.sortKey ? `<span class="sort-arrow">↕</span>` : '';
+    const sortAttr = cd.sortKey ? `data-col="${cd.sortKey}"` : `data-col="${cd.key}"`;
+    return `<th ${sortAttr}>${escHtml(cd.label)} ${arrow}</th>`;
+  });
+  $('conv-thead').innerHTML = `<tr>${ths.join('')}</tr>`;
+  renderSortIndicators();
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// COLUMN PICKER
+// ───────────────────────────────────────────────────────────────────────────
+function renderColumnPicker() {
+  const list = $('cp-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const addSection = (label, cols) => {
+    if (!cols.length) return;
+    const hdr = document.createElement('div');
+    hdr.className = 'cp-section-hdr';
+    hdr.textContent = label;
+    list.appendChild(hdr);
+    cols.forEach(cd => {
+      const item = document.createElement('label');
+      item.className = 'cp-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = State.visibleColumns.has(cd.key);
+      cb.addEventListener('change', () => {
+        if (cb.checked) State.visibleColumns.add(cd.key);
+        else            State.visibleColumns.delete(cd.key);
+        renderTableHeader();
+        renderGrid();
+      });
+      item.appendChild(cb);
+      item.appendChild(document.createTextNode(cd.label));
+      list.appendChild(item);
+    });
+  };
+
+  addSection('Standard Columns', COLUMN_DEFS);
+  addSection('Attribute Columns', State.dynamicColumns);
+}
+
+function toggleColumnPicker(btn) {
+  const picker = $('col-picker');
+  const backdrop = $('col-picker-backdrop');
+  const open = picker.classList.contains('open');
+  if (open) {
+    picker.classList.remove('open');
+    backdrop.classList.remove('open');
+  } else {
+    // position below the button
+    const rect = btn.getBoundingClientRect();
+    picker.style.top  = (rect.bottom + 6) + 'px';
+    picker.style.right = (window.innerWidth - rect.right) + 'px';
+    picker.classList.add('open');
+    backdrop.classList.add('open');
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// FACET DISCOVERY & PANEL
+// ───────────────────────────────────────────────────────────────────────────
+function discoverFacets() {
+  const f = { divisions: new Map(), queues: new Map(), users: new Map(), trunks: new Map() };
+  for (const r of State.index) {
+    (r.divisionIds||[]).forEach(d => f.divisions.set(d, (f.divisions.get(d)||0)+1));
+    if (r.queueName) f.queues.set(r.queueName, (f.queues.get(r.queueName)||0)+1);
+    (r.userIds||[]).forEach(u => f.users.set(u, (f.users.get(u)||0)+1));
+    (r.trunkNames||[]).forEach(t => f.trunks.set(t, (f.trunks.get(t)||0)+1));
+  }
+  State.discoveredFacets = f;
+}
+
+function discoverAttributeColumns() {
+  const attrCounts = new Map();
+  for (const conv of State.allRecords) {
+    // Attributes live on participants in the Genesys Analytics API
+    for (const p of (conv.participants || [])) {
+      Object.keys(p.attributes || {}).forEach(k => attrCounts.set(k, (attrCounts.get(k)||0)+1));
+    }
+    Object.keys(conv.attributes || {}).forEach(k => attrCounts.set(k, (attrCounts.get(k)||0)+1));
+  }
+  const threshold = Math.max(1, Math.floor(State.allRecords.length * 0.05));
+  State.discoveredAttrs = [...attrCounts.keys()].sort();
+  State.dynamicColumns = [];
+  for (const [key, count] of attrCounts) {
+    if (count >= threshold) {
+      State.dynamicColumns.push({
+        key: 'attr:' + key,
+        label: key,
+        sortKey: null,
+        dflt: false,
+        isAttr: true,
+        attrKey: key,
+        render: r => {
+          const conv = State.allRecords[r.idx];
+          const val = conv?.attributes?.[key] ?? '—';
+          return `<td class="trunc" title="${escHtml(String(val))}" style="max-width:130px">${escHtml(String(val))}</td>`;
+        },
+      });
+    }
+  }
+  // Populate attribute sort dropdown in attr-drill panel
+  const sel = $('attr-sort-key');
+  if (sel) {
+    sel.innerHTML = '<option value="">Sort by attribute…</option>' +
+      State.discoveredAttrs.map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`).join('');
+  }
+}
+
+function renderFacetPanel() {
+  const fac = State.discoveredFacets;
+  const DIMS = [
+    { dim:'divisions', elId:'facet-chips-divisions', label: v => v },
+    { dim:'queues',    elId:'facet-chips-queues',    label: v => v },
+    { dim:'users',     elId:'facet-chips-users',     label: v => v },
+    { dim:'trunks',    elId:'facet-chips-trunks',    label: v => v },
+  ];
+  DIMS.forEach(({ dim, elId }) => {
+    const wrap = $(elId);
+    if (!wrap) return;
+    const map = fac[dim];
+    if (!map.size) { wrap.innerHTML = '<span class="facet-empty">None found</span>'; return; }
+    // Sort by count desc, limit 30
+    const sorted = [...map.entries()].sort((a,b) => b[1]-a[1]).slice(0,30);
+    wrap.innerHTML = sorted.map(([val, ct]) =>
+      `<span class="facet-chip" data-dim="${dim}" data-val="${escHtml(val)}" title="${escHtml(val)}">
+        ${escHtml(val.length > 28 ? val.slice(0,25)+'…' : val)}
+        <span class="chip-ct">(${ct})</span>
+      </span>`
+    ).join('');
+    // Re-apply active state
+    wrap.querySelectorAll('.facet-chip').forEach(chip => {
+      if (State.facetFilters[dim].has(chip.dataset.val)) chip.classList.add('active');
+      chip.addEventListener('click', () => {
+        const v = chip.dataset.val;
+        const d = chip.dataset.dim;
+        if (State.facetFilters[d].has(v)) {
+          State.facetFilters[d].delete(v); chip.classList.remove('active');
+        } else {
+          State.facetFilters[d].add(v); chip.classList.add('active');
+        }
+        updateFacetBadge();
+        applyFilters();
+      });
+    });
+  });
+}
+
+function updateFacetBadge() {
+  const total = Object.values(State.facetFilters).reduce((s,f)=>s+f.size, 0);
+  const badge = $('facet-active-ct');
+  if (!badge) return;
+  if (total > 0) { badge.textContent = total; badge.style.display = ''; }
+  else badge.style.display = 'none';
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ERROR CHART
+// ───────────────────────────────────────────────────────────────────────────
+function renderErrorChart() {
+  destroyChart('errors');
+  const errorMap = new Map();
+  for (const r of State.index) {
+    (r.errorCodes||[]).forEach(e => errorMap.set(e, (errorMap.get(e)||0)+1));
+  }
+  const card = $('error-chart-card');
+  if (!errorMap.size) { if (card) card.style.display = 'none'; return; }
+  if (card) card.style.display = '';
+
+  const sorted = [...errorMap.entries()].sort((a,b) => b[1]-a[1]).slice(0,15);
+  const labels = sorted.map(([k]) => k);
+  const data   = sorted.map(([,v]) => v);
+  const ctx = $('chart-errors').getContext('2d');
+  State.charts.errors = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: '#c0392b', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#e8f0ec' }, ticks: { font:{size:10}, color:'#5b6b62' }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font:{size:10}, color:'#5b6b62' } },
+      },
+    },
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ATTRIBUTES DEEP-DIVE PANEL
+// ───────────────────────────────────────────────────────────────────────────
+function openAttrDrill() {
+  const overlay = $('attr-drill-overlay');
+  const panel   = $('attr-drill-panel');
+  overlay.style.opacity = '1'; overlay.style.pointerEvents = 'auto';
+  panel.style.transform = 'translateX(0)';
+  renderAttrDrill();
+}
+
+function closeAttrDrill() {
+  const overlay = $('attr-drill-overlay');
+  const panel   = $('attr-drill-panel');
+  overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none';
+  panel.style.transform = 'translateX(100%)';
+}
+
+function renderAttrDrill() {
+  const body = $('attr-drill-body');
+  if (!body) return;
+  const term   = (State.attrFilter || '').toLowerCase().trim();
+  const sortKey = State.attrSortKey || '';
+
+  // Build a table: one row per filtered conversation, columns = all discovered attrs
+  let attrs = State.discoveredAttrs;
+  if (term) attrs = attrs.filter(k => k.toLowerCase().includes(term));
+
+  // Gather rows
+  let rows = State.filtered.map(r => {
+    const conv = State.allRecords[r.idx];
+    // Merge participant-level attributes (primary location in analytics API)
+    const attrObj = {};
+    for (const p of (conv.participants || [])) { Object.assign(attrObj, p.attributes || {}); }
+    Object.assign(attrObj, conv.attributes || {});
+    const matchVal = !term || Object.entries(attrObj).some(([k,v]) =>
+      k.toLowerCase().includes(term) || String(v).toLowerCase().includes(term)
+    );
+    if (!matchVal && term) return null;
+    return { r, conv, attrObj };
+  }).filter(Boolean);
+
+  if (sortKey) {
+    rows.sort((a,b) => {
+      const va = String(a.attrObj[sortKey] ?? '');
+      const vb = String(b.attrObj[sortKey] ?? '');
+      return va < vb ? -1 : va > vb ? 1 : 0;
+    });
+  }
+
+  if (!attrs.length && !term) {
+    body.innerHTML = '<div class="empty-state" style="padding:60px 20px"><div class="es-icon">🏷</div><div class="es-msg">No conversation attributes found in the loaded data.</div></div>';
+    return;
+  }
+
+  const displayAttrs = attrs.slice(0, 40); // cap columns
+  const thead = `<thead style="position:sticky;top:0;background:var(--surface2);z-index:5">
+    <tr>
+      <th style="padding:8px 12px;text-align:left;font-size:.74rem;font-weight:700;color:var(--muted);white-space:nowrap;border-bottom:2px solid var(--stroke)">Conv ID</th>
+      <th style="padding:8px 12px;text-align:left;font-size:.74rem;font-weight:700;color:var(--muted);white-space:nowrap;border-bottom:2px solid var(--stroke)">Queue</th>
+      ${displayAttrs.map(k=>`<th style="padding:8px 12px;text-align:left;font-size:.74rem;font-weight:700;color:var(--muted);white-space:nowrap;border-bottom:2px solid var(--stroke);max-width:130px">${escHtml(k)}</th>`).join('')}
+    </tr>
+  </thead>`;
+
+  const tdStyle = 'padding:6px 12px;border-bottom:1px solid var(--stroke);font-size:.8rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle';
+  const tbodyRows = rows.slice(0, 500).map(({r, attrObj}) => {
+    const cells = displayAttrs.map(k => {
+      const val = attrObj[k];
+      return val != null
+        ? `<td style="${tdStyle}" title="${escHtml(String(val))}">${escHtml(String(val))}</td>`
+        : `<td style="${tdStyle};color:var(--stroke2)">—</td>`;
+    });
+    return `<tr style="cursor:pointer" data-idx="${r.idx}">
+      <td style="${tdStyle};font-family:monospace;font-size:.75rem;color:var(--muted)">${escHtml(shortId(r.id))}</td>
+      <td style="${tdStyle};max-width:120px" title="${escHtml(r.queueName)}">${escHtml(r.queueName||'—')}</td>
+      ${cells.join('')}
+    </tr>`;
+  }).join('');
+
+  const overflow = rows.length > 500 ? `<div style="padding:10px 16px;font-size:.8rem;color:var(--muted)">Showing first 500 of ${rows.length.toLocaleString()} rows. Apply filters to narrow results.</div>` : '';
+
+  body.innerHTML = `
+    ${overflow}
+    <div style="overflow:auto;max-height:calc(100vh - 180px)">
+      <table style="width:max-content;min-width:100%;border-collapse:collapse">
+        ${thead}
+        <tbody>${tbodyRows}</tbody>
+      </table>
+    </div>`;
+
+  // Row click → open drilldown
+  body.querySelectorAll('tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', () => { closeAttrDrill(); openDrilldown(parseInt(tr.dataset.idx,10)); });
+  });
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // EVENT WIRING
 // ───────────────────────────────────────────────────────────────────────────
@@ -1952,7 +2602,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function triggerFilePick() { fileInput.click(); }
 
   $('btn-load-new').addEventListener('click', triggerFilePick);
-  $('btn-open-file-lz').addEventListener('click', triggerFilePick);
+  $('btn-open-file-lz').addEventListener('click', e => { e.stopPropagation(); triggerFilePick(); });
   $('load-zone').addEventListener('click', triggerFilePick);
   $('load-zone').addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') triggerFilePick(); });
 
@@ -2010,6 +2660,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $$('.filter-chip').forEach(c => c.classList.remove('active'));
     State.searchTerm = '';
     $('search-box').value = '';
+    // clear facet filters
+    Object.values(State.facetFilters).forEach(s => s.clear());
+    $$('.facet-chip').forEach(c => c.classList.remove('active'));
+    updateFacetBadge();
     applyFilters();
   });
 
@@ -2020,21 +2674,21 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGrid();
   });
 
-  // ── Sort headers ──
-  $$('#conv-table th[data-col]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.col;
-      if (!col || col === 'media' || col === 'participants') return;
-      if (State.sortCol === col) {
-        State.sortDir = State.sortDir === 'asc' ? 'desc' : 'asc';
-      } else {
-        State.sortCol = col;
-        State.sortDir = 'asc';
-      }
-      sortFiltered();
-      State.page = 0;
-      renderGrid();
-    });
+  // ── Sort headers (event delegation — thead is re-rendered dynamically) ──
+  $('conv-table').querySelector('thead').addEventListener('click', e => {
+    const th = e.target.closest('th[data-col]');
+    if (!th) return;
+    const col = th.dataset.col;
+    if (!col || col === 'media' || col === 'participants') return;
+    if (State.sortCol === col) {
+      State.sortDir = State.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      State.sortCol = col;
+      State.sortDir = 'asc';
+    }
+    sortFiltered();
+    State.page = 0;
+    renderGrid();
   });
 
   // ── Pager ──
@@ -2136,7 +2790,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'ArrowRight' && !$('pager-next').disabled) { State.page++; renderGrid(); }
     if (e.key === 'ArrowLeft'  && !$('pager-prev').disabled) { State.page--; renderGrid(); }
+    if (e.key === 'Escape') closeAttrDrill();
   });
+
+  // ── Column picker ──
+  $('btn-columns').addEventListener('click', e => { e.stopPropagation(); toggleColumnPicker(e.currentTarget); });
+  $('col-picker-backdrop').addEventListener('click', () => {
+    $('col-picker').classList.remove('open');
+    $('col-picker-backdrop').classList.remove('open');
+  });
+  $('cp-reset').addEventListener('click', () => {
+    State.visibleColumns = new Set(COLUMN_DEFS.filter(cd=>cd.dflt).map(cd=>cd.key));
+    renderColumnPicker();
+    renderTableHeader();
+    renderGrid();
+  });
+
+  // ── Facet panel toggle ──
+  $('facet-toggle').addEventListener('click', () => {
+    $('facet-panel').classList.toggle('open');
+  });
+
+  // ── Attributes deep-dive ──
+  $('attr-drill-close').addEventListener('click', closeAttrDrill);
+  $('attr-drill-overlay').addEventListener('click', closeAttrDrill);
+
+  let attrSearchTimer;
+  $('attr-search').addEventListener('input', e => {
+    clearTimeout(attrSearchTimer);
+    attrSearchTimer = setTimeout(() => { State.attrFilter = e.target.value; renderAttrDrill(); }, 250);
+  });
+  $('attr-sort-key').addEventListener('change', e => {
+    State.attrSortKey = e.target.value;
+    renderAttrDrill();
+  });
+  $('attr-clear').addEventListener('click', () => {
+    $('attr-search').value = '';
+    $('attr-sort-key').value = '';
+    State.attrFilter = '';
+    State.attrSortKey = '';
+    renderAttrDrill();
+  });
+
+  // ── Add "Attributes" button to grid header row ──
+  const attrBtn = document.createElement('button');
+  attrBtn.className = 'btn btn-ghost btn-sm';
+  attrBtn.textContent = '🏷 Attributes';
+  attrBtn.title = 'Filter and sort by conversation attributes (Data Actions troubleshooting)';
+  attrBtn.addEventListener('click', openAttrDrill);
+  $('grid-header-row').querySelector('div.flex').appendChild(attrBtn);
 
 });
 </script>

@@ -2,6 +2,24 @@
 
 This guide describes how to run the repository under the Auth/Core/Ops lane standard.
 
+## Table of Contents
+
+- [What you get](#what-you-get)
+- [Prerequisites](#prerequisites)
+- [1. Open the repo](#1-open-the-repo)
+- [2. Import modules](#2-import-modules)
+- [3. Inspect available dataset keys](#3-inspect-available-dataset-keys)
+- [4. Validate catalog before first run](#4-validate-catalog-before-first-run)
+- [5. Authenticate](#5-authenticate-auth-lane--recommended)
+- [6. Do a dry run first](#6-do-a-dry-run-first)
+- [7. Execute a dataset](#7-execute-a-dataset)
+- [8. Inspect run output](#8-inspect-run-output)
+- [Conversation Analysis app](#optional-conversation-analysis-app)
+- [Ops layer session](#optional-ops-layer-session)
+- [Windows GUI flow](#optional-windows-gui-flow)
+- [Back-compat note](#back-compat-note)
+- [Quick validation](#quick-validation)
+
 ## What you get
 
 - **Genesys.Auth** — OAuth flows, DPAPI token store, `Connect-GenesysCloud`, `AuthContext`.
@@ -98,6 +116,18 @@ Get-Content (Join-Path $runFolder.FullName 'manifest.json') -Raw | ConvertFrom-J
 Get-Content (Join-Path $runFolder.FullName 'summary.json') -Raw | ConvertFrom-Json
 Get-Content (Join-Path $runFolder.FullName 'events.jsonl')
 ```
+
+## Optional: Conversation Analysis app
+
+Open the self-contained web tool to explore run artifacts in a browser:
+
+```
+apps/ConversationAnalysis/index.html
+```
+
+- No server, no build step required.
+- Click **📂 Load Run**, navigate to `out/analytics-conversation-details/<runId>/data/`, and select all `*.jsonl` files.
+- See [apps/ConversationAnalysis/README.md](../apps/ConversationAnalysis/README.md) for full details.
 
 ## Optional: Ops layer session
 

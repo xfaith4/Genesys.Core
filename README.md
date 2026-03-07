@@ -27,6 +27,7 @@ Genesys.Core solves this with a **catalog-driven execution engine**: endpoint be
 - **Structured run output contract** — every run writes `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl` under `out/<datasetKey>/<runId>/`
 - **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
 - **GitHub Actions integration** — scheduled and on-demand workflows for `audit-logs` with artifact upload and configurable retention
+- **Conversation Analysis web app** — `apps/ConversationAnalysis/index.html`, a self-contained SPA for exploring run artifacts (no build, no server)
 - **Windows GUI client** — `GenesysCore-GUI.ps1` wraps `Invoke-Dataset` with an OAuth auth flow, dataset picker, and run log view (WPF, Windows only)
 - **PS 5.1 and 7+ compatible** — runs on Windows PowerShell 5.1 and PowerShell 7+
 
@@ -219,44 +220,59 @@ Every run writes under `out/<datasetKey>/<runId>/`:
 ### Repository layout
 
 ```
-catalog/
-  genesys.catalog.json        # Catalog (source of truth)
-  schema/genesys.catalog.schema.json  # JSON Schema
-modules/Genesys.Core/
-  Genesys.Core.psd1                # Module manifest (v0.1.0, PS 5.1+)
-  Genesys.Core.psm1
-  Public/
-    Invoke-Dataset.ps1             # Primary entrypoint
-  Private/
-    Async/                         # Submit-AsyncJob, poll, fetch
-    Catalog/                       # Resolve-Catalog, Assert-Catalog
-    Datasets/                      # Curated + generic handlers
-    Http/                          # Invoke-GcRequest, Invoke-CoreEndpoint
-    Paging/                        # Paging strategy plugins
-    Redaction/                     # Header/token redaction
-    Retry/                         # Retry engine with jitter
-    Run/                           # Run contract writers
-GenesysCore-GUI.ps1                # Windows WPF GUI client
-scripts/
-  Invoke-Smoke.ps1                 # Smoke test runner
-  Update-CatalogFromSwagger.ps1    # Refresh catalog from Swagger
-  Sync-SwaggerEndpoints.ps1
-tests/
-  CatalogSchema.Tests.ps1
-  Retry.Tests.ps1
-  Paging.Tests.ps1
-  AsyncJob.Engine.Tests.ps1
-  Security.Redaction.Tests.ps1
-  RunContract.Tests.ps1
-  ... (14 test files total)
-.github/workflows/
-  ci.yml                           # Pester on pull_request + workflow_dispatch
-  audit-logs.scheduled.yml         # Scheduled daily run
-  audit-logs.on-demand.yml         # Manual trigger with time-window inputs
-docs/
-  ONBOARDING.md
-  ROADMAP.md
-  CHANGELOG.md
+Genesys.Core/
+├── catalog/
+│   ├── genesys.catalog.json               # Canonical catalog (source of truth)
+│   └── schema/
+│       └── genesys.catalog.schema.json    # JSON Schema
+├── modules/
+│   ├── Genesys.Auth/                      # OAuth flows, token lifecycle
+│   │   ├── Genesys.Auth.psd1
+│   │   └── Genesys.Auth.psm1
+│   ├── Genesys.Core/                      # Catalog-driven runtime engine
+│   │   ├── Genesys.Core.psd1
+│   │   ├── Genesys.Core.psm1
+│   │   ├── Public/
+│   │   │   └── Invoke-Dataset.ps1         # Primary entrypoint
+│   │   └── Private/
+│   │       ├── Async/                     # Invoke-AsyncJob, poll, fetch
+│   │       ├── Catalog/                   # Resolve-Catalog, Assert-Catalog
+│   │       ├── Datasets/                  # Curated + generic handlers
+│   │       ├── Http/                      # Invoke-GcRequest, Invoke-CoreEndpoint
+│   │       ├── Paging/                    # Paging strategy plugins
+│   │       ├── Redaction/                 # Header/token redaction
+│   │       ├── Retry/                     # Retry engine with jitter
+│   │       └── Run/                       # Run contract writers
+│   └── Genesys.Ops/                       # IT-Ops convenience cmdlets
+│       ├── Genesys.Ops.psd1
+│       └── Genesys.Ops.psm1
+├── apps/
+│   └── ConversationAnalysis/
+│       ├── index.html                     # Self-contained SPA (no build required)
+│       └── README.md
+├── scripts/
+│   ├── Invoke-Smoke.ps1                   # Smoke test runner
+│   ├── Invoke-Tests.ps1                   # Full test runner
+│   ├── Invoke-GenesysCoreBridge.ps1       # CLI bridge for non-PS wrappers
+│   ├── Update-CatalogFromSwagger.ps1      # Refresh catalog from Swagger
+│   └── Sync-SwaggerEndpoints.ps1
+├── tests/
+│   ├── unit/                              # 16 Pester test files
+│   └── integration/
+│       └── workflow-simulation.ps1
+├── docs/
+│   ├── ONBOARDING.md
+│   ├── ROADMAP.md
+│   ├── CHANGELOG.md
+│   ├── REPO_SCHEMATIC.md
+│   ├── ENGINEER_INTEGRATIONS_AUTH.md
+│   └── training/
+│       └── genesys-onboarding.html        # Interactive training page
+├── GenesysCore-GUI.ps1                    # Windows WPF GUI client
+└── .github/workflows/
+    ├── ci.yml                             # Pester on pull_request + workflow_dispatch
+    ├── audit-logs.scheduled.yml           # Scheduled daily run
+    └── audit-logs.on-demand.yml           # Manual trigger with time-window inputs
 ```
 
 ---
@@ -273,6 +289,8 @@ Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
 $config = . ./tests/PesterConfiguration.ps1
 Invoke-Pester -Configuration $config
 ```
+
+For a comprehensive testing guide, see [TESTING.md](TESTING.md).
 
 ### Run smoke checks
 
@@ -318,7 +336,7 @@ Contributions are welcome. Please follow these steps:
 4. Verify PS 5.1 and PS 7 compatibility (avoid PS 7-only features).
 5. Open a pull request against `main`.
 
-Pull request checklist (from [AGENTS.md](./AGENTS.md)):
+Pull request checklist (from [.agents/AGENTS.md](.agents/AGENTS.md)):
 
 - [ ] Catalog entry added/updated with schema-valid fields
 - [ ] Paging profile exists and is tested/mocked
@@ -343,21 +361,3 @@ The engine enforces the following data safety rules:
 ## License
 
 [MIT](./LICENSE) — Copyright (c) 2026 XFaith
-
----
-
-## Topics to Add on GitHub
-
-Suggested repository topics for discoverability:
-
-`genesys-cloud` · `powershell` · `powershell-module` · `dataset-export` · `audit-logs` · `analytics` · `github-actions` · `automation` · `etl` · `contact-center` · `workforce-management` · `oauth` · `pager` · `retry` · `catalog`
-
-## Alternative Names / Related Terms
-
-This project may also be described as:
-- Genesys Cloud data extractor
-- Genesys Cloud PowerShell ETL
-- Genesys Cloud audit log automation
-- Governed dataset collection engine for Genesys
-
-

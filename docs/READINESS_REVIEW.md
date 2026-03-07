@@ -31,7 +31,7 @@
 ### Partially ready / operational caveats
 
 - This repository is a Core runtime, not a packaged MCP server today.
-- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) does not currently expose script-level `-Headers` and `-BaseUri`; authenticated live runs should use module invocation.
+- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) supports `-Headers`, `-BaseUri`, and `-DatasetParameters`; module invocation is still recommended for interactive sessions.
 - Included GitHub workflows are currently scoped to `audit-logs` and require environment-specific auth wiring before production use.
 - Legacy catalog shims still exist for one deprecation cycle, while runtime defaults target `catalog/genesys.catalog.json`.
 - Redaction policy is heuristic and not yet fully profile-driven by dataset/endpoint sensitivity class.

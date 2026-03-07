@@ -1,6 +1,17 @@
 # Changelog
 
-## 2026-02-22
+## 2026-03-07
+
+### Changed
+
+- Documentation modernization pass (Batch 1):
+  - Updated `README.md` repository layout to match actual structure (added `Genesys.Auth`, `Genesys.Ops`, `apps/ConversationAnalysis`; corrected test paths to `tests/unit/`); removed non-doc "Topics to Add on GitHub" and "Alternative Names" sections; added cross-link to `TESTING.md`; fixed `AGENTS.md` reference path.
+  - Updated `TESTING.md` test file paths from `tests/` to `tests/unit/`; corrected stale caveat about script-level parameter exposure; fixed `AGENTS.md` link.
+  - Updated `docs/ONBOARDING.md` with Table of Contents and a new Conversation Analysis app section.
+  - Rewrote `docs/REPO_SCHEMATIC.md` tree to match actual repository structure (removed phantom root shims, added `apps/`, `Public/Assert-Catalog.ps1`, `Http/`; added Conversation Analysis to Canonical Defaults).
+  - Updated `docs/READINESS_REVIEW.md` to correct stale caveat about script-level `-Headers`/`-BaseUri` exposure.
+
+
 
 ### Changed
 

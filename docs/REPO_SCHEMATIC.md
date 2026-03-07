@@ -4,56 +4,63 @@ This is the v2 lane layout and canonical navigation map.
 
 ```text
 Genesys.Core/
-|-- README.md
-|-- TESTING.md
-|-- App.Auth.psm1                            # legacy shim -> modules/Genesys.Auth
-|-- GenesysOps.psd1                          # legacy shim manifest -> modules/Genesys.Ops
-|-- GenesysOps.psm1                          # legacy shim -> modules/Genesys.Ops
-|-- GenesysCore-GUI.ps1
-|-- GenesysConvAnalyzer.ps1
-|-- genesys.env.json.example
-|-- modules/
-|   |-- Genesys.Auth/
-|   |   |-- Genesys.Auth.psd1
-|   |   `-- Genesys.Auth.psm1
-|   |-- Genesys.Core/
-|   |   |-- Genesys.Core.psd1
-|   |   |-- Genesys.Core.psm1
-|   |   |-- Public/Invoke-Dataset.ps1
-|   |   `-- Private/
-|   |       |-- Catalog/
-|   |       |-- Datasets/
-|   |       |-- Retry/
-|   |       |-- Paging/
-|   |       |-- Async/
-|   |       |-- Redaction/
-|   |       `-- Run/
-|   `-- Genesys.Ops/
-|       |-- Genesys.Ops.psd1
-|       `-- Genesys.Ops.psm1
-|-- catalog/
-|   |-- genesys.catalog.json                 # canonical catalog
-|   `-- schema/
-|       `-- genesys.catalog.schema.json      # canonical schema
-|-- docs/
-|   |-- ONBOARDING.md
-|   |-- ENGINEER_INTEGRATIONS_AUTH.md
-|   |-- REPO_SCHEMATIC.md
-|   `-- training/
-|       |-- genesys-onboarding.html          # canonical training page
-|       `-- Training.md
-|-- scripts/
-|   |-- Invoke-Smoke.ps1
-|   |-- Invoke-Tests.ps1
-|   |-- Invoke-GenesysCoreBridge.ps1
-|   |-- Invoke-MockRun.ps1
-|   |-- Update-CatalogFromSwagger.ps1
-|   `-- Sync-SwaggerEndpoints.ps1
-`-- tests/
-    |-- unit/
-    |   `-- *.Tests.ps1
-    `-- integration/
-        `-- workflow-simulation.ps1
+├── README.md
+├── TESTING.md
+├── GenesysCore-GUI.ps1                    # Windows WPF GUI client
+├── genesys.env.json.example
+├── modules/
+│   ├── Genesys.Auth/
+│   │   ├── Genesys.Auth.psd1
+│   │   └── Genesys.Auth.psm1
+│   ├── Genesys.Core/
+│   │   ├── Genesys.Core.psd1
+│   │   ├── Genesys.Core.psm1
+│   │   ├── Public/
+│   │   │   ├── Invoke-Dataset.ps1
+│   │   │   └── Assert-Catalog.ps1
+│   │   └── Private/
+│   │       ├── Catalog/
+│   │       ├── Datasets/
+│   │       ├── Retry/
+│   │       ├── Paging/
+│   │       ├── Async/
+│   │       ├── Redaction/
+│   │       ├── Http/
+│   │       └── Run/
+│   └── Genesys.Ops/
+│       ├── Genesys.Ops.psd1
+│       └── Genesys.Ops.psm1
+├── apps/
+│   └── ConversationAnalysis/
+│       ├── index.html                     # Self-contained SPA (no build required)
+│       └── README.md
+├── catalog/
+│   ├── genesys.catalog.json               # Canonical catalog
+│   └── schema/
+│       └── genesys.catalog.schema.json    # Canonical schema
+├── docs/
+│   ├── ONBOARDING.md
+│   ├── ENGINEER_INTEGRATIONS_AUTH.md
+│   ├── ROADMAP.md
+│   ├── CHANGELOG.md
+│   ├── READINESS_REVIEW.md
+│   ├── REPO_SCHEMATIC.md
+│   └── training/
+│       ├── genesys-onboarding.html        # Canonical training page
+│       └── Training.md
+├── scripts/
+│   ├── Invoke-Smoke.ps1
+│   ├── Invoke-Tests.ps1
+│   ├── Invoke-GenesysCoreBridge.ps1       # CLI bridge for non-PS wrappers
+│   ├── Invoke-MockRun.ps1
+│   ├── Update-CatalogFromSwagger.ps1
+│   └── Sync-SwaggerEndpoints.ps1
+└── tests/
+    ├── PesterConfiguration.ps1
+    ├── unit/
+    │   └── *.Tests.ps1                    # 16 unit test files
+    └── integration/
+        └── workflow-simulation.ps1
 ```
 
 ## Lane Model
@@ -75,6 +82,7 @@ Wrapper UI / App
   - `./modules/Genesys.Auth/Genesys.Auth.psd1`
   - `./modules/Genesys.Core/Genesys.Core.psd1`
   - `./modules/Genesys.Ops/Genesys.Ops.psd1`
+- Conversation Analysis app: `apps/ConversationAnalysis/index.html`
 
 ## Contribution Shortcut
 

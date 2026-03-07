@@ -44,7 +44,7 @@ For an end-to-end onboarding flow (auth setup, dataset discovery, first run, out
 Current behavior to be aware of:
 
 - Authenticated live calls should use module invocation (`Import-Module` + `Invoke-Dataset -Headers ...`).
-- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) currently does not expose script-level `-Headers` and `-BaseUri`.
+- Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) also supports `-Headers`, `-BaseUri`, and `-DatasetParameters` for CI and scripted use cases.
 
 ## Local Development Testing
 
@@ -54,49 +54,49 @@ The test suite includes comprehensive coverage of core functionality:
 
 ```powershell
 # Run specific test files
-Invoke-Pester -Path ./tests/CatalogSchema.Tests.ps1
-Invoke-Pester -Path ./tests/Paging.Tests.ps1
-Invoke-Pester -Path ./tests/Retry.Tests.ps1
+Invoke-Pester -Path ./tests/unit/CatalogSchema.Tests.ps1
+Invoke-Pester -Path ./tests/unit/Paging.Tests.ps1
+Invoke-Pester -Path ./tests/unit/Retry.Tests.ps1
 ```
 
 ### Test Categories
 
-1. **Catalog Validation** (`CatalogSchema.Tests.ps1`)
+1. **Catalog Validation** (`tests/unit/CatalogSchema.Tests.ps1`)
    - Validates catalog structure against JSON schema
    - Ensures all datasets have required fields
    - Checks paging and retry profile consistency
 
-2. **Catalog Resolution** (`CatalogResolution.Tests.ps1`)
+2. **Catalog Resolution** (`tests/unit/CatalogResolution.Tests.ps1`)
    - Tests precedence between root and legacy catalog locations
    - Validates strict mode behavior
    - Tests catalog conflict detection
 
-3. **Paging Strategies** (`Paging.Tests.ps1`)
+3. **Paging Strategies** (`tests/unit/Paging.Tests.ps1`)
    - NextUri pagination
    - PageNumber pagination
    - Cursor pagination
    - BodyPaging with totalHits
    - ItemsPath resolution
 
-4. **Retry Logic** (`Retry.Tests.ps1`)
+4. **Retry Logic** (`tests/unit/Retry.Tests.ps1`)
    - 429 rate limit handling
    - Retry-After header parsing
    - Exponential backoff with jitter
    - POST retry behavior (disabled by default)
 
-5. **Dataset Execution** (`AuditLogs.Dataset.Tests.ps1`, `AnalyticsConversationDetails.Dataset.Tests.ps1`, `AdditionalDatasets.Tests.ps1`)
+5. **Dataset Execution** (`tests/unit/AuditLogs.Dataset.Tests.ps1`, `tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1`, `tests/unit/AdditionalDatasets.Tests.ps1`)
    - Async transaction flow (submit → poll → results)
    - Data normalization
    - Output file generation
    - Redaction of sensitive data
 
-6. **Security & Redaction** (`Security.Redaction.Tests.ps1`)
+6. **Security & Redaction** (`tests/unit/Security.Redaction.Tests.ps1`)
    - Sensitive field detection (email, token, password, etc.)
    - Bearer token redaction
    - JWT redaction
    - Request logging sanitization
 
-7. **Run Contract** (`RunContract.Tests.ps1`)
+7. **Run Contract** (`tests/unit/RunContract.Tests.ps1`)
    - Output folder structure validation
    - Manifest file generation
    - Events logging
@@ -337,7 +337,7 @@ Invoke-Dataset -Dataset 'users' -RequestInvoker $mockInvoker
 
 For issues or questions:
 
-- Review AGENTS.md for architectural guidelines
+- Review [.agents/AGENTS.md](.agents/AGENTS.md) for architectural guidelines
 - Check existing tests for usage examples
 - Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json`
 

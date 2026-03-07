@@ -607,6 +607,146 @@
     .mos-bar-fill { height: 100%; border-radius: 4px; transition: width .4s; }
     .mos-label    { font-size: .8rem; font-weight: 700; min-width: 32px; text-align: right; }
 
+    /* ─── Conversation Timeline ──────────────────────────────────── */
+    .tl-legend {
+      display: flex; flex-wrap: wrap; gap: 10px 16px;
+      margin-bottom: 10px;
+      padding: 6px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-xs);
+    }
+    .tl-legend-item { display: flex; align-items: center; gap: 5px; font-size: .74rem; color: var(--muted); }
+    .tl-legend-dot  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    .tl-container { overflow-x: auto; }
+    .tl-inner     { min-width: 420px; }
+
+    .tl-axis {
+      position: relative; height: 22px;
+      margin-left: 150px; margin-right: 2px;
+      border-left: 1px solid var(--stroke2);
+      border-bottom: 1px solid var(--stroke2);
+    }
+    .tl-tick {
+      position: absolute; top: 0; bottom: 0;
+      transform: translateX(-50%);
+    }
+    .tl-tick::before {
+      content: ''; position: absolute;
+      bottom: 0; left: 50%; width: 1px; height: 5px;
+      background: var(--stroke2);
+    }
+    .tl-tick-label {
+      font-size: .66rem; color: var(--muted);
+      white-space: nowrap;
+      position: absolute; top: 2px; left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .tl-lanes { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; }
+
+    .tl-lane {
+      display: flex; align-items: stretch; min-height: 46px;
+      border-radius: var(--r-xs);
+      transition: background .15s;
+    }
+    .tl-lane:hover { background: rgba(13,159,110,.03); }
+    .tl-lane-problem { background: rgba(192,57,43,.025); }
+
+    .tl-lane-label {
+      width: 150px; flex-shrink: 0;
+      padding: 4px 8px 4px 2px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .tl-lane-name {
+      font-size: .79rem; font-weight: 600; color: var(--ink2);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tl-lane-purpose {
+      font-size: .68rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .tl-lane-badges { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
+    .tl-badge {
+      font-size: .67rem; padding: 1px 5px;
+      border-radius: 3px; font-weight: 700;
+      white-space: nowrap;
+    }
+    .tl-badge-danger { background: #fddada; color: #8b1c1c; }
+    .tl-badge-warn   { background: #fde8d0; color: #9a4200; }
+    .tl-badge-ok     { background: #d1f5e6; color: #0b7a51; }
+    .tl-badge-blue   { background: #cce8f0; color: #005f6e; }
+
+    .tl-track {
+      flex: 1; position: relative; min-height: 34px; align-self: center;
+      background:
+        linear-gradient(180deg, var(--surface2) 0%, #edf4ef 100%);
+      border: 1px solid var(--stroke);
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(13,32,26,.06), 0 1px 2px rgba(13,32,26,.04);
+    }
+    /* Subtle depth grid */
+    .tl-track::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(0,0,0,.04) 50px);
+      pointer-events: none;
+    }
+
+    .tl-seg {
+      position: absolute; top: 5px; bottom: 5px;
+      border-radius: 3px;
+      opacity: .82;
+      cursor: default;
+      transition: opacity .12s, box-shadow .12s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.3);
+      /* 3-D raised-bar effect */
+      background-image: linear-gradient(180deg, rgba(255,255,255,.22) 0%, transparent 55%);
+    }
+    .tl-seg:hover {
+      opacity: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35);
+      z-index: 2;
+    }
+
+    .tl-problem-overlay {
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        45deg, transparent, transparent 7px,
+        rgba(192,57,43,.055) 7px, rgba(192,57,43,.055) 14px
+      );
+      pointer-events: none;
+    }
+
+    .tl-lane-agent    .tl-track { border-left: 3px solid var(--accent); }
+    .tl-lane-customer .tl-track { border-left: 3px solid var(--accent2); }
+    .tl-lane-acd      .tl-track { border-left: 3px solid #c8860a; }
+    .tl-lane-other    .tl-track { border-left: 3px solid var(--stroke2); }
+
+    .tl-footer {
+      margin-top: 10px;
+      font-size: .76rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 6px 18px;
+      padding-top: 8px;
+      border-top: 1px solid var(--stroke);
+    }
+    .tl-footer strong { color: var(--ink2); }
+    .tl-footer .tl-warn-val  { color: var(--danger); font-weight: 700; }
+    .tl-footer .tl-ok-val    { color: var(--ok);     font-weight: 700; }
+
+    .tl-btn-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 6px;
+      background: var(--surface2); border: 1px solid var(--stroke);
+      color: var(--accent); font-size: .8rem; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      transition: background .15s, border-color .15s;
+    }
+    .tl-btn-link:hover { background: #d1f5e6; border-color: var(--accent); }
+
     /* ─── Responsive tweaks ─────────────────────────────────────── */
     @media (max-width: 700px) {
       #kpi-strip { grid-template-columns: repeat(2, 1fr); }
@@ -933,6 +1073,7 @@
     <div class="dd-tab active" data-tab="summary">Summary</div>
     <div class="dd-tab" data-tab="participants">Participants</div>
     <div class="dd-tab" data-tab="segments">Segments</div>
+    <div class="dd-tab" data-tab="timeline">🕐 Timeline</div>
     <div class="dd-tab" data-tab="attributes">Attributes</div>
     <div class="dd-tab" data-tab="quality">MOS / Quality</div>
     <div class="dd-tab" data-tab="raw">Raw JSON</div>
@@ -1025,19 +1166,23 @@ const COLUMN_DEFS = [
     render:r=>`<td>${r.mediaTypes.length?r.mediaTypes.map(m=>`<span class="pill ${mediaPillClass(m)}">${escHtml(m)}</span>`).join(' '):'<span class="muted">—</span>'}</td>` },
   { key:'queue',      label:'Queue',         sortKey:'queue',     dflt:true,
     render:r=>`<td class="trunc" title="${escHtml(r.queueName)}" style="max-width:140px">${escHtml(r.queueName||'—')}</td>` },
+  { key:'flowName',   label:'Flow Name',     sortKey:null,        dflt:true,
+    render:r=>`<td class="trunc" title="${escHtml(r.flowName||'')}" style="max-width:140px">${escHtml(r.flowName||'—')}</td>` },
   { key:'disconnect', label:'Disconnect',    sortKey:'disconnect',dflt:true,
     render:r=>`<td class="trunc" style="max-width:110px"><span class="muted">${escHtml(r.disconnectType||'—')}</span></td>` },
   { key:'mos',        label:'MOS',           sortKey:'mos',       dflt:true,
     render:r=>`<td class="${r.hasMos?mosColorClass(r.mos):''}" style="font-weight:600">${r.hasMos?r.mos.toFixed(2):'—'}</td>` },
   { key:'participants',label:'# Parts',      sortKey:null,        dflt:true,
     render:r=>`<td style="text-align:center">${r.participantCount||'—'}</td>` },
-  { key:'division',   label:'Divisions',     sortKey:null,        dflt:false,
+  { key:'division',   label:'Divisions',     sortKey:null,        dflt:true,
     render:r=>`<td class="trunc" style="max-width:160px" title="${escHtml((r.divisionIds||[]).join(', '))}">${escHtml((r.divisionIds||[]).join(', ')||'—')}</td>` },
   { key:'trunkName',  label:'Trunk/Provider',sortKey:null,        dflt:false,
     render:r=>`<td class="trunc" style="max-width:130px">${escHtml((r.trunkNames||[]).join(', ')||'—')}</td>` },
   { key:'errorCode',  label:'Error Code',    sortKey:null,        dflt:false,
     render:r=>`<td class="trunc danger" style="max-width:130px">${escHtml((r.errorCodes||[]).join(', ')||'—')}</td>` },
-  { key:'userId',     label:'Agent User',    sortKey:null,        dflt:false,
+  { key:'agentName',  label:'Agent Name',    sortKey:null,        dflt:true,
+    render:r=>`<td class="trunc" style="max-width:140px" title="${escHtml((r.agentNames||[]).join(', '))}">${escHtml((r.agentNames||[]).slice(0,2).join(', ')||'—')}</td>` },
+  { key:'userId',     label:'Agent User ID', sortKey:null,        dflt:false,
     render:r=>`<td class="trunc mono" style="max-width:130px;font-size:.76rem">${escHtml((r.userIds||[]).slice(0,2).join(', ')||'—')}</td>` },
 ];
 
@@ -1244,13 +1389,51 @@ function buildIndexEntry(conv, idx) {
   }
 
   // primary queue name
+  // Check in priority order: ACD/queue purpose participant → routing segments → all segments → sessions → any participant
   let queueName = '';
-  for (const seg of segments) {
-    if (seg.queueName) { queueName = seg.queueName; break; }
+  for (const p of participants) {
+    if ((p.purpose === 'acd' || p.purpose === 'queue') && p.queueName) {
+      queueName = p.queueName; break;
+    }
+  }
+  if (!queueName) {
+    const routingSegs = segments.filter(s => s.segmentType === 'routing' || s.type === 'routing');
+    for (const seg of routingSegs) {
+      if (seg.queueName) { queueName = seg.queueName; break; }
+    }
+  }
+  if (!queueName) {
+    for (const seg of segments) {
+      if (seg.queueName) { queueName = seg.queueName; break; }
+    }
+  }
+  if (!queueName) {
+    for (const sess of sessions) {
+      if (sess.queueName) { queueName = sess.queueName; break; }
+    }
   }
   if (!queueName) {
     for (const p of participants) {
       if (p.queueName) { queueName = p.queueName; break; }
+    }
+  }
+
+  // flow name — from segments, sessions, or participants
+  let flowName = '';
+  for (const seg of segments) {
+    if (seg.flowName) { flowName = seg.flowName; break; }
+    if (seg.flow?.flowName) { flowName = seg.flow.flowName; break; }
+  }
+  if (!flowName) {
+    for (const sess of sessions) {
+      if (sess.flowName) { flowName = sess.flowName; break; }
+      if (sess.flow?.flowName) { flowName = sess.flow.flowName; break; }
+    }
+  }
+  if (!flowName) {
+    for (const p of participants) {
+      if (p.flowName) { flowName = p.flowName; break; }
+      if (p.flow?.flowName) { flowName = p.flow.flowName; break; }
     }
   }
 
@@ -1298,6 +1481,13 @@ function buildIndexEntry(conv, idx) {
       .map(p => p.userId).filter(Boolean)
   )];
 
+  // agent display names
+  const agentNames = [...new Set(
+    participants
+      .filter(p => p.purpose === 'agent' || p.purpose === 'user')
+      .map(p => p.participantName || p.name).filter(Boolean)
+  )];
+
   // trunk / provider names (voice sessions)
   const trunkNames = [...new Set(
     sessions
@@ -1323,6 +1513,7 @@ function buildIndexEntry(conv, idx) {
     direction: direction.toLowerCase(),
     mediaTypes,
     queueName,
+    flowName,
     disconnectType,
     hasHolds,
     hasMos,
@@ -1330,6 +1521,7 @@ function buildIndexEntry(conv, idx) {
     participantCount: participants.length,
     divisionIds,
     userIds,
+    agentNames,
     trunkNames,
     errorCodes,
     hasError,
@@ -1971,6 +2163,7 @@ function renderDdTab(tab) {
     case 'summary':     body.innerHTML = renderDdSummary(conv); break;
     case 'participants':body.innerHTML = renderDdParticipants(conv); break;
     case 'segments':    body.innerHTML = renderDdSegments(conv); break;
+    case 'timeline':    body.innerHTML = renderDdTimeline(conv); break;
     case 'attributes':  body.innerHTML = renderDdAttributes(conv); break;
     case 'quality':     body.innerHTML = renderDdQuality(conv); break;
     case 'raw':         body.innerHTML = renderDdRaw(conv); break;
@@ -1995,8 +2188,46 @@ function renderDdSummary(conv) {
       if (sess?.direction) { direction = sess.direction; break; }
     }
   }
+
+  // queue name — same priority order as buildIndexEntry
   let queueName = '';
-  for (const s of segments) { if (s.queueName) { queueName = s.queueName; break; } }
+  for (const p of participants) {
+    if ((p.purpose === 'acd' || p.purpose === 'queue') && p.queueName) {
+      queueName = p.queueName; break;
+    }
+  }
+  if (!queueName) {
+    const routingSegs = segments.filter(s => s.segmentType === 'routing' || s.type === 'routing');
+    for (const seg of routingSegs) { if (seg.queueName) { queueName = seg.queueName; break; } }
+  }
+  if (!queueName) { for (const seg of segments) { if (seg.queueName) { queueName = seg.queueName; break; } } }
+  if (!queueName) { for (const sess of sessions) { if (sess.queueName) { queueName = sess.queueName; break; } } }
+  if (!queueName) { for (const p of participants) { if (p.queueName) { queueName = p.queueName; break; } } }
+
+  // flow name
+  let flowName = '';
+  for (const seg of segments) {
+    if (seg.flowName) { flowName = seg.flowName; break; }
+    if (seg.flow?.flowName) { flowName = seg.flow.flowName; break; }
+  }
+  if (!flowName) {
+    for (const sess of sessions) {
+      if (sess.flowName) { flowName = sess.flowName; break; }
+      if (sess.flow?.flowName) { flowName = sess.flow.flowName; break; }
+    }
+  }
+  if (!flowName) {
+    for (const p of participants) {
+      if (p.flowName) { flowName = p.flowName; break; }
+      if (p.flow?.flowName) { flowName = p.flow.flowName; break; }
+    }
+  }
+
+  // agent names
+  const agentNames = [...new Set(
+    participants.filter(p => p.purpose === 'agent' || p.purpose === 'user')
+      .map(p => p.participantName || p.name).filter(Boolean)
+  )];
 
   const holdSegs = segments.filter(s => s.segmentType === 'hold' || s.type === 'hold');
   const holdDurMs = holdSegs.reduce((sum, s) => {
@@ -2008,7 +2239,10 @@ function renderDdSummary(conv) {
 
   return `
   <div class="dd-section">
-    <div class="dd-section-title">Conversation Summary</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="dd-section-title" style="margin:0;border:none;padding:0">Conversation Summary</div>
+      <button class="tl-btn-link" onclick="openTimelineTab()">📊 View Timeline</button>
+    </div>
     <div class="dd-grid-2">
       <div><div class="dd-field-label">Conversation ID</div><div class="dd-field-value mono">${escHtml(id)}</div></div>
       <div><div class="dd-field-label">Start Time</div><div class="dd-field-value">${escHtml(fmtTs(start))}</div></div>
@@ -2017,6 +2251,8 @@ function renderDdSummary(conv) {
       <div><div class="dd-field-label">Direction</div><div class="dd-field-value">${direction ? `<span class="pill ${direction==='inbound'?'pill-green':'pill-blue'}">${escHtml(direction)}</span>` : '—'}</div></div>
       <div><div class="dd-field-label">Media Types</div><div class="dd-field-value">${mediaTypes.map(m=>`<span class="pill ${mediaPillClass(m)}">${escHtml(m)}</span>`).join(' ') || '—'}</div></div>
       <div><div class="dd-field-label">Primary Queue</div><div class="dd-field-value">${escHtml(queueName || '—')}</div></div>
+      <div><div class="dd-field-label">Flow Name</div><div class="dd-field-value">${escHtml(flowName || '—')}</div></div>
+      <div><div class="dd-field-label">Agent(s)</div><div class="dd-field-value">${escHtml(agentNames.join(', ') || '—')}</div></div>
       <div><div class="dd-field-label">Participants</div><div class="dd-field-value">${escHtml(String(participants.length))}</div></div>
       <div><div class="dd-field-label">Hold Duration</div><div class="dd-field-value ${holdDurMs > 0 ? 'warn' : ''}">${holdDurMs > 0 ? fmtDuration(holdDurMs) : '—'}</div></div>
       <div><div class="dd-field-label">Divisions</div><div class="dd-field-value mono" style="font-size:.77rem">${escHtml(divisionIds)}</div></div>
@@ -2210,6 +2446,175 @@ function renderDdQuality(conv) {
   return html;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// TIMELINE VISUALIZATION
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Navigate the drilldown panel to the Timeline tab from the Summary button. */
+function openTimelineTab() {
+  const tab = document.querySelector('.dd-tab[data-tab="timeline"]');
+  if (tab) tab.click();
+}
+
+/** Segment type → hex colour (used in both the timeline and the legend). */
+const SEGMENT_COLORS = {
+  interact:   '#0d9f6e',
+  hold:       '#e05d2b',
+  wrapup:     '#0085a1',
+  alert:      '#c0392b',
+  dialing:    '#7a3fbf',
+  contacting: '#c8860a',
+  routing:    '#0061a0',
+};
+function segColor(type) { return SEGMENT_COLORS[type] || '#90a098'; }
+
+/** Build a problem-indicator badge span for the timeline lane label. */
+function tlBadgeHtml(cssClass, text, title) {
+  const t = title ? ` title="${escHtml(title)}"` : '';
+  return `<span class="tl-badge tl-badge-${cssClass}"${t}>${escHtml(text)}</span>`;
+}
+
+function renderDdTimeline(conv) {
+  const participants = conv.participants || [];
+  const convStart = conv.conversationStart || conv.startTime || '';
+  const convDurMs = computeConvDurationMs(conv);
+
+  if (!participants.length || !convStart || !convDurMs) {
+    return `<div class="empty-state"><div class="es-icon">📊</div><div class="es-msg">Insufficient data for timeline visualization</div></div>`;
+  }
+
+  const tStart = new Date(convStart).getTime();
+
+  // Build one lane per participant
+  const lanes = participants.map(p => {
+    const sessions = p.sessions || [];
+    const segs = sessions.flatMap(s =>
+      (s.segments || []).map(seg => ({ ...seg, _media: s.mediaType }))
+    ).sort((a, b) => (a.segmentStart||'') < (b.segmentStart||'') ? -1 : 1);
+
+    const eps = sessions.flatMap(s => s.mediaEndpointStats || []);
+    const minMos = eps.reduce((m, ep) => {
+      if (ep.minMos != null) { const v = parseFloat(ep.minMos); return m == null ? v : Math.min(m, v); }
+      return m;
+    }, null);
+    const maxLatencyMs = eps.reduce((m, ep) => {
+      if (ep.maxLatencyMs != null) { const v = Number(ep.maxLatencyMs); return m == null ? v : Math.max(m, v); }
+      return m;
+    }, null);
+    const errors = [...new Set([
+      ...segs.map(s => s.errorCode).filter(Boolean).map(String),
+      ...segs.map(s => s.errorPhrase).filter(Boolean).map(String),
+    ])];
+
+    return { name: p.participantName || p.purpose || '?', purpose: p.purpose || '', segs, minMos, maxLatencyMs, errors };
+  });
+
+  // Render segment bars as positioned divs
+  const laneRows = lanes.map(lane => {
+    const isAgent    = lane.purpose === 'agent' || lane.purpose === 'user';
+    const isCust     = lane.purpose === 'customer' || lane.purpose === 'external';
+    const isAcd      = lane.purpose === 'acd' || lane.purpose === 'queue';
+    const hasLowMos  = lane.minMos != null && lane.minMos < 3.5;
+    const hasHighLat = lane.maxLatencyMs != null && lane.maxLatencyMs > 150;
+    const hasError   = lane.errors.length > 0;
+    const hasProblem = hasLowMos || hasError || hasHighLat;
+
+    const purposeCls = isAgent ? 'tl-lane-agent' : isCust ? 'tl-lane-customer' : isAcd ? 'tl-lane-acd' : 'tl-lane-other';
+
+    const segBars = lane.segs.map(seg => {
+      const type     = seg.segmentType || seg.type || 'unknown';
+      const segStart = seg.segmentStart || seg.startTime || '';
+      if (!segStart) return '';
+      const msFrom   = Math.max(0, new Date(segStart).getTime() - tStart);
+      const segEndTs = seg.segmentEnd || seg.endTime;
+      const msTo     = segEndTs ? Math.min(convDurMs, new Date(segEndTs).getTime() - tStart) : convDurMs;
+      const pctLeft  = (msFrom / convDurMs * 100).toFixed(2);
+      const pctW     = Math.max(0.4, ((msTo - msFrom) / convDurMs * 100)).toFixed(2);
+      const color    = segColor(type);
+      const label    = `${type}: ${fmtDuration(Math.max(0, msTo - msFrom))}`;
+      return `<div class="tl-seg" style="left:${pctLeft}%;width:${pctW}%;background:${color}" title="${escHtml(label)}"></div>`;
+    }).join('');
+
+    const badges = [];
+    if (hasLowMos)  badges.push(tlBadgeHtml('danger', `⚠ MOS ${lane.minMos.toFixed(2)}`));
+    else if (lane.minMos != null) badges.push(tlBadgeHtml('ok', `MOS ${lane.minMos.toFixed(2)}`));
+    if (hasHighLat) badges.push(tlBadgeHtml('warn', `⚡ ${lane.maxLatencyMs}ms`));
+    if (hasError) {
+      lane.errors.slice(0, 2).forEach(e => {
+        const label = e.length > 18 ? e.substring(0, 18) + '…' : e;
+        badges.push(tlBadgeHtml('danger', `⚠ ${label}`, e));
+      });
+    }
+
+    return `<div class="tl-lane ${purposeCls}${hasProblem?' tl-lane-problem':''}">
+      <div class="tl-lane-label">
+        <div class="tl-lane-name" title="${escHtml(lane.name)}">${escHtml(lane.name)}</div>
+        <div class="tl-lane-purpose">${escHtml(lane.purpose)}</div>
+        ${badges.length ? `<div class="tl-lane-badges">${badges.join('')}</div>` : ''}
+      </div>
+      <div class="tl-track">
+        ${segBars}
+        ${hasProblem ? '<div class="tl-problem-overlay"></div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Time-axis ticks: 6 divisions give readable labels without crowding the panel width
+  const TICK_COUNT = 6;
+  const ticks = Array.from({ length: TICK_COUNT + 1 }, (_, i) => {
+    const pct = (i / TICK_COUNT * 100).toFixed(1);
+    const ms  = i / TICK_COUNT * convDurMs;
+    return `<div class="tl-tick" style="left:${pct}%"><div class="tl-tick-label">${escHtml(fmtDuration(ms))}</div></div>`;
+  }).join('');
+
+  // Legend
+  const legendItems = [
+    { type:'interact',   label:'Talk'     },
+    { type:'hold',       label:'Hold'     },
+    { type:'routing',    label:'Routing'  },
+    { type:'wrapup',     label:'Wrap-up'  },
+    { type:'alert',      label:'Alert'    },
+    { type:'dialing',    label:'Dialing'  },
+    { type:'contacting', label:'Contacting'},
+  ];
+  const legend = legendItems.map(l =>
+    `<span class="tl-legend-item"><span class="tl-legend-dot" style="background:${segColor(l.type)}"></span>${escHtml(l.label)}</span>`
+  ).join('');
+
+  // Footer stats
+  const allMos = lanes.map(l => l.minMos).filter(v => v != null);
+  const globalMinMos = allMos.length ? Math.min(...allMos) : null;
+  const allLat = lanes.map(l => l.maxLatencyMs).filter(v => v != null);
+  const globalMaxLat = allLat.length ? Math.max(...allLat) : null;
+  const allErrors = [...new Set(lanes.flatMap(l => l.errors))];
+
+  const footerParts = [
+    `Duration: <strong>${escHtml(fmtDuration(convDurMs))}</strong>`,
+    `Participants: <strong>${escHtml(String(participants.length))}</strong>`,
+    globalMinMos != null
+      ? `Min MOS: <strong class="${globalMinMos<3.5?'tl-warn-val':'tl-ok-val'}">${globalMinMos.toFixed(2)}</strong>`
+      : '',
+    globalMaxLat != null
+      ? `Max Latency: <strong class="${globalMaxLat>150?'tl-warn-val':'tl-ok-val'}">${escHtml(String(globalMaxLat))}ms</strong>`
+      : '',
+    allErrors.length
+      ? `Errors: <strong class="tl-warn-val">${escHtml(String(allErrors.length))}</strong>`
+      : '',
+  ].filter(Boolean);
+
+  return `<div class="dd-section">
+    <div class="dd-section-title">Conversation Timeline</div>
+    <div class="tl-legend">${legend}</div>
+    <div class="tl-container">
+      <div class="tl-inner">
+        <div class="tl-axis">${ticks}</div>
+        <div class="tl-lanes">${laneRows}</div>
+      </div>
+    </div>
+    <div class="tl-footer">${footerParts.map(p=>`<span>${p}</span>`).join('')}</div>
+  </div>`;
+}
+
 function renderDdRaw(conv) {
   const json = JSON.stringify(conv, null, 2);
   return `<div class="dd-section">
@@ -2235,11 +2640,14 @@ function flattenConversation(conv) {
     direction:   idx?.direction   || '',
     mediaTypes:  idx?.mediaTypes?.join('|') || '',
     queueName:   idx?.queueName   || '',
+    flowName:    idx?.flowName    || '',
     disconnectType: idx?.disconnectType || '',
     hasHolds:    idx?.hasHolds ? 'true' : 'false',
     hasMos:      idx?.hasMos   ? 'true' : 'false',
     mos:         idx?.mos != null ? idx.mos.toFixed(3) : '',
     participantCount: idx?.participantCount ?? '',
+    agentNames:  idx?.agentNames?.join('|') || '',
+    divisionIds: idx?.divisionIds?.join('|') || '',
   };
 }
 

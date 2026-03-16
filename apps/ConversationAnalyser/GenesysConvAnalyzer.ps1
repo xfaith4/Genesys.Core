@@ -672,6 +672,39 @@ $endDatePicker.ToolTip   = 'Optional. Leave both dates empty to query the last 2
 
 function Set-Status { param([string]$Msg) $statusText.Text = $Msg }
 
+function Get-ComboValue {
+    param([AllowNull()][object]$Control)
+
+    if ($null -eq $Control) {
+        return ''
+    }
+
+    if ($Control -is [string]) {
+        return [string]$Control
+    }
+
+    if ($Control.PSObject.Properties.Name -contains 'Text' -and -not [string]::IsNullOrWhiteSpace([string]$Control.Text)) {
+        return [string]$Control.Text
+    }
+
+    if ($Control.PSObject.Properties.Name -contains 'SelectedItem' -and $null -ne $Control.SelectedItem) {
+        $selected = $Control.SelectedItem
+        if ($selected -is [string]) {
+            return [string]$selected
+        }
+        if ($selected.PSObject.Properties.Name -contains 'Content' -and $null -ne $selected.Content) {
+            return [string]$selected.Content
+        }
+        return [string]$selected
+    }
+
+    if ($Control.PSObject.Properties.Name -contains 'Content' -and $null -ne $Control.Content) {
+        return [string]$Control.Content
+    }
+
+    return [string]$Control
+}
+
 function Append-JobLog {
     param([string]$Line)
     $ts = [DateTime]::Now.ToString('HH:mm:ss')
@@ -731,8 +764,17 @@ function New-FilterRow {
     $remBtn.Content = '✕'; $remBtn.Margin = [System.Windows.Thickness]::new(1); $remBtn.Padding = [System.Windows.Thickness]::new(2,0,2,0)
     $remBtn.ToolTip = 'Remove filter'
     $capturedBorder = $border; $capturedPanel = $Panel
-    $remBtn.Add_Click({ $capturedPanel.Children.Remove($capturedBorder) }.GetNewClosure())
+    $remBtn.Add_Click({
+        $capturedPanel.Children.Remove($capturedBorder)
+        Update-QueryPreview
+    }.GetNewClosure())
     [System.Windows.Controls.Grid]::SetColumn($remBtn, 4); $grid.Children.Add($remBtn) | Out-Null
+
+    $logicCb.Add_SelectionChanged({ Update-QueryPreview })
+    $dimCb.Add_SelectionChanged({ Update-QueryPreview })
+    $dimCb.Add_LostFocus({ Update-QueryPreview })
+    $opCb.Add_SelectionChanged({ Update-QueryPreview })
+    $valTb.Add_TextChanged({ Update-QueryPreview })
 
     $Panel.Children.Add($border) | Out-Null
 
@@ -748,9 +790,9 @@ function Collect-FilterRows {
         if ($null -eq $g) { continue }
         $items = @($g.Children)
         $rows.Add([pscustomobject]@{
-            logic     = if ($items[0].SelectedItem) { [string]$items[0].SelectedItem } else { 'and' }
+            logic     = if ($items[0].SelectedItem) { Get-ComboValue -Control $items[0] } else { 'and' }
             dimension = if ($items[1].Text) { [string]$items[1].Text } else { '' }
-            operator  = if ($items[2].SelectedItem) { [string]$items[2].SelectedItem } else { 'matches' }
+            operator  = if ($items[2].SelectedItem) { Get-ComboValue -Control $items[2] } else { 'matches' }
             value     = [string]$items[3].Text
         }) | Out-Null
     }
@@ -823,12 +865,12 @@ function Build-QueryBody {
     $interval = "$($startUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))/$($endUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))"
     $body = [ordered]@{
         interval = $interval
-        order    = [string]$orderCombo.SelectedItem
-        orderBy  = [string]$orderByCombo.SelectedItem
+        order    = Get-ComboValue -Control $orderCombo
+        orderBy  = Get-ComboValue -Control $orderByCombo
     }
 
     # Quick filter: direction
-    $dir = [string]$directionCombo.SelectedItem
+    $dir = Get-ComboValue -Control $directionCombo
     if (-not [string]::IsNullOrWhiteSpace($dir) -and $dir -ne '(any)') {
         $body['conversationFilters'] = @(@{
             type       = 'and'
@@ -837,7 +879,7 @@ function Build-QueryBody {
     }
 
     # Quick filter: media type → segment filter (purpose=agent + mediaType from session)
-    $mt = [string]$mediaTypeCombo.SelectedItem
+    $mt = Get-ComboValue -Control $mediaTypeCombo
     if (-not [string]::IsNullOrWhiteSpace($mt) -and $mt -ne '(any)') {
         $existing = if ($body.Contains('segmentFilters')) { [System.Collections.Generic.List[object]]$body['segmentFilters'] } else { [System.Collections.Generic.List[object]]::new() }
         $existing.Add(@{
@@ -850,7 +892,8 @@ function Build-QueryBody {
     # Custom conversation filters
     $convRows = Collect-FilterRows -Panel $convFilterPanel
     if ($convRows.Count -gt 0) {
-        $existingConv = if ($body.Contains('conversationFilters')) { [System.Collections.Generic.List[object]]($body['conversationFilters']) } else { [System.Collections.Generic.List[object]]::new() }        foreach ($r in $convRows) {
+        $existingConv = if ($body.Contains('conversationFilters')) { [System.Collections.Generic.List[object]]($body['conversationFilters']) } else { [System.Collections.Generic.List[object]]::new() }
+        foreach ($r in $convRows) {
             $pred = [ordered]@{ dimension = $r.dimension; value = $r.value }
             if ($r.operator -ne 'matches') { $pred['operator'] = $r.operator }
             $existingConv.Add([ordered]@{ type = $r.logic; predicates = @($pred) }) | Out-Null
@@ -871,6 +914,16 @@ function Build-QueryBody {
     }
 
     return $body
+}
+
+function Update-QueryPreview {
+    try {
+        $body = Build-QueryBody
+        $queryPreviewBox.Text = ($body | ConvertTo-Json -Depth 10)
+    }
+    catch {
+        $queryPreviewBox.Text = "Error: $($_.Exception.Message)"
+    }
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1126,6 +1179,7 @@ function Set-DatePreset {
     param([DateTime]$Start, [DateTime]$End)
     $startDatePicker.SelectedDate = $Start
     $endDatePicker.SelectedDate   = $End
+    Update-QueryPreview
 }
 
 (Get-Control 'PresetToday').Add_Click({
@@ -1152,29 +1206,38 @@ function Set-DatePreset {
     Set-DatePreset -Start $s -End $e
 })
 
+$startDatePicker.Add_SelectedDateChanged({ Update-QueryPreview })
+$startDatePicker.Add_LostFocus({ Update-QueryPreview })
+$endDatePicker.Add_SelectedDateChanged({ Update-QueryPreview })
+$endDatePicker.Add_LostFocus({ Update-QueryPreview })
+$directionCombo.Add_SelectionChanged({ Update-QueryPreview })
+$mediaTypeCombo.Add_SelectionChanged({ Update-QueryPreview })
+$orderByCombo.Add_SelectionChanged({ Update-QueryPreview })
+$orderCombo.Add_SelectionChanged({ Update-QueryPreview })
+
 # ── Filter rows ───────────────────────────────────────────────────────────────
 
-$addConvFilterBtn.Add_Click({ New-FilterRow -Type 'conversation' -Panel $convFilterPanel | Out-Null })
-$addSegFilterBtn.Add_Click({  New-FilterRow -Type 'segment'      -Panel $segFilterPanel  | Out-Null })
+$addConvFilterBtn.Add_Click({
+    New-FilterRow -Type 'conversation' -Panel $convFilterPanel | Out-Null
+    Update-QueryPreview
+})
+$addSegFilterBtn.Add_Click({
+    New-FilterRow -Type 'segment' -Panel $segFilterPanel | Out-Null
+    Update-QueryPreview
+})
 
 $clearFiltersBtn.Add_Click({
     $convFilterPanel.Children.Clear()
     $segFilterPanel.Children.Clear()
     $directionCombo.SelectedIndex  = 0
     $mediaTypeCombo.SelectedIndex  = 0
-    $queryPreviewBox.Text          = ''
+    Update-QueryPreview
 })
 
 # ── Preview JSON ──────────────────────────────────────────────────────────────
 
 $previewBtn.Add_Click({
-    try {
-        $body = Build-QueryBody
-        $queryPreviewBox.Text = ($body | ConvertTo-Json -Depth 10)
-    }
-    catch {
-        $queryPreviewBox.Text = "Error: $($_.Exception.Message)"
-    }
+    Update-QueryPreview
 })
 
 # ── Submit job ────────────────────────────────────────────────────────────────
@@ -1481,6 +1544,7 @@ $clearResultsBtn.Add_Click({
 
 $startDatePicker.SelectedDate = $null
 $endDatePicker.SelectedDate   = $null
+Update-QueryPreview
 
 $cfg = Read-GenesysEnvConfig
 if ($null -ne $cfg) {

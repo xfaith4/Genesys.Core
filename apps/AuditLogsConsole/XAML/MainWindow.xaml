@@ -1,0 +1,312 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Genesys Audit Logs Console"
+        Height="940"
+        Width="1500"
+        WindowStartupLocation="CenterScreen"
+        Background="#F4F6F8"
+        MinHeight="820"
+        MinWidth="1280">
+    <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top" Background="#0F1C2E" Padding="18">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="520" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Genesys Cloud Audit Logs Console" FontSize="26" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Thin WPF wrapper over Genesys.Core Invoke-Dataset for audit discovery, review, and export." Margin="0,6,0,0" Foreground="#C6D3E1" />
+                </StackPanel>
+                <Border Grid.Column="1" Background="#16263B" CornerRadius="10" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Region" Foreground="#C6D3E1" />
+                            <ComboBox Name="CmbRegion" Margin="0,6,10,0" IsEditable="True" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Bearer Token" Foreground="#C6D3E1" />
+                            <PasswordBox Name="PwdAccessToken" Margin="0,6,10,0" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Session" Foreground="#C6D3E1" />
+                            <Button Name="BtnConnect" Content="Connect" Margin="0,6,0,0" Height="28" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Name="BrdStartupState" Background="#E6EDF5" Padding="12" BorderBrush="#CFD8E3" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="320" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Name="TxtStartupState" Text="Starting..." Foreground="#17304F" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Name="TxtAuthState" HorizontalAlignment="Right" Foreground="#17304F" Text="Not connected" />
+            </Grid>
+        </Border>
+
+        <StatusBar DockPanel.Dock="Bottom" Background="#EAF0F5">
+            <StatusBarItem>
+                <TextBlock Name="TxtStatusMain" Text="Ready" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Name="TxtStatusRight" Text="" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid Margin="18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="330" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Border Background="White" Padding="16" CornerRadius="10" BorderBrush="#D8E1EA" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Run Builder" FontSize="18" FontWeight="SemiBold" Foreground="#17304F" />
+                            <TextBlock Text="Preview narrows the selected window for speed. Full extraction preserves the full selected interval." Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#526173" />
+
+                            <TextBlock Text="Dataset" Margin="0,14,0,0" />
+                            <ComboBox Name="CmbDataset" Height="28" />
+
+                            <TextBlock Text="Time Preset (UTC)" Margin="0,14,0,0" />
+                            <ComboBox Name="CmbTimePreset" Height="28">
+                                <ComboBoxItem Content="Last 1 hour" />
+                                <ComboBoxItem Content="Last 4 hours" />
+                                <ComboBoxItem Content="Last 24 hours" />
+                                <ComboBoxItem Content="Last 7 days" />
+                                <ComboBoxItem Content="Custom" />
+                            </ComboBox>
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="100" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Start Date" />
+                                    <DatePicker Name="DtpStartDate" Height="28" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Start Time" />
+                                    <TextBox Name="TxtStartTime" Height="28" Text="00:00" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="100" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="End Date" />
+                                    <DatePicker Name="DtpEndDate" Height="28" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="End Time" />
+                                    <TextBox Name="TxtEndTime" Height="28" Text="23:59" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Audit Category / Service" Margin="0,14,0,0" />
+                            <ComboBox Name="CmbService" Height="28" IsEditable="True" />
+
+                            <TextBlock Text="Action" Margin="0,14,0,0" />
+                            <ComboBox Name="CmbAction" Height="28" IsEditable="True" />
+
+                            <TextBlock Text="Actor / User" Margin="0,14,0,0" />
+                            <TextBox Name="TxtActor" Height="28" />
+
+                            <TextBlock Text="Entity" Margin="0,14,0,0" />
+                            <TextBox Name="TxtEntity" Height="28" />
+
+                            <TextBlock Text="Keyword" Margin="0,14,0,0" />
+                            <TextBox Name="TxtKeyword" Height="28" />
+
+                            <TextBlock Text="Preview Result Limit" Margin="0,14,0,0" />
+                            <TextBox Name="TxtPreviewLimit" Height="28" Text="250" />
+
+                            <WrapPanel Margin="0,18,0,0">
+                                <Button Name="BtnPreviewRun" Content="Preview" Width="110" Height="32" Margin="0,0,10,0" />
+                                <Button Name="BtnFullRun" Content="Full Extract" Width="110" Height="32" />
+                            </WrapPanel>
+
+                            <Separator Margin="0,18,0,18" />
+
+                            <TextBlock Text="Recent Runs" FontSize="16" FontWeight="SemiBold" Foreground="#17304F" />
+                            <ListBox Name="LstRecentRuns" Margin="0,10,0,0" Height="200" DisplayMemberPath="Display" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Name="BtnLoadSelectedRun" Content="Load Run" Width="100" Height="30" Margin="0,0,10,0" />
+                                <Button Name="BtnRefreshRuns" Content="Refresh" Width="90" Height="30" Margin="0,0,10,0" />
+                                <Button Name="BtnOpenRunFolder" Content="Open Folder" Width="100" Height="30" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <TabControl Grid.Column="2">
+                <TabItem Header="Results">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Background="White" Padding="14" CornerRadius="10" BorderBrush="#D8E1EA" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Current Run Folder" FontWeight="SemiBold" />
+                                    <TextBlock Name="TxtCurrentRunFolder" Text="(none loaded)" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Run Status" FontWeight="SemiBold" />
+                                    <TextBlock Name="TxtCurrentRunStatus" Margin="0,6,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Summary" FontWeight="SemiBold" />
+                                    <TextBlock Name="TxtSummaryCounts" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3">
+                                    <TextBlock Text="Current View" FontWeight="SemiBold" />
+                                    <TextBlock Name="TxtCurrentViewMode" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <WrapPanel Grid.Row="1" Margin="0,12,0,12">
+                            <Button Name="BtnApplyFilters" Content="Apply Filters" Width="110" Height="30" Margin="0,0,10,0" />
+                            <Button Name="BtnResetFilters" Content="Reset Filters" Width="110" Height="30" Margin="0,0,10,0" />
+                            <Button Name="BtnExportFilteredCsv" Content="Export Filtered CSV" Width="150" Height="30" Margin="0,0,10,0" />
+                            <Button Name="BtnExportFullCsv" Content="Export Full CSV" Width="130" Height="30" Margin="0,0,10,0" />
+                            <Button Name="BtnExportFilteredHtml" Content="Export Filtered HTML" Width="155" Height="30" Margin="0,0,10,0" />
+                            <Button Name="BtnExportFullHtml" Content="Export Full HTML" Width="135" Height="30" />
+                        </WrapPanel>
+
+                        <DataGrid Grid.Row="2"
+                                  Name="DgAuditResults"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  AlternatingRowBackground="#F7FAFC">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Timestamp" Binding="{Binding TimestampUtc}" Width="170" />
+                                <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="120" />
+                                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="110" />
+                                <DataGridTextColumn Header="Actor" Binding="{Binding Actor}" Width="160" />
+                                <DataGridTextColumn Header="Entity Type" Binding="{Binding EntityType}" Width="120" />
+                                <DataGridTextColumn Header="Entity Name" Binding="{Binding EntityName}" Width="180" />
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
+                                <DataGridTextColumn Header="Correlation" Binding="{Binding CorrelationId}" Width="180" />
+                                <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <DockPanel Grid.Row="3" Margin="0,12,0,0">
+                            <WrapPanel DockPanel.Dock="Left">
+                                <Button Name="BtnPrevPage" Content="Previous" Width="90" Height="28" Margin="0,0,10,0" />
+                                <Button Name="BtnNextPage" Content="Next" Width="90" Height="28" />
+                            </WrapPanel>
+                            <TextBlock Name="TxtPageInfo" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                        </DockPanel>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Drilldown">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="220" />
+                            <RowDefinition Height="180" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Background="White" Padding="14" CornerRadius="10" BorderBrush="#D8E1EA" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Name="TxtSelectedRecord" Text="Select a row to inspect an audit event." FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Name="BtnCopyDetailSummary" Content="Copy Summary" Width="110" Height="28" Margin="10,0,0,0" />
+                                <Button Grid.Column="2" Name="BtnCopyRawJson" Content="Copy Raw JSON" Width="110" Height="28" Margin="10,0,0,0" />
+                            </Grid>
+                        </Border>
+
+                        <TextBox Grid.Row="1" Name="TxtDetailSummary" Margin="0,12,0,0" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" IsReadOnly="True" />
+
+                        <DataGrid Grid.Row="2"
+                                  Name="DgChangedProperties"
+                                  Margin="0,12,0,0"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Field" Binding="{Binding Field}" Width="*" />
+                                <DataGridTextColumn Header="Before" Binding="{Binding Before}" Width="*" />
+                                <DataGridTextColumn Header="After" Binding="{Binding After}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBox Grid.Row="3" Name="TxtRawJson" Margin="0,12,0,0" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" FontFamily="Consolas" />
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Run Console">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Background="White" Padding="14" CornerRadius="10" BorderBrush="#D8E1EA" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Run State" FontWeight="SemiBold" />
+                                    <TextBlock Name="TxtConsoleState" Margin="0,6,0,0" />
+                                    <TextBlock Name="TxtConsoleError" Margin="0,8,0,0" Foreground="#9C2A2A" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Name="BtnCopyDiagnostics" Content="Copy Diagnostics" Width="125" Height="30" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Grid.Row="1" Text="events.jsonl tail" Margin="0,12,0,6" FontWeight="SemiBold" />
+                        <ListBox Grid.Row="2" Name="LstRunEvents" />
+                        <TextBox Grid.Row="3" Name="TxtDiagnosticsPreview" Margin="0,12,0,0" Height="130" AcceptsReturn="True" IsReadOnly="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>

@@ -663,6 +663,9 @@ $statusText        = Get-Control 'StatusText'
 
 $detailTabControl  = Get-Control 'DetailTabControl'
 
+$startDatePicker.ToolTip = 'Optional. Leave both dates empty to query the last 24 hours.'
+$endDatePicker.ToolTip   = 'Optional. Leave both dates empty to query the last 24 hours.'
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers used from event handlers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -754,15 +757,68 @@ function Collect-FilterRows {
     return @($rows | Where-Object { -not [string]::IsNullOrWhiteSpace($_.dimension) -and -not [string]::IsNullOrWhiteSpace($_.value) })
 }
 
-function Build-QueryBody {
-    $startDate = $startDatePicker.SelectedDate
-    $endDate   = $endDatePicker.SelectedDate
-    if ($null -eq $startDate -or $null -eq $endDate) {
-        throw "Please select a start and end date."
+function Resolve-DatePickerDate {
+    param(
+        [System.Windows.Controls.DatePicker]$Picker,
+        [string]$Label
+    )
+
+    if ($null -eq $Picker) {
+        throw "$Label date picker was not found."
     }
-    $startUtc = [DateTime]::new($startDate.Year, $startDate.Month, $startDate.Day,  0,  0,  0, [System.DateTimeKind]::Local).ToUniversalTime()
-    $endUtc   = [DateTime]::new($endDate.Year,   $endDate.Month,   $endDate.Day,   23, 59, 59, [System.DateTimeKind]::Local).ToUniversalTime()
-    if ($endUtc -le $startUtc) { throw "End date must be after start date." }
+
+    $selectedDate = $Picker.SelectedDate
+    if ($null -ne $selectedDate) {
+        return ([DateTime]$selectedDate).Date
+    }
+
+    $pickerText = [string]$Picker.Text
+    if ([string]::IsNullOrWhiteSpace($pickerText)) {
+        return $null
+    }
+
+    $parsedDate = [DateTime]::MinValue
+    if (-not [DateTime]::TryParse($pickerText, [ref]$parsedDate)) {
+        throw "$Label date '$pickerText' is not a valid date."
+    }
+
+    return $parsedDate.Date
+}
+
+function Resolve-QueryInterval {
+    $startDate = Resolve-DatePickerDate -Picker $startDatePicker -Label 'Start'
+    $endDate   = Resolve-DatePickerDate -Picker $endDatePicker -Label 'End'
+
+    if ($null -eq $startDate -and $null -eq $endDate) {
+        return [pscustomobject]@{
+            StartUtc = [DateTime]::UtcNow.AddHours(-24)
+            EndUtc   = [DateTime]::UtcNow
+        }
+    }
+
+    if ($null -eq $startDate -or $null -eq $endDate) {
+        throw 'Select both start and end dates, or leave both empty to use the last 24 hours.'
+    }
+
+    $startLocal = [DateTime]::SpecifyKind($startDate.Date, [System.DateTimeKind]::Local)
+    $endLocal   = [DateTime]::SpecifyKind($endDate.Date.AddDays(1).AddTicks(-1), [System.DateTimeKind]::Local)
+    $startUtc   = $startLocal.ToUniversalTime()
+    $endUtc     = $endLocal.ToUniversalTime()
+
+    if ($endUtc -le $startUtc) {
+        throw 'End date must be after start date.'
+    }
+
+    return [pscustomobject]@{
+        StartUtc = $startUtc
+        EndUtc   = $endUtc
+    }
+}
+
+function Build-QueryBody {
+    $resolvedInterval = Resolve-QueryInterval
+    $startUtc = [DateTime]$resolvedInterval.StartUtc
+    $endUtc   = [DateTime]$resolvedInterval.EndUtc
 
     $interval = "$($startUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))/$($endUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))"
     $body = [ordered]@{
@@ -1423,8 +1479,8 @@ $clearResultsBtn.Add_Click({
 # Startup: load persisted config + auto-auth
 # ─────────────────────────────────────────────────────────────────────────────
 
-$startDatePicker.SelectedDate = [DateTime]::Today
-$endDatePicker.SelectedDate   = [DateTime]::Today
+$startDatePicker.SelectedDate = $null
+$endDatePicker.SelectedDate   = $null
 
 $cfg = Read-GenesysEnvConfig
 if ($null -ne $cfg) {

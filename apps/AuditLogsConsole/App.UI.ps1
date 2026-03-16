@@ -72,6 +72,11 @@ $script:State = [ordered]@{
     RunLastError     = ''
     PollTimer        = $null
     CurrentSummary   = $null
+    FilterCatalog    = [ordered]@{
+        ServiceNames     = @()
+        Actions          = @()
+        ActionsByService = [ordered]@{}
+    }
 }
 
 function _SetStatus {
@@ -114,6 +119,128 @@ function _Get-ComboText {
     }
 
     return ''
+}
+
+function _Sort-UniqueTextArray {
+    param([object[]]$Values)
+
+    return @($Values | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function _New-FilterCatalog {
+    return [pscustomobject]@{
+        ServiceNames     = @()
+        Actions          = @()
+        ActionsByService = [ordered]@{}
+    }
+}
+
+function _Add-FilterCatalog {
+    param([AllowNull()][object]$Catalog)
+
+    if ($null -eq $Catalog) {
+        return
+    }
+
+    $script:State.FilterCatalog.ServiceNames = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ServiceNames + @($Catalog.ServiceNames))
+    $script:State.FilterCatalog.Actions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.Actions + @($Catalog.Actions))
+
+    foreach ($serviceName in @($Catalog.ActionsByService.Keys)) {
+        $serviceActions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ActionsByService[$serviceName] + @($Catalog.ActionsByService[$serviceName]))
+        $script:State.FilterCatalog.ActionsByService[$serviceName] = $serviceActions
+        $script:State.FilterCatalog.ServiceNames = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ServiceNames + $serviceName)
+        $script:State.FilterCatalog.Actions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.Actions + $serviceActions)
+    }
+}
+
+function _Get-FilterActionsForService {
+    param([string]$ServiceName)
+
+    if ([string]::IsNullOrWhiteSpace($ServiceName)) {
+        return @($script:State.FilterCatalog.Actions)
+    }
+
+    foreach ($entry in $script:State.FilterCatalog.ActionsByService.GetEnumerator()) {
+        if ([string]$entry.Key -ieq $ServiceName) {
+            return @($entry.Value)
+        }
+    }
+
+    return @($script:State.FilterCatalog.Actions)
+}
+
+function _Set-ComboItems {
+    param(
+        [Parameter(Mandatory)][System.Windows.Controls.ComboBox]$ComboBox,
+        [object[]]$Items,
+        [string]$CurrentText = ''
+    )
+
+    $ComboBox.ItemsSource = @($Items)
+    $ComboBox.Text = $CurrentText
+}
+
+function _Apply-FilterCatalogToUi {
+    $serviceText = _Get-ComboText -Control $script:CmbService
+    $actionText = _Get-ComboText -Control $script:CmbAction
+
+    _Set-ComboItems -ComboBox $script:CmbService -Items $script:State.FilterCatalog.ServiceNames -CurrentText $serviceText
+    _Set-ComboItems -ComboBox $script:CmbAction -Items (_Get-FilterActionsForService -ServiceName $serviceText) -CurrentText $actionText
+}
+
+function _Build-FilterCatalogFromRunFolder {
+    param(
+        [Parameter(Mandatory)][string]$RunFolder
+    )
+
+    $catalog = _New-FilterCatalog
+    $indexEntries = @(Load-AuditIndex -RunFolder $RunFolder)
+
+    $catalog.ServiceNames = @($indexEntries | ForEach-Object { [string]$_.service } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $catalog.Actions = @($indexEntries | ForEach-Object { [string]$_.action } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+
+    foreach ($entry in $indexEntries) {
+        $serviceName = [string]$entry.service
+        $actionName = [string]$entry.action
+        if ([string]::IsNullOrWhiteSpace($serviceName) -or [string]::IsNullOrWhiteSpace($actionName)) {
+            continue
+        }
+
+        $catalog.ActionsByService[$serviceName] = _Sort-UniqueTextArray -Values @($catalog.ActionsByService[$serviceName] + $actionName)
+    }
+
+    return $catalog
+}
+
+function _Seed-FilterCatalogFromRecentRuns {
+    if (-not $script:AppContext.StartupValidation.Ready) {
+        return
+    }
+
+    foreach ($run in @(Get-RecentRuns -Max $script:AppContext.Settings.Ui.MaxRecentRuns)) {
+        if ([string]::IsNullOrWhiteSpace([string]$run.RunFolder) -or -not [System.IO.Directory]::Exists($run.RunFolder)) {
+            continue
+        }
+
+        try {
+            _Add-FilterCatalog -Catalog (_Build-FilterCatalogFromRunFolder -RunFolder $run.RunFolder)
+        }
+        catch {
+        }
+    }
+}
+
+function _Refresh-FilterCatalogFromLiveSession {
+    if ($null -eq $script:State.AuthContext) {
+        return
+    }
+
+    try {
+        _Add-FilterCatalog -Catalog (Get-AuditFilterOptions)
+        _Apply-FilterCatalogToUi
+    }
+    catch {
+    }
 }
 
 function _Read-DateTimeUtc {
@@ -262,8 +389,13 @@ function _Populate-RunFilters {
 
     $services = @(Get-AuditDistinctValues -RunFolder $RunFolder -Field service)
     $actions = @(Get-AuditDistinctValues -RunFolder $RunFolder -Field action)
-    $script:CmbService.ItemsSource = $services
-    $script:CmbAction.ItemsSource = $actions
+    $actionsByService = (_Build-FilterCatalogFromRunFolder -RunFolder $RunFolder).ActionsByService
+    _Add-FilterCatalog -Catalog ([pscustomobject]@{
+        ServiceNames     = $services
+        Actions          = $actions
+        ActionsByService = $actionsByService
+    })
+    _Apply-FilterCatalogToUi
 }
 
 function _Refresh-CurrentRunSummary {
@@ -572,6 +704,7 @@ function _Try-AutoConnect {
     try {
         $script:State.AuthContext = Connect-AuditSession -AccessToken $env:GENESYS_BEARER_TOKEN -Region $script:CmbRegion.Text
         _Update-AuthState
+        _Refresh-FilterCatalogFromLiveSession
         _Set-RunActionState
     }
     catch {
@@ -583,6 +716,8 @@ $script:CmbRegion.Text = $script:AppContext.Settings.Ui.DefaultRegion
 $script:CmbDataset.ItemsSource = @($script:AppContext.Settings.DatasetKeys.Default)
 $script:CmbDataset.SelectedIndex = 0
 $script:CmbTimePreset.SelectedIndex = 0
+_Seed-FilterCatalogFromRecentRuns
+_Apply-FilterCatalogToUi
 _Apply-TimePreset
 _Update-StartupBanner
 _Update-AuthState
@@ -599,6 +734,7 @@ $script:BtnConnect.Add_Click({
     try {
         $script:State.AuthContext = Connect-AuditSession -AccessToken $script:PwdAccessToken.Password -Region $script:CmbRegion.Text
         _Update-AuthState
+        _Refresh-FilterCatalogFromLiveSession
         _SetStatus -Main 'Connected to Genesys Cloud session.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
         _Set-RunActionState
     }
@@ -612,6 +748,8 @@ $script:BtnConnect.Add_Click({
 })
 
 $script:CmbTimePreset.Add_SelectionChanged({ _Apply-TimePreset })
+$script:CmbService.Add_DropDownClosed({ _Apply-FilterCatalogToUi })
+$script:CmbService.Add_LostFocus({ _Apply-FilterCatalogToUi })
 $script:BtnPreviewRun.Add_Click({ _Start-Run -Mode 'Preview' })
 $script:BtnFullRun.Add_Click({ _Start-Run -Mode 'Full' })
 $script:BtnRefreshRuns.Add_Click({ _Refresh-RecentRuns })
@@ -633,6 +771,7 @@ $script:BtnResetFilters.Add_Click({
     $script:TxtEntity.Text = ''
     $script:TxtKeyword.Text = ''
     $script:State.CurrentPage = 1
+    _Apply-FilterCatalogToUi
     _Refresh-Results
 })
 $script:BtnPrevPage.Add_Click({

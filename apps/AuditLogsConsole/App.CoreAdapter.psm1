@@ -117,6 +117,37 @@ function Get-AuditSession {
     return Get-GenesysAuthContext
 }
 
+function Get-AuditFilterOptions {
+    [CmdletBinding()]
+    param()
+
+    _RequireInitialized
+
+    $session = Get-AuditSession
+    if ($null -eq $session) {
+        throw 'No active Genesys session. Connect first.'
+    }
+
+    $mappings = @(Get-AuditServiceMapping -CatalogPath $script:CoreState.CatalogPath -BaseUri $session.BaseUri -Headers $session.Headers)
+    $actionsByService = [ordered]@{}
+
+    foreach ($mapping in $mappings) {
+        $serviceName = [string]$mapping.ServiceName
+        if ([string]::IsNullOrWhiteSpace($serviceName)) {
+            continue
+        }
+
+        $actionsByService[$serviceName] = @($mapping.Actions | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    }
+
+    return [pscustomobject]@{
+        ServiceNames     = @($mappings | ForEach-Object { [string]$_.ServiceName } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        Actions          = @($mappings | ForEach-Object { @($_.Actions) } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        ActionsByService = $actionsByService
+        ServiceMappings  = $mappings
+    }
+}
+
 function _Split-FilterValues {
     param([object]$Value)
 
@@ -474,7 +505,7 @@ function Get-RunDiagnosticsText {
 
 Export-ModuleMember -Function `
     Initialize-CoreIntegration, Get-CoreIntegrationState, Test-CoreIntegrationReady, `
-    Connect-AuditSession, Get-AuditSession, New-AuditDatasetParameters, `
+    Connect-AuditSession, Get-AuditSession, Get-AuditFilterOptions, New-AuditDatasetParameters, `
     Start-AuditPreviewRun, Start-AuditFullRun, `
     Get-RecentRuns, Get-RunManifest, Get-RunSummary, Get-RunRequestMetadata, Save-RunRequestMetadata, `
     Get-RunEventTail, Get-RunStatus, Get-RunDiagnosticsText

@@ -326,6 +326,32 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap. Current status summ
 
 ---
 
+## CI Testing Notes
+
+> **Why CI does not perform real Genesys Cloud calls**
+
+GitHub Actions runners in this repository have no access to a Genesys Cloud organisation, and no bearer token is stored as a secret (by design — storing production credentials in a public or shared repository is a security risk).
+
+To keep CI passing and still provide meaningful validation, all Genesys Cloud API interactions in the `audit-logs.scheduled.yml` and `audit-logs.on-demand.yml` workflows are **virtualized**:
+
+- The dataset run step creates the identical output folder structure (`manifest.json`, `events.jsonl`, `summary.json`, `data/audit.jsonl`) that a real run produces, populated with clearly-labelled mock records.
+- Every mocked action is prefixed with `MOCK:` in the workflow log so reviewers can instantly distinguish virtualized steps from real API activity.
+- The artifact upload step receives the mock output and succeeds normally, producing a downloadable artifact with the same schema as a real run.
+- The `events.jsonl` file includes a `mock.api.skipped` event as a permanent transparency marker.
+
+**What is still tested in CI:**
+
+| Check | How |
+|---|---|
+| Output folder/file structure | Created and validated in the mock step |
+| JSON schema of all output files | Written and structure-checked by the mock step |
+| Artifact upload / retention | `actions/upload-artifact` receives real files |
+| Pester unit tests (all 16 files) | Run via `ci.yml` on every PR; all API calls are already mocked via `RequestInvoker` |
+
+**Real integration tests** (live API calls with a valid bearer token) must be run locally or in an environment where the `GENESYS_BEARER_TOKEN` secret is available.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please follow these steps:

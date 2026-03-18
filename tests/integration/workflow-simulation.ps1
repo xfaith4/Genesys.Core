@@ -94,10 +94,10 @@ $runFolderObj = Get-ChildItem -Path (Join-Path 'out' $env:DATASET_KEY) -Director
     Select-Object -First 1
 
 if (-not $runFolderObj) {
-    Write-Host "x FAILED: No run folder found under out/$($env:DATASET_KEY)." -ForegroundColor Red
+    Write-Host "✗ FAILED: No run folder found under out/$($env:DATASET_KEY)." -ForegroundColor Red
     exit 1
 }
-Write-Host "OK Run folder found: out/$($env:DATASET_KEY)/$($runFolderObj.Name)" -ForegroundColor Green
+Write-Host "✓ Run folder found: out/$($env:DATASET_KEY)/$($runFolderObj.Name)" -ForegroundColor Green
 
 $allFilesExist = $true
 $expectedFiles = @('events.jsonl', 'manifest.json', 'summary.json')
@@ -105,18 +105,18 @@ foreach ($file in $expectedFiles) {
     $filePath = Join-Path $runFolderObj.FullName $file
     if (Test-Path $filePath) {
         $fileSize = (Get-Item $filePath).Length
-        Write-Host "  OK $file exists ($fileSize bytes)" -ForegroundColor Green
+        Write-Host "  ✓ $file exists ($fileSize bytes)" -ForegroundColor Green
     } else {
-        Write-Host "  x $file is missing" -ForegroundColor Red
+        Write-Host "  ✗ $file is missing" -ForegroundColor Red
         $allFilesExist = $false
     }
 }
 
 $dataFolderPath = Join-Path $runFolderObj.FullName 'data'
 if (Test-Path $dataFolderPath) {
-    Write-Host "  OK data/ folder exists" -ForegroundColor Green
+    Write-Host "  ✓ data/ folder exists" -ForegroundColor Green
 } else {
-    Write-Host "  x data/ folder is missing" -ForegroundColor Red
+    Write-Host "  ✗ data/ folder is missing" -ForegroundColor Red
     $allFilesExist = $false
 }
 
@@ -130,26 +130,26 @@ foreach ($ev in $eventsLoaded) {
 
 $startedEvent = $eventsLoaded | Where-Object { $_.eventType -eq 'run.started' }
 if ($startedEvent) {
-    Write-Host "  OK run.started event found" -ForegroundColor Green
+    Write-Host "  ✓ run.started event found" -ForegroundColor Green
 } else {
-    Write-Host "  x run.started event missing" -ForegroundColor Red
+    Write-Host "  ✗ run.started event missing" -ForegroundColor Red
     $allFilesExist = $false
 }
 
 $mockSkippedEvent = $eventsLoaded | Where-Object { $_.eventType -eq 'mock.api.skipped' }
 if ($mockSkippedEvent) {
-    Write-Host "  OK mock.api.skipped event found (transparency marker)" -ForegroundColor Green
+    Write-Host "  ✓ mock.api.skipped event found (transparency marker)" -ForegroundColor Green
 } else {
-    Write-Host "  x mock.api.skipped event missing" -ForegroundColor Red
+    Write-Host "  ✗ mock.api.skipped event missing" -ForegroundColor Red
     $allFilesExist = $false
 }
 
 # Validate summary.json
 $summaryLoaded = Get-Content (Join-Path $runFolderObj.FullName 'summary.json') -Raw | ConvertFrom-Json
 if ($summaryLoaded.mock -eq $true) {
-    Write-Host "  OK summary.json mock=true flag present" -ForegroundColor Green
+    Write-Host "  ✓ summary.json mock=true flag present" -ForegroundColor Green
 } else {
-    Write-Host "  x summary.json mock flag missing or false" -ForegroundColor Red
+    Write-Host "  ✗ summary.json mock flag missing or false" -ForegroundColor Red
     $allFilesExist = $false
 }
 

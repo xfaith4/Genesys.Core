@@ -186,9 +186,16 @@ function Resolve-PagingNextUri {
         }
 
         $combinedUri = $null
-        if ([System.Uri]::TryCreate($baseUri, $normalizedNextUri, [ref]$combinedUri)) {
+        if ([System.Uri]::TryCreate($baseUri, $normalizedNextUri, [ref]$combinedUri) -and
+            ($combinedUri.Scheme -eq 'https' -or $combinedUri.Scheme -eq 'http')) {
             return $combinedUri.AbsoluteUri
         }
+    }
+
+    # Fallback: concatenate host with relative path
+    if ($InitialUri -match '^(https?://[^/]+)') {
+        $relativePath = if ($normalizedNextUri.StartsWith('/')) { $normalizedNextUri } else { "/$normalizedNextUri" }
+        return "$($Matches[1])$relativePath"
     }
 
     return $normalizedNextUri

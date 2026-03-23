@@ -922,7 +922,7 @@ function Update-QueryPreview {
         $queryPreviewBox.Text = ($body | ConvertTo-Json -Depth 10)
     }
     catch {
-        $queryPreviewBox.Text = "Error: $($_.Exception.Message)"
+        $queryPreviewBox.Text = "Error: $($_.Exception.Message)`n$($_.ScriptStackTrace)"
     }
 }
 

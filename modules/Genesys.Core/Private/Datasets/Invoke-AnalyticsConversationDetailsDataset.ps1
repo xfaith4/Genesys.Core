@@ -142,7 +142,7 @@ function Invoke-AnalyticsConversationDetailsDataset {
 
     Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $sanitizedRecords.Count } | Out-Null
     Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } | Out-Null
-
+    Write-Host "Dataset run completed. Total conversations: $($sanitizedRecords.Count)"
     return [pscustomobject]@{
         Items   = $sanitizedRecords
         Summary = $summary

@@ -1682,8 +1682,13 @@ function _StartRunInBackground {
         & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
 
         try {
-            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -Global
-            & $t "App.CoreAdapter.psm1 imported (Initialize-CoreAdapter=$(if (Get-Command Initialize-CoreAdapter -ErrorAction SilentlyContinue) { 'FOUND' } else { 'MISSING' }))"
+            # Import-Module inside [PowerShell]::Create() runspaces scopes functions
+            # to the module namespace, not the calling scriptblock — use dot-source
+            # instead so function definitions land directly in the current scope.
+            # Export-ModuleMember in the psm1 will produce a non-terminating error
+            # (not valid outside a module scope) which is safely ignored here.
+            . (Join-Path $AppDir 'modules\App.CoreAdapter.psm1')
+            & $t "App.CoreAdapter.psm1 dot-sourced (Initialize-CoreAdapter=$(if (Get-Command Initialize-CoreAdapter -ErrorAction SilentlyContinue) { 'FOUND' } else { 'MISSING' }))"
 
             Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
             & $t "Initialize-CoreAdapter OK"

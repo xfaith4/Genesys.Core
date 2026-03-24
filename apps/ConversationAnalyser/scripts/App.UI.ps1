@@ -1682,8 +1682,8 @@ function _StartRunInBackground {
         & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
 
         try {
-            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force
-            & $t "App.CoreAdapter.psm1 imported"
+            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -Global
+            & $t "App.CoreAdapter.psm1 imported (Initialize-CoreAdapter=$(if (Get-Command Initialize-CoreAdapter -ErrorAction SilentlyContinue) { 'FOUND' } else { 'MISSING' }))"
 
             Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
             & $t "Initialize-CoreAdapter OK"
@@ -1749,7 +1749,7 @@ function _PollBackgroundRun {
     } else {
         # Try to find the run folder that was just created
         $cfg     = Get-AppConfig
-        $folders = Get-RecentRunFolders -OutputRoot $cfg.OutputRoot -Max 1
+        $folders = @(Get-RecentRunFolders -OutputRoot $cfg.OutputRoot -Max 1)
         if ($folders.Count -gt 0) {
             $script:State.CurrentRunFolder   = $folders[0]
             $script:State.DiagnosticsContext = $folders[0]

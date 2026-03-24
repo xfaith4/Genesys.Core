@@ -1661,12 +1661,48 @@ function _StartRunInBackground {
     [void]$ps.AddScript({
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $RunType, $DatasetParams, $Headers)
         Set-StrictMode -Version Latest
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force
-        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
-        if ($RunType -eq 'preview') {
-            Start-PreviewRun -DatasetParameters $DatasetParams -Headers $Headers
-        } else {
-            Start-FullRun -DatasetParameters $DatasetParams -Headers $Headers
+
+        # Trace log — always written to $env:TEMP so it's readable even when
+        # OutputRoot is misconfigured.  Each run overwrites the previous file.
+        $traceFile = [System.IO.Path]::Combine($env:TEMP, 'genesys-run-trace.log')
+        [System.IO.File]::WriteAllText($traceFile,
+            "=== Genesys Run Trace  $([DateTime]::UtcNow.ToString('o')) ===`n",
+            [System.Text.Encoding]::UTF8)
+        $t = { param($m)
+            [System.IO.File]::AppendAllText($traceFile,
+                "[$(([DateTime]::UtcNow).ToString('HH:mm:ss.fff'))] $m`n",
+                [System.Text.Encoding]::UTF8) }
+
+        & $t "RunType     : $RunType"
+        & $t "AppDir      : $AppDir"
+        & $t "CorePath    : $CorePath"
+        & $t "CatalogPath : $CatalogPath"
+        & $t "SchemaPath  : $SchemaPath"
+        & $t "OutputRoot  : $OutputRoot"
+        & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
+
+        try {
+            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force
+            & $t "App.CoreAdapter.psm1 imported"
+
+            Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+            & $t "Initialize-CoreAdapter OK"
+
+            if ($RunType -eq 'preview') {
+                & $t "Calling Start-PreviewRun..."
+                $result = Start-PreviewRun -DatasetParameters $DatasetParams -Headers $Headers
+                & $t "Start-PreviewRun returned  runFolder=$($result.runFolder)"
+                $result
+            } else {
+                & $t "Calling Start-FullRun..."
+                $result = Start-FullRun -DatasetParameters $DatasetParams -Headers $Headers
+                & $t "Start-FullRun returned  runFolder=$($result.runFolder)"
+                $result
+            }
+        } catch {
+            & $t "EXCEPTION : $_"
+            & $t "StackTrace :`n$($_.ScriptStackTrace)"
+            throw
         }
     })
     [void]$ps.AddArgument($appDir)
@@ -1753,14 +1789,24 @@ function _PollBackgroundRun {
 
     _SetRunning $false
 
-    # If polling didn't detect the new run folder, try to recover it from the
-    # return value of Start-PreviewRun / Start-FullRun (the run folder path).
+    # If polling didn't detect the new run folder, recover from the Start-*Run result.
+    # Invoke-Dataset returns a $runContext PSCustomObject (.runFolder), not a bare string.
     if ($null -eq $script:State.CurrentRunFolder -and $null -ne $runResult) {
-        $resultFolder = @($runResult) | Where-Object { $_ -is [string] -and [System.IO.Directory]::Exists($_) } | Select-Object -First 1
+        $resultFolder = @($runResult) | ForEach-Object {
+            if ($_ -is [string]) { $_ }
+            elseif ($null -ne $_ -and $_.PSObject.Properties.Name -contains 'runFolder') { $_.runFolder }
+        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and [System.IO.Directory]::Exists($_) } | Select-Object -First 1
         if ($resultFolder) {
             $script:State.CurrentRunFolder   = $resultFolder
             $script:State.DiagnosticsContext = $resultFolder
         }
+    }
+
+    # Read trace log written by the background script (always in $env:TEMP).
+    $traceText = ''
+    $traceLogPath = [System.IO.Path]::Combine($env:TEMP, 'genesys-run-trace.log')
+    if ([System.IO.File]::Exists($traceLogPath)) {
+        try { $traceText = [System.IO.File]::ReadAllText($traceLogPath, [System.Text.Encoding]::UTF8) } catch { }
     }
 
     if ($null -ne $endInvokeFailure -or $errors.Count -gt 0) {
@@ -1768,6 +1814,7 @@ function _PollBackgroundRun {
         if ($null -ne $endInvokeFailure) { $errParts += $endInvokeFailure.ToString() }
         if ($errors.Count -gt 0) { $errParts += ($errors | ForEach-Object { $_.ToString() }) }
         $errText = ($errParts | Where-Object { $_ }) -join "`n"
+        if ($traceText) { $errText = $traceText + "`n--- Error Stream ---`n" + $errText }
         _Dispatch {
             $script:TxtRunStatus.Text     = "Run failed"
             $script:TxtConsoleStatus.Text = "Failed"
@@ -1799,12 +1846,14 @@ function _PollBackgroundRun {
         }
     }
 
+    $diagText = if ($null -ne $script:State.DiagnosticsContext) {
+        Get-DiagnosticsText -RunFolder $script:State.DiagnosticsContext
+    } else { '(no run folder found — check trace above)' }
+    if ($traceText) { $diagText = $traceText + "`n" + $diagText }
     _Dispatch {
         $script:TxtRunStatus.Text     = 'Run complete'
         $script:TxtConsoleStatus.Text = 'Complete'
-        if ($null -ne $script:State.DiagnosticsContext) {
-            $script:TxtDiagnostics.Text = Get-DiagnosticsText -RunFolder $script:State.DiagnosticsContext
-        }
+        $script:TxtDiagnostics.Text   = $diagText
     }
     _SetStatus 'Run complete'
 }
@@ -1944,8 +1993,16 @@ function _ShowConnectDialog {
 
         $ar2 = $ps2.BeginInvoke()
 
-        # Poll for PKCE completion
-        $capturedState = $script:State   # capture by ref so closure doesn't need $script: qualifier
+        # Poll for PKCE completion.
+        # GetNewClosure captures local variables but breaks the scope chain for script-local
+        # function lookups (_UpdateConnectionStatus, _SetStatus, _Dispatch). Fix: capture
+        # the needed UI control references as local variables and inline the UI updates
+        # directly — DispatcherTimer fires on the UI thread so no _Dispatch marshalling needed.
+        $capturedState    = $script:State
+        $capturedLblConn  = $script:LblConnectionStatus
+        $capturedElpConn  = $script:ElpConnStatus
+        $capturedTxtMain  = $script:TxtStatusMain
+        $capturedTxtRight = $script:TxtStatusRight
         $pkceTimer = New-Object System.Windows.Threading.DispatcherTimer
         $pkceTimer.Interval = [System.TimeSpan]::FromSeconds(1)
         $pkceTimer.Add_Tick(({
@@ -1953,9 +2010,15 @@ function _ShowConnectDialog {
             $pkceTimer.Stop()
             try {
                 $ps2.EndInvoke($ar2) | Out-Null
-                _UpdateConnectionStatus
+                $info = Get-ConnectionInfo
+                if ($null -ne $info) {
+                    $exp = $info.ExpiresAt.ToString('HH:mm:ss') + ' UTC'
+                    $capturedLblConn.Text = "$($info.Region)  |  $($info.Flow)  |  expires $exp"
+                    $capturedElpConn.Fill = [System.Windows.Media.Brushes]::LightGreen
+                }
                 Update-AppConfig -Key 'Region' -Value $region
-                _SetStatus "Connected via PKCE ($region)"
+                $capturedTxtMain.Text  = "Connected via PKCE ($region)"
+                $capturedTxtRight.Text = ''
             } catch {
                 [System.Windows.MessageBox]::Show("PKCE login failed: $_", 'Error')
             } finally {

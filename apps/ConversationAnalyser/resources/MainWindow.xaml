@@ -1,0 +1,1262 @@
+<Window
+    x:Class="GenesysConversationAnalysis.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Genesys Conversation Analysis"
+    Height="800" Width="1280"
+    MinHeight="600" MinWidth="900"
+    Background="#0E1215"
+    Foreground="#F1E8D8"
+    FontFamily="Cambria" FontSize="13"
+    WindowStartupLocation="CenterScreen"
+    SnapsToDevicePixels="True"
+    UseLayoutRounding="True"
+    TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="BrushBase" Color="#0E1215"/>
+        <SolidColorBrush x:Key="BrushSurface" Color="#151B20"/>
+        <SolidColorBrush x:Key="BrushPanel" Color="#1C242A"/>
+        <SolidColorBrush x:Key="BrushOverlay" Color="#2B363F"/>
+        <SolidColorBrush x:Key="BrushLine" Color="#3A4852"/>
+        <SolidColorBrush x:Key="BrushText" Color="#F1E8D8"/>
+        <SolidColorBrush x:Key="BrushSubtext" Color="#A8B0AD"/>
+        <SolidColorBrush x:Key="BrushCopper" Color="#D39A57"/>
+        <SolidColorBrush x:Key="BrushCopperSoft" Color="#6A4A28"/>
+        <SolidColorBrush x:Key="BrushCyan" Color="#86C8D8"/>
+        <SolidColorBrush x:Key="BrushGreen" Color="#9ED0AF"/>
+        <SolidColorBrush x:Key="BrushYellow" Color="#E3C07A"/>
+        <SolidColorBrush x:Key="BrushRed" Color="#D97A6D"/>
+
+        <LinearGradientBrush x:Key="BrushWindow" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#091014" Offset="0"/>
+            <GradientStop Color="#10161B" Offset="0.55"/>
+            <GradientStop Color="#171F25" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="BrushHeader" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#1A232A" Offset="0"/>
+            <GradientStop Color="#202B32" Offset="0.55"/>
+            <GradientStop Color="#1A242C" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="BrushCard" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#182026" Offset="0"/>
+            <GradientStop Color="#131A1F" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="BrushHero" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#312117" Offset="0"/>
+            <GradientStop Color="#1C262D" Offset="0.5"/>
+            <GradientStop Color="#102228" Offset="1"/>
+        </LinearGradientBrush>
+
+        <Style x:Key="BtnBase" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BrushPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="#243038"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushCopper}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource BrushCopper}"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushBase}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushCopper}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BtnAccent" BasedOn="{StaticResource BtnBase}" TargetType="Button">
+            <Setter Property="Background" Value="#253440"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushCyan}"/>
+            <Setter Property="BorderBrush" Value="#517285"/>
+        </Style>
+
+        <Style x:Key="BtnDanger" BasedOn="{StaticResource BtnBase}" TargetType="Button">
+            <Setter Property="Background" Value="#382121"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushRed}"/>
+            <Setter Property="BorderBrush" Value="#6A3B3A"/>
+        </Style>
+
+        <Style x:Key="TxtBase" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="CaretBrush" Value="{StaticResource BrushCyan}"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource BrushCopper}"/>
+        </Style>
+
+        <Style x:Key="CmbBase" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="MaxDropDownHeight" Value="200"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="{StaticResource BrushPanel}"/>
+                        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                        <Setter Property="Padding" Value="8,5"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource BrushOverlay}"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Border"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition/>
+                                        <ColumnDefinition Width="20"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter x:Name="ContentSite"
+                                                      Grid.Column="0"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                      IsHitTestVisible="False"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                    <TextBlock Grid.Column="1" Text="▾"
+                                               Foreground="{StaticResource BrushSubtext}"
+                                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                                               FontSize="11" IsHitTestVisible="False"/>
+                                </Grid>
+                            </Border>
+                            <ToggleButton Background="Transparent" BorderThickness="0"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Focusable="False" ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent"/>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup" Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border Background="{StaticResource BrushPanel}"
+                                        BorderBrush="{StaticResource BrushLine}"
+                                        BorderThickness="1"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer SnapsToDevicePixels="True" Background="Transparent">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushCopper}"/>
+                            </Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushCopper}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type DatePickerTextBox}">
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource BrushCopper}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource BrushCyan}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DatePickerTextBox}">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Background="Transparent"
+                                      VerticalAlignment="Center"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DatePicker">
+            <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DatePicker">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="6,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="24"/>
+                                </Grid.ColumnDefinitions>
+                                <DatePickerTextBox x:Name="PART_TextBox" Grid.Column="0"
+                                                   Background="Transparent"
+                                                   Foreground="{TemplateBinding Foreground}"
+                                                   VerticalAlignment="Center"/>
+                                <Button x:Name="PART_Button" Grid.Column="1"
+                                        Focusable="False" Background="Transparent" BorderThickness="0"
+                                        Width="20" Height="20" VerticalAlignment="Center">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="Transparent">
+                                                <TextBlock Text="▦" FontSize="13"
+                                                           Foreground="{StaticResource BrushSubtext}"
+                                                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Popup x:Name="PART_Popup" AllowsTransparency="True" StaysOpen="False"
+                                       PlacementTarget="{Binding ElementName=PART_TextBox}" Placement="Bottom">
+                                    <Border Background="{StaticResource BrushPanel}"
+                                            BorderBrush="{StaticResource BrushLine}" BorderThickness="1">
+                                        <Calendar Foreground="{StaticResource BrushText}"
+                                                  Background="{StaticResource BrushPanel}"/>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DgHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#10171C"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushSubtext}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Sort + per-column filter header — used only on DgConversations -->
+        <Style x:Key="DgHeaderSortFilter" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#10171C"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushSubtext}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="32"/>
+                                <RowDefinition Height="22"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Grid.RowSpan="2"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"/>
+                            <!-- Label row -->
+                            <Grid Grid.Row="0" Margin="6,0,6,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  SnapsToDevicePixels="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                  TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                                  TextElement.FontFamily="{TemplateBinding FontFamily}"/>
+                                <TextBlock x:Name="SortArrow" Grid.Column="1"
+                                           Text="" Visibility="Collapsed"
+                                           Foreground="{StaticResource BrushCopper}"
+                                           FontSize="10" Margin="4,0,0,0"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                            <!-- Filter row -->
+                            <TextBox x:Name="ColFilterBox" Grid.Row="1"
+                                     Margin="4,1,4,3" Height="18"
+                                     FontSize="10"
+                                     Background="#0A1015"
+                                     Foreground="{StaticResource BrushSubtext}"
+                                     BorderBrush="#283540"
+                                     BorderThickness="1"
+                                     Padding="3,0"
+                                     CaretBrush="{StaticResource BrushCyan}"
+                                     VerticalContentAlignment="Center"/>
+                            <!-- Resize grippers -->
+                            <Thumb x:Name="PART_LeftHeaderGripper"
+                                   Grid.Row="0" Grid.RowSpan="2"
+                                   HorizontalAlignment="Left" Width="2"
+                                   Cursor="SizeWE" Background="Transparent"
+                                   BorderThickness="0"/>
+                            <Thumb x:Name="PART_RightHeaderGripper"
+                                   Grid.Row="0" Grid.RowSpan="2"
+                                   HorizontalAlignment="Right" Width="2"
+                                   Cursor="SizeWE" Background="Transparent"
+                                   BorderThickness="0"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="SortDirection" Value="Ascending">
+                                <Setter TargetName="SortArrow" Property="Text" Value="▲"/>
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Descending">
+                                <Setter TargetName="SortArrow" Property="Text" Value="▼"/>
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DgCellStyle" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6,3"/>
+        </Style>
+
+        <Style x:Key="DgBase" TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource BrushBase}"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#202B32"/>
+            <Setter Property="RowBackground" Value="#10171C"/>
+            <Setter Property="AlternatingRowBackground" Value="#141D23"/>
+            <Setter Property="ColumnHeaderHeight" Value="34"/>
+            <Setter Property="RowHeight" Value="28"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="FullRow"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="ColumnHeaderStyle" Value="{StaticResource DgHeaderStyle}"/>
+            <Setter Property="CellStyle" Value="{StaticResource DgCellStyle}"/>
+        </Style>
+
+        <Style x:Key="LblSection" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource BrushCopper}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <Style x:Key="LblCaption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource BrushSubtext}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,4,0,2"/>
+        </Style>
+
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource BrushCard}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <Style x:Key="BadgeBase" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Background" Value="#11181D"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="#10171C"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemChrome"
+                                Background="Transparent"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#162028"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#22313B"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource BrushSubtext}"/>
+            <Setter Property="FontFamily" Value="Bahnschrift SemiCondensed"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabChrome"
+                                Background="#11181D"
+                                BorderBrush="{StaticResource BrushLine}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Margin="0,0,8,10"
+                                Padding="12,6">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabChrome" Property="Background" Value="#23313A"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushCopper}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabChrome" Property="Background" Value="#182027"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="StatusBar">
+            <Setter Property="Background" Value="#12191E"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLine}"/>
+            <Setter Property="BorderThickness" Value="1,1,0,0"/>
+            <Setter Property="Padding" Value="10,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="MainShell"
+                                     Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.45"/>
+                    <DoubleAnimation Storyboard.TargetName="ShellLift"
+                                     Storyboard.TargetProperty="Y"
+                                     From="18" To="0" Duration="0:0:0.45"/>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
+
+    <Grid Background="{StaticResource BrushWindow}">
+        <Canvas IsHitTestVisible="False">
+            <Ellipse Width="420" Height="420" Canvas.Left="-120" Canvas.Top="-150" Opacity="0.08">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#D39A57" Offset="0"/>
+                        <GradientStop Color="#00D39A57" Offset="1"/>
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="360" Height="360" Canvas.Right="-120" Canvas.Top="60" Opacity="0.10">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#86C8D8" Offset="0"/>
+                        <GradientStop Color="#0086C8D8" Offset="1"/>
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Rectangle Width="1600" Height="1" Canvas.Left="-100" Canvas.Top="118" Fill="#28D39A57"/>
+            <Rectangle Width="1600" Height="1" Canvas.Left="-60" Canvas.Top="154" Fill="#1686C8D8"/>
+        </Canvas>
+
+        <Border x:Name="MainShell"
+                Margin="18"
+                Opacity="0"
+                Background="#0C1115"
+                BorderBrush="{StaticResource BrushLine}"
+                BorderThickness="1"
+                CornerRadius="22">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="ShellLift" Y="18"/>
+            </Border.RenderTransform>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="26" Color="#000000" ShadowDepth="0" Opacity="0.35"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="76"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="30"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="{StaticResource BrushHeader}"
+                        BorderBrush="{StaticResource BrushLine}"
+                        BorderThickness="0,0,0,1"
+                        CornerRadius="22,22,0,0">
+                    <Grid Margin="18,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2.2*"/>
+                            <ColumnDefinition Width="1.3*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="EVIDENCE WORKBENCH"
+                                       Foreground="{StaticResource BrushCopper}"
+                                       FontFamily="Bahnschrift SemiCondensed"
+                                       FontWeight="Bold"
+                                       FontSize="11"/>
+                            <TextBlock Text="Genesys Conversation Analysis"
+                                       Foreground="{StaticResource BrushText}"
+                                       FontFamily="Bahnschrift SemiCondensed"
+                                       FontWeight="Bold"
+                                       FontSize="21"/>
+                            <TextBlock Text="Investigate runs, preserve findings, and export data without re-querying."
+                                       Foreground="{StaticResource BrushSubtext}"
+                                       FontSize="11"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource BadgeBase}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Padding="14,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse x:Name="ElpConnStatus"
+                                         Width="10" Height="10"
+                                         Fill="{StaticResource BrushRed}"
+                                         Margin="0,0,10,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Transport"
+                                               Foreground="{StaticResource BrushSubtext}"
+                                               FontFamily="Bahnschrift SemiCondensed"
+                                               FontSize="10"/>
+                                    <TextBlock x:Name="LblConnectionStatus"
+                                               Text="Not connected"
+                                               Foreground="{StaticResource BrushText}"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Button x:Name="BtnConnect"
+                                    Content="Connect"
+                                    Style="{StaticResource BtnAccent}"
+                                    Width="104"
+                                    Margin="0,0,8,0"/>
+                            <Button x:Name="BtnSettings"
+                                    Content="Settings"
+                                    Style="{StaticResource BtnBase}"
+                                    Width="104"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="324" MinWidth="260" MaxWidth="390"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="{StaticResource BrushCard}"
+                            BorderBrush="{StaticResource BrushLine}"
+                            BorderThickness="1"
+                            CornerRadius="18">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14">
+                            <StackPanel>
+                                <Border Background="{StaticResource BrushHero}"
+                                        BorderBrush="#5A4631"
+                                        BorderThickness="1"
+                                        CornerRadius="16"
+                                        Padding="14"
+                                        Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="INVESTIGATION WORKFLOW"
+                                                   Style="{StaticResource LblSection}"
+                                                   Margin="0,0,0,6"/>
+                                        <TextBlock Text="Build the query, execute the run, inspect the results, and preserve the case when escalation or follow-up is required."
+                                                   Foreground="{StaticResource BrushText}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,0,0,10"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="34"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="01" Foreground="{StaticResource BrushCopper}" FontFamily="Bahnschrift SemiCondensed" FontSize="18" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Frame the time window" Foreground="{StaticResource BrushText}" Margin="0,2,0,8"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="02" Foreground="{StaticResource BrushCopper}" FontFamily="Bahnschrift SemiCondensed" FontSize="18" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="Filter by queue, direction, media type, or disconnect type" Foreground="{StaticResource BrushText}" TextWrapping="Wrap" Margin="0,2,0,8"/>
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="03" Foreground="{StaticResource BrushCopper}" FontFamily="Bahnschrift SemiCondensed" FontSize="18" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="Launch preview or full extraction and watch run telemetry" Foreground="{StaticResource BrushText}" TextWrapping="Wrap" Margin="0,2,0,8"/>
+
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="04" Foreground="{StaticResource BrushCopper}" FontFamily="Bahnschrift SemiCondensed" FontSize="18" FontWeight="Bold"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="Open, inspect, report, and preserve into the case store" Foreground="{StaticResource BrushText}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="01  TIME RANGE" Style="{StaticResource LblSection}"/>
+                                        <TextBlock Text="Define the time range." Foreground="{StaticResource BrushSubtext}" FontSize="11" Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="Start date" Style="{StaticResource LblCaption}"/>
+                                        <DatePicker x:Name="DtpStartDate" Height="30"/>
+                                        <TextBlock Text="Start time (HH:mm or HH:mm:ss)" Style="{StaticResource LblCaption}"/>
+                                        <TextBox x:Name="TxtStartTime" Style="{StaticResource TxtBase}" Height="30" Text="00:00:00"/>
+
+                                        <TextBlock Text="End date" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <DatePicker x:Name="DtpEndDate" Height="30"/>
+                                        <TextBlock Text="End time (HH:mm or HH:mm:ss)" Style="{StaticResource LblCaption}"/>
+                                        <TextBox x:Name="TxtEndTime" Style="{StaticResource TxtBase}" Height="30" Text="23:59:59"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="02  FILTERS" Style="{StaticResource LblSection}"/>
+                                        <TextBlock Text="Filter by queue, direction, media, or disconnect type." Foreground="{StaticResource BrushSubtext}" FontSize="11" Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="Direction" Style="{StaticResource LblCaption}"/>
+                                        <ComboBox x:Name="CmbDirection" Style="{StaticResource CmbBase}" Height="30">
+                                            <ComboBoxItem Content="(all)" IsSelected="True"/>
+                                            <ComboBoxItem Content="inbound"/>
+                                            <ComboBoxItem Content="outbound"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Media type" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <ComboBox x:Name="CmbMediaType" Style="{StaticResource CmbBase}" Height="30">
+                                            <ComboBoxItem Content="(all)" IsSelected="True"/>
+                                            <ComboBoxItem Content="voice"/>
+                                            <ComboBoxItem Content="chat"/>
+                                            <ComboBoxItem Content="email"/>
+                                            <ComboBoxItem Content="callback"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Queue (contains)" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <TextBox x:Name="TxtQueue" Style="{StaticResource TxtBase}" Height="30"/>
+
+                                        <TextBlock Text="Conversation ID" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <TextBox x:Name="TxtConversationId" Style="{StaticResource TxtBase}" Height="30"
+                                                 ToolTip="Exact conversation GUID — returns only this conversation"/>
+
+                                        <TextBlock Text="User / Agent ID" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <TextBox x:Name="TxtFilterUserId" Style="{StaticResource TxtBase}" Height="30"
+                                                 ToolTip="Filter to conversations where this user GUID appears as a participant"/>
+
+                                        <TextBlock Text="Division ID" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <TextBox x:Name="TxtFilterDivisionId" Style="{StaticResource TxtBase}" Height="30"
+                                                 ToolTip="Restrict query to this Genesys division GUID"/>
+
+                                        <CheckBox x:Name="ChkExternalTagExists"
+                                                  Content="External tag exists"
+                                                  Foreground="{StaticResource BrushText}"
+                                                  Margin="0,10,0,0"
+                                                  ToolTip="Conversation filter — only conversations that have an external tag set"/>
+
+                                        <TextBlock Text="Flow name (segment filter)" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <TextBox x:Name="TxtFlowName" Style="{StaticResource TxtBase}" Height="30"
+                                                 ToolTip="Segment filter — only conversations that passed through this flow name"/>
+
+                                        <TextBlock Text="Message type (segment filter)" Style="{StaticResource LblCaption}" Margin="0,8,0,2"/>
+                                        <ComboBox x:Name="CmbMessageType" Style="{StaticResource CmbBase}" Height="30"
+                                                  ToolTip="Segment filter — restrict to a specific digital message channel">
+                                            <ComboBoxItem Content="(all)" IsSelected="True"/>
+                                            <ComboBoxItem Content="sms"/>
+                                            <ComboBoxItem Content="webmessaging"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="03  FILTERS" Style="{StaticResource LblSection}"/>
+                                        <TextBlock Text="Run the analysis and review the results." Foreground="{StaticResource BrushSubtext}" FontSize="11" Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="Preview page size" Style="{StaticResource LblCaption}"/>
+                                        <TextBox x:Name="TxtPreviewPageSize" Style="{StaticResource TxtBase}" Height="30" Text="25"/>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnPreviewRun" Grid.Column="0" Content="Preview" Style="{StaticResource BtnBase}" Height="34"/>
+                                            <Button x:Name="BtnRun" Grid.Column="2" Content="Full Run" Style="{StaticResource BtnAccent}" Height="34"/>
+                                        </Grid>
+
+                                        <Button x:Name="BtnCancelRun"
+                                                Content="Cancel"
+                                                Style="{StaticResource BtnDanger}"
+                                                Height="30"
+                                                Margin="0,8,0,0"
+                                                IsEnabled="False"/>
+
+                                        <TextBlock x:Name="TxtRunStatus"
+                                                   Text="Idle"
+                                                   Foreground="{StaticResource BrushSubtext}"
+                                                   FontSize="11"
+                                                   Margin="0,10,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <ProgressBar x:Name="PrgRun"
+                                                     Height="8"
+                                                     Margin="0,6,0,0"
+                                                     Background="#11181D"
+                                                     Foreground="{StaticResource BrushCyan}"
+                                                     Minimum="0" Maximum="100" Value="0"/>
+                                        <TextBlock x:Name="TxtRunProgress"
+                                                   Text=""
+                                                   Foreground="{StaticResource BrushSubtext}"
+                                                   FontSize="10"
+                                                   Margin="0,4,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="04  RUN ARCHIVE" Style="{StaticResource LblSection}"/>
+                                        <TextBlock Text="Jump back into prior artifacts instantly." Foreground="{StaticResource BrushSubtext}" FontSize="11" Margin="0,0,0,8"/>
+                                        <ListBox x:Name="LstRecentRuns"
+                                                 Height="154"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                 FontSize="11"/>
+                                        <Button x:Name="BtnOpenRun"
+                                                Content="Open Selected Run"
+                                                Style="{StaticResource BtnBase}"
+                                                Height="30"
+                                                Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}" Margin="0,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="05  CASE DESK" Style="{StaticResource LblSection}"/>
+                                        <TextBlock Text="Preserve imports, findings, and report snapshots with the active case." Foreground="{StaticResource BrushSubtext}" FontSize="11" Margin="0,0,0,8"/>
+
+                                        <Border Style="{StaticResource BadgeBase}" Padding="10,8">
+                                            <StackPanel>
+                                                <TextBlock Text="Active case"
+                                                           Foreground="{StaticResource BrushSubtext}"
+                                                           FontFamily="Bahnschrift SemiCondensed"
+                                                           FontSize="10"/>
+                                                <TextBlock x:Name="LblActiveCase"
+                                                           Text="(none selected)"
+                                                           Margin="0,4,0,0"
+                                                           TextWrapping="Wrap"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource BrushText}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnManageCase" Grid.Column="0"
+                                                    Content="Manage Cases"
+                                                    Style="{StaticResource BtnBase}" Height="34"/>
+                                            <Button x:Name="BtnImportRun" Grid.Column="2"
+                                                    Content="Import Loaded Run"
+                                                    Style="{StaticResource BtnAccent}" Height="34"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <Border Grid.Column="2"
+                            Background="{StaticResource BrushCard}"
+                            BorderBrush="{StaticResource BrushLine}"
+                            BorderThickness="1"
+                            CornerRadius="18"
+                            Padding="14">
+                        <TabControl x:Name="TabWorkspace"
+                                    Background="Transparent"
+                                    BorderBrush="{StaticResource BrushLine}"
+                                    BorderThickness="0">
+
+                            <TabItem Header="Conversations" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Style="{StaticResource SectionCard}"
+                                            Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="FILTERED RESULTS"
+                                                       Style="{StaticResource LblSection}"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBlock Text="Export or preserve conversations that need follow-up."
+                                                       Foreground="{StaticResource BrushSubtext}"
+                                                       FontSize="11"
+                                                       Margin="0,0,0,10"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="130"/>
+                                                    <ColumnDefinition Width="8"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox x:Name="TxtSearch" Grid.Column="0"
+                                                         Style="{StaticResource TxtBase}" Height="30"
+                                                         ToolTip="Search by conversation ID, queue, or agent"
+                                                         Margin="0,0,6,0"/>
+                                                <Button x:Name="BtnSearch" Grid.Column="1"
+                                                        Content="Search"
+                                                        Style="{StaticResource BtnBase}"
+                                                        Height="30" Width="74" Margin="0,0,10,0"/>
+                                                <ComboBox x:Name="CmbFilterDirection" Grid.Column="2"
+                                                          Style="{StaticResource CmbBase}" Height="30" Margin="0,0,6,0">
+                                                    <ComboBoxItem Content="All directions" IsSelected="True"/>
+                                                    <ComboBoxItem Content="inbound"/>
+                                                    <ComboBoxItem Content="outbound"/>
+                                                </ComboBox>
+                                                <ComboBox x:Name="CmbFilterMedia" Grid.Column="3"
+                                                          Style="{StaticResource CmbBase}" Height="30" Margin="0,0,6,0">
+                                                    <ComboBoxItem Content="All media" IsSelected="True"/>
+                                                    <ComboBoxItem Content="voice"/>
+                                                    <ComboBoxItem Content="chat"/>
+                                                    <ComboBoxItem Content="email"/>
+                                                </ComboBox>
+                                                <ComboBox x:Name="CmbFilterDisconnect" Grid.Column="4"
+                                                          Style="{StaticResource CmbBase}" Height="30" Margin="0,0,6,0"
+                                                          ToolTip="Filter by disconnect type (case store only)">
+                                                    <ComboBoxItem Content="All disconnects" IsSelected="True"/>
+                                                    <ComboBoxItem Content="client"/>
+                                                    <ComboBoxItem Content="peer"/>
+                                                    <ComboBoxItem Content="system"/>
+                                                    <ComboBoxItem Content="transfer"/>
+                                                    <ComboBoxItem Content="timeout"/>
+                                                    <ComboBoxItem Content="error"/>
+                                                </ComboBox>
+                                                <TextBox x:Name="TxtFilterAgent" Grid.Column="5"
+                                                         Style="{StaticResource TxtBase}" Height="30"
+                                                         ToolTip="Filter by agent user ID (case store only — press Enter)"
+                                                         Margin="0,0,10,0"/>
+                                                <Button x:Name="BtnExportPageCsv" Grid.Column="7"
+                                                        Content="Export Page"
+                                                        Style="{StaticResource BtnBase}" Height="30" Margin="0,0,6,0"/>
+                                                <Button x:Name="BtnExportRunCsv" Grid.Column="8"
+                                                        Content="Export Full Run"
+                                                        Style="{StaticResource BtnBase}" Height="30"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#0F161B"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="2">
+                                        <DataGrid x:Name="DgConversations" Style="{StaticResource DgBase}"
+                                                  ColumnHeaderStyle="{StaticResource DgHeaderSortFilter}"
+                                                  ColumnHeaderHeight="54">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Conversation ID" Binding="{Binding ConversationId}" SortMemberPath="ConversationId" Width="240"/>
+                                                <DataGridTextColumn Header="Direction"       Binding="{Binding Direction}"      SortMemberPath="Direction"      Width="80"/>
+                                                <DataGridTextColumn Header="Media"           Binding="{Binding MediaType}"      SortMemberPath="MediaType"      Width="70"/>
+                                                <DataGridTextColumn Header="Queue"           Binding="{Binding Queue}"          SortMemberPath="Queue"          Width="170"/>
+                                                <DataGridTextColumn Header="Agents"          Binding="{Binding AgentNames}"     SortMemberPath="AgentNames"     Width="140"/>
+                                                <DataGridTextColumn Header="Duration (s)"    Binding="{Binding DurationSec}"    SortMemberPath="DurationSec"    Width="80"/>
+                                                <DataGridTextColumn Header="Disconnect"      Binding="{Binding Disconnect}"     SortMemberPath="Disconnect"     Width="90"/>
+                                                <DataGridCheckBoxColumn Header="Hold"        Binding="{Binding HasHold}"        SortMemberPath="HasHold"        Width="50"/>
+                                                <DataGridCheckBoxColumn Header="MOS"         Binding="{Binding HasMos}"         SortMemberPath="HasMos"         Width="50"/>
+                                                <DataGridTextColumn Header="Segments"        Binding="{Binding SegmentCount}"   SortMemberPath="SegmentCount"   Width="70"/>
+                                                <DataGridTextColumn Header="Participants"    Binding="{Binding ParticipantCount}" SortMemberPath="ParticipantCount" Width="90"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+
+                                    <Border Grid.Row="2"
+                                            Style="{StaticResource SectionCard}"
+                                            Margin="0,10,0,0"
+                                            Padding="12,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnPrevPage" Grid.Column="0"
+                                                    Content="Prev"
+                                                    Style="{StaticResource BtnBase}"
+                                                    Width="78" Height="28"/>
+                                            <TextBlock x:Name="TxtPageInfo" Grid.Column="1"
+                                                       Text="Page 0 of 0  |  0 records"
+                                                       Foreground="{StaticResource BrushSubtext}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                            <Button x:Name="BtnNextPage" Grid.Column="2"
+                                                    Content="Next"
+                                                    Style="{StaticResource BtnBase}"
+                                                    Width="78" Height="28"/>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem Header="Drilldown" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="ANALYST REPORTING"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Generate an aggregate report from the active filtered view, then preserve it as a case snapshot."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <Button x:Name="BtnGenerateReport" Grid.Column="1"
+                                                    Content="Generate Impact Report"
+                                                    Style="{StaticResource BtnBase}" Height="30"/>
+                                            <Button x:Name="BtnSaveReportSnapshot" Grid.Column="3"
+                                                    Content="Save Report Snapshot"
+                                                    Style="{StaticResource BtnAccent}" Height="30"
+                                                    IsEnabled="False"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Conversation"
+                                                       Foreground="{StaticResource BrushSubtext}"
+                                                       FontFamily="Bahnschrift SemiCondensed"/>
+                                            <TextBlock Text="  /  "
+                                                       Foreground="{StaticResource BrushLine}"/>
+                                            <TextBlock x:Name="LblSelectedConversation"
+                                                       Text="(none selected)"
+                                                       Foreground="{StaticResource BrushCyan}"
+                                                       FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TabControl x:Name="TabDrilldown" Grid.Row="2"
+                                                Background="Transparent"
+                                                BorderBrush="{StaticResource BrushLine}">
+                                        <TabItem Header="Summary" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="4">
+                                                <TextBox x:Name="TxtDrillSummary"
+                                                         Style="{StaticResource TxtBase}"
+                                                         IsReadOnly="True"
+                                                         TextWrapping="Wrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         FontFamily="Consolas"
+                                                         FontSize="12"
+                                                         Margin="4"/>
+                                            </Border>
+                                        </TabItem>
+
+                                        <TabItem Header="Participants" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="2">
+                                                <DataGrid x:Name="DgParticipants" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Participant ID" Binding="{Binding participantId}" Width="240"/>
+                                                        <DataGridTextColumn Header="Name" Binding="{Binding participantName}" Width="160"/>
+                                                        <DataGridTextColumn Header="Purpose" Binding="{Binding purpose}" Width="90"/>
+                                                        <DataGridTextColumn Header="User ID" Binding="{Binding userId}" Width="220"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                        </TabItem>
+
+                                        <TabItem Header="Segments" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="2">
+                                                <DataGrid x:Name="DgSegments" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Participant" Binding="{Binding Purpose}" Width="90"/>
+                                                        <DataGridTextColumn Header="Type" Binding="{Binding SegmentType}" Width="90"/>
+                                                        <DataGridTextColumn Header="Start" Binding="{Binding SegmentStart}" Width="180"/>
+                                                        <DataGridTextColumn Header="End" Binding="{Binding SegmentEnd}" Width="180"/>
+                                                        <DataGridTextColumn Header="Duration (s)" Binding="{Binding DurationSec}" Width="90"/>
+                                                        <DataGridTextColumn Header="Queue" Binding="{Binding QueueName}" Width="160"/>
+                                                        <DataGridTextColumn Header="Disconnect" Binding="{Binding DisconnectType}" Width="110"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                        </TabItem>
+
+                                        <TabItem Header="Attributes" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="8">
+                                                <Grid Margin="0">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="*"/>
+                                                    </Grid.RowDefinitions>
+                                                    <TextBox x:Name="TxtAttributeSearch"
+                                                             Style="{StaticResource TxtBase}"
+                                                             Height="30"
+                                                             Margin="0,0,0,8"
+                                                             ToolTip="Filter attributes"/>
+                                                    <DataGrid x:Name="DgAttributes" Grid.Row="1"
+                                                              Style="{StaticResource DgBase}">
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                                                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                </Grid>
+                                            </Border>
+                                        </TabItem>
+
+                                        <TabItem Header="MOS / Quality" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="4">
+                                                <TextBox x:Name="TxtMosQuality"
+                                                         Style="{StaticResource TxtBase}"
+                                                         IsReadOnly="True"
+                                                         TextWrapping="Wrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         FontFamily="Consolas"
+                                                         FontSize="12"
+                                                         Margin="4"/>
+                                            </Border>
+                                        </TabItem>
+
+                                        <TabItem Header="Raw JSON" Foreground="{StaticResource BrushText}">
+                                            <Border Background="#0F161B" BorderBrush="{StaticResource BrushLine}" BorderThickness="1" CornerRadius="12" Padding="8">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="*"/>
+                                                    </Grid.RowDefinitions>
+                                                    <StackPanel Grid.Row="0"
+                                                                Orientation="Horizontal"
+                                                                HorizontalAlignment="Right"
+                                                                Margin="0,0,0,6">
+                                                        <Button x:Name="BtnExpandJson"
+                                                                Content="Expand"
+                                                                Style="{StaticResource BtnBase}"
+                                                                Height="28"
+                                                                Width="88"/>
+                                                    </StackPanel>
+                                                    <TextBox x:Name="TxtRawJson" Grid.Row="1"
+                                                             Style="{StaticResource TxtBase}"
+                                                             IsReadOnly="True"
+                                                             HorizontalScrollBarVisibility="Auto"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             FontFamily="Consolas"
+                                                             FontSize="11"
+                                                             TextWrapping="NoWrap"/>
+                                                </Grid>
+                                            </Border>
+                                        </TabItem>
+                                    </TabControl>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem Header="Run Console" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="150"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Style="{StaticResource SectionCard}"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="RUN TELEMETRY"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,12,0"
+                                                           VerticalAlignment="Center"/>
+                                                <Border Style="{StaticResource BadgeBase}">
+                                                    <TextBlock x:Name="TxtConsoleStatus"
+                                                               Text="Idle"
+                                                               Foreground="{StaticResource BrushYellow}"
+                                                               FontWeight="SemiBold"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <Button x:Name="BtnCopyDiagnostics" Grid.Column="1"
+                                                    Content="Copy Diagnostics"
+                                                    Style="{StaticResource BtnBase}"
+                                                    Height="30"
+                                                    Width="144"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#0F161B"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="2"
+                                            Margin="0,0,0,10">
+                                        <DataGrid x:Name="DgRunEvents" Style="{StaticResource DgBase}" Margin="2">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Time" Binding="{Binding timestamp}" Width="170"/>
+                                                <DataGridTextColumn Header="Level" Binding="{Binding level}" Width="70"/>
+                                                <DataGridTextColumn Header="Message" Binding="{Binding message}" Width="*"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+
+                                    <TextBlock Grid.Row="2"
+                                               Text="DIAGNOSTICS OUTPUT"
+                                               Style="{StaticResource LblSection}"
+                                               Margin="0,0,0,6"/>
+
+                                    <Border Grid.Row="3"
+                                            Background="#0F161B"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="4">
+                                        <TextBox x:Name="TxtDiagnostics"
+                                                 Style="{StaticResource TxtBase}"
+                                                 IsReadOnly="True"
+                                                 HorizontalScrollBarVisibility="Auto"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 FontFamily="Consolas"
+                                                 FontSize="11"
+                                                 TextWrapping="NoWrap"/>
+                                    </Border>
+                                </Grid>
+                            </TabItem>
+                        </TabControl>
+                    </Border>
+                </Grid>
+
+                <StatusBar Grid.Row="2">
+                    <StatusBarItem>
+                        <TextBlock x:Name="TxtStatusMain"
+                                   Text="Ready"
+                                   Foreground="{StaticResource BrushSubtext}"
+                                   FontSize="11"/>
+                    </StatusBarItem>
+                    <Separator/>
+                    <StatusBarItem HorizontalAlignment="Right">
+                        <TextBlock x:Name="TxtStatusRight"
+                                   Text=""
+                                   Foreground="{StaticResource BrushSubtext}"
+                                   FontSize="11"/>
+                    </StatusBarItem>
+                </StatusBar>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

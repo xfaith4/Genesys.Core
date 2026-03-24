@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genesys.Core — Dataset Browser</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:           #f0f2f5;
+            --surface:      #ffffff;
+            --border:       #d1d5db;
+            --text:         #111827;
+            --text-muted:   #6b7280;
+            --text-subtle:  #9ca3af;
+            --accent:       #0052cc;
+            --radius:       6px;
+            --shadow:       0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* ── Header ─────────────────────────────────────────────────────── */
+        header {
+            background: #0b1220;
+            color: #f1f5f9;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .header-left h1 {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .header-left h1 .accent { color: #60a5fa; }
+
+        .header-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+            font-family: 'Consolas', 'SF Mono', monospace;
+        }
+
+        .header-right {
+            text-align: right;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        #total-count {
+            font-size: 28px;
+            font-weight: 800;
+            color: #60a5fa;
+            display: block;
+            line-height: 1;
+        }
+
+        /* ── Controls ───────────────────────────────────────────────────── */
+        .controls {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            max-width: 480px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        #search {
+            width: 100%;
+            padding: 7px 10px 7px 34px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        #search:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0,82,204,0.12);
+        }
+
+        .clear-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+
+        .clear-btn:hover { background: #f3f4f6; border-color: #9ca3af; color: var(--text); }
+
+        .filter-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            min-width: 78px;
+            padding-top: 4px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .chip {
+            padding: 3px 10px;
+            border-radius: 100px;
+            border: 1.5px solid var(--border);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.12s;
+            user-select: none;
+            color: var(--text-muted);
+            background: white;
+            line-height: 1.5;
+        }
+
+        .chip:hover { border-color: var(--accent); color: var(--accent); }
+        .chip.active { border-color: var(--accent); background: var(--accent); color: white; }
+
+        /* ── Stats bar ──────────────────────────────────────────────────── */
+        .stats-bar {
+            padding: 8px 24px;
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #result-count strong { color: var(--text); }
+
+        /* ── Table wrapper ──────────────────────────────────────────────── */
+        .table-wrapper {
+            padding: 0 24px 40px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        thead th {
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            background: #f9fafb;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        thead th:hover { background: #f3f4f6; color: var(--text); }
+        thead th.sorted { color: var(--accent); }
+
+        .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 10px; }
+        thead th.sorted .sort-arrow { opacity: 1; }
+
+        tbody tr {
+            border-bottom: 1px solid #f0f2f5;
+            transition: background 0.1s;
+            cursor: pointer;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: #f8fafc; }
+        tbody tr.expanded { background: #eff6ff; }
+        tbody tr.detail-row { cursor: default; background: #f0f7ff; }
+        tbody tr.detail-row:hover { background: #e8f1fe; }
+
+        td {
+            padding: 9px 14px;
+            vertical-align: middle;
+        }
+
+        .key-cell {
+            font-family: 'Consolas', 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            color: #1e40af;
+            font-weight: 500;
+            max-width: 300px;
+            word-break: break-all;
+        }
+
+        .expand-icon {
+            font-size: 9px;
+            color: var(--text-subtle);
+            margin-right: 6px;
+            display: inline-block;
+            width: 10px;
+        }
+
+        .desc-cell { max-width: 340px; }
+        .desc-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-size: 13px;
+            color: #374151;
+        }
+
+        /* ── Badges ──────────────────────────────────────────────────────── */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* ── Detail row ──────────────────────────────────────────────────── */
+        .detail-inner {
+            padding: 14px 16px;
+            border-radius: var(--radius);
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .detail-field label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #64748b;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .detail-field .val {
+            font-family: 'Consolas', 'SF Mono', monospace;
+            font-size: 12.5px;
+            color: var(--text);
+        }
+
+        .ps-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .code-block {
+            background: #0f172a;
+            color: #cbd5e1;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-family: 'Consolas', 'SF Mono', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+            line-height: 1.6;
+        }
+
+        .cm   { color: #475569; }
+        .kw   { color: #93c5fd; }
+        .str  { color: #86efac; }
+        .prm  { color: #fcd34d; }
+        .tx-badge { color: #34d399; font-weight: 700; }
+
+        /* ── Empty state ─────────────────────────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 56px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg { opacity: 0.25; margin-bottom: 10px; }
+        .empty-state p { font-size: 14px; }
+
+        /* ── Error ───────────────────────────────────────────────────────── */
+        .error-state {
+            text-align: center;
+            padding: 56px 24px;
+            color: #c2410c;
+        }
+
+        .error-state svg { opacity: 0.5; margin-bottom: 10px; }
+        .error-state h3 { margin-bottom: 8px; }
+        .error-state p  { font-size: 13px; color: var(--text-muted); max-width: 420px; margin: 0 auto 6px; }
+        .error-state code { font-size: 11px; color: #9ca3af; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <h1>Genesys<span class="accent">.Core</span> Dataset Browser</h1>
+        <div class="header-sub">catalog/genesys.catalog.json · Invoke-Dataset interface</div>
+    </div>
+    <div class="header-right">
+        <span id="total-count">–</span>
+        datasets
+    </div>
+</header>
+
+<div class="controls">
+    <div class="search-row">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="search" placeholder="Search by key, description, or endpoint…"
+                   autocomplete="off" spellcheck="false">
+        </div>
+        <button class="clear-btn" id="clear-btn">Clear filters</button>
+    </div>
+
+    <div class="filter-row">
+        <span class="filter-label">Domain</span>
+        <div class="chips" id="domain-chips"></div>
+    </div>
+
+    <div class="filter-row">
+        <span class="filter-label">Paging</span>
+        <div class="chips" id="paging-chips"></div>
+    </div>
+
+    <div class="filter-row">
+        <span class="filter-label">Retry</span>
+        <div class="chips" id="retry-chips"></div>
+    </div>
+
+    <div class="filter-row">
+        <span class="filter-label">Transaction</span>
+        <div class="chips" id="tx-chips">
+            <span class="chip active" data-val="all">All</span>
+            <span class="chip" data-val="yes">&#10003; Has Transaction</span>
+            <span class="chip" data-val="no">— None</span>
+        </div>
+    </div>
+</div>
+
+<div class="stats-bar">
+    <span id="result-count">Loading…</span>
+</div>
+
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th data-col="key">Dataset Key <span class="sort-arrow">↕</span></th>
+                <th data-col="domain">Domain <span class="sort-arrow">↕</span></th>
+                <th data-col="description">Description <span class="sort-arrow">↕</span></th>
+                <th data-col="paging">Paging <span class="sort-arrow">↕</span></th>
+                <th data-col="retry">Retry <span class="sort-arrow">↕</span></th>
+                <th data-col="transaction" style="text-align:center" title="Has async transaction profile">Tx <span class="sort-arrow">↕</span></th>
+                <th data-col="itemsPath">Items Path <span class="sort-arrow">↕</span></th>
+            </tr>
+        </thead>
+        <tbody id="table-body">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+/* ── Colour palettes ──────────────────────────────────────────────────────── */
+const DOMAIN_COLORS = {
+    analytics:              { bg:'#dbeafe', text:'#1e40af', border:'#bfdbfe' },
+    conversations:          { bg:'#dcfce7', text:'#15803d', border:'#bbf7d0' },
+    users:                  { bg:'#fce7f3', text:'#9d174d', border:'#fbcfe8' },
+    routing:                { bg:'#fed7aa', text:'#9a3412', border:'#fdba74' },
+    authorization:          { bg:'#fef9c3', text:'#854d0e', border:'#fef08a' },
+    usage:                  { bg:'#ccfbf1', text:'#0f766e', border:'#99f6e4' },
+    presence:               { bg:'#f3e8ff', text:'#6b21a8', border:'#e9d5ff' },
+    audits:                 { bg:'#fef3c7', text:'#92400e', border:'#fde68a' },
+    audit:                  { bg:'#fef3c7', text:'#92400e', border:'#fde68a' },
+    oauth:                  { bg:'#e0f2fe', text:'#0369a1', border:'#bae6fd' },
+    outbound:               { bg:'#d1fae5', text:'#065f46', border:'#a7f3d0' },
+    flows:                  { bg:'#e0e7ff', text:'#3730a3', border:'#c7d2fe' },
+    telephony:              { bg:'#cffafe', text:'#155e75', border:'#a5f3fc' },
+    quality:                { bg:'#ffe4e6', text:'#9f1239', border:'#fecdd3' },
+    alerting:               { bg:'#ffedd5', text:'#c2410c', border:'#fed7aa' },
+    workforce:              { bg:'#f0fdf4', text:'#166534', border:'#bbf7d0' },
+    notifications:          { bg:'#f1f5f9', text:'#334155', border:'#cbd5e1' },
+    organization:           { bg:'#f8fafc', text:'#475569', border:'#e2e8f0' },
+    stations:               { bg:'#ecfeff', text:'#0e7490', border:'#a5f3fc' },
+    journey:                { bg:'#fdf4ff', text:'#7e22ce', border:'#f0abfc' },
+    speechandtextanalytics: { bg:'#fdf2f8', text:'#86198f', border:'#f5d0fe' },
+};
+
+const PAGING_COLORS = {
+    none:                                  { bg:'#f3f4f6', text:'#6b7280' },
+    nextUri:                               { bg:'#dbeafe', text:'#1e40af' },
+    nextUri_default:                       { bg:'#dbeafe', text:'#1e40af' },
+    nextUri_auditResults:                  { bg:'#dbeafe', text:'#1e40af' },
+    nextUri_conversations:                 { bg:'#dbeafe', text:'#1e40af' },
+    pageNumber_default:                    { bg:'#fce7f3', text:'#9d174d' },
+    totalHits_conversations:               { bg:'#fce7f3', text:'#9d174d' },
+    analytics_details_query:               { bg:'#dcfce7', text:'#15803d' },
+    analytics_jobs:                        { bg:'#d1fae5', text:'#065f46' },
+    analytics_jobs_results:                { bg:'#d1fae5', text:'#065f46' },
+    transactionResults:                    { bg:'#fef3c7', text:'#92400e' },
+    audit_query_transaction_then_results:  { bg:'#fef3c7', text:'#92400e' },
+};
+
+const RETRY_COLORS = {
+    default:        { bg:'#f3f4f6', text:'#374151' },
+    rateLimitAware: { bg:'#fff7ed', text:'#c2410c' },
+};
+
+function domainColor(d)  { return DOMAIN_COLORS[d]  || { bg:'#f3f4f6', text:'#374151', border:'#d1d5db' }; }
+function pagingColor(p)  { return PAGING_COLORS[p]  || { bg:'#f3f4f6', text:'#374151' }; }
+function retryColor(r)   { return RETRY_COLORS[r]   || { bg:'#f3f4f6', text:'#374151' }; }
+
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+function esc(s) {
+    return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function extractDomain(key) {
+    return key.split(/[.\-]/)[0];
+}
+
+function badgeHtml(text, colors) {
+    const border = colors.border || colors.bg;
+    return `<span class="badge" style="background:${colors.bg};color:${colors.text};border:1px solid ${border}">${esc(text)}</span>`;
+}
+
+/* ── Application state ───────────────────────────────────────────────────── */
+const state = {
+    all:         [],     // all datasets [{key,domain,description,endpoint,itemsPath,paging,retry,transaction}]
+    search:      '',
+    domains:     new Set(),
+    pagings:     new Set(),
+    retries:     new Set(),
+    transaction: 'all',  // 'all' | 'yes' | 'no'
+    sortCol:     'key',
+    sortDir:     'asc',
+    expanded:    null,
+};
+
+/* ── Filter + sort ───────────────────────────────────────────────────────── */
+function filtered() {
+    let rows = state.all;
+
+    if (state.search) {
+        const q = state.search.toLowerCase();
+        rows = rows.filter(d =>
+            d.key.toLowerCase().includes(q) ||
+            d.description.toLowerCase().includes(q) ||
+            d.endpoint.toLowerCase().includes(q)
+        );
+    }
+
+    if (state.domains.size > 0)
+        rows = rows.filter(d => state.domains.has(d.domain));
+
+    if (state.pagings.size > 0)
+        rows = rows.filter(d => state.pagings.has(d.paging));
+
+    if (state.retries.size > 0)
+        rows = rows.filter(d => state.retries.has(d.retry));
+
+    if (state.transaction === 'yes') rows = rows.filter(d =>  d.transaction);
+    if (state.transaction === 'no')  rows = rows.filter(d => !d.transaction);
+
+    const col = state.sortCol;
+    const dir = state.sortDir === 'asc' ? 1 : -1;
+    rows = [...rows].sort((a, b) => {
+        const va = (a[col] || '').toLowerCase();
+        const vb = (b[col] || '').toLowerCase();
+        return va < vb ? -dir : va > vb ? dir : 0;
+    });
+
+    return rows;
+}
+
+/* ── Render table ────────────────────────────────────────────────────────── */
+function psSnippet(d) {
+    const txLine = d.transaction
+        ? `\n<span class="cm"># Async transaction profile: ${esc(d.transaction)} — polls until FULFILLED</span>`
+        : '';
+    return (
+        `<span class="cm"># Invoke via Genesys.Core${txLine}</span>\n` +
+        `<span class="kw">$results</span> = <span class="kw">Invoke-Dataset</span> <span class="prm">-DatasetKey</span> <span class="str">'${esc(d.key)}'</span> \`\n` +
+        `    <span class="prm">-Body</span> <span class="kw">@{</span> <span class="cm"># optional body hashtable</span> <span class="kw">}</span>\n\n` +
+        `<span class="cm"># Explicit paths (override config defaults):</span>\n` +
+        `<span class="kw">$results</span> = <span class="kw">Invoke-Dataset</span> <span class="prm">-DatasetKey</span> <span class="str">'${esc(d.key)}'</span> \`\n` +
+        `    <span class="prm">-CoreModulePath</span> <span class="str">'modules\\Genesys.Core\\Genesys.Core.psd1'</span> \`\n` +
+        `    <span class="prm">-CatalogPath</span>    <span class="str">'catalog\\genesys.catalog.json'</span>`
+    );
+}
+
+function renderTable() {
+    const rows = filtered();
+    const tbody = document.getElementById('table-body');
+
+    // Update stats
+    const total = state.all.length;
+    document.getElementById('result-count').innerHTML =
+        `Showing <strong>${rows.length}</strong> of <strong>${total}</strong> datasets`;
+
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <p>No datasets match the current filters.</p></div></td></tr>`;
+        return;
+    }
+
+    let html = '';
+    for (const d of rows) {
+        const dc = domainColor(d.domain);
+        const pc = pagingColor(d.paging);
+        const rc = retryColor(d.retry);
+        const isExp = state.expanded === d.key;
+
+        /* Main row */
+        html += `<tr class="${isExp ? 'expanded' : ''}" data-key="${esc(d.key)}">
+            <td class="key-cell"><span class="expand-icon">${isExp ? '▼' : '▶'}</span>${esc(d.key)}</td>
+            <td>${badgeHtml(d.domain, dc)}</td>
+            <td class="desc-cell"><div class="desc-text">${esc(d.description)}</div></td>
+            <td>${badgeHtml(d.paging, pc)}</td>
+            <td>${badgeHtml(d.retry, rc)}</td>
+            <td style="text-align:center">
+                ${d.transaction
+                    ? `<span class="badge" title="${esc(d.transaction)}"
+                           style="background:#d1fae5;color:#065f46;border:1px solid #a7f3d0">&#10003; ${esc(d.transaction)}</span>`
+                    : `<span style="color:#d1d5db">—</span>`}
+            </td>
+            <td><code style="font-size:11.5px;font-family:Consolas,monospace;color:#374151">${esc(d.itemsPath)}</code></td>
+        </tr>`;
+
+        /* Detail row */
+        if (isExp) {
+            html += `<tr class="detail-row">
+                <td colspan="7" style="padding:0 14px 12px">
+                    <div class="detail-inner">
+                        <div class="detail-grid">
+                            <div class="detail-field">
+                                <label>Endpoint Reference</label>
+                                <span class="val">${esc(d.endpoint)}</span>
+                            </div>
+                            <div class="detail-field">
+                                <label>Items Path (JSON)</label>
+                                <span class="val">${esc(d.itemsPath)}</span>
+                            </div>
+                            ${d.transaction ? `<div class="detail-field">
+                                <label>Transaction Profile</label>
+                                <span class="val tx-badge">${esc(d.transaction)}</span>
+                            </div>` : ''}
+                        </div>
+                        <div class="ps-label">PowerShell — Invoke-Dataset</div>
+                        <div class="code-block">${psSnippet(d)}</div>
+                    </div>
+                </td>
+            </tr>`;
+        }
+    }
+
+    tbody.innerHTML = html;
+
+    /* Row click → expand */
+    tbody.querySelectorAll('tr[data-key]:not(.detail-row)').forEach(tr => {
+        tr.addEventListener('click', () => {
+            const key = tr.dataset.key;
+            state.expanded = state.expanded === key ? null : key;
+            renderTable();
+        });
+    });
+
+    /* Sort header indicators */
+    document.querySelectorAll('thead th[data-col]').forEach(th => {
+        th.classList.toggle('sorted', th.dataset.col === state.sortCol);
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) {
+            arrow.textContent = th.dataset.col === state.sortCol
+                ? (state.sortDir === 'asc' ? '↑' : '↓')
+                : '↕';
+        }
+    });
+}
+
+/* ── Chip helpers ────────────────────────────────────────────────────────── */
+function rebuildChips(containerId, values, stateSet, onChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const sorted = [...values].sort();
+    let html = `<span class="chip ${stateSet.size === 0 ? 'active' : ''}" data-val="__all__">All</span>`;
+    for (const v of sorted) {
+        html += `<span class="chip ${stateSet.has(v) ? 'active' : ''}" data-val="${esc(v)}">${esc(v)}</span>`;
+    }
+    container.innerHTML = html;
+    container.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const val = chip.dataset.val;
+            if (val === '__all__') {
+                stateSet.clear();
+            } else {
+                stateSet.has(val) ? stateSet.delete(val) : stateSet.add(val);
+            }
+            rebuildChips(containerId, values, stateSet, onChange);
+            onChange();
+        });
+    });
+}
+
+/* ── Load catalog ────────────────────────────────────────────────────────── */
+function processDatasets(datasets) {
+    const domainSet = new Set();
+    const pagingSet = new Set();
+    const retrySet  = new Set();
+
+    const rows = Object.entries(datasets).map(([key, v]) => {
+        const domain = extractDomain(key);
+        domainSet.add(domain);
+        pagingSet.add(v.paging.profile);
+        retrySet.add(v.retry.profile);
+        return {
+            key,
+            domain,
+            description: v.description || '',
+            endpoint:    v.endpoint    || '',
+            itemsPath:   v.itemsPath   || '',
+            paging:      v.paging.profile,
+            retry:       v.retry.profile,
+            transaction: v.transaction ? v.transaction.profile : null,
+        };
+    });
+
+    state.all = rows;
+    document.getElementById('total-count').textContent = rows.length;
+
+    rebuildChips('domain-chips', domainSet, state.domains, renderTable);
+    rebuildChips('paging-chips', pagingSet, state.pagings, renderTable);
+    rebuildChips('retry-chips',  retrySet,  state.retries, renderTable);
+
+    renderTable();
+}
+
+/* ── Wire events ─────────────────────────────────────────────────────────── */
+document.getElementById('search').addEventListener('input', e => {
+    state.search = e.target.value;
+    renderTable();
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+    state.search = '';
+    state.domains.clear();
+    state.pagings.clear();
+    state.retries.clear();
+    state.transaction = 'all';
+    state.expanded = null;
+    document.getElementById('search').value = '';
+
+    // Rebuild chips from current dataset values
+    const domainSet = new Set(state.all.map(d => d.domain));
+    const pagingSet = new Set(state.all.map(d => d.paging));
+    const retrySet  = new Set(state.all.map(d => d.retry));
+    rebuildChips('domain-chips', domainSet, state.domains, renderTable);
+    rebuildChips('paging-chips', pagingSet, state.pagings, renderTable);
+    rebuildChips('retry-chips',  retrySet,  state.retries, renderTable);
+
+    document.querySelectorAll('#tx-chips .chip').forEach(c =>
+        c.classList.toggle('active', c.dataset.val === 'all'));
+    renderTable();
+});
+
+document.querySelectorAll('thead th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        state.sortDir = state.sortCol === col && state.sortDir === 'asc' ? 'desc' : 'asc';
+        state.sortCol = col;
+        renderTable();
+    });
+});
+
+document.querySelectorAll('#tx-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        state.transaction = chip.dataset.val;
+        document.querySelectorAll('#tx-chips .chip').forEach(c =>
+            c.classList.toggle('active', c.dataset.val === chip.dataset.val));
+        renderTable();
+    });
+});
+
+/* ── Bootstrap ───────────────────────────────────────────────────────────── */
+(async function init() {
+    try {
+        const resp = await fetch('./genesys.catalog.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        const catalog = await resp.json();
+        processDatasets(catalog.datasets);
+    } catch (err) {
+        document.getElementById('result-count').textContent = 'Error loading catalog';
+        document.getElementById('total-count').textContent = '!';
+        document.getElementById('table-body').innerHTML = `<tr><td colspan="7">
+            <div class="error-state">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+                <h3>Could not load genesys.catalog.json</h3>
+                <p>This page must be served over HTTP so the browser can fetch the JSON file.
+                   Open via <strong>VS Code Live Preview</strong>, or run a local server in the
+                   <code>catalog/</code> folder.</p>
+                <p>Example: <code>python -m http.server 8080</code> then open
+                   <code>http://localhost:8080/catalog-browser.html</code></p>
+                <code style="display:block;margin-top:12px">${esc(String(err))}</code>
+            </div>
+        </td></tr>`;
+    }
+})();
+</script>
+</body>
+</html>

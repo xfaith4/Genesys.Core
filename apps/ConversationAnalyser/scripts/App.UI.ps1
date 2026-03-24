@@ -1945,6 +1945,7 @@ function _ShowConnectDialog {
         $ar2 = $ps2.BeginInvoke()
 
         # Poll for PKCE completion
+        $capturedState = $script:State   # capture by ref so closure doesn't need $script: qualifier
         $pkceTimer = New-Object System.Windows.Threading.DispatcherTimer
         $pkceTimer.Interval = [System.TimeSpan]::FromSeconds(1)
         $pkceTimer.Add_Tick(({
@@ -1962,7 +1963,7 @@ function _ShowConnectDialog {
                 try { $rs2.Dispose() } catch { }
                 try { $ps2.Dispose() } catch { }
                 try { $cts.Dispose() } catch { }
-                $script:State.PkceCancel = $null
+                $capturedState['PkceCancel'] = $null
             }
         }).GetNewClosure())
         $pkceTimer.Start()
@@ -2041,7 +2042,7 @@ function _ShowSettingsDialog {
             $dlg.Title  = "Select $label"
             $dlg.CheckFileExists = $true
             if ($dlg.ShowDialog()) { $capturedTb.Text = $dlg.FileName }
-        })
+        }.GetNewClosure())
         $g.Children.Add($lbl) | Out-Null; $g.Children.Add($tb) | Out-Null; $g.Children.Add($btn) | Out-Null
         $sp.Children.Add($g)  | Out-Null
         return $tb

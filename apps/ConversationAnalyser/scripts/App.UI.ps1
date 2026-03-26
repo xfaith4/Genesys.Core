@@ -162,7 +162,13 @@ $script:_CsColMap = @{
 # Capture app directory at dot-source time for use inside background runspaces.
 # $PSScriptRoot is unreliable inside WPF event-handler closures (not executing a
 # script file), so we snapshot it here while a script IS being processed.
-$script:UIAppDir = if ($PSScriptRoot) { $PSScriptRoot } else { $AppDir }
+# App.UI.ps1 lives in scripts/ — one level below the app root — so step up one
+# directory to get the app root where the modules/ folder actually lives.
+$script:UIAppDir = if ($PSScriptRoot) {
+    [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($PSScriptRoot, '..'))
+} else {
+    $AppDir
+}
 
 # ── Dispatcher helper ─────────────────────────────────────────────────────────
 

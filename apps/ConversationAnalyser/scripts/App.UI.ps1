@@ -1642,6 +1642,11 @@ function _StartRunInBackground {
     $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
     $outputRoot  = $cfg.OutputRoot
 
+    # Derive BaseUri from the stored connection (most accurate) else fall back to config region
+    $connInfo = Get-ConnectionInfo
+    $region   = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri  = "https://api.$region"
+
     $script:State.RunCancelled = $false
     # Clear any stale run folder so _PollBackgroundRun discovers the new one
     $script:State.CurrentRunFolder   = $null
@@ -1665,7 +1670,7 @@ function _StartRunInBackground {
     $appDir = $script:UIAppDir
 
     [void]$ps.AddScript({
-        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $RunType, $DatasetParams, $Headers)
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $RunType, $DatasetParams, $Headers, $BaseUri)
         Set-StrictMode -Version Latest
 
         # Trace log — always written to $env:TEMP so it's readable even when
@@ -1685,6 +1690,7 @@ function _StartRunInBackground {
         & $t "CatalogPath : $CatalogPath"
         & $t "SchemaPath  : $SchemaPath"
         & $t "OutputRoot  : $OutputRoot"
+        & $t "BaseUri     : $BaseUri"
         & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
 
         try {
@@ -1724,6 +1730,7 @@ function _StartRunInBackground {
                 Dataset           = $datasetKey
                 CatalogPath       = $CatalogPath
                 OutputRoot        = $OutputRoot
+                BaseUri           = $BaseUri
                 DatasetParameters = $DatasetParams
             }
             if ($null -ne $Headers -and $Headers.Count -gt 0) {
@@ -1746,6 +1753,7 @@ function _StartRunInBackground {
     [void]$ps.AddArgument($RunType)
     [void]$ps.AddArgument($DatasetParameters)
     [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
 
     $asyncResult = $ps.BeginInvoke()
 

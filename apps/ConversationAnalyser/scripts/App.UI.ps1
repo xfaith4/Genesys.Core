@@ -1688,28 +1688,50 @@ function _StartRunInBackground {
         & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
 
         try {
-            # Import-Module inside [PowerShell]::Create() runspaces scopes functions
-            # to the module namespace, not the calling scriptblock — use dot-source
-            # instead so function definitions land directly in the current scope.
-            # Export-ModuleMember in the psm1 will produce a non-terminating error
-            # (not valid outside a module scope) which is safely ignored here.
-            . (Join-Path $AppDir 'modules\App.CoreAdapter.psm1')
-            & $t "App.CoreAdapter.psm1 dot-sourced (Initialize-CoreAdapter=$(if (Get-Command Initialize-CoreAdapter -ErrorAction SilentlyContinue) { 'FOUND' } else { 'MISSING' }))"
+            # App.CoreAdapter.psm1 cannot be reliably loaded into a [PowerShell]::Create()
+            # runspace (Import-Module scopes to module namespace; dot-source treats .psm1
+            # with module semantics).  Inline the three operations it wraps instead:
+            # validate paths → Import Genesys.Core → Assert-Catalog → Invoke-Dataset.
 
-            Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
-            & $t "Initialize-CoreAdapter OK"
-
-            if ($RunType -eq 'preview') {
-                & $t "Calling Start-PreviewRun..."
-                $result = Start-PreviewRun -DatasetParameters $DatasetParams -Headers $Headers
-                & $t "Start-PreviewRun returned  runFolder=$($result.runFolder)"
-                $result
-            } else {
-                & $t "Calling Start-FullRun..."
-                $result = Start-FullRun -DatasetParameters $DatasetParams -Headers $Headers
-                & $t "Start-FullRun returned  runFolder=$($result.runFolder)"
-                $result
+            if (-not [System.IO.File]::Exists($CorePath)) {
+                throw "Genesys.Core module not found at: $CorePath"
             }
+            if (-not [System.IO.File]::Exists($CatalogPath)) {
+                throw "Catalog not found at: $CatalogPath"
+            }
+            & $t "Path checks OK"
+
+            Import-Module $CorePath -Force -ErrorAction Stop
+            & $t "Genesys.Core imported"
+
+            $assertParams = @{ CatalogPath = $CatalogPath }
+            if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
+            Assert-Catalog @assertParams -ErrorAction Stop
+            & $t "Assert-Catalog OK"
+
+            if (-not [System.IO.Directory]::Exists($OutputRoot)) {
+                [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+            }
+
+            $datasetKey = if ($RunType -eq 'preview') {
+                'analytics-conversation-details-query'
+            } else {
+                'analytics-conversation-details'
+            }
+            & $t "Calling Invoke-Dataset (dataset=$datasetKey)..."
+
+            $invokeParams = @{
+                Dataset           = $datasetKey
+                CatalogPath       = $CatalogPath
+                OutputRoot        = $OutputRoot
+                DatasetParameters = $DatasetParams
+            }
+            if ($null -ne $Headers -and $Headers.Count -gt 0) {
+                $invokeParams['Headers'] = $Headers
+            }
+            $result = Invoke-Dataset @invokeParams
+            & $t "Invoke-Dataset returned"
+            $result
         } catch {
             & $t "EXCEPTION : $_"
             & $t "StackTrace :`n$($_.ScriptStackTrace)"

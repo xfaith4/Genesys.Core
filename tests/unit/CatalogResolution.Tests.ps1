@@ -1,6 +1,6 @@
 Describe 'Catalog resolution precedence and strict mode' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Catalog.ps1"
         $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/schema/genesys.catalog.schema.json'
     }
 

@@ -19,14 +19,13 @@ Genesys.Core/
 │   │   │   ├── Invoke-Dataset.ps1
 │   │   │   └── Assert-Catalog.ps1
 │   │   └── Private/
-│   │       ├── Catalog/
-│   │       ├── Datasets/
-│   │       ├── Retry/
-│   │       ├── Paging/
-│   │       ├── Async/
-│   │       ├── Redaction/
-│   │       ├── Http/
-│   │       └── Run/
+│   │       ├── Catalog.ps1       # Catalog resolution, profile merging, normalization
+│   │       ├── Redaction.ps1     # PII/sensitive-field redaction
+│   │       ├── RunArtifacts.ps1  # Run context, JSONL/manifest/event writers
+│   │       ├── Transport.ps1     # URI construction, HTTP, retry engine
+│   │       ├── Paging.ps1        # All paging strategies + core endpoint dispatcher
+│   │       ├── Async.ps1         # Async job and audit transaction patterns
+│   │       └── Datasets.ps1      # Dataset registry, invokers, output orchestration
 │   └── Genesys.Ops/
 │       ├── Genesys.Ops.psd1
 │       └── Genesys.Ops.psm1

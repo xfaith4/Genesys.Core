@@ -1,8 +1,14 @@
 ### BEGIN: ModuleBootstrap
 $privatePath = Join-Path -Path $PSScriptRoot -ChildPath 'Private'
-Get-ChildItem -Path $privatePath -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-    . $_.FullName
-}
+
+# Load private subsystems in dependency order.
+. (Join-Path $privatePath 'Catalog.ps1')
+. (Join-Path $privatePath 'Redaction.ps1')
+. (Join-Path $privatePath 'RunArtifacts.ps1')
+. (Join-Path $privatePath 'Transport.ps1')
+. (Join-Path $privatePath 'Paging.ps1')
+. (Join-Path $privatePath 'Async.ps1')
+. (Join-Path $privatePath 'Datasets.ps1')
 
 $publicPath = Join-Path -Path $PSScriptRoot -ChildPath 'Public'
 Get-ChildItem -Path $publicPath -Filter '*.ps1' -ErrorAction SilentlyContinue | ForEach-Object {

@@ -1,7 +1,7 @@
 Describe 'Additional dataset implementations' {
     BeforeAll {
         Import-Module "$PSScriptRoot/../../modules/Genesys.Core/Genesys.Core.psd1" -Force
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Datasets/DatasetRegistry.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Datasets.ps1"
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
     }
 

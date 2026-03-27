@@ -1,9 +1,6 @@
 Describe 'Run output contract' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Run/New-RunContext.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Run/Write-Jsonl.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Run/Write-RunEvent.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Run/Write-Manifest.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/RunArtifacts.ps1"
     }
 
     It 'creates out/<datasetKey>/<runId>/ with manifest and events files' {

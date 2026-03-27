@@ -1,15 +1,8 @@
 Describe 'Async job engine' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Http/Join-EndpointUri.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Async/Invoke-AsyncJob.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Async.ps1"
     }
 
     It 'runs analytics-style async profile with custom id/state paths' {

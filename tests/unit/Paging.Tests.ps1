@@ -1,13 +1,7 @@
 Describe 'Paging strategies' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging.ps1"
     }
 
     It 'enumerates nextUri pages and terminates when nextUri is empty' {

@@ -1,7 +1,6 @@
 Describe 'Request logging redaction' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Invoke-GcRequest.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
     }
 
     It 'redacts sensitive headers and query parameters in request events' {
@@ -29,7 +28,7 @@ Describe 'Request logging redaction' {
 
 Describe 'Record payload redaction hardening' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Redaction.ps1"
     }
 
     It 'redacts embedded bearer and query token strings while preserving non-sensitive text' {

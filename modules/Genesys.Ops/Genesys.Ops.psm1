@@ -43,6 +43,29 @@ $script:GC = [ordered]@{
 #endregion
 
 # ---------------------------------------------------------------------------
+#region Module initialization
+# ---------------------------------------------------------------------------
+
+# Load Genesys.Core at import time so that Invoke-Dataset is available before
+# Connect-GenesysCloud is called.  The check prevents double-loading.
+if (-not (Get-Module -Name 'Genesys.Core')) {
+    $script:_gcoreCandidates = @(
+        (Join-Path $PSScriptRoot '../Genesys.Core/Genesys.Core.psd1'),
+        (Join-Path $PSScriptRoot '../../modules/Genesys.Core/Genesys.Core.psd1'),
+        (Join-Path $PSScriptRoot 'Genesys.Core/Genesys.Core.psd1')
+    )
+    $script:_gcoreFound = $script:_gcoreCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($script:_gcoreFound) {
+        Import-Module $script:_gcoreFound -ErrorAction Stop
+    } else {
+        Import-Module 'Genesys.Core' -ErrorAction Stop
+    }
+    Remove-Variable -Name '_gcoreCandidates', '_gcoreFound' -Scope Script -ErrorAction SilentlyContinue
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
 #region Private helpers
 # ---------------------------------------------------------------------------
 

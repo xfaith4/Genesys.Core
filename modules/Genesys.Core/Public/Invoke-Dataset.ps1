@@ -66,7 +66,15 @@ function Invoke-Dataset {
         [switch]$NoRedact
     )
 
-    $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '../../../catalog/schema/genesys.catalog.schema.json'
+    # $PSScriptRoot inside this function body reflects the module root (modules/Genesys.Core/),
+    # NOT the Public/ subdirectory where this file lives.  Use the captured module root and
+    # go two levels up to reach the repo root, then into catalog/schema/.
+    $schemaRoot = if ($null -ne $script:GcModuleRoot) {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $script:GcModuleRoot -ChildPath '../..'))
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '../../..'))
+    }
+    $schemaPath = Join-Path -Path $schemaRoot -ChildPath 'catalog/schema/genesys.catalog.schema.json'
     $catalogResolution = Resolve-Catalog -CatalogPath $CatalogPath -SchemaPath $schemaPath -StrictCatalog:$StrictCatalog
 
     foreach ($warning in @($catalogResolution.warnings)) {

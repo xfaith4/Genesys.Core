@@ -430,10 +430,20 @@ function Resolve-Catalog {
         [string]$SchemaPath
     )
 
-    $canonicalCandidate = Join-Path -Path (Get-Location) -ChildPath 'catalog/genesys.catalog.json'
+    # Prefer module-relative discovery over working-directory discovery so that
+    # callers don't need to be in the repo root.  $script:GcModuleRoot is set in
+    # Genesys.Core.psm1 during module bootstrap and points to modules/Genesys.Core/.
+    # Two levels up from there is the repo root where catalog/ lives.
+    $searchBase = if ($null -ne $script:GcModuleRoot) {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $script:GcModuleRoot -ChildPath '../..'))
+    } else {
+        (Get-Location).Path
+    }
+
+    $canonicalCandidate = Join-Path -Path $searchBase -ChildPath 'catalog/genesys.catalog.json'
     $legacyCandidates = @(
-        (Join-Path -Path (Get-Location) -ChildPath 'genesys-core.catalog.json'),
-        (Join-Path -Path (Get-Location) -ChildPath 'catalog/genesys-core.catalog.json')
+        (Join-Path -Path $searchBase -ChildPath 'genesys-core.catalog.json'),
+        (Join-Path -Path $searchBase -ChildPath 'catalog/genesys-core.catalog.json')
     )
 
     $canonicalExists = Test-Path -Path $canonicalCandidate

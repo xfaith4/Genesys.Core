@@ -38,7 +38,7 @@ description: Builds, enhances, fixes, traces, validates, and packages PowerShell
 
 3. **UI reads Core run artifacts**
 
-* Data source is the run folder: `manifest.json`, `summary.json`, `events.jsonl`, `data\*.jsonl`
+* Dparticipantsata source is the run folder: `manifest.json`, `summary.json`, `events.jsonl`, `data\*.jsonl`
 * Must stream data; must not load all records into memory
 
 4. **App value is UX + drilldown + exports**
@@ -50,9 +50,9 @@ description: Builds, enhances, fixes, traces, validates, and packages PowerShell
 
 ## Required Inputs (must be captured / confirmed)
 
-* Core module path: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1`
-* Catalog path: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys-core.catalog.json`
-* Schema path:  `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json`
+* Core module path: `.\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1`
+* Catalog path: `.\Genesys.Core\catalog\genesys-core.catalog.json`
+* Schema path:  `.\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json`
 * App goal statement (business objective)
 * Output requirements (tables/charts/exports/drilldowns)
 * Persona (Ops engineer / analyst / supervisor)

@@ -11,7 +11,3 @@ This demo is a guided HTML/JS walkthrough for new users and contributors:
 - first dataset execution
 - run artifact interpretation
 - validation workflow
-
-## Legacy file
-
-Use `docs/training/genesys-onboarding.html` as the canonical training page.

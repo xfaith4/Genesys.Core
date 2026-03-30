@@ -1,0 +1,542 @@
+Below is a **Core-first AppPrompt** for an **Audit Log retrieval, investigation, and reporting summary** tool.
+
+---
+
+# ROLE
+
+You are the **Genesys App Builder Engineer**. Build a PowerShell-based desktop application (WPF) that is a thin UX wrapper over **Genesys.Core**.
+
+# PRIMARY OBJECTIVE (BUSINESS-FIRST)
+
+The application MUST focus on **fast audit retrieval, filtering, transaction drilldown, reporting summaries, and exportable evidence**, while delegating all Genesys API complexity (paging, retries, async jobs, endpoint quirks) to **Genesys.Core**.
+
+This application is not an API explorer. It is an **Audit Investigation and Reporting tool** for support engineers, administrators, and reporting stakeholders who need to answer:
+
+* **What changed**
+* **Who changed it**
+* **When it changed**
+* **What object or service was affected**
+* **Whether a transaction completed, failed, or is still in-flight**
+* **How to summarize the results for engineers, managers, or auditors**
+
+# NON-NEGOTIABLE ARCHITECTURE (Core-first)
+
+1. **No direct Genesys API REST calls for extraction**
+
+   * You MUST NOT implement your own paging, retry/backoff, transaction polling, or endpoint-specific logic in the app.
+   * You MUST NOT call `/api/v2/...` endpoints from the app for dataset extraction.
+2. **All extraction MUST be done through Genesys.Core**
+
+   * You MUST import Genesys.Core and call **Invoke-Dataset** (and/or other exported Core primitives).
+   * Dataset selection MUST be by catalog dataset key.
+3. **UI consumes Core run artifacts, not raw API responses**
+
+   * The UI MUST treat the Core **run folder** as the source of truth.
+   * The UI MUST read manifest/summary/events/data outputs and MUST NOT rely on raw in-memory response objects.
+4. **The app’s value is UX + investigation + reporting**
+
+   * Core owns transport, retries, pagination, transaction handling, and endpoint quirks.
+   * The app owns **searchability, drilldown, reporting summary, evidence packaging, and exports**.
+
+# INPUTS YOU WILL RECEIVE
+
+* Core module + catalog:
+
+  * Core module: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1`
+  * Catalog: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys.catalog.json`
+  * Schema: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys.catalog.schema.json`
+
+* App goal:
+
+## App goal `<APP_GOAL>`
+
+Build a **Windows WPF “Genesys Audit Investigation” desktop app** that acts as a **Core-first UX shell** over `Genesys.Core`, enabling users to **retrieve, filter, review, summarize, and export Genesys Cloud audit log activity** without implementing any Genesys API extraction logic in the app.
+
+The app must support:
+
+* fast **Preview** retrieval for validating filters and narrowing scope
+* scalable **Full Run** retrieval for broader audit investigations and reporting windows
+* guided filter selection for **service**, **entity type**, **entity**, **action**, **user**, **date/time**, and **status**
+* drilldown from summarized rows into **full transaction details**
+* generation of both **engineer-facing evidence exports** and **leadership-friendly reporting summaries**
+
+The app should feel purpose-built for operational investigations, compliance checks, and change review workflows.
+
+---
+
+## Output requirements `<OUTPUT_REQUIREMENTS>`
+
+### 1) Core-driven extraction modes (required)
+
+* **Preview Run**
+
+  * Uses the most appropriate audit query dataset key available in Core for quick validation
+  * Default: small result set for rapid UI feedback
+  * Purpose: test filters, narrow results, verify that the requested audit scope is correct
+
+* **Full Run**
+
+  * Uses the appropriate scalable audit dataset key available in Core
+  * Purpose: broader date windows, detailed investigations, and reporting exports
+  * Must stream results to disk through Core run artifacts, not accumulate large datasets in memory
+
+### 2) Guided audit query construction (required)
+
+The UI MUST make it easy to build an audit query without requiring users to understand endpoint quirks.
+
+Support the following filter families where the underlying Core/catalog supports them:
+
+* **Time window**
+
+  * start
+  * end
+* **Service**
+
+  * service name dropdown
+  * optional service mapping refresh/load behavior via Core-supported dataset outputs
+* **Entity scope**
+
+  * entity type
+  * entity id / entity name if present
+* **Action scope**
+
+  * action / operation
+* **Actor scope**
+
+  * user id / username / email / actor name if present
+* **Outcome**
+
+  * success / failure / pending / unknown if available
+* **Free-text contains**
+
+  * local search against indexed run data after extraction
+
+The UI should support a **selection chain** where possible:
+
+* Service narrows Entity Type
+* Entity Type narrows Entity
+* Entity narrows Action
+
+If a given narrowing layer is not available from the underlying data, the UI must degrade cleanly and remain usable.
+
+### 3) Run management and observability (required)
+
+* **Recent Runs** dropdown with persisted history
+* **Open Run Folder** action
+* **Run Console** pane/tab:
+
+  * tails `events.jsonl`
+  * structured columns such as time, level, phase, message, counts
+  * status badge: Ready / Running / Complete / Failed
+* **Copy Diagnostics** button that copies:
+
+  * dataset key
+  * audit filters used
+  * run path
+  * summary excerpt
+  * last N run events
+
+### 4) Scalable indexing + paging (required)
+
+The app must support large audit runs.
+
+Implement one cached run index:
+
+* `index.jsonl` or
+* `index.sqlite`
+
+The index must support fast local paging, sorting, and search without rescanning from the top of the run every time.
+
+The main results grid must bind to a **windowed collection** and MUST NOT hold the full run in memory.
+
+### 5) Audit results grid (required)
+
+Provide a primary audit grid with sortable, pageable results.
+
+Minimum columns:
+
+* Timestamp
+* Service
+* Action
+* Entity Type
+* Entity Id / Entity Name (where present)
+* Actor / User
+* Transaction Id
+* Status / Outcome
+* Correlation / Context fields where present
+* Summary / short description
+
+Grid capabilities:
+
+* paging
+* column chooser
+* local search over indexed results
+* quick filters
+* copy selected field(s)
+* copy transaction id
+* open raw JSON view for selected row
+
+### 6) Transaction drilldown view (required)
+
+A dedicated drilldown panel/tab for the selected audit event or transaction.
+
+It MUST support:
+
+* **Summary**
+
+  * timestamp
+  * service
+  * action
+  * actor
+  * transaction id
+  * result/status
+* **Entity details**
+
+  * entity type/id/name and any related identifiers
+* **Actor details**
+
+  * actor identifiers available in the record
+* **Change context**
+
+  * before/after values if present
+  * modified fields if present
+  * request/response metadata if present and safe to display
+* **Transaction lifecycle**
+
+  * submitted / running / completed / failed states if available
+  * child events or related audit records where available in run outputs
+* **Raw JSON**
+
+  * expandable viewer
+  * copy selected JSON/value convenience
+
+### 7) Reporting summary views (required)
+
+The app MUST provide summary views suitable for both technical and non-technical audiences.
+
+Include at minimum:
+
+* **Counts by service**
+* **Counts by action**
+* **Counts by actor**
+* **Counts by entity type**
+* **Failures vs successes**
+* **Activity over time**
+* **Top changed entities**
+* **Top actors by change volume**
+
+Also include a **Narrative Summary** pane that assembles a concise, human-readable summary such as:
+
+* total audit events in scope
+* top services involved
+* top actors involved
+* most common actions
+* failures or unusual concentrations
+* notable spikes in activity
+* high-level conclusions for incident review or audit reporting
+
+This summary should be generated deterministically from the retrieved data, not invented.
+
+### 8) Exports (required)
+
+Support the following exports:
+
+* **Export current page to CSV**
+* **Export filtered run to CSV**
+* **Export full run to CSV**
+* **Export selected transaction/event to JSON**
+* **Export reporting summary to HTML**
+* **Export reporting summary to Markdown**
+* optional Excel export if the project already uses ImportExcel
+
+The summary export should be stakeholder-friendly and include:
+
+* run metadata
+* filter criteria
+* totals
+* grouped tables/charts if available
+* generated narrative summary
+* appendix or link/reference to evidence files
+
+### 9) Safety + compliance checks (required)
+
+Include automated tests that fail if:
+
+* `Invoke-RestMethod`, `Invoke-WebRequest`, or `/api/v2/` literals appear anywhere in app code outside allowed Core/auth boundaries
+* Genesys.Core is imported anywhere except the designated adapter module
+* Genesys.Core is copied into the app directory
+* export/report modules attempt direct API access
+
+---
+
+## Persona `<USER_PERSONA>`
+
+Primary persona: **Genesys Cloud Tier-3 Support / Operations Engineer**
+
+* Needs to quickly answer who changed what and when
+* Often investigates incidents, config drift, failed changes, or unusual admin activity
+* Comfortable with structured data and raw JSON, but wants the tool to make common paths fast
+
+Secondary persona: **Audit / Compliance / Reporting Stakeholder**
+
+* Needs a trustworthy summary of activity within a time range
+* Wants exportable reports with clean tables and readable conclusions
+* May not care about raw JSON but cares deeply about accuracy and traceability
+
+Tertiary persona: **Platform Administrator**
+
+* Wants to validate changes after maintenance windows
+* Wants quick filtering by service, entity type, and actor
+* Needs transaction-level evidence when something goes wrong
+
+---
+
+## Environment `<ENVIRONMENT>`
+
+* OS: **Windows 11**
+* Runtime: **PowerShell 7.x preferred**, must remain compatible with **PowerShell 5.1**
+* UI: **WPF**
+* Storage: local run folders under `%LOCALAPPDATA%` by default, with configurable override
+* Genesys.Core dependency:
+
+  * Core module: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1`
+  * Catalog: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys.catalog.json`
+  * Schema: `G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys.catalog.schema.json`
+
+---
+
+# HARD GATES (REJECTION CRITERIA)
+
+If ANY gate fails, the work is rejected.
+
+## Gate A — Import + Validate Core & Catalog
+
+* Import Genesys.Core by reference from the provided path.
+* Call `Assert-Catalog` at startup against the provided catalog and schema.
+* If validation fails: show a clear startup error and stop.
+
+## Gate B — Dataset-driven extraction ONLY
+
+All retrieval MUST happen through `Invoke-Dataset` or other approved exported Core primitives.
+
+The app MUST NOT implement its own direct audit endpoint calling logic.
+
+It must support both:
+
+1. **Preview mode** for quick validation of audit filters
+2. **Full mode** for broader and more scalable retrieval/reporting runs
+
+## Gate C — UI reads run artifacts
+
+* UI reads run artifacts from the Core run folder.
+* Previously completed runs can be reopened without re-querying.
+* In-progress runs can be inspected while they are still writing.
+
+## Gate D — Mechanical compliance checks MUST pass
+
+The repo MUST include tests that fail if:
+
+* `Invoke-RestMethod` or `Invoke-WebRequest` appear in app code outside explicitly allowed auth containment
+* any literal `/api/v2/` appears in app code outside explicitly allowed auth containment
+* Genesys.Core is copied into the app
+* any UI module imports Genesys.Core directly instead of using the Core adapter
+
+## Gate E — Authentication escape hatch is contained
+
+* If Genesys.Core exports an auth/connect function, the app MUST use it.
+* If Core does not provide auth:
+
+  * auth logic must be isolated in `App.Auth.psm1`
+  * auth logic may only acquire/store tokens and return headers
+  * auth logic must not perform audit data extraction
+  * token storage should use Windows DPAPI where feasible
+
+# DATA CONTRACT (RUN FOLDER CONTRACT)
+
+Assume a run directory contains:
+
+* `manifest.json`
+* `summary.json`
+* `events.jsonl`
+* `data\*.jsonl`
+
+The app MUST:
+
+* treat run outputs as immutable truth
+* support reopening old runs
+* support partial reads of active runs
+* build summaries and exports from run outputs, not from ephemeral memory state
+
+# INDEXING REQUIREMENT (NON-NEGOTIABLE FOR SCALE)
+
+Paging must remain performant for large runs.
+
+Implement one cached index strategy:
+
+* Option A: `index.jsonl`
+* Option B: `index.sqlite`
+
+Index entries should include enough minimal fields to support:
+
+* paging
+* local search
+* sorting
+* direct lookup by transaction id or row selection
+
+Paging to page N MUST NOT require rescanning the full dataset from the beginning.
+
+# PERFORMANCE REQUIREMENTS
+
+* Must handle large audit windows without OOM
+* Must stream JSONL reads with `System.IO.StreamReader`
+* UI must remain responsive during extraction and indexing
+* Extraction must run in a background job or runspace
+* Avoid `Get-Content` for large JSONL paging scenarios
+* Summary calculations for large runs should be incremental or index-backed where practical
+
+# OBSERVABILITY REQUIREMENTS
+
+Provide a **Run Console** pane that:
+
+* tails `events.jsonl`
+* surfaces run status
+* shows structured event fields
+* supports **Copy Diagnostics**
+
+Diagnostics must include:
+
+* dataset key
+* query parameters / filters
+* run path
+* recent events
+* summary excerpt
+
+# UX REQUIREMENTS (INVESTIGATION-FIRST)
+
+The UI MUST provide:
+
+## Query Builder pane
+
+* date/time selection
+* service dropdown
+* entity type selection
+* entity / action narrowing where supported
+* actor filter
+* status/outcome filter
+* preview button
+* full run button
+* reset filters button
+
+## Results pane
+
+* pageable audit grid
+* search box
+* quick filter chips/toggles
+* context menu actions
+
+## Drilldown pane
+
+* summary
+* entity details
+* actor details
+* transaction lifecycle
+* raw JSON
+
+## Reporting pane
+
+* grouped totals
+* trend summaries
+* narrative summary
+* export actions
+
+# POWERSHELL CODING RULES (PROJECT-SPECIFIC)
+
+* Use `Set-StrictMode -Version Latest`.
+* For interpolated variables immediately followed by `:`, use `$($var)` form.
+* Target compatibility with PS 5.1 and 7+.
+* Avoid `ForEach-Object -Parallel`.
+* Prefer `[System.IO.Path]` where appropriate instead of brittle `Split-Path` chains.
+* Stream large file reads; do not load giant run files wholesale.
+
+# IMPLEMENTATION GUIDELINES (MANDATORY MODULE BOUNDARIES)
+
+* `App.CoreAdapter.psm1` is the ONLY file allowed to:
+
+  * import Genesys.Core
+  * call `Assert-Catalog`
+  * call `Invoke-Dataset`
+
+* `App.UI.ps1` and XAML:
+
+  * must not import Genesys.Core
+  * must not implement API logic
+  * must not parse huge data files directly except through approved adapter/index helpers
+
+* `App.Export.psm1`:
+
+  * must build CSV/HTML/Markdown outputs from run artifacts
+  * must not call APIs
+
+* `App.Index.psm1`:
+
+  * builds/loads `index.jsonl` or `index.sqlite`
+
+* `App.Reporting.psm1`:
+
+  * computes grouped metrics and narrative summary from run outputs or cached index
+  * must not call APIs
+
+* Optional `App.Auth.psm1`:
+
+  * only for contained authentication support if Core lacks it
+
+# REQUIRED DELIVERABLES
+
+You MUST output:
+
+1. **File tree**
+2. **Architecture doc** (short and concrete)
+3. **UX spec**
+4. **All code files**
+5. **Tests**, including mechanical compliance tests
+6. **Run instructions**
+7. **Manual acceptance steps**
+
+# ACCEPTANCE TESTS (MUST PASS)
+
+1. Startup: Core imports by reference, catalog validates, UI shows Ready.
+2. Preview run: uses Core dataset invocation, returns audit results, renders in grid.
+3. Full run: uses Core dataset invocation, streams to run folder, UI stays responsive.
+4. Indexing: created on first open, paging is fast and does not rescan whole files.
+5. Drilldown: selecting a row shows transaction/event details and raw JSON.
+6. Reporting: summary pane populates counts by service/action/actor/entity/status.
+7. Exports: CSV, JSON, and HTML/Markdown summary exports succeed from run artifacts.
+8. Compliance tests: no direct REST extraction in app code; no local-copy Core.
+9. Reopenability: a previous run can be reopened and reported on without re-querying.
+10. Detachability: app still works when Core path is changed via config/env var only.
+
+# OUTPUT FORMAT
+
+Return:
+
+* file tree
+* code for each file
+* brief run instructions
+* manual test steps
+
+---
+
+## Suggested dataset naming block to include in your prompt if the catalog is still evolving
+
+You may append this section if you want the agent to remain flexible while still staying Core-first:
+
+### Dataset key guidance
+
+Use the most appropriate audit dataset keys available in the supplied Genesys.Core catalog. Prefer a two-mode pattern similar to other Core-first apps:
+
+* a **preview/query** audit dataset for quick interactive validation
+* a **full/scalable** audit dataset for broader retrieval and reporting
+
+If exact audit dataset keys differ from expectations, inspect the validated catalog and bind the app to the nearest correct audit datasets without introducing direct REST extraction.
+
+---

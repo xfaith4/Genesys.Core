@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Genesys Best Practices Catalog",
+  "type": "object",
+  "required": [
+    "version",
+    "catalog"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "catalog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "domain",
+          "subcategory",
+          "title",
+          "summary",
+          "why_it_matters",
+          "recommended_state",
+          "anti_pattern",
+          "severity",
+          "auditability",
+          "tags",
+          "object_types",
+          "source_basis"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(\\.[a-z0-9_]+)+$"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "subcategory": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "why_it_matters": {
+            "type": "string"
+          },
+          "recommended_state": {
+            "type": "string"
+          },
+          "anti_pattern": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "Low",
+              "Medium",
+              "High",
+              "Critical"
+            ]
+          },
+          "auditability": {
+            "type": "string",
+            "enum": [
+              "Config",
+              "Runtime",
+              "Config+Runtime",
+              "Manual"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "object_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_basis": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

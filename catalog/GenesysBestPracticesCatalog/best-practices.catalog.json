@@ -1,0 +1,778 @@
+{
+  "version": "0.1.0",
+  "catalog": [
+    {
+      "key": "queue.routing.method.explicit",
+      "domain": "Queue",
+      "subcategory": "Routing",
+      "title": "Define queue routing method intentionally",
+      "summary": "Each queue should use a routing method chosen for the interaction model rather than inherited by accident.",
+      "why_it_matters": "Routing method determines how arrival time, priority, and skills influence assignment.",
+      "recommended_state": "Routing method is explicitly chosen and documented for each queue.",
+      "anti_pattern": "Using a queue with default routing behavior that no one has reviewed.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "routing",
+        "acd"
+      ],
+      "object_types": [
+        "queue"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.routing.scoring.change_only_when_empty",
+      "domain": "Queue",
+      "subcategory": "Routing",
+      "title": "Change queue scoring only when backlog is clear",
+      "summary": "Set or change scoring during queue creation or while no interactions are waiting.",
+      "why_it_matters": "Midstream scoring changes can produce unexpected assignment order for waiting interactions.",
+      "recommended_state": "Scoring changes occur only during planned maintenance windows or at creation time.",
+      "anti_pattern": "Changing scoring while interactions are already waiting in the queue.",
+      "severity": "High",
+      "auditability": "Config+Runtime",
+      "tags": [
+        "queue",
+        "routing",
+        "scoring",
+        "acd"
+      ],
+      "object_types": [
+        "queue"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Derived from routing guidance"
+    },
+    {
+      "key": "queue.skills.taxonomy.intentional",
+      "domain": "Queue",
+      "subcategory": "Skills",
+      "title": "Keep the skills taxonomy deliberate and current",
+      "summary": "Skills should represent meaningful expertise and be assigned with discipline.",
+      "why_it_matters": "Bloated or stale skill taxonomies reduce routing precision and raise maintenance cost.",
+      "recommended_state": "Skills are narrow, meaningful, reviewed, and tied to real routing use cases.",
+      "anti_pattern": "Accumulating dozens of overlapping or unused skills.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "skills",
+        "acd"
+      ],
+      "object_types": [
+        "queue",
+        "user"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.skills.rating.meaningful",
+      "domain": "Queue",
+      "subcategory": "Skills",
+      "title": "Use skill ratings only where they drive actual routing decisions",
+      "summary": "Skill ratings should reflect real proficiency and should not be decorative.",
+      "why_it_matters": "Ratings imply ordering logic; inaccurate ratings distort routing outcomes.",
+      "recommended_state": "Ratings are periodically reviewed and used only where the routing method benefits from them.",
+      "anti_pattern": "Uniform or arbitrary ratings that create false precision.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "skills",
+        "ratings"
+      ],
+      "object_types": [
+        "queue",
+        "user"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.wrapup.division_aligned",
+      "domain": "Queue",
+      "subcategory": "WrapUp",
+      "title": "Align wrap-up codes to the queue division",
+      "summary": "Wrap-up codes assigned to a queue should belong to the same division when possible.",
+      "why_it_matters": "Division-aligned codes produce clearer reporting and reduce ambiguity across business units.",
+      "recommended_state": "Queue wrap-up codes are governed by the owning division.",
+      "anti_pattern": "Cross-division wrap-up catalogs without a reporting reason.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "wrapup",
+        "division",
+        "reporting"
+      ],
+      "object_types": [
+        "queue",
+        "wrapupCode"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.wrapup.catalog.concise",
+      "domain": "Queue",
+      "subcategory": "WrapUp",
+      "title": "Keep the wrap-up catalog concise and semantically clear",
+      "summary": "Wrap-up codes should describe outcomes distinctly, without synonym sprawl.",
+      "why_it_matters": "Overlapping codes weaken reporting and make agent selection inconsistent.",
+      "recommended_state": "Each wrap-up code has a unique purpose and plain-language meaning.",
+      "anti_pattern": "Multiple codes that mean nearly the same thing.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "wrapup",
+        "reporting"
+      ],
+      "object_types": [
+        "wrapupCode"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.workitem.media.separate_when_possible",
+      "domain": "Queue",
+      "subcategory": "Workitem",
+      "title": "Separate workitem queues by media type where practical",
+      "summary": "Dedicated queues reduce routing contention between workitems and other interaction types.",
+      "why_it_matters": "Mixed media can create priority side effects that starve other work.",
+      "recommended_state": "Workitems and real-time media are isolated when operationally appropriate.",
+      "anti_pattern": "Mixed-media queues that are difficult to tune.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "workitems",
+        "media"
+      ],
+      "object_types": [
+        "queue"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "queue.membership.multi_queue.caution",
+      "domain": "Queue",
+      "subcategory": "Membership",
+      "title": "Add agents to multiple queues cautiously",
+      "summary": "Multi-queue membership should be deliberate and capacity-aware.",
+      "why_it_matters": "Heavy multi-queue membership can affect backlog evaluation and routing behavior.",
+      "recommended_state": "Membership is minimal, purposeful, and tied to staffing strategy.",
+      "anti_pattern": "Broad 'add everyone everywhere' queue membership.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "queue",
+        "membership",
+        "staffing"
+      ],
+      "object_types": [
+        "queue",
+        "user"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "api.rate_limit.retry.backoff",
+      "domain": "API",
+      "subcategory": "RateLimit",
+      "title": "Implement explicit retry backoff for rate-limited requests",
+      "summary": "Clients should handle rate limits using deliberate retry intervals and limit metadata inspection.",
+      "why_it_matters": "This reduces repeated throttling and improves stability under load.",
+      "recommended_state": "Integrations inspect limit information and back off rather than retrying aggressively.",
+      "anti_pattern": "Immediate repeated retries after 429 responses.",
+      "severity": "High",
+      "auditability": "Runtime",
+      "tags": [
+        "api",
+        "rate-limit",
+        "retry"
+      ],
+      "object_types": [
+        "integration",
+        "apiClient"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "api.state_change.notifications_over_polling",
+      "domain": "API",
+      "subcategory": "IntegrationPattern",
+      "title": "Prefer notifications over polling for asynchronous state changes",
+      "summary": "Use event subscriptions where available instead of repeated status polling.",
+      "why_it_matters": "Notification-based patterns reduce request volume and improve responsiveness.",
+      "recommended_state": "State-change monitoring is event-driven where the platform supports it.",
+      "anti_pattern": "Tight-loop polling for campaign or resource state.",
+      "severity": "High",
+      "auditability": "Runtime",
+      "tags": [
+        "api",
+        "notifications",
+        "polling"
+      ],
+      "object_types": [
+        "integration",
+        "apiClient"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "api.bulk.use_for_scale",
+      "domain": "API",
+      "subcategory": "Performance",
+      "title": "Use bulk endpoints for multi-record operations",
+      "summary": "For large sets of records, bulk APIs should be preferred over repeated single-item requests.",
+      "why_it_matters": "Bulk operations usually deliver better throughput and lower API overhead.",
+      "recommended_state": "Bulk APIs are used whenever available for batch tasks.",
+      "anti_pattern": "Loops of one-by-one mutations where a bulk endpoint exists.",
+      "severity": "Medium",
+      "auditability": "Runtime",
+      "tags": [
+        "api",
+        "bulk",
+        "performance"
+      ],
+      "object_types": [
+        "integration",
+        "apiClient"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "api.oauth.scope.minimum_required",
+      "domain": "API",
+      "subcategory": "Security",
+      "title": "Request the minimum OAuth scopes required",
+      "summary": "Applications and automations should only request scopes they truly need.",
+      "why_it_matters": "Least-privilege design reduces blast radius and eases governance review.",
+      "recommended_state": "Each app has a documented scope set tied to a business purpose.",
+      "anti_pattern": "Broad 'just in case' scope grants.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "api",
+        "oauth",
+        "scopes",
+        "security"
+      ],
+      "object_types": [
+        "oauthClient",
+        "integration"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "edgesite.redundancy.n_plus_one",
+      "domain": "EdgeSite",
+      "subcategory": "Resiliency",
+      "title": "Design BYOC Premises Edge resiliency as N+1",
+      "summary": "Capacity planning should tolerate the loss of one active Edge while preserving service continuity.",
+      "why_it_matters": "A design that only works at full inventory is fragile.",
+      "recommended_state": "Expected concurrent load remains supportable after single-Edge failure.",
+      "anti_pattern": "Sizing that requires every Edge to stay healthy.",
+      "severity": "Critical",
+      "auditability": "Manual",
+      "tags": [
+        "edge",
+        "site",
+        "resiliency",
+        "byoc"
+      ],
+      "object_types": [
+        "site",
+        "edge"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "edgesite.phone.primary_secondary",
+      "domain": "EdgeSite",
+      "subcategory": "Resiliency",
+      "title": "Ensure phones have primary and secondary Edge paths",
+      "summary": "Phones should benefit from redundant registration paths rather than a single attachment point.",
+      "why_it_matters": "Redundant assignment shortens service disruption during Edge failure.",
+      "recommended_state": "Managed phones participate in primary/secondary redundancy design.",
+      "anti_pattern": "Single-path phone dependencies in a supposedly redundant site.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "edge",
+        "phone",
+        "redundancy"
+      ],
+      "object_types": [
+        "site",
+        "edge",
+        "phone"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "edgesite.capacity.compatible_classes",
+      "domain": "EdgeSite",
+      "subcategory": "Compatibility",
+      "title": "Keep redundant Edge pools within compatible capacity classes",
+      "summary": "Combine like-for-like or supported capacity classes within redundancy groups.",
+      "why_it_matters": "Unsupported or uneven combinations can distort failover assumptions.",
+      "recommended_state": "Redundant pools are composed of compatible Edge types and sizes.",
+      "anti_pattern": "Mixing incompatible capacity classes without a supported design.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "edge",
+        "capacity",
+        "compatibility"
+      ],
+      "object_types": [
+        "site",
+        "edge"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "edgesite.network.low_latency_low_jitter",
+      "domain": "EdgeSite",
+      "subcategory": "Network",
+      "title": "Maintain low latency and low jitter between dependent Edge components",
+      "summary": "Network quality between Edges should stay within tight tolerances.",
+      "why_it_matters": "Failover reliability and telephony quality both degrade under poor inter-Edge conditions.",
+      "recommended_state": "Inter-Edge latency and jitter remain within recommended thresholds.",
+      "anti_pattern": "Treating redundancy as valid while the underlying network is unstable.",
+      "severity": "Critical",
+      "auditability": "Runtime",
+      "tags": [
+        "edge",
+        "network",
+        "latency",
+        "jitter"
+      ],
+      "object_types": [
+        "site",
+        "edge",
+        "network"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "edgesite.multisite.primary_secondary.defined",
+      "domain": "EdgeSite",
+      "subcategory": "Topology",
+      "title": "Define primary and secondary sites explicitly for multi-site resiliency",
+      "summary": "Multi-site configurations should declare the intended primary and secondary topology.",
+      "why_it_matters": "Ambiguous multi-site design complicates failover expectations and operations.",
+      "recommended_state": "Primary/secondary site relationships are explicit, documented, and tested.",
+      "anti_pattern": "Multi-site deployments with no validated failover narrative.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "edge",
+        "site",
+        "topology",
+        "resiliency"
+      ],
+      "object_types": [
+        "site"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "architect.flow.build_for_org",
+      "domain": "Architect",
+      "subcategory": "Design",
+      "title": "Build flows for the organization, not by cloning examples blindly",
+      "summary": "Examples should be references, not production designs copied without adaptation.",
+      "why_it_matters": "Real routing, prompts, schedules, and failover logic are organization-specific.",
+      "recommended_state": "Production flows are intentionally tailored and reviewed.",
+      "anti_pattern": "Publishing example flows with minimal local design work.",
+      "severity": "Medium",
+      "auditability": "Manual",
+      "tags": [
+        "architect",
+        "flow",
+        "design"
+      ],
+      "object_types": [
+        "flow"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "architect.flow.naming.descriptive_unique",
+      "domain": "Architect",
+      "subcategory": "Naming",
+      "title": "Use descriptive and unique names for flows and prompts",
+      "summary": "Names should be specific enough to support maintenance, reporting, and promotion.",
+      "why_it_matters": "Weak names make troubleshooting and environment comparison harder.",
+      "recommended_state": "Names encode business purpose and remain unique within the relevant type.",
+      "anti_pattern": "Generic labels like Main, Test, Final2, or Copy.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "architect",
+        "naming",
+        "flow",
+        "prompt"
+      ],
+      "object_types": [
+        "flow",
+        "prompt"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "architect.state.labels.distinct",
+      "domain": "Architect",
+      "subcategory": "Naming",
+      "title": "Give Architect states distinct labels",
+      "summary": "State labels should clearly describe the action or branch they represent.",
+      "why_it_matters": "Architect readability and supportability depend on state clarity.",
+      "recommended_state": "Sequence labels are explicit and non-duplicative.",
+      "anti_pattern": "Reusing vague labels across many states.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "architect",
+        "states",
+        "labels"
+      ],
+      "object_types": [
+        "flow",
+        "state"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "architect.schedule_groups.timezone_explicit",
+      "domain": "Architect",
+      "subcategory": "Scheduling",
+      "title": "Keep schedule groups timezone-explicit",
+      "summary": "Schedule groups should make timezone behavior obvious and intentional.",
+      "why_it_matters": "Hidden timezone assumptions create open/closed routing defects.",
+      "recommended_state": "Timezone and holiday/emergency logic are documented and tested.",
+      "anti_pattern": "Implicit timezone handling or copied schedule groups without review.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "architect",
+        "schedule",
+        "timezone"
+      ],
+      "object_types": [
+        "scheduleGroup",
+        "schedule",
+        "flow"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "architect.lifecycle.validation_versioning",
+      "domain": "Architect",
+      "subcategory": "Lifecycle",
+      "title": "Use validation, versioning, and check-in/check-out discipline",
+      "summary": "Flow changes should follow a controlled lifecycle before publication.",
+      "why_it_matters": "This reduces accidental release errors and helps preserve change history.",
+      "recommended_state": "Validation and version management are part of the deployment routine.",
+      "anti_pattern": "Direct ad hoc publishing with no review or lifecycle control.",
+      "severity": "High",
+      "auditability": "Manual",
+      "tags": [
+        "architect",
+        "versioning",
+        "validation"
+      ],
+      "object_types": [
+        "flow"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "security.access.least_privilege",
+      "domain": "Security",
+      "subcategory": "Access",
+      "title": "Default to least privilege",
+      "summary": "Users, groups, and integrations should have only the permissions necessary for their purpose.",
+      "why_it_matters": "Broad permissions increase blast radius and complicate governance.",
+      "recommended_state": "Access is role-based, purposeful, and periodically reviewed.",
+      "anti_pattern": "Blanket admin assignment for convenience.",
+      "severity": "Critical",
+      "auditability": "Config",
+      "tags": [
+        "security",
+        "access",
+        "least-privilege"
+      ],
+      "object_types": [
+        "role",
+        "user",
+        "group",
+        "integration"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "security.roles.custom_over_broad_admin",
+      "domain": "Security",
+      "subcategory": "Roles",
+      "title": "Prefer custom roles over broad administrative grants",
+      "summary": "Use narrower custom roles where they satisfy the need.",
+      "why_it_matters": "This limits overexposure while preserving operational effectiveness.",
+      "recommended_state": "Broad admin roles are rare and justified.",
+      "anti_pattern": "Using Master Admin as a shortcut.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "security",
+        "roles",
+        "admin"
+      ],
+      "object_types": [
+        "role",
+        "user"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "security.roles.sprawl.minimize",
+      "domain": "Security",
+      "subcategory": "Roles",
+      "title": "Keep the role catalog lean",
+      "summary": "Avoid uncontrolled growth in role count and permission overlap.",
+      "why_it_matters": "Role sprawl obscures intent and increases maintenance burden.",
+      "recommended_state": "Roles are curated, named clearly, and periodically rationalized.",
+      "anti_pattern": "Creating one-off roles for every exception.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "security",
+        "roles",
+        "governance"
+      ],
+      "object_types": [
+        "role"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "security.divisions.boundaries_explicit",
+      "domain": "Security",
+      "subcategory": "Divisions",
+      "title": "Use divisions as explicit administrative boundaries",
+      "summary": "Division design should reflect actual operational or business boundaries.",
+      "why_it_matters": "Division scoping is a core containment and governance mechanism.",
+      "recommended_state": "Division assignments are intentional and auditable.",
+      "anti_pattern": "Cross-division access that exists only because it was easier.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "security",
+        "divisions",
+        "access"
+      ],
+      "object_types": [
+        "division",
+        "role",
+        "user"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "telephony.capacity.monitor_limits",
+      "domain": "Telephony",
+      "subcategory": "Capacity",
+      "title": "Monitor telephony resource limits before warning thresholds become operational blockers",
+      "summary": "Capacity should be reviewed before the environment approaches hard limits.",
+      "why_it_matters": "Resource exhaustion often creates last-minute provisioning failures.",
+      "recommended_state": "Limit utilization is tracked and actioned before it becomes critical.",
+      "anti_pattern": "Discovering object-limit exhaustion during an urgent change.",
+      "severity": "High",
+      "auditability": "Config",
+      "tags": [
+        "telephony",
+        "capacity",
+        "limits"
+      ],
+      "object_types": [
+        "org",
+        "site",
+        "trunk",
+        "extension",
+        "did"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "telephony.did_extension.assignment_controlled",
+      "domain": "Telephony",
+      "subcategory": "Numbering",
+      "title": "Manage DID and extension assignment with clear ownership",
+      "summary": "DIDs and extensions should be allocated from controlled ranges with documented stewardship.",
+      "why_it_matters": "Ad hoc numbering plans create confusion and slow incident response.",
+      "recommended_state": "Number assignment follows a maintained plan.",
+      "anti_pattern": "One-off assignments with no ownership model.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "telephony",
+        "did",
+        "extension",
+        "numbering"
+      ],
+      "object_types": [
+        "did",
+        "extension"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "telephony.group_ring.addressing_required",
+      "domain": "Telephony",
+      "subcategory": "Stations",
+      "title": "Ensure users are properly addressable for group ring scenarios",
+      "summary": "Group ring behavior depends on user telephony addressing being complete.",
+      "why_it_matters": "Missing DID or extension coverage can lead to inconsistent alerting.",
+      "recommended_state": "Group ring participants have the required telephony configuration.",
+      "anti_pattern": "Assuming group ring will work without endpoint addressing prerequisites.",
+      "severity": "Medium",
+      "auditability": "Config",
+      "tags": [
+        "telephony",
+        "group-ring",
+        "station"
+      ],
+      "object_types": [
+        "user",
+        "station",
+        "did",
+        "extension"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "devops.cx_as_code.prefer_for_repeatability",
+      "domain": "DevOps",
+      "subcategory": "CxAsCode",
+      "title": "Prefer CX as Code for repeatable configuration management",
+      "summary": "Supported Genesys Cloud configuration should be represented as managed text artifacts where practical.",
+      "why_it_matters": "Text-defined configuration improves repeatability, review, and promotion between orgs.",
+      "recommended_state": "Core configuration is source-controlled and deployable.",
+      "anti_pattern": "Treating production configuration as manual-only tribal knowledge.",
+      "severity": "High",
+      "auditability": "Manual",
+      "tags": [
+        "devops",
+        "cx-as-code",
+        "terraform"
+      ],
+      "object_types": [
+        "pipeline",
+        "repo",
+        "config"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "devops.cicd.pipeline.automated_promotion",
+      "domain": "DevOps",
+      "subcategory": "Pipeline",
+      "title": "Promote changes through automated CI/CD pipelines",
+      "summary": "Changes should advance through environments with validation and minimal manual handling.",
+      "why_it_matters": "Automation reduces drift and improves consistency across orgs.",
+      "recommended_state": "Dev, test, and production promotion is pipeline-driven.",
+      "anti_pattern": "Manual copy/paste promotion across orgs.",
+      "severity": "High",
+      "auditability": "Manual",
+      "tags": [
+        "devops",
+        "cicd",
+        "promotion"
+      ],
+      "object_types": [
+        "pipeline",
+        "repo"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "devops.terraform.state_managed",
+      "domain": "DevOps",
+      "subcategory": "Terraform",
+      "title": "Use managed Terraform state and locking",
+      "summary": "Terraform-based Genesys workflows should use controlled remote state and locking mechanisms.",
+      "why_it_matters": "Shared state without governance creates deployment risk.",
+      "recommended_state": "State storage, locking, and promotion strategy are documented and enforced.",
+      "anti_pattern": "Ad hoc local state files for shared environments.",
+      "severity": "High",
+      "auditability": "Manual",
+      "tags": [
+        "devops",
+        "terraform",
+        "state"
+      ],
+      "object_types": [
+        "pipeline",
+        "repo",
+        "terraform"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    },
+    {
+      "key": "devops.deployments.automated_and_tested",
+      "domain": "DevOps",
+      "subcategory": "Release",
+      "title": "Deploy through an automated, test-backed process",
+      "summary": "Production changes should be the output of a repeatable deployment pipeline with validation steps.",
+      "why_it_matters": "This improves consistency and supports change control.",
+      "recommended_state": "Commit-driven deployment with validation gates.",
+      "anti_pattern": "Direct human-driven production changes with no reproducible deployment path.",
+      "severity": "High",
+      "auditability": "Manual",
+      "tags": [
+        "devops",
+        "deployment",
+        "testing",
+        "release"
+      ],
+      "object_types": [
+        "pipeline",
+        "release"
+      ],
+      "source_basis": "uploaded_research",
+      "notes": "Starter rule"
+    }
+  ]
+}

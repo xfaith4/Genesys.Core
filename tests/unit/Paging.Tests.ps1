@@ -244,5 +244,78 @@ Describe 'Paging strategies' {
         ($captured | Select-Object -First 1) | Should -Be 1
     }
 
+    It 'terminates pageNumber_default paging when pageCount is reached' {
+        $responses = @{
+            'https://example.test/api/v2/authorization/roles?pageNumber=1' = [pscustomobject]@{
+                entities  = @('role1', 'role2')
+                pageCount = 2
+                pageSize  = 100
+                total     = 3
+            }
+            'https://example.test/api/v2/authorization/roles?pageNumber=2' = [pscustomobject]@{
+                entities  = @('role3')
+                pageCount = 2
+                pageSize  = 100
+                total     = 3
+            }
+        }
+
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key       = 'authorization.get.roles'
+            method    = 'GET'
+            itemsPath = '$.entities'
+            paging    = [pscustomobject]@{
+                profile       = 'pageNumber_default'
+                type          = 'pageNumber'
+                pageParam     = 'pageNumber'
+                pageCountPath = '$.pageCount'
+            }
+        }) -InitialUri 'https://example.test/api/v2/authorization/roles' -RequestInvoker {
+            param($request)
+            $calls.Add($request.Uri) | Out-Null
+            return [pscustomobject]@{ Result = $responses[$request.Uri] }
+        }
+
+        @($result.Items).Count | Should -Be 3
+        $calls.Count | Should -Be 2
+        $result.PagingTelemetry[0].nextUri | Should -Match 'pageNumber=2'
+        $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
+    }
+
+    It 'terminates nextUri_default paging when nextUri is null' {
+        $responses = @{
+            'https://example.test/api/v2/oauth/clients?pageSize=100' = [pscustomobject]@{
+                entities = @('client1', 'client2')
+                nextUri  = 'https://example.test/api/v2/oauth/clients?pageSize=100&after=abc'
+            }
+            'https://example.test/api/v2/oauth/clients?pageSize=100&after=abc' = [pscustomobject]@{
+                entities = @('client3')
+                nextUri  = $null
+            }
+        }
+
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key       = 'oauth.get.clients'
+            method    = 'GET'
+            itemsPath = '$.entities'
+            paging    = [pscustomobject]@{
+                profile     = 'nextUri_default'
+                type        = 'nextUri'
+                nextUriPath = '$.nextUri'
+            }
+        }) -InitialUri 'https://example.test/api/v2/oauth/clients?pageSize=100' -RequestInvoker {
+            param($request)
+            $calls.Add([string]$request.Uri) | Out-Null
+            return [pscustomobject]@{ Result = $responses[[string]$request.Uri] }
+        }
+
+        @($result.Items).Count | Should -Be 3
+        $calls.Count | Should -Be 2
+        $result.PagingTelemetry[0].nextUri | Should -Match 'after=abc'
+        $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
+    }
+
 }
 

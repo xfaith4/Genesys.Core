@@ -88,7 +88,8 @@ Remaining implementation tasks:
 
 - Validate each Phase 4 endpoint against live API behavior to confirm `itemsPath` and paging strategy choices.
 - Add curated handler(s) for OAuth usage submit/results orchestration if async transaction chaining is required in production.
-- Add mock-based paging termination tests for newly introduced `pageNumber_default` and `nextUri_default` endpoint selections.
+- ✅ Added `pageCountPath` support to `Invoke-PagingPageNumber` so the `pageNumber_default` catalog profile terminates correctly when the API returns a `pageCount` field.
+- ✅ Added mock-based paging termination tests for `pageNumber_default` (via `pageCount`) and `nextUri_default` (via null `nextUri`) catalog profile selections.
 
 ## External client readiness
 

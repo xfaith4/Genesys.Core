@@ -2499,7 +2499,10 @@ function Get-ResolvedName {
         $val = _Scalar -Conn $conn -Sql $sql -P @{ '@cid' = $CaseId; '@id' = $Id }
     } finally { $conn.Close(); $conn.Dispose() }
 
-    return if ($null -ne $val -and $val -ne [System.DBNull]::Value) { [string]$val } else { $null }
+    if ($null -ne $val -and $val -ne [System.DBNull]::Value) {
+        return [string]$val
+    }
+    return $null
 }
 
 Export-ModuleMember -Function `

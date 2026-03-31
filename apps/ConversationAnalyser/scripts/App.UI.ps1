@@ -1135,7 +1135,10 @@ function _StartRefreshReferenceDataJob {
         if ($null -ne $folderMap) {
             try {
                 $counts  = Import-ReferenceDataToCase -CaseId $job.CaseId -FolderMap $folderMap
-                $summary = "Loaded $($counts.queues) queues, $($counts.users) users, $($counts.divisions) divisions, $($counts.wrapupCodes) wrapup codes, $($counts.skills) skills, $($counts.flows) flows"
+                $parts   = $counts.GetEnumerator() |
+                               Where-Object { $_.Value -gt 0 } |
+                               ForEach-Object { "$($_.Value) $($_.Key)" }
+                $summary = 'Loaded ' + ($parts -join ', ')
                 _SetStatus $summary
                 [System.Windows.MessageBox]::Show($summary, 'Reference Data Refreshed')
             } catch {

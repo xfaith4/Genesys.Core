@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 3
+$script:SchemaVersion = 4
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -848,6 +848,114 @@ CREATE TABLE IF NOT EXISTS case_audit (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_agent_names ON conversations(agent_names)' | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_ani         ON conversations(ani)'         | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_disc_type   ON conversations(disconnect_type)' | Out-Null
+
+    # Schema v4 — reference data tables (Session 13)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_queues (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    queue_id      TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    description   TEXT    NOT NULL DEFAULT '',
+    division_id   TEXT    NOT NULL DEFAULT '',
+    media_type    TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_users (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    user_id       TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    email         TEXT    NOT NULL DEFAULT '',
+    department    TEXT    NOT NULL DEFAULT '',
+    division_id   TEXT    NOT NULL DEFAULT '',
+    state         TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_divisions (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    division_id   TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    description   TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_wrapup_codes (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    code_id       TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_skills (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    skill_id      TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_flows (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    flow_id       TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    flow_type     TEXT    NOT NULL DEFAULT '',
+    description   TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_flow_outcomes (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    outcome_id    TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    description   TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS ref_flow_milestones (
+    ref_id        TEXT    PRIMARY KEY,
+    case_id       TEXT    NOT NULL REFERENCES cases(case_id),
+    milestone_id  TEXT    NOT NULL,
+    name          TEXT    NOT NULL DEFAULT '',
+    description   TEXT    NOT NULL DEFAULT '',
+    refreshed_at  TEXT    NOT NULL
+)
+'@ | Out-Null
+
+    # v4 indexes
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_queues_case    ON ref_queues(case_id)'          | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_queues_id      ON ref_queues(queue_id)'         | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_users_case     ON ref_users(case_id)'           | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_users_id       ON ref_users(user_id)'           | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_divs_case      ON ref_divisions(case_id)'       | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_divs_id        ON ref_divisions(division_id)'   | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_wrapups_case   ON ref_wrapup_codes(case_id)'    | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_wrapups_id     ON ref_wrapup_codes(code_id)'    | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_skills_case    ON ref_skills(case_id)'          | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_flows_case     ON ref_flows(case_id)'           | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_flows_id       ON ref_flows(flow_id)'           | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_outcomes_case  ON ref_flow_outcomes(case_id)'   | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_milestones_case ON ref_flow_milestones(case_id)'| Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -2099,6 +2207,301 @@ function Get-ConversationById {
     return [pscustomobject]$rows[0]
 }
 
+# ── Public: Reference Data (Session 13) ──────────────────────────────────────
+
+function Import-ReferenceDataToCase {
+    <#
+    .SYNOPSIS
+        Imports reference data from a Refresh-ReferenceData folder map into the case store.
+    .DESCRIPTION
+        Reads the JSONL outputs from each reference dataset run folder and upserts
+        rows into the corresponding ref_* tables scoped to the specified case.
+
+        Accepts the hashtable returned by Refresh-ReferenceData (from App.CoreAdapter.psm1).
+        Each key is a dataset key; each value is the run folder path (or $null if the
+        dataset failed to collect).
+
+        Returns a hashtable of record counts per reference type.
+    .PARAMETER CaseId
+        Target case identifier.
+    .PARAMETER FolderMap
+        Hashtable returned by Refresh-ReferenceData.  Keys are dataset keys;
+        values are run folder paths (may be $null for datasets that failed).
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    $now    = [datetime]::UtcNow.ToString('o')
+    $counts = @{
+        queues          = 0
+        users           = 0
+        divisions       = 0
+        wrapupCodes     = 0
+        skills          = 0
+        flows           = 0
+        flowOutcomes    = 0
+        flowMilestones  = 0
+    }
+
+    function _ReadJsonlFromRunFolder ([string]$RunFolder) {
+        if ([string]::IsNullOrWhiteSpace($RunFolder) -or -not [System.IO.Directory]::Exists($RunFolder)) {
+            return @()
+        }
+        $dataDir = [System.IO.Path]::Combine($RunFolder, 'data')
+        if (-not [System.IO.Directory]::Exists($dataDir)) { return @() }
+        $records = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+            foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                $trimmed = $line.Trim()
+                if ($trimmed) {
+                    try { $records.Add(($trimmed | ConvertFrom-Json)) } catch {}
+                }
+            }
+        }
+        return $records.ToArray()
+    }
+
+    $conn = _Open
+    try {
+        # ref_queues
+        $folder = if ($FolderMap.ContainsKey('routing-queues')) { $FolderMap['routing-queues'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|queue|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_queues(ref_id, case_id, queue_id, name, description, division_id, media_type, refreshed_at)
+VALUES(@rid, @cid, @qid, @name, @desc, @divid, @media, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET
+    name=excluded.name, description=excluded.description,
+    division_id=excluded.division_id, media_type=excluded.media_type, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'   = $refId
+                '@cid'   = $CaseId
+                '@qid'   = $id
+                '@name'  = [string]($r.name)
+                '@desc'  = [string]($r.description)
+                '@divid' = [string]($r.division.id)
+                '@media' = [string]($r.mediaType)
+                '@ts'    = $now
+            } | Out-Null
+            $counts['queues']++
+        }
+
+        # ref_users
+        $folder = if ($FolderMap.ContainsKey('users')) { $FolderMap['users'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|user|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_users(ref_id, case_id, user_id, name, email, department, division_id, state, refreshed_at)
+VALUES(@rid, @cid, @uid, @name, @email, @dept, @divid, @state, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET
+    name=excluded.name, email=excluded.email, department=excluded.department,
+    division_id=excluded.division_id, state=excluded.state, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'   = $refId
+                '@cid'   = $CaseId
+                '@uid'   = $id
+                '@name'  = [string]($r.name)
+                '@email' = [string]($r.email)
+                '@dept'  = [string]($r.department)
+                '@divid' = [string]($r.division.id)
+                '@state' = [string]($r.state)
+                '@ts'    = $now
+            } | Out-Null
+            $counts['users']++
+        }
+
+        # ref_divisions
+        $folder = if ($FolderMap.ContainsKey('authorization.get.all.divisions')) { $FolderMap['authorization.get.all.divisions'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|division|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_divisions(ref_id, case_id, division_id, name, description, refreshed_at)
+VALUES(@rid, @cid, @did, @name, @desc, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET name=excluded.name, description=excluded.description, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'  = $refId
+                '@cid'  = $CaseId
+                '@did'  = $id
+                '@name' = [string]($r.name)
+                '@desc' = [string]($r.description)
+                '@ts'   = $now
+            } | Out-Null
+            $counts['divisions']++
+        }
+
+        # ref_wrapup_codes
+        $folder = if ($FolderMap.ContainsKey('routing.get.all.wrapup.codes')) { $FolderMap['routing.get.all.wrapup.codes'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|wrapup|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_wrapup_codes(ref_id, case_id, code_id, name, refreshed_at)
+VALUES(@rid, @cid, @coid, @name, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET name=excluded.name, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'  = $refId
+                '@cid'  = $CaseId
+                '@coid' = $id
+                '@name' = [string]($r.name)
+                '@ts'   = $now
+            } | Out-Null
+            $counts['wrapupCodes']++
+        }
+
+        # ref_skills
+        $folder = if ($FolderMap.ContainsKey('routing.get.all.routing.skills')) { $FolderMap['routing.get.all.routing.skills'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|skill|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_skills(ref_id, case_id, skill_id, name, refreshed_at)
+VALUES(@rid, @cid, @sid, @name, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET name=excluded.name, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'  = $refId
+                '@cid'  = $CaseId
+                '@sid'  = $id
+                '@name' = [string]($r.name)
+                '@ts'   = $now
+            } | Out-Null
+            $counts['skills']++
+        }
+
+        # ref_flows
+        $folder = if ($FolderMap.ContainsKey('flows.get.all.flows')) { $FolderMap['flows.get.all.flows'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|flow|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_flows(ref_id, case_id, flow_id, name, flow_type, description, refreshed_at)
+VALUES(@rid, @cid, @fid, @name, @ftype, @desc, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET
+    name=excluded.name, flow_type=excluded.flow_type, description=excluded.description, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'   = $refId
+                '@cid'   = $CaseId
+                '@fid'   = $id
+                '@name'  = [string]($r.name)
+                '@ftype' = [string]($r.type)
+                '@desc'  = [string]($r.description)
+                '@ts'    = $now
+            } | Out-Null
+            $counts['flows']++
+        }
+
+        # ref_flow_outcomes
+        $folder = if ($FolderMap.ContainsKey('flows.get.flow.outcomes')) { $FolderMap['flows.get.flow.outcomes'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|outcome|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_flow_outcomes(ref_id, case_id, outcome_id, name, description, refreshed_at)
+VALUES(@rid, @cid, @oid, @name, @desc, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET name=excluded.name, description=excluded.description, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'  = $refId
+                '@cid'  = $CaseId
+                '@oid'  = $id
+                '@name' = [string]($r.name)
+                '@desc' = [string]($r.description)
+                '@ts'   = $now
+            } | Out-Null
+            $counts['flowOutcomes']++
+        }
+
+        # ref_flow_milestones
+        $folder = if ($FolderMap.ContainsKey('flows.get.flow.milestones')) { $FolderMap['flows.get.flow.milestones'] } else { $null }
+        foreach ($r in (_ReadJsonlFromRunFolder $folder)) {
+            $id = [string]$r.id
+            if (-not $id) { continue }
+            $refId = "$CaseId|milestone|$id"
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO ref_flow_milestones(ref_id, case_id, milestone_id, name, description, refreshed_at)
+VALUES(@rid, @cid, @mid, @name, @desc, @ts)
+ON CONFLICT(ref_id) DO UPDATE SET name=excluded.name, description=excluded.description, refreshed_at=excluded.refreshed_at
+'@ -P @{
+                '@rid'  = $refId
+                '@cid'  = $CaseId
+                '@mid'  = $id
+                '@name' = [string]($r.name)
+                '@desc' = [string]($r.description)
+                '@ts'   = $now
+            } | Out-Null
+            $counts['flowMilestones']++
+        }
+
+        _AuditCaseEvent -Conn $conn -CaseId $CaseId -EventType 'reference_data.refreshed' `
+            -DetailText "Reference data loaded: queues=$($counts.queues) users=$($counts.users) divisions=$($counts.divisions) wrapupCodes=$($counts.wrapupCodes) skills=$($counts.skills) flows=$($counts.flows)" `
+            -PayloadJson (_ToJsonOrNull $counts)
+
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return $counts
+}
+
+function Get-ResolvedName {
+    <#
+    .SYNOPSIS
+        Resolves a Genesys entity ID to a human-readable name from the reference tables.
+    .DESCRIPTION
+        Pure SQLite helper — looks up the name for a given ID in the reference
+        tables for the specified entity type.  Returns $null if no match is found.
+        All downstream report queries should use this instead of embedding table JOINs.
+    .PARAMETER CaseId
+        The case whose reference snapshot to query.
+    .PARAMETER Type
+        Entity type: queue, user, division, wrapupCode, skill, flow, flowOutcome, flowMilestone.
+    .PARAMETER Id
+        The GUID to resolve.
+    .EXAMPLE
+        $queueName = Get-ResolvedName -CaseId $case.case_id -Type queue -Id $row.queue_id
+    .EXAMPLE
+        $agentName = Get-ResolvedName -CaseId $case.case_id -Type user  -Id $userId
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [Parameter(Mandatory)]
+        [ValidateSet('queue','user','division','wrapupCode','skill','flow','flowOutcome','flowMilestone')]
+        [string] $Type,
+        [Parameter(Mandatory)][string] $Id
+    )
+    _RequireDb
+
+    $tableMap = @{
+        queue          = @{ table = 'ref_queues';          idCol = 'queue_id' }
+        user           = @{ table = 'ref_users';           idCol = 'user_id'  }
+        division       = @{ table = 'ref_divisions';       idCol = 'division_id' }
+        wrapupCode     = @{ table = 'ref_wrapup_codes';    idCol = 'code_id'  }
+        skill          = @{ table = 'ref_skills';          idCol = 'skill_id' }
+        flow           = @{ table = 'ref_flows';           idCol = 'flow_id'  }
+        flowOutcome    = @{ table = 'ref_flow_outcomes';   idCol = 'outcome_id' }
+        flowMilestone  = @{ table = 'ref_flow_milestones'; idCol = 'milestone_id' }
+    }
+
+    $meta = $tableMap[$Type]
+    $sql  = "SELECT name FROM $($meta.table) WHERE case_id = @cid AND $($meta.idCol) = @id LIMIT 1"
+
+    $conn = _Open
+    try {
+        $val = _Scalar -Conn $conn -Sql $sql -P @{ '@cid' = $CaseId; '@id' = $Id }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return if ($null -ne $val -and $val -ne [System.DBNull]::Value) { [string]$val } else { $null }
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -2111,4 +2514,5 @@ Export-ModuleMember -Function `
     Close-Case, Mark-CasePurgeReady, Archive-Case, Purge-Case, `
     Register-CoreRun, Get-CoreRuns, `
     New-Import, Complete-Import, Fail-Import, Get-Imports, Import-RunFolderToCase, `
-    Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationById
+    Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationById, `
+    Import-ReferenceDataToCase, Get-ResolvedName

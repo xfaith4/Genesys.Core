@@ -42,6 +42,7 @@ $script:BtnOpenRun             = _Ctrl 'BtnOpenRun'
 $script:LblActiveCase          = _Ctrl 'LblActiveCase'
 $script:BtnManageCase          = _Ctrl 'BtnManageCase'
 $script:BtnImportRun           = _Ctrl 'BtnImportRun'
+$script:BtnRefreshRefData      = _Ctrl 'BtnRefreshRefData'
 $script:BtnGenerateReport      = _Ctrl 'BtnGenerateReport'
 $script:BtnSaveReportSnapshot  = _Ctrl 'BtnSaveReportSnapshot'
 
@@ -112,6 +113,10 @@ $script:State = @{
     SortColumn          = ''       # SortMemberPath of active sort column ('' = default)
     SortAscending       = $true
     ColumnFilters       = @{}      # SortMemberPath → filter text
+    RefreshRefJob       = $null    # PSDataCollection for reference-data background refresh
+    RefreshRefRunspace  = $null
+    RefreshRefTimer     = $null
+    RefreshRefCaseId    = ''       # case targeted by in-progress reference refresh
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -303,8 +308,9 @@ function _RefreshActiveCaseStatus {
         $script:State.ActiveCaseName = ''
         _Dispatch {
             $script:LblActiveCase.Text = '(case store offline)'
-            $script:BtnManageCase.IsEnabled = $false
-            $script:BtnImportRun.IsEnabled  = $false
+            $script:BtnManageCase.IsEnabled    = $false
+            $script:BtnImportRun.IsEnabled     = $false
+            $script:BtnRefreshRefData.IsEnabled = $false
         }
         return
     }
@@ -315,8 +321,9 @@ function _RefreshActiveCaseStatus {
         $script:State.ActiveCaseName = ''
         _Dispatch {
             $script:LblActiveCase.Text = '(none selected)'
-            $script:BtnManageCase.IsEnabled = $true
-            $script:BtnImportRun.IsEnabled  = $true
+            $script:BtnManageCase.IsEnabled    = $true
+            $script:BtnImportRun.IsEnabled     = $true
+            $script:BtnRefreshRefData.IsEnabled = $true
         }
         return
     }
@@ -327,8 +334,9 @@ function _RefreshActiveCaseStatus {
         $retention = if ($case.PSObject.Properties['retention_status']) { $case.retention_status } else { $case.state }
         $suffix = if ($retention -and $retention -ne 'active') { " [$retention]" } else { '' }
         $script:LblActiveCase.Text = "$($case.name)$suffix"
-        $script:BtnManageCase.IsEnabled = $true
-        $script:BtnImportRun.IsEnabled  = $true
+        $script:BtnManageCase.IsEnabled    = $true
+        $script:BtnImportRun.IsEnabled     = $true
+        $script:BtnRefreshRefData.IsEnabled = $true
     }
 }
 
@@ -962,6 +970,186 @@ function _EnsureActiveCase {
     $case = _GetActiveCase
     if ($null -ne $case) { return $case }
     return (_ShowCaseDialog)
+}
+
+function _StartRefreshReferenceDataJob {
+    <#
+        Pulls reference datasets (queues, users, divisions, skills, flows, wrapup codes)
+        from the Genesys Cloud org in a background runspace, then imports the results
+        into the active case's reference tables.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Reference Data')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Reference Data')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before refreshing reference data.', 'Not Connected')
+        return
+    }
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Refreshing reference data…'
+    $script:BtnRefreshRefData.IsEnabled = $false
+    $script:State.RefreshRefCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+
+    [void]$ps.AddScript({
+        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri)
+        Set-StrictMode -Version Latest
+
+        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
+        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
+
+        Import-Module $CorePath -Force -ErrorAction Stop
+
+        $assertParams = @{ CatalogPath = $CatalogPath }
+        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
+        Assert-Catalog @assertParams -ErrorAction Stop
+
+        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
+            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+        }
+
+        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+        $refRoot = [System.IO.Path]::Combine($OutputRoot, "ref-$stamp")
+        [System.IO.Directory]::CreateDirectory($refRoot) | Out-Null
+
+        $datasetKeys = @(
+            'routing-queues',
+            'users',
+            'authorization.get.all.divisions',
+            'routing.get.all.wrapup.codes',
+            'routing.get.all.routing.skills',
+            'routing.get.all.languages',
+            'flows.get.all.flows',
+            'flows.get.flow.outcomes',
+            'flows.get.flow.milestones'
+        )
+
+        $folderMap = @{}
+        foreach ($key in $datasetKeys) {
+            $dsRoot = [System.IO.Path]::Combine($refRoot, $key)
+            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+            $invokeParams = @{
+                Dataset     = $key
+                CatalogPath = $CatalogPath
+                OutputRoot  = $dsRoot
+                BaseUri     = $BaseUri
+            }
+            if ($null -ne $Headers -and $Headers.Count -gt 0) {
+                $invokeParams['Headers'] = $Headers
+            }
+            try {
+                Invoke-Dataset @invokeParams | Out-Null
+            } catch { }
+
+            # Locate the run folder written by Invoke-Dataset
+            $runFolder = $null
+            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                        $runFolder = $grandchild
+                        break
+                    }
+                }
+                if ($runFolder) { break }
+            }
+            $folderMap[$key] = $runFolder
+        }
+
+        return $folderMap
+    })
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.RefreshRefJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.RefreshRefRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.RefreshRefTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.RefreshRefJob
+        if ($null -eq $job) { $script:State.RefreshRefTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.RefreshRefTimer.Stop()
+        $script:State.RefreshRefTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                              catch {}
+            try { $script:State.RefreshRefRunspace.Close() }      catch {}
+            try { $script:State.RefreshRefRunspace.Dispose() }    catch {}
+            $script:State.RefreshRefJob      = $null
+            $script:State.RefreshRefRunspace = $null
+            $script:State.RefreshRefCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Reference data refresh failed'
+            _Dispatch { $script:BtnRefreshRefData.IsEnabled = $true }
+            [System.Windows.MessageBox]::Show("Refresh failed: $endFailure", 'Reference Data')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $counts  = Import-ReferenceDataToCase -CaseId $job.CaseId -FolderMap $folderMap
+                $summary = "Loaded $($counts.queues) queues, $($counts.users) users, $($counts.divisions) divisions, $($counts.wrapupCodes) wrapup codes, $($counts.skills) skills, $($counts.flows) flows"
+                _SetStatus $summary
+                [System.Windows.MessageBox]::Show($summary, 'Reference Data Refreshed')
+            } catch {
+                _SetStatus 'Reference data import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Reference Data')
+            }
+        } else {
+            _SetStatus 'Reference data refresh completed'
+        }
+
+        _Dispatch { $script:BtnRefreshRefData.IsEnabled = $true }
+    })
+
+    $timer.Start()
 }
 
 function _ImportCurrentRunToCase {
@@ -2536,6 +2724,8 @@ $script:BtnSettings.Add_Click({ _ShowSettingsDialog })
 $script:BtnManageCase.Add_Click({ _ShowCaseDialog | Out-Null })
 
 $script:BtnImportRun.Add_Click({ _ImportCurrentRunToCase })
+
+$script:BtnRefreshRefData.Add_Click({ _StartRefreshReferenceDataJob })
 
 $script:BtnRun.Add_Click({
     try {

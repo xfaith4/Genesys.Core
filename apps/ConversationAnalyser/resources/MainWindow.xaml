@@ -841,6 +841,11 @@
                                                     Content="Import Loaded Run"
                                                     Style="{StaticResource BtnAccent}" Height="34"/>
                                         </Grid>
+                                        <Button x:Name="BtnRefreshRefData"
+                                                Content="Refresh Reference Data"
+                                                Margin="0,6,0,0"
+                                                Style="{StaticResource BtnBase}" Height="34"
+                                                ToolTip="Pulls queues, users, divisions, skills, flows and wrapup codes from the org and stores them in the active case for ID-to-name resolution."/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

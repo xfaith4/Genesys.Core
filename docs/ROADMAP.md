@@ -326,31 +326,35 @@ that implement it, and the backing catalog key(s).
 
 ---
 
-#### Idea 27 — Peak Hour Load Analysis *(Future)*
+#### Idea 27 — Peak Hour Load Analysis
 **Goal:** Identify staffing gaps vs offered volume by 15-minute interval — feeds WFM scheduling.
-**Planned extension:** `analytics.query.conversation.aggregates.queue.performance` with PT15M granularity
-**Status:** 🔲 Planned — use `Get-GenesysConversationLatencyTrend` with custom catalog body override
+**Cmdlet:** `Get-GenesysPeakHourLoad`
+**Backing cmdlet:** `Get-GenesysConversationLatencyTrend`
+**Status:** ✅ Delivered — ranks top-N peak intervals by volume or handle time (PT1H granularity; PT15M requires direct catalog body override via DatasetParameters)
 
 ---
 
-#### Idea 28 — Configuration Change Audit Feed *(Future)*
+#### Idea 28 — Configuration Change Audit Feed
 **Goal:** Near-real-time feed of admin changes (queue, flow, user) via audit logs — change governance.
-**Planned extension:** Combine `Get-GenesysAuditEvent` with webhook/notification push
-**Status:** 🔲 Planned — `Get-GenesysAuditEvent` already available; notification push layer to come
+**Cmdlet:** `Get-GenesysChangeAuditFeed`
+**Backing cmdlet:** `Get-GenesysAuditEvent`
+**Status:** ✅ Delivered — wraps audit events with risk classification (HIGH/MEDIUM/LOW) and a human-readable Summary field; notification push layer remains a future integration
 
 ---
 
-#### Idea 29 — Outbound Campaign Performance Dashboard *(Future)*
+#### Idea 29 — Outbound Campaign Performance Dashboard
 **Goal:** Dial rate, contact rate, abandon rate, pacing mode for outbound campaigns.
-**Existing cmdlets:** `Get-GenesysOutboundCampaign`, `Get-GenesysOutboundEvent`
-**Status:** 🔲 Planned — requires analytics aggregates for outbound-specific metrics
+**Cmdlet:** `Get-GenesysOutboundCampaignPerformance`
+**Backing cmdlets:** `Get-GenesysOutboundCampaign`, `Get-GenesysOutboundEvent`
+**Status:** ✅ Delivered — per-campaign KPI snapshot (ConnectRate, NoAnswerRate, disposition breakdown); analytics aggregates for dialer metrics remain a future enhancement
 
 ---
 
-#### Idea 30 — Flow Outcome KPI Correlation *(Future)*
+#### Idea 30 — Flow Outcome KPI Correlation
 **Goal:** Correlate IVR flow outcomes with CSAT scores and handle time — identify self-service drop-off.
-**Existing cmdlets:** `Get-GenesysFlowAggregate`, `Get-GenesysFlowObservation`, `Get-GenesysSurvey`
-**Status:** 🔲 Planned — correlation layer requires join logic across flow and conversation datasets
+**Cmdlet:** `Get-GenesysFlowOutcomeKpiCorrelation`
+**Backing cmdlets:** `Get-GenesysFlowAggregate`, `Get-GenesysFlow`, `Get-GenesysSurvey`, `Get-GenesysQueuePerformance`
+**Status:** ✅ Delivered — per-flow SelfServeRate, FailureRate, org-wide AvgSurveyScore, AvgHandleSec; per-conversation join for full correlation requires additional dataset work
 
 ---
 

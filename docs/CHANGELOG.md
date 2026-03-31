@@ -1,6 +1,28 @@
 # Changelog
 
-## 2026-03-07
+## 2026-03-31
+
+### Added
+
+- **Genesys.Ops — Phase 5 Ideas 27–30:** Four new composite cmdlets completing the Phase 5 Visibility Dashboard roadmap:
+  - `Get-GenesysPeakHourLoad` — ranks queue+media intervals by volume or handle time to surface WFM scheduling gaps (PT1H granularity; PT15M documented as future direct catalog body override).
+  - `Get-GenesysChangeAuditFeed` — risk-classified (HIGH/MEDIUM/LOW) feed of admin configuration changes from the audit log; enriches each event with a human-readable `Summary` and `Risk` field.
+  - `Get-GenesysOutboundCampaignPerformance` — per-campaign KPI snapshot combining campaign configuration with dialer event dispositions (ConnectRate, NoAnswerRate, TotalAttempts, etc.).
+  - `Get-GenesysFlowOutcomeKpiCorrelation` — correlates Architect flow aggregate execution metrics with org-wide CSAT scores and queue handle time to identify IVR self-service drop-off candidates.
+
+- **ConversationAnalyser Session 13 — Reference Data Foundation:**
+  - `Refresh-ReferenceData` added to `App.CoreAdapter.psm1` — invokes `Invoke-Dataset` for all nine reference datasets (`routing-queues`, `users`, `authorization.get.all.divisions`, `routing.get.all.wrapup.codes`, `routing.get.all.routing.skills`, `routing.get.all.languages`, `flows.get.all.flows`, `flows.get.flow.outcomes`, `flows.get.flow.milestones`) and returns a folder map.
+  - `Import-ReferenceDataToCase` added to `App.Database.psm1` — upserts reference records into eight new reference tables scoped by `case_id` with `refreshed_at` timestamps; audits the refresh event.
+  - `Get-ResolvedName` helper added to `App.Database.psm1` — pure SQLite ID→name lookup with `-Type` (queue, user, division, wrapupCode, skill, flow, flowOutcome, flowMilestone) and `-Id` parameters.
+  - Schema v4 adds eight reference tables and their indexes to the SQLite case store.
+  - "Refresh Reference Data" button added to the case management panel in `MainWindow.xaml`; wired via `_StartRefreshReferenceDataJob` in `App.UI.ps1` which runs the fetch in a background runspace and shows record counts in the status bar on completion.
+
+### Changed
+
+- `ROADMAP.md` — Phase 5 Ideas 27–30 marked ✅ Delivered with cmdlet names and notes.
+- `ConversationAnalytics_Roadmap.md` — Session 13 marked **COMPLETE** with delivery summary.
+
+
 
 ### Changed
 

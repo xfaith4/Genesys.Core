@@ -371,6 +371,18 @@ All calls are made with `Invoke-Dataset -Dataset <key> -CatalogPath $catalogPath
 
 ## Session 13: Reference Data Foundation — Names, Queues, Divisions, Skills
 
+> **What was delivered:** `Refresh-ReferenceData` added to `App.CoreAdapter.psm1` — calls
+> `Invoke-Dataset` for all nine reference datasets in a background runspace and writes results
+> to `ref-<timestamp>` run folders. `Import-ReferenceDataToCase` added to `App.Database.psm1`
+> — upserts into eight new reference tables (`ref_queues`, `ref_users`, `ref_divisions`,
+> `ref_wrapup_codes`, `ref_skills`, `ref_flows`, `ref_flow_outcomes`, `ref_flow_milestones`),
+> all scoped by `case_id` with `refreshed_at` timestamps. `Get-ResolvedName` helper added for
+> ID-to-name resolution via pure SQLite lookup with `-Type` / `-Id` parameters.
+> "Refresh Reference Data" button added to the case management panel, wired to
+> `_StartRefreshReferenceDataJob` which runs the reference fetch in a background runspace and
+> calls `Import-ReferenceDataToCase` on completion. Status bar shows record counts for each
+> reference type. Schema bumped to v4.
+
 Scope: populate a local reference-data layer so every subsequent report can resolve IDs to human-readable names without re-querying the org during pivots.
 
 Task: add `Refresh-ReferenceData` to `App.CoreAdapter.psm1`. It calls `Invoke-Dataset` for each reference dataset in order: `routing-queues`, `users`, `authorization.get.all.divisions`, `routing.get.all.wrapup.codes`, `routing.get.all.routing.skills`, `routing.get.all.languages`, `flows.get.all.flows`, `flows.get.flow.outcomes`, `flows.get.flow.milestones`. Each dataset writes to `data\*.jsonl` in a dedicated `ref-<timestamp>` run folder under `OutputRoot`.

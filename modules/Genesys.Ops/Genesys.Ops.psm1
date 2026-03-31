@@ -3406,6 +3406,396 @@ function Get-GenesysJourneyActionMap {
 #endregion
 
 # ---------------------------------------------------------------------------
+#region Peak Hour Load Analysis  (Roadmap idea 27)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysPeakHourLoad {
+    <#
+    .SYNOPSIS
+        Identifies peak traffic intervals (staffing-gap hotspots) across queues.
+    .DESCRIPTION
+        Analyses historical queue performance data to surface the time intervals
+        with the highest offered volume or longest handle time.  Use this to feed
+        WFM scheduling reviews and identify recurring staffing gaps.
+
+        Each record contains:
+            QueueId      — Queue GUID
+            MediaType    — voice, chat, email, etc.
+            Interval     — Time bucket (PT1H granularity by default)
+            nConnected   — Conversations connected in the interval
+            AvgHandleSec — Average handle time in seconds
+            AvgTalkSec   — Average talk time in seconds
+            AvgAcwSec    — Average after-call work time in seconds
+            Rank         — 1 = busiest interval for this queue
+
+        Note: granularity is PT1H from the default catalog profile.  For PT15M
+        resolution, use Invoke-Dataset directly with a custom DatasetParameters
+        body containing "granularity": "PT15M" against the
+        analytics.query.conversation.aggregates.queue.performance endpoint.
+    .PARAMETER TopN
+        Number of peak intervals to return per queue.  Default: 5.
+    .PARAMETER SortBy
+        Metric to rank intervals by.  Default: nConnected (highest offered volume).
+        Use AvgHandleSec to rank by longest handling time instead.
+    .EXAMPLE
+        # Show top 5 peak hours across all queues
+        Get-GenesysPeakHourLoad | Format-Table QueueId, Interval, nConnected, Rank
+    .EXAMPLE
+        # Top 3 by avg handle time — find when agents are most stretched
+        Get-GenesysPeakHourLoad -TopN 3 -SortBy AvgHandleSec |
+            Sort-Object QueueId, Rank | Format-Table
+    .EXAMPLE
+        # Filter to voice only and get the single busiest hour per queue
+        Get-GenesysPeakHourLoad -TopN 1 |
+            Where-Object MediaType -eq 'voice' |
+            Sort-Object nConnected -Descending | Format-Table
+    #>
+    [CmdletBinding()]
+    param(
+        [int]    $TopN   = 5,
+        [ValidateSet('nConnected','AvgHandleSec','AvgTalkSec')]
+        [string] $SortBy = 'nConnected'
+    )
+
+    Assert-GenesysConnected
+
+    $trend = @(Get-GenesysConversationLatencyTrend)
+    if ($trend.Count -eq 0) { return }
+
+    # Group by queue+media and rank intervals within each group
+    $groups = $trend | Group-Object QueueId, MediaType
+
+    foreach ($g in $groups) {
+        $sorted = @($g.Group | Sort-Object $SortBy -Descending)
+        $top    = if ($sorted.Count -le $TopN) { $sorted } else { $sorted[0..($TopN - 1)] }
+        $rank   = 1
+        foreach ($r in $top) {
+            [PSCustomObject]@{
+                QueueId      = $r.QueueId
+                MediaType    = $r.MediaType
+                Interval     = $r.Interval
+                nConnected   = $r.nConnected
+                AvgHandleSec = $r.AvgHandleSec
+                AvgTalkSec   = $r.AvgTalkSec
+                AvgAcwSec    = $r.AvgAcwSec
+                Rank         = $rank
+            }
+            $rank++
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Configuration Change Audit Feed  (Roadmap idea 28)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysChangeAuditFeed {
+    <#
+    .SYNOPSIS
+        Returns a risk-categorised feed of recent admin configuration changes.
+    .DESCRIPTION
+        Wraps Get-GenesysAuditEvent to surface configuration-changing actions
+        with a Risk field so NOC/governance dashboards and ChatOps bots can
+        prioritise response.
+
+        Risk levels:
+            HIGH    — DELETE or REVOKE actions on users, flows, or OAuth clients
+            MEDIUM  — CREATE or UPDATE on flows, queues, or user roles
+            LOW     — All other configuration changes
+
+        Each record adds:
+            Risk        — HIGH / MEDIUM / LOW
+            Summary     — Human-readable one-liner
+
+        Note: the underlying dataset covers the last hour (catalog default).
+        For broader windows use Get-GenesysAuditEvent directly and call this
+        function's classification logic on the results.
+    .PARAMETER EntityType
+        Filter by Genesys entity type (USER, QUEUE, FLOW, DIVISION, …).
+    .PARAMETER Risk
+        Return only events at or above this risk level
+        (HIGH returns HIGH only; MEDIUM returns HIGH + MEDIUM; LOW returns all).
+    .EXAMPLE
+        # Show all high-risk changes in the past hour
+        Get-GenesysChangeAuditFeed -Risk HIGH | Format-Table timestamp, Risk, Summary
+    .EXAMPLE
+        # Governance feed — all changes to flows
+        Get-GenesysChangeAuditFeed -EntityType FLOW | Sort-Object timestamp | Format-Table
+    .EXAMPLE
+        # Pipe into a ChatOps alert
+        Get-GenesysChangeAuditFeed -Risk HIGH |
+            ForEach-Object { Send-Teams -Message "⚠️ $($_.Risk): $($_.Summary)" }
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $EntityType,
+        [ValidateSet('HIGH','MEDIUM','LOW')]
+        [string] $Risk
+    )
+
+    Assert-GenesysConnected
+
+    $filterParams = @{}
+    if ($EntityType) { $filterParams['EntityType'] = $EntityType }
+
+    $events = @(Get-GenesysAuditEvent @filterParams)
+    if ($events.Count -eq 0) { return }
+
+    # Entity types considered sensitive for risk elevation
+    $highRiskEntities = @('USER','FLOW','OAUTH_CLIENT','DIVISION','ROLE')
+    $mediumRiskEntities = @('QUEUE','ROUTING_SKILL','WRAPUP_CODE','SCHEDULE','STATION')
+
+    foreach ($ev in $events) {
+        $action     = [string]$ev.action
+        $entityType = [string]$ev.serviceContext.entityType
+        $entityName = [string]$ev.serviceContext.entityName
+
+        # Classify risk
+        $riskLevel = 'LOW'
+        $isHighAction   = $action -like 'DELETE_*' -or $action -like 'REVOKE_*'
+        $isMediumAction = $action -like 'CREATE_*' -or $action -like 'UPDATE_*' -or $action -like 'ADD_*'
+
+        if ($isHighAction -and $entityType -in $highRiskEntities)    { $riskLevel = 'HIGH'   }
+        elseif ($isHighAction)                                         { $riskLevel = 'MEDIUM' }
+        elseif ($isMediumAction -and $entityType -in $highRiskEntities){ $riskLevel = 'MEDIUM' }
+        elseif ($isMediumAction -and $entityType -in $mediumRiskEntities) { $riskLevel = 'LOW' }
+
+        # Compose summary
+        $actor   = if ($ev.user -and $ev.user.email) { $ev.user.email } else { 'unknown' }
+        $summary = "$action on $entityType '$entityName' by $actor"
+
+        $record = [PSCustomObject]@{
+            Timestamp  = $ev.timestamp
+            Risk       = $riskLevel
+            Action     = $action
+            EntityType = $entityType
+            EntityName = $entityName
+            Actor      = $actor
+            Summary    = $summary
+            IpAddress  = $ev.user.ipAddress
+        }
+
+        # Apply risk filter if requested
+        $include = $true
+        if ($Risk) {
+            $include = switch ($Risk) {
+                'HIGH'   { $riskLevel -eq 'HIGH' }
+                'MEDIUM' { $riskLevel -in @('HIGH','MEDIUM') }
+                'LOW'    { $true }
+            }
+        }
+
+        if ($include) { $record }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Outbound Campaign Performance  (Roadmap idea 29)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysOutboundCampaignPerformance {
+    <#
+    .SYNOPSIS
+        Returns a per-campaign performance KPI snapshot.
+    .DESCRIPTION
+        Combines outbound campaign configuration with dialer event disposition
+        counts to produce a ready-to-display performance record for each campaign.
+
+        Each record contains:
+            CampaignId       — Campaign GUID
+            CampaignName     — Campaign display name
+            Status           — on / off / complete / stopping / invalid
+            DialingMode      — preview, power, progressive, agentless, etc.
+            TotalEvents      — Total dialer events in the dataset
+            Connected        — Contacts that connected (live answer)
+            NoAnswer         — Attempts resulting in no-answer
+            Busy             — Attempts reaching busy tone
+            Voicemail        — Attempts reaching voicemail (answering machine)
+            Other            — Remaining dispositions
+            ConnectRate      — Connected / TotalAttempts (%)
+            NoAnswerRate     — NoAnswer / TotalAttempts (%)
+            AbandonRateLimit — Maximum configured abandon rate for the campaign
+    .PARAMETER Name
+        Wildcard filter on campaign name.
+    .PARAMETER Status
+        Filter by campaign status (on, off, complete, stopping, invalid).
+    .EXAMPLE
+        Get-GenesysOutboundCampaignPerformance | Sort-Object ConnectRate -Descending | Format-Table
+    .EXAMPLE
+        # Only running campaigns
+        Get-GenesysOutboundCampaignPerformance -Status on | Format-Table CampaignName, ConnectRate, NoAnswerRate
+    .EXAMPLE
+        # Campaigns with connect rate below 10% — potential list quality issue
+        Get-GenesysOutboundCampaignPerformance |
+            Where-Object { $_.TotalEvents -gt 0 -and $_.ConnectRate -lt 10 } |
+            Format-Table CampaignName, TotalEvents, ConnectRate
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Name,
+        [ValidateSet('on','off','complete','stopping','invalid')]
+        [string] $Status
+    )
+
+    Assert-GenesysConnected
+
+    $campaignParams = @{}
+    if ($Name)   { $campaignParams['Name']   = $Name }
+    if ($Status) { $campaignParams['Status'] = $Status }
+
+    $campaigns = @(Get-GenesysOutboundCampaign @campaignParams)
+    if ($campaigns.Count -eq 0) { return }
+
+    $events = @(Get-GenesysOutboundEvent)
+
+    # Index events by campaignId
+    $eventIndex = @{}
+    foreach ($ev in $events) {
+        $cid = [string]$ev.campaignId
+        if (-not $eventIndex.ContainsKey($cid)) {
+            $eventIndex[$cid] = [System.Collections.Generic.List[object]]::new()
+        }
+        $eventIndex[$cid].Add($ev) | Out-Null
+    }
+
+    foreach ($c in $campaigns) {
+        $cid   = [string]$c.id
+        $cEvts = if ($eventIndex.ContainsKey($cid)) { @($eventIndex[$cid]) } else { @() }
+
+        # Tally dispositions — only attempt events carry callResult
+        $attempts  = @($cEvts | Where-Object { $null -ne $_.callResult })
+        $total     = $attempts.Count
+        $connected = ($attempts | Where-Object { $_.callResult -eq 'Connected'    }).Count
+        $noAnswer  = ($attempts | Where-Object { $_.callResult -eq 'NoAnswer'     }).Count
+        $busy      = ($attempts | Where-Object { $_.callResult -eq 'Busy'         }).Count
+        $voicemail = ($attempts | Where-Object { $_.callResult -like '*Voicemail*' -or $_.callResult -like '*Machine*' }).Count
+        $other     = $total - $connected - $noAnswer - $busy - $voicemail
+
+        $connectRate = if ($total -gt 0) { [math]::Round($connected / $total * 100, 1) } else { $null }
+        $naRate      = if ($total -gt 0) { [math]::Round($noAnswer  / $total * 100, 1) } else { $null }
+
+        [PSCustomObject]@{
+            CampaignId       = $cid
+            CampaignName     = $c.name
+            Status           = $c.campaignStatus
+            DialingMode      = $c.dialingMode
+            TotalEvents      = $cEvts.Count
+            TotalAttempts    = $total
+            Connected        = $connected
+            NoAnswer         = $noAnswer
+            Busy             = $busy
+            Voicemail        = $voicemail
+            Other            = if ($other -ge 0) { $other } else { 0 }
+            ConnectRate      = $connectRate
+            NoAnswerRate     = $naRate
+            AbandonRateLimit = $c.abandonRate
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Flow Outcome KPI Correlation  (Roadmap idea 30)
+# ---------------------------------------------------------------------------
+
+function Get-GenesysFlowOutcomeKpiCorrelation {
+    <#
+    .SYNOPSIS
+        Correlates IVR / bot flow outcomes with CSAT scores and handle time.
+    .DESCRIPTION
+        Joins flow aggregate execution metrics with CSAT/NPS survey scores and
+        queue handle-time aggregates to identify flows where self-service drop-off
+        leads to poorer downstream customer experience.
+
+        Each record contains:
+            FlowId                — Architect flow GUID
+            FlowName              — Flow display name (if resolved)
+            FlowType              — inboundcall, bot, inboundchat, etc.
+            Interval              — Time bucket
+            nFlow                 — Contacts that entered the flow
+            nFlowOutcome          — Contacts with a defined outcome
+            nFlowOutcomeFailed    — Contacts with a FAILED outcome
+            SelfServeRate         — nFlowOutcome / nFlow (%) — completions
+            FailureRate           — nFlowOutcomeFailed / nFlow (%)
+            AvgSurveyScore        — Mean CSAT/NPS score from surveys in window
+            SurveyCount           — Number of surveys correlated
+            AvgHandleSec          — Queue avg handle time for the survey window
+
+        Flows with high failure rates and low CSAT scores are the primary
+        self-service drop-off candidates for IVR tuning.
+    .EXAMPLE
+        Get-GenesysFlowOutcomeKpiCorrelation |
+            Sort-Object FailureRate -Descending |
+            Select-Object FlowName, FailureRate, AvgSurveyScore |
+            Format-Table
+    .EXAMPLE
+        # Flag flows with failure > 20% AND low CSAT
+        Get-GenesysFlowOutcomeKpiCorrelation |
+            Where-Object { $_.FailureRate -gt 20 -and $null -ne $_.AvgSurveyScore -and $_.AvgSurveyScore -lt 7 } |
+            Format-Table FlowName, FailureRate, AvgSurveyScore
+    #>
+    [CmdletBinding()]
+    param()
+
+    Assert-GenesysConnected
+
+    $flowAgg  = @(Get-GenesysFlowAggregate)
+    $flows    = @(Get-GenesysFlow)
+    $surveys  = @(Get-GenesysSurvey)
+    $qPerf    = @(Get-GenesysQueuePerformance)
+
+    # Build flow name lookup
+    $flowNames = @{}
+    foreach ($f in $flows) { $flowNames[$f.id] = $f.name }
+
+    # Aggregate surveys into a single mean score (no per-flow mapping available
+    # from the survey dataset without conversation join; use org-wide mean as proxy)
+    $surveyScores = @($surveys | Where-Object { $null -ne $_.totalScore })
+    $orgAvgSurvey = if ($surveyScores.Count -gt 0) {
+        [math]::Round(($surveyScores | Measure-Object totalScore -Average).Average, 2)
+    } else { $null }
+
+    # Aggregate queue performance into a single org-wide avg handle time
+    $qPerfWithData = @($qPerf | Where-Object { $_.nConnected_count -gt 0 -and $_.tHandle_sum })
+    $orgAvgHandle  = if ($qPerfWithData.Count -gt 0) {
+        $totalHandle = ($qPerfWithData | Measure-Object tHandle_sum -Sum).Sum
+        $totalConn   = ($qPerfWithData | Measure-Object nConnected_count -Sum).Sum
+        if ($totalConn -gt 0) { [math]::Round($totalHandle / $totalConn / 1000, 1) } else { $null }
+    } else { $null }
+
+    foreach ($fa in $flowAgg) {
+        $n        = if ($fa.nFlow_count)            { [int]$fa.nFlow_count            } else { 0 }
+        $nOut     = if ($fa.nFlowOutcome_count)     { [int]$fa.nFlowOutcome_count     } else { 0 }
+        $nFailed  = if ($fa.nFlowOutcomeFailed_count){ [int]$fa.nFlowOutcomeFailed_count } else { 0 }
+
+        $selfServeRate = if ($n -gt 0) { [math]::Round($nOut    / $n * 100, 1) } else { $null }
+        $failureRate   = if ($n -gt 0) { [math]::Round($nFailed / $n * 100, 1) } else { $null }
+
+        [PSCustomObject]@{
+            FlowId             = $fa.flowId
+            FlowName           = $flowNames[$fa.flowId]
+            FlowType           = $fa.flowType
+            Interval           = $fa.Interval
+            nFlow              = $n
+            nFlowOutcome       = $nOut
+            nFlowOutcomeFailed = $nFailed
+            SelfServeRate      = $selfServeRate
+            FailureRate        = $failureRate
+            AvgSurveyScore     = $orgAvgSurvey
+            SurveyCount        = $surveyScores.Count
+            AvgHandleSec       = $orgAvgHandle
+        }
+    }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
 #region Composite Dashboard Snapshots  (Roadmap ideas 24–30)
 # ---------------------------------------------------------------------------
 

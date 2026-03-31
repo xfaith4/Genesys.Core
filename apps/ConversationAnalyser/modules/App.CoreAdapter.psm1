@@ -264,8 +264,93 @@ function Get-DiagnosticsText {
     return $sb.ToString()
 }
 
+function Refresh-ReferenceData {
+    <#
+    .SYNOPSIS
+        Gate B – pulls all reference datasets and writes them to a dated run folder.
+    .DESCRIPTION
+        Invokes Invoke-Dataset for each reference dataset in dependency order and
+        writes the results under OutputRoot\ref-<timestamp>\.  Returns a hashtable
+        keyed by dataset key, each value being the run folder path for that dataset.
+
+        Reference datasets fetched (in order):
+            routing-queues
+            users
+            authorization.get.all.divisions
+            routing.get.all.wrapup.codes
+            routing.get.all.routing.skills
+            routing.get.all.languages
+            flows.get.all.flows
+            flows.get.flow.outcomes
+            flows.get.flow.milestones
+
+        The caller is responsible for passing the returned folder map to
+        Import-ReferenceDataToCase in App.Database.psm1.
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [hashtable]$Headers = $null
+    )
+    _RequireInitialized
+
+    $stamp    = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $refRoot  = [System.IO.Path]::Combine($script:OutputRoot, "ref-$stamp")
+    [System.IO.Directory]::CreateDirectory($refRoot) | Out-Null
+
+    $datasetKeys = @(
+        'routing-queues',
+        'users',
+        'authorization.get.all.divisions',
+        'routing.get.all.wrapup.codes',
+        'routing.get.all.routing.skills',
+        'routing.get.all.languages',
+        'flows.get.all.flows',
+        'flows.get.flow.outcomes',
+        'flows.get.flow.milestones'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($refRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        $invokeParams = @{
+            Dataset     = $key
+            CatalogPath = $script:CatalogPath
+            OutputRoot  = $dsRoot
+        }
+        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
+        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
+
+        try {
+            Invoke-Dataset @invokeParams | Out-Null
+        } catch {
+            Write-Warning "Refresh-ReferenceData: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
+        $runFolder = $null
+        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                    $runFolder = $grandchild
+                    break
+                }
+            }
+            if ($runFolder) { break }
+        }
+
+        $folderMap[$key] = $runFolder
+    }
+
+    return $folderMap
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
-    Get-RecentRunFolders, Get-DiagnosticsText
+    Get-RecentRunFolders, Get-DiagnosticsText, `
+    Refresh-ReferenceData

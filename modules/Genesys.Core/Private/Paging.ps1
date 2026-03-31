@@ -405,6 +405,11 @@ function Invoke-PagingPageNumber {
         $maxPages = [int]$pagingProfile.maxPages
     }
 
+    $pageCountPath = $null
+    if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'pageCountPath' -and [string]::IsNullOrWhiteSpace([string]$pagingProfile.pageCountPath) -eq $false) {
+        $pageCountPath = [string]$pagingProfile.pageCountPath
+    }
+
     $retrySettings = Resolve-RetryRuntimeSettings -RetryProfile $RetryProfile
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
@@ -443,6 +448,13 @@ function Invoke-PagingPageNumber {
 
         if ($null -ne $totalHits -and $collectedCount -ge [int]$totalHits) {
             $nextUri = $null
+        }
+
+        if ($null -ne $pageCountPath) {
+            $pageCount = Get-PagingValueFromResponse -Response $response -Path $pageCountPath
+            if ($null -ne $pageCount -and $pageNumber -ge [int]$pageCount) {
+                $nextUri = $null
+            }
         }
 
         $progressEvent = [pscustomobject]@{

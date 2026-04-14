@@ -434,6 +434,7 @@ function Get-QueuePerformanceReport {
         QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
         AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
         ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+        PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
     }
 }
 

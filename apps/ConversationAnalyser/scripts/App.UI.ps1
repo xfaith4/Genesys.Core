@@ -1273,7 +1273,9 @@ function _StartQueuePerfReportJob {
             if ($null -ne $Headers -and $Headers.Count -gt 0) {
                 $invokeParams['Headers'] = $Headers
             }
-            try { Invoke-Dataset @invokeParams | Out-Null } catch {}
+            try { Invoke-Dataset @invokeParams | Out-Null } catch {
+                $folderMap["$key.error"] = $_.Exception.Message
+            }
 
             $runFolder = $null
             foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
@@ -1292,6 +1294,7 @@ function _StartQueuePerfReportJob {
             QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
             AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
             ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+            PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
         }
     })
     [void]$ps.AddArgument($corePath)
@@ -1349,6 +1352,7 @@ function _StartQueuePerfReportJob {
                 $importStats = Import-QueuePerformanceReport -CaseId $job.CaseId -FolderMap $folderMap
                 $summary     = "Loaded $($importStats.RecordCount) queue-interval rows"
                 if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' — WARNING: one or more datasets failed to pull; data may be incomplete.' }
                 _SetStatus $summary
                 _PopulateQueuePerfDivisionFilter
                 _RenderQueuePerfGrid
@@ -1468,6 +1472,8 @@ function _RenderQueuePerfGrid {
     $script:LblQPerfSLAPct.Text     = "{0:F1}%" -f $summary.AvgSL30sPct
     $script:LblQPerfHandle.Text     = "{0:F1}" -f $summary.AvgHandleSec
 }
+
+function _ImportCurrentRunToCase {
     if (-not (Test-DatabaseInitialized)) {
         _SetStatus 'Case store offline'
         return

@@ -2584,7 +2584,9 @@ function Import-QueuePerformanceReport {
             foreach ($line in [System.IO.File]::ReadAllLines($f)) {
                 $t = $line.Trim()
                 if ($t) {
-                    try { $records.Add(($t | ConvertFrom-Json)) } catch {}
+                    try { $records.Add(($t | ConvertFrom-Json)) } catch {
+                        Write-Warning "Import-QueuePerformanceReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                    }
                 }
             }
         }
@@ -2776,6 +2778,7 @@ ON CONFLICT(row_id) DO UPDATE SET
                 } | Out-Null
                 $stats.RecordCount++
             } catch {
+                Write-Warning "Import-QueuePerformanceReport: failed to upsert row for queue '$qid' interval '$($entry.IntervalStart)' — $($_.Exception.Message)"
                 $stats.SkippedCount++
             }
         }

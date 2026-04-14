@@ -1167,6 +1167,121 @@
                                 </Grid>
                             </TabItem>
 
+                            <TabItem Header="Queue Performance" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Header card -->
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="QUEUE PERFORMANCE REPORT"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Per-queue volume, handling efficiency, abandon rate, and SLA compliance across the case time window."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Division:" Foreground="{StaticResource BrushSubtext}"
+                                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbQueuePerfDivision"
+                                                          Width="180" Height="28"
+                                                          ToolTip="Filter grid by division"/>
+                                            </StackPanel>
+                                            <Button x:Name="BtnPullQueuePerfReport" Grid.Column="3"
+                                                    Content="Pull Report"
+                                                    Style="{StaticResource BtnAccent}" Height="30"
+                                                    ToolTip="Fetches queue performance, abandon rate, and SLA data from Genesys Cloud for the current case time window."/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Summary bar -->
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="QUEUES" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfQueues" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="OFFERED" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfOffered" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="ABANDONED" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfAbandoned" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="AVG ABANDON %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfAbandonPct" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="AVG SLA 30s %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfSLAPct" Text="—"
+                                                           Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="AVG HANDLE (s)" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQPerfHandle" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- DataGrid -->
+                                    <Border Grid.Row="2"
+                                            Background="#0F161B"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="2">
+                                        <DataGrid x:Name="DgQueuePerf" Style="{StaticResource DgBase}" Margin="2">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Queue"         Binding="{Binding QueueName}"       Width="180" SortMemberPath="QueueName"/>
+                                                <DataGridTextColumn Header="Division"      Binding="{Binding DivisionName}"    Width="140" SortMemberPath="DivisionName"/>
+                                                <DataGridTextColumn Header="Interval"      Binding="{Binding IntervalStart}"   Width="160" SortMemberPath="IntervalStart"/>
+                                                <DataGridTextColumn Header="Offered"       Binding="{Binding NOffered}"        Width="70"  SortMemberPath="NOffered"/>
+                                                <DataGridTextColumn Header="Connected"     Binding="{Binding NConnected}"      Width="80"  SortMemberPath="NConnected"/>
+                                                <DataGridTextColumn Header="Abandoned"     Binding="{Binding NAbandoned}"      Width="80"  SortMemberPath="NAbandoned"/>
+                                                <DataGridTextColumn Header="Abandon %"     Binding="{Binding AbandonRatePct}"  Width="80"  SortMemberPath="AbandonRatePct"/>
+                                                <DataGridTextColumn Header="Handle (s)"    Binding="{Binding THandleAvgSec}"   Width="80"  SortMemberPath="THandleAvgSec"/>
+                                                <DataGridTextColumn Header="Talk (s)"      Binding="{Binding TTalkAvgSec}"     Width="70"  SortMemberPath="TTalkAvgSec"/>
+                                                <DataGridTextColumn Header="ACW (s)"       Binding="{Binding TAcwAvgSec}"      Width="70"  SortMemberPath="TAcwAvgSec"/>
+                                                <DataGridTextColumn Header="Ans ≤20s"      Binding="{Binding NAnsweredIn20}"   Width="70"  SortMemberPath="NAnsweredIn20"/>
+                                                <DataGridTextColumn Header="Ans ≤30s"      Binding="{Binding NAnsweredIn30}"   Width="70"  SortMemberPath="NAnsweredIn30"/>
+                                                <DataGridTextColumn Header="SLA 30s %"     Binding="{Binding ServiceLevelPct}" Width="80"  SortMemberPath="ServiceLevelPct"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </Grid>
+                            </TabItem>
+
                             <TabItem Header="Run Console" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>

@@ -399,7 +399,22 @@ Documentation: add a note describing the reference data model, the intended refr
 
 ---
 
-## Session 14: Queue Performance Aggregate Report
+## Session 14: Queue Performance Aggregate Report — **COMPLETE**
+
+> **What was delivered:** `Get-QueuePerformanceReport` added to `App.CoreAdapter.psm1` — calls
+> `Invoke-Dataset` for three aggregate datasets in sequence (`analytics.query.conversation.aggregates.queue.performance`,
+> `analytics.query.conversation.aggregates.abandon.metrics`, `analytics.query.queue.aggregates.service.level`)
+> using the case time window as the `Interval` `DatasetParameters` override; returns a hashtable with
+> `QueuePerfFolder`, `AbandonFolder`, and `ServiceLevelFolder`.  `Import-QueuePerformanceReport` added
+> to `App.Database.psm1` — parses all three JSONL outputs, merges by `queueId|intervalStart`, resolves
+> queue names and division names from the ref tables, computes `abandon_rate_pct` (nAbandoned / nOffered × 100)
+> and `service_level_pct` (nAnsweredIn30 / nOffered × 100), and upserts into the new `report_queue_perf`
+> table (schema v5).  `Get-QueuePerfRows` and `Get-QueuePerfSummary` added for grid and summary-bar reads.
+> "Queue Performance" `TabItem` added to `MainWindow.xaml` with header card, summary bar (Queues, Offered,
+> Abandoned, Avg Abandon %, Avg SLA 30s %, Avg Handle), Division filter `ComboBox`, and 13-column
+> `DgQueuePerf` `DataGrid`.  `_StartQueuePerfReportJob`, `_RenderQueuePerfGrid`, and
+> `_PopulateQueuePerfDivisionFilter` added to `App.UI.ps1`; the division filter repopulates from the
+> database after each import and on case activation.
 
 Scope: deliver the first aggregate report: a per-queue view of volume, handling efficiency, and abandon risk across the current case's time window — with names resolved from the reference layer built in Session 13.
 

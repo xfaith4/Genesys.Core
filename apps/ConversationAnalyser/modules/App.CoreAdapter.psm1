@@ -348,9 +348,98 @@ function Refresh-ReferenceData {
     return $folderMap
 }
 
+function Get-QueuePerformanceReport {
+    <#
+    .SYNOPSIS
+        Session 14 — pulls three queue-performance aggregate datasets and returns
+        their run folder paths for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.queue.performance
+          - analytics.query.conversation.aggregates.abandon.metrics
+          - analytics.query.queue.aggregates.service.level
+
+        All three calls use the same StartDateTime / EndDateTime window so the
+        data aligns on interval boundaries.  Results are written under
+        OutputRoot\report-queue-perf-<timestamp>\.
+
+        Returns a hashtable with keys:
+          QueuePerfFolder     — run folder for the queue-performance dataset
+          AbandonFolder       — run folder for the abandon-metrics dataset
+          ServiceLevelFolder  — run folder for the service-level dataset
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-queue-perf-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    # Shared DatasetParameters body override — supply interval so all three
+    # queries share the same window.
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.queue.performance',
+        'analytics.query.conversation.aggregates.abandon.metrics',
+        'analytics.query.queue.aggregates.service.level'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        $invokeParams = @{
+            Dataset            = $key
+            CatalogPath        = $script:CatalogPath
+            OutputRoot         = $dsRoot
+            DatasetParameters  = @{ Interval = $interval }
+        }
+        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
+        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
+
+        try {
+            Invoke-Dataset @invokeParams | Out-Null
+        } catch {
+            Write-Warning "Get-QueuePerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
+        $runFolder = $null
+        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                    $runFolder = $grandchild
+                    break
+                }
+            }
+            if ($runFolder) { break }
+        }
+        $folderMap[$key] = $runFolder
+    }
+
+    return @{
+        QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
+        AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
+        ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
-    Refresh-ReferenceData
+    Refresh-ReferenceData, Get-QueuePerformanceReport

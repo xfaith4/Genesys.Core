@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 4
+$script:SchemaVersion = 5
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -956,6 +956,37 @@ CREATE TABLE IF NOT EXISTS ref_flow_milestones (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_flows_id       ON ref_flows(flow_id)'           | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_outcomes_case  ON ref_flow_outcomes(case_id)'   | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_ref_milestones_case ON ref_flow_milestones(case_id)'| Out-Null
+
+    # Schema v5 — Queue Performance aggregate report table (Session 14)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_queue_perf (
+    row_id              TEXT    PRIMARY KEY,
+    case_id             TEXT    NOT NULL REFERENCES cases(case_id),
+    queue_id            TEXT    NOT NULL DEFAULT '',
+    queue_name          TEXT    NOT NULL DEFAULT '',
+    division_id         TEXT    NOT NULL DEFAULT '',
+    division_name       TEXT    NOT NULL DEFAULT '',
+    interval_start      TEXT    NOT NULL DEFAULT '',
+    n_offered           INTEGER NOT NULL DEFAULT 0,
+    n_connected         INTEGER NOT NULL DEFAULT 0,
+    n_abandoned         INTEGER NOT NULL DEFAULT 0,
+    abandon_rate_pct    REAL    NOT NULL DEFAULT 0,
+    t_handle_avg_sec    REAL    NOT NULL DEFAULT 0,
+    t_talk_avg_sec      REAL    NOT NULL DEFAULT 0,
+    t_acw_avg_sec       REAL    NOT NULL DEFAULT 0,
+    n_answered_in_20    INTEGER NOT NULL DEFAULT 0,
+    n_answered_in_30    INTEGER NOT NULL DEFAULT 0,
+    n_answered_in_60    INTEGER NOT NULL DEFAULT 0,
+    service_level_pct   REAL    NOT NULL DEFAULT 0,
+    imported_utc        TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    # v5 indexes
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_qperf_case_id       ON report_queue_perf(case_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_qperf_queue_id      ON report_queue_perf(queue_id)'     | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_qperf_division_id   ON report_queue_perf(division_id)'  | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_qperf_interval      ON report_queue_perf(interval_start)'| Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -2505,6 +2536,380 @@ function Get-ResolvedName {
     return $null
 }
 
+# ── Public: Queue Performance Report (Session 14) ─────────────────────────────
+
+function Import-QueuePerformanceReport {
+    <#
+    .SYNOPSIS
+        Imports queue performance aggregate data from three Core run folders into
+        the report_queue_perf table for the active case.
+    .DESCRIPTION
+        Reads JSONL outputs from:
+          - analytics.query.conversation.aggregates.queue.performance (nConnected, tHandle, tTalk, tAcw, nOffered)
+          - analytics.query.conversation.aggregates.abandon.metrics    (nAbandoned, nOffered)
+          - analytics.query.queue.aggregates.service.level             (nAnsweredIn20/30/60, nOffered)
+
+        Each JSONL record has the shape:
+            { "group": { "queueId": "...", ... }, "data": [ { "interval": "start/end", "metrics": [...] } ] }
+
+        Rows are upserted by (case_id, queue_id, interval_start).  Queue names and
+        division names are resolved from ref_queues / ref_divisions.
+
+        Returns a hashtable with RecordCount and SkippedCount.
+    .PARAMETER CaseId
+        Target case identifier.
+    .PARAMETER FolderMap
+        Hashtable returned by Get-QueuePerformanceReport (App.CoreAdapter.psm1).
+        Keys: 'QueuePerfFolder', 'AbandonFolder', 'ServiceLevelFolder'.
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    $now    = [datetime]::UtcNow.ToString('o')
+    $stats  = @{ RecordCount = 0; SkippedCount = 0 }
+
+    # ── Helper: read JSONL records from a run folder ──────────────────────────
+    function _ReadAggJsonl ([string]$RunFolder) {
+        if ([string]::IsNullOrWhiteSpace($RunFolder) -or
+            -not [System.IO.Directory]::Exists($RunFolder)) {
+            return @()
+        }
+        $dataDir = [System.IO.Path]::Combine($RunFolder, 'data')
+        if (-not [System.IO.Directory]::Exists($dataDir)) { return @() }
+        $records = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+            foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                $t = $line.Trim()
+                if ($t) {
+                    try { $records.Add(($t | ConvertFrom-Json)) } catch {
+                        Write-Warning "Import-QueuePerformanceReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+        return $records.ToArray()
+    }
+
+    # ── Helper: flatten a single result record into per-interval metric rows ──
+    # Returns List<hashtable> with keys: queueId, intervalStart, metrics{}
+    function _FlattenAggResult ([object]$Result) {
+        $rows = [System.Collections.Generic.List[hashtable]]::new()
+        if ($null -eq $Result -or $null -eq $Result.data) { return $rows }
+        $queueId = [string]($Result.group.queueId)
+        if (-not $queueId) { return $rows }
+        foreach ($d in @($Result.data)) {
+            $istr = [string]($d.interval)
+            # interval is "startISO/endISO" — take the start part
+            $intervalStart = if ($istr -match '^([^/]+)/') { $Matches[1] } else { $istr }
+            $mHash = @{}
+            foreach ($m in @($d.metrics)) {
+                $mHash[$m.metric] = $m.stats
+            }
+            $rows.Add(@{
+                QueueId       = $queueId
+                IntervalStart = $intervalStart
+                Metrics       = $mHash
+            })
+        }
+        return $rows
+    }
+
+    # ── Build merged dictionary keyed by "queueId|intervalStart" ─────────────
+    $merged = @{}   # key → hashtable with queued up metric values
+
+    function _Ensure ([string]$Key, [string]$Qid, [string]$Istart) {
+        if (-not $merged.ContainsKey($Key)) {
+            $merged[$Key] = @{
+                QueueId         = $Qid
+                IntervalStart   = $Istart
+                nConnected      = 0
+                tHandleSum      = 0.0
+                tTalkSum        = 0.0
+                tAcwSum         = 0.0
+                nOfferedPerf    = 0
+                nAbandoned      = 0
+                nOfferedAbandon = 0
+                nAnsweredIn20   = 0
+                nAnsweredIn30   = 0
+                nAnsweredIn60   = 0
+                nOfferedSL      = 0
+            }
+        }
+    }
+
+    # Queue performance dataset
+    $qpFolder = if ($FolderMap.ContainsKey('QueuePerfFolder'))   { $FolderMap['QueuePerfFolder']   } else { $null }
+    foreach ($r in (_ReadAggJsonl $qpFolder)) {
+        foreach ($row in (_FlattenAggResult $r)) {
+            $key = "$($row.QueueId)|$($row.IntervalStart)"
+            _Ensure $key $row.QueueId $row.IntervalStart
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('nConnected'))  { $merged[$key].nConnected    += [int]  ($mx['nConnected'].count) }
+            if ($mx.ContainsKey('tHandle'))     { $merged[$key].tHandleSum    += [double]($mx['tHandle'].sum)    }
+            if ($mx.ContainsKey('tTalk'))       { $merged[$key].tTalkSum      += [double]($mx['tTalk'].sum)      }
+            if ($mx.ContainsKey('tAcw'))        { $merged[$key].tAcwSum       += [double]($mx['tAcw'].sum)       }
+            if ($mx.ContainsKey('nOffered'))    { $merged[$key].nOfferedPerf  += [int]  ($mx['nOffered'].count)  }
+        }
+    }
+
+    # Abandon metrics dataset
+    $abFolder = if ($FolderMap.ContainsKey('AbandonFolder'))    { $FolderMap['AbandonFolder']    } else { $null }
+    foreach ($r in (_ReadAggJsonl $abFolder)) {
+        foreach ($row in (_FlattenAggResult $r)) {
+            $key = "$($row.QueueId)|$($row.IntervalStart)"
+            _Ensure $key $row.QueueId $row.IntervalStart
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('nAbandoned'))  { $merged[$key].nAbandoned      += [int]($mx['nAbandoned'].count) }
+            if ($mx.ContainsKey('nOffered'))    { $merged[$key].nOfferedAbandon += [int]($mx['nOffered'].count)   }
+        }
+    }
+
+    # Service level dataset
+    $slFolder = if ($FolderMap.ContainsKey('ServiceLevelFolder')) { $FolderMap['ServiceLevelFolder'] } else { $null }
+    foreach ($r in (_ReadAggJsonl $slFolder)) {
+        foreach ($row in (_FlattenAggResult $r)) {
+            $key = "$($row.QueueId)|$($row.IntervalStart)"
+            _Ensure $key $row.QueueId $row.IntervalStart
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('nAnsweredIn20')) { $merged[$key].nAnsweredIn20 += [int]($mx['nAnsweredIn20'].count) }
+            if ($mx.ContainsKey('nAnsweredIn30')) { $merged[$key].nAnsweredIn30 += [int]($mx['nAnsweredIn30'].count) }
+            if ($mx.ContainsKey('nAnsweredIn60')) { $merged[$key].nAnsweredIn60 += [int]($mx['nAnsweredIn60'].count) }
+            if ($mx.ContainsKey('nOffered'))      { $merged[$key].nOfferedSL   += [int]($mx['nOffered'].count)      }
+        }
+    }
+
+    if ($merged.Count -eq 0) {
+        return $stats
+    }
+
+    # ── Resolve queue names and division names ────────────────────────────────
+    $conn = _Open
+    try {
+        foreach ($entry in $merged.Values) {
+            $qid    = $entry.QueueId
+            $rowKey = "$CaseId|qperf|$qid|$($entry.IntervalStart)"
+
+            # Resolve queue name and division id from ref_queues
+            $qname  = ''
+            $divId  = ''
+            $qRow   = _Query -Conn $conn -Sql @'
+SELECT name, division_id FROM ref_queues
+WHERE case_id = @cid AND queue_id = @qid
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId; '@qid' = $qid }
+            if ($qRow.Count -gt 0) {
+                $qname = [string]($qRow[0].name)
+                $divId = [string]($qRow[0].division_id)
+            }
+            if (-not $qname) { $qname = "$qid (unresolved)" }
+
+            # Resolve division name from ref_divisions
+            $divName = ''
+            if ($divId) {
+                $dRow = _Query -Conn $conn -Sql @'
+SELECT name FROM ref_divisions
+WHERE case_id = @cid AND division_id = @did
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId; '@did' = $divId }
+                if ($dRow.Count -gt 0) { $divName = [string]($dRow[0].name) }
+            }
+
+            # Derive computed metrics
+            $nConn      = $entry.nConnected
+            $tHandleSec = if ($nConn -gt 0) { [Math]::Round($entry.tHandleSum / $nConn / 1000.0, 1) } else { 0.0 }
+            $tTalkSec   = if ($nConn -gt 0) { [Math]::Round($entry.tTalkSum   / $nConn / 1000.0, 1) } else { 0.0 }
+            $tAcwSec    = if ($nConn -gt 0) { [Math]::Round($entry.tAcwSum    / $nConn / 1000.0, 1) } else { 0.0 }
+
+            # nOffered: prefer abandon dataset's offered (more complete), fall back to perf
+            $nOffered    = if ($entry.nOfferedAbandon -gt 0) { $entry.nOfferedAbandon } else { $entry.nOfferedPerf }
+            $nAbandoned  = $entry.nAbandoned
+            $abanRate    = if ($nOffered -gt 0) { [Math]::Round(($nAbandoned / $nOffered) * 100.0, 1) } else { 0.0 }
+
+            $nOfferedSL  = if ($entry.nOfferedSL -gt 0) { $entry.nOfferedSL } else { $nOffered }
+            $slPct       = if ($nOfferedSL -gt 0) { [Math]::Round(($entry.nAnsweredIn30 / $nOfferedSL) * 100.0, 1) } else { 0.0 }
+
+            try {
+                _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_queue_perf(
+    row_id, case_id, queue_id, queue_name, division_id, division_name, interval_start,
+    n_offered, n_connected, n_abandoned, abandon_rate_pct,
+    t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
+    n_answered_in_20, n_answered_in_30, n_answered_in_60, service_level_pct,
+    imported_utc)
+VALUES(
+    @rid, @cid, @qid, @qname, @divid, @divname, @istart,
+    @noff, @nconn, @naban, @abanrate,
+    @thandle, @ttalk, @tacw,
+    @n20, @n30, @n60, @slpct,
+    @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    queue_name=excluded.queue_name, division_id=excluded.division_id,
+    division_name=excluded.division_name,
+    n_offered=excluded.n_offered, n_connected=excluded.n_connected,
+    n_abandoned=excluded.n_abandoned, abandon_rate_pct=excluded.abandon_rate_pct,
+    t_handle_avg_sec=excluded.t_handle_avg_sec, t_talk_avg_sec=excluded.t_talk_avg_sec,
+    t_acw_avg_sec=excluded.t_acw_avg_sec,
+    n_answered_in_20=excluded.n_answered_in_20, n_answered_in_30=excluded.n_answered_in_30,
+    n_answered_in_60=excluded.n_answered_in_60, service_level_pct=excluded.service_level_pct,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                    '@rid'     = $rowKey
+                    '@cid'     = $CaseId
+                    '@qid'     = $qid
+                    '@qname'   = $qname
+                    '@divid'   = $divId
+                    '@divname' = $divName
+                    '@istart'  = $entry.IntervalStart
+                    '@noff'    = $nOffered
+                    '@nconn'   = $nConn
+                    '@naban'   = $nAbandoned
+                    '@abanrate'= $abanRate
+                    '@thandle' = $tHandleSec
+                    '@ttalk'   = $tTalkSec
+                    '@tacw'    = $tAcwSec
+                    '@n20'     = $entry.nAnsweredIn20
+                    '@n30'     = $entry.nAnsweredIn30
+                    '@n60'     = $entry.nAnsweredIn60
+                    '@slpct'   = $slPct
+                    '@ts'      = $now
+                } | Out-Null
+                $stats.RecordCount++
+            } catch {
+                Write-Warning "Import-QueuePerformanceReport: failed to upsert row for queue '$qid' interval '$($entry.IntervalStart)' — $($_.Exception.Message)"
+                $stats.SkippedCount++
+            }
+        }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return $stats
+}
+
+function Get-QueuePerfRows {
+    <#
+    .SYNOPSIS
+        Returns queue performance rows for a case, optionally filtered by division.
+    .DESCRIPTION
+        Returns all rows from report_queue_perf for the given case, sorted by
+        interval_start ascending then queue_name ascending.  When DivisionId is
+        provided, only rows for that division are returned.
+    .PARAMETER CaseId
+        The case to query.
+    .PARAMETER DivisionId
+        Optional division GUID to filter by.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $DivisionId = ''
+    )
+    _RequireDb
+
+    if ($DivisionId) {
+        $sql = @'
+SELECT queue_id, queue_name, division_id, division_name, interval_start,
+       n_offered, n_connected, n_abandoned, abandon_rate_pct,
+       t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
+       n_answered_in_20, n_answered_in_30, n_answered_in_60, service_level_pct
+FROM   report_queue_perf
+WHERE  case_id = @cid AND division_id = @did
+ORDER  BY interval_start ASC, queue_name ASC
+'@
+        $p = @{ '@cid' = $CaseId; '@did' = $DivisionId }
+    } else {
+        $sql = @'
+SELECT queue_id, queue_name, division_id, division_name, interval_start,
+       n_offered, n_connected, n_abandoned, abandon_rate_pct,
+       t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
+       n_answered_in_20, n_answered_in_30, n_answered_in_60, service_level_pct
+FROM   report_queue_perf
+WHERE  case_id = @cid
+ORDER  BY interval_start ASC, queue_name ASC
+'@
+        $p = @{ '@cid' = $CaseId }
+    }
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return @($rows)
+}
+
+function Get-QueuePerfSummary {
+    <#
+    .SYNOPSIS
+        Returns org-wide aggregate totals across all report_queue_perf rows for a case.
+    .DESCRIPTION
+        Rolls up all rows (or those matching an optional DivisionId filter) into a
+        single summary object used to populate the summary bar above the DataGrid.
+    .PARAMETER CaseId
+        The case to query.
+    .PARAMETER DivisionId
+        Optional division GUID to filter by.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $DivisionId = ''
+    )
+    _RequireDb
+
+    if ($DivisionId) {
+        $sql = @'
+SELECT
+    COUNT(DISTINCT queue_id)    AS total_queues,
+    SUM(n_offered)              AS total_offered,
+    SUM(n_abandoned)            AS total_abandoned,
+    AVG(abandon_rate_pct)       AS avg_abandon_pct,
+    AVG(service_level_pct)      AS avg_sl_30s_pct,
+    AVG(t_handle_avg_sec)       AS avg_handle_sec
+FROM report_queue_perf
+WHERE case_id = @cid AND division_id = @did
+'@
+        $p = @{ '@cid' = $CaseId; '@did' = $DivisionId }
+    } else {
+        $sql = @'
+SELECT
+    COUNT(DISTINCT queue_id)    AS total_queues,
+    SUM(n_offered)              AS total_offered,
+    SUM(n_abandoned)            AS total_abandoned,
+    AVG(abandon_rate_pct)       AS avg_abandon_pct,
+    AVG(service_level_pct)      AS avg_sl_30s_pct,
+    AVG(t_handle_avg_sec)       AS avg_handle_sec
+FROM report_queue_perf
+WHERE case_id = @cid
+'@
+        $p = @{ '@cid' = $CaseId }
+    }
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    if ($rows.Count -eq 0) {
+        return [pscustomobject]@{
+            TotalQueues   = 0
+            TotalOffered  = 0
+            TotalAbandoned= 0
+            AvgAbandonPct = 0.0
+            AvgSL30sPct   = 0.0
+            AvgHandleSec  = 0.0
+        }
+    }
+    $r = $rows[0]
+    return [pscustomobject]@{
+        TotalQueues    = [int]   (_RowVal $r 'total_queues'   0)
+        TotalOffered   = [int]   (_RowVal $r 'total_offered'  0)
+        TotalAbandoned = [int]   (_RowVal $r 'total_abandoned' 0)
+        AvgAbandonPct  = [double](_RowVal $r 'avg_abandon_pct' 0.0)
+        AvgSL30sPct    = [double](_RowVal $r 'avg_sl_30s_pct'  0.0)
+        AvgHandleSec   = [double](_RowVal $r 'avg_handle_sec'  0.0)
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -2518,4 +2923,5 @@ Export-ModuleMember -Function `
     Register-CoreRun, Get-CoreRuns, `
     New-Import, Complete-Import, Fail-Import, Get-Imports, Import-RunFolderToCase, `
     Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationById, `
-    Import-ReferenceDataToCase, Get-ResolvedName
+    Import-ReferenceDataToCase, Get-ResolvedName, `
+    Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary

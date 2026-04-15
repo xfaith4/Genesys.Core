@@ -1,6 +1,18 @@
 # Changelog
 
-## 2026-03-31
+## 2026-04-14
+
+### Added
+
+- **ConversationAnalyser Session 14 — Queue Performance Aggregate Report:**
+  - `Get-QueuePerformanceReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.conversation.aggregates.queue.performance`, `analytics.query.conversation.aggregates.abandon.metrics`, and `analytics.query.queue.aggregates.service.level` for the case time window and returns a `{QueuePerfFolder, AbandonFolder, ServiceLevelFolder}` hashtable.
+  - `Import-QueuePerformanceReport` added to `App.Database.psm1` — merges the three JSONL outputs by `queueId|intervalStart`, resolves queue and division names from ref tables, computes `abandon_rate_pct` and `service_level_pct`, and upserts into `report_queue_perf`.
+  - `Get-QueuePerfRows` and `Get-QueuePerfSummary` added to `App.Database.psm1` for grid reads and summary-bar roll-ups.
+  - Schema bumped to **v5** — adds `report_queue_perf` table with four indexes.
+  - **"Queue Performance" tab** added to `MainWindow.xaml`: header card with Pull Report button and Division filter, summary bar (Queues, Offered, Abandoned, Avg Abandon %, Avg SLA 30s %, Avg Handle), 13-column `DgQueuePerf` DataGrid.
+  - `_StartQueuePerfReportJob`, `_RenderQueuePerfGrid`, `_PopulateQueuePerfDivisionFilter` added to `App.UI.ps1`; division filter repopulates from the database after each import and on case activation.
+
+
 
 ### Added
 

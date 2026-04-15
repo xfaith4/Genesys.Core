@@ -46,6 +46,17 @@ $script:BtnRefreshRefData      = _Ctrl 'BtnRefreshRefData'
 $script:BtnGenerateReport      = _Ctrl 'BtnGenerateReport'
 $script:BtnSaveReportSnapshot  = _Ctrl 'BtnSaveReportSnapshot'
 
+# Queue Performance tab
+$script:BtnPullQueuePerfReport  = _Ctrl 'BtnPullQueuePerfReport'
+$script:CmbQueuePerfDivision    = _Ctrl 'CmbQueuePerfDivision'
+$script:DgQueuePerf             = _Ctrl 'DgQueuePerf'
+$script:LblQPerfQueues          = _Ctrl 'LblQPerfQueues'
+$script:LblQPerfOffered         = _Ctrl 'LblQPerfOffered'
+$script:LblQPerfAbandoned       = _Ctrl 'LblQPerfAbandoned'
+$script:LblQPerfAbandonPct      = _Ctrl 'LblQPerfAbandonPct'
+$script:LblQPerfSLAPct          = _Ctrl 'LblQPerfSLAPct'
+$script:LblQPerfHandle          = _Ctrl 'LblQPerfHandle'
+
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
 $script:BtnSearch              = _Ctrl 'BtnSearch'
@@ -117,6 +128,10 @@ $script:State = @{
     RefreshRefRunspace  = $null
     RefreshRefTimer     = $null
     RefreshRefCaseId    = ''       # case targeted by in-progress reference refresh
+    QueuePerfJob        = $null    # PSDataCollection for queue-performance background pull
+    QueuePerfRunspace   = $null
+    QueuePerfTimer      = $null
+    QueuePerfCaseId     = ''       # case targeted by in-progress queue-perf pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -337,6 +352,8 @@ function _RefreshActiveCaseStatus {
         $script:BtnManageCase.IsEnabled    = $true
         $script:BtnImportRun.IsEnabled     = $true
         $script:BtnRefreshRefData.IsEnabled = $true
+        _PopulateQueuePerfDivisionFilter
+        _RenderQueuePerfGrid
     }
 }
 
@@ -1153,6 +1170,307 @@ function _StartRefreshReferenceDataJob {
     })
 
     $timer.Start()
+}
+
+function _StartQueuePerfReportJob {
+    <#
+        Pulls queue-performance aggregate datasets (queue perf, abandon metrics,
+        service level) in a background runspace for the current case time window,
+        then imports the results into report_queue_perf and refreshes the grid.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Queue Performance')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Queue Performance')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling queue performance data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Queue Performance')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling queue performance data.', 'Queue Performance')
+        return
+    }
+
+    $startDt   = $range.Start.ToUniversalTime().ToString('o')
+    $endDt     = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Pulling queue performance report…'
+    $script:BtnPullQueuePerfReport.IsEnabled = $false
+    $script:State.QueuePerfCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+
+    [void]$ps.AddScript({
+        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        Set-StrictMode -Version Latest
+
+        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
+        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
+
+        Import-Module $CorePath -Force -ErrorAction Stop
+
+        $assertParams = @{ CatalogPath = $CatalogPath }
+        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
+        Assert-Catalog @assertParams -ErrorAction Stop
+
+        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
+            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+        }
+
+        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+        $repRoot = [System.IO.Path]::Combine($OutputRoot, "report-queue-perf-$stamp")
+        [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+        $interval    = "$StartDt/$EndDt"
+        $datasetKeys = @(
+            'analytics.query.conversation.aggregates.queue.performance',
+            'analytics.query.conversation.aggregates.abandon.metrics',
+            'analytics.query.queue.aggregates.service.level'
+        )
+
+        $folderMap = @{}
+        foreach ($key in $datasetKeys) {
+            $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+            $invokeParams = @{
+                Dataset           = $key
+                CatalogPath       = $CatalogPath
+                OutputRoot        = $dsRoot
+                DatasetParameters = @{ Interval = $interval }
+                BaseUri           = $BaseUri
+            }
+            if ($null -ne $Headers -and $Headers.Count -gt 0) {
+                $invokeParams['Headers'] = $Headers
+            }
+            try { Invoke-Dataset @invokeParams | Out-Null } catch {
+                $folderMap["$key.error"] = $_.Exception.Message
+            }
+
+            $runFolder = $null
+            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                        $runFolder = $grandchild
+                        break
+                    }
+                }
+                if ($runFolder) { break }
+            }
+            $folderMap[$key] = $runFolder
+        }
+
+        return @{
+            QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
+            AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
+            ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+            PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+        }
+    })
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.QueuePerfJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.QueuePerfRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.QueuePerfTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.QueuePerfJob
+        if ($null -eq $job) { $script:State.QueuePerfTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.QueuePerfTimer.Stop()
+        $script:State.QueuePerfTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                               catch {}
+            try { $script:State.QueuePerfRunspace.Close() }        catch {}
+            try { $script:State.QueuePerfRunspace.Dispose() }      catch {}
+            $script:State.QueuePerfJob      = $null
+            $script:State.QueuePerfRunspace = $null
+            $script:State.QueuePerfCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Queue performance pull failed'
+            _Dispatch { $script:BtnPullQueuePerfReport.IsEnabled = $true }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Queue Performance')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-QueuePerformanceReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary     = "Loaded $($importStats.RecordCount) queue-interval rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' — WARNING: one or more datasets failed to pull; data may be incomplete.' }
+                _SetStatus $summary
+                _PopulateQueuePerfDivisionFilter
+                _RenderQueuePerfGrid
+                [System.Windows.MessageBox]::Show($summary, 'Queue Performance Report')
+            } catch {
+                _SetStatus 'Queue performance import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Queue Performance')
+            }
+        } else {
+            _SetStatus 'Queue performance pull completed (no data returned)'
+        }
+
+        _Dispatch { $script:BtnPullQueuePerfReport.IsEnabled = $true }
+    })
+
+    $timer.Start()
+}
+
+function _PopulateQueuePerfDivisionFilter {
+    <#
+        Populates CmbQueuePerfDivision with divisions from ref_divisions for the
+        active case.  Preserves the current selection if still valid.
+    #>
+    if ($null -eq $script:CmbQueuePerfDivision) { return }
+    if (-not (Test-DatabaseInitialized))        { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId))       { return }
+
+    # Read divisions from the reference table
+    $divRows = @()
+    try {
+        # Re-use the DB helper via Get-ResolvedName — but we need the full list.
+        # Query directly via the public Get-QueuePerfRows unique divisions.
+        $rows    = @(Get-QueuePerfRows -CaseId $caseId)
+        $divRows = $rows |
+            Where-Object { $_.division_id -and $_.division_name } |
+            Select-Object @{n='DivisionId';e={$_.division_id}}, @{n='Name';e={$_.division_name}} |
+            Sort-Object Name -Unique
+    } catch {}
+
+    $prevSel = $null
+    if ($null -ne $script:CmbQueuePerfDivision.SelectedItem) {
+        $prevSel = $script:CmbQueuePerfDivision.SelectedItem.DivisionId
+    }
+
+    $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+    foreach ($d in $divRows) { $items.Add($d) }
+
+    $script:CmbQueuePerfDivision.ItemsSource   = $items
+    $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
+    $script:CmbQueuePerfDivision.SelectedIndex = 0
+
+    # Re-select previously chosen division if still present
+    if ($prevSel) {
+        for ($i = 1; $i -lt $items.Count; $i++) {
+            if ($items[$i].DivisionId -eq $prevSel) {
+                $script:CmbQueuePerfDivision.SelectedIndex = $i
+                break
+            }
+        }
+    }
+}
+
+function _RenderQueuePerfGrid {
+    <#
+        Reads report_queue_perf rows for the active case (with optional division filter),
+        populates the DgQueuePerf DataGrid, and updates the summary bar labels.
+    #>
+    if (-not (Test-DatabaseInitialized)) { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { return }
+
+    # Resolve selected division filter
+    $divisionId = ''
+    if ($null -ne $script:CmbQueuePerfDivision) {
+        $sel = $script:CmbQueuePerfDivision.SelectedItem
+        if ($null -ne $sel -and $sel.DivisionId) {
+            $divisionId = [string]$sel.DivisionId
+        }
+    }
+
+    try {
+        $rows    = @(Get-QueuePerfRows -CaseId $caseId -DivisionId $divisionId)
+        $summary = Get-QueuePerfSummary -CaseId $caseId -DivisionId $divisionId
+    } catch {
+        _SetStatus "Queue perf read failed: $_"
+        return
+    }
+
+    # Build observable collection for binding
+    $displayRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($r in $rows) {
+        $displayRows.Add([pscustomobject]@{
+            QueueName       = [string]($r.queue_name)
+            DivisionName    = [string]($r.division_name)
+            IntervalStart   = [string]($r.interval_start)
+            NOffered        = [int]   ($r.n_offered)
+            NConnected      = [int]   ($r.n_connected)
+            NAbandoned      = [int]   ($r.n_abandoned)
+            AbandonRatePct  = [string]("{0:F1}" -f [double]($r.abandon_rate_pct))
+            THandleAvgSec   = [string]("{0:F1}" -f [double]($r.t_handle_avg_sec))
+            TTalkAvgSec     = [string]("{0:F1}" -f [double]($r.t_talk_avg_sec))
+            TAcwAvgSec      = [string]("{0:F1}" -f [double]($r.t_acw_avg_sec))
+            NAnsweredIn20   = [int]   ($r.n_answered_in_20)
+            NAnsweredIn30   = [int]   ($r.n_answered_in_30)
+            ServiceLevelPct = [string]("{0:F1}" -f [double]($r.service_level_pct))
+        })
+    }
+    $script:DgQueuePerf.ItemsSource = $displayRows
+
+    # Update summary bar
+    $script:LblQPerfQueues.Text     = [string]($summary.TotalQueues)
+    $script:LblQPerfOffered.Text    = [string]($summary.TotalOffered)
+    $script:LblQPerfAbandoned.Text  = [string]($summary.TotalAbandoned)
+    $script:LblQPerfAbandonPct.Text = "{0:F1}%" -f $summary.AvgAbandonPct
+    $script:LblQPerfSLAPct.Text     = "{0:F1}%" -f $summary.AvgSL30sPct
+    $script:LblQPerfHandle.Text     = "{0:F1}" -f $summary.AvgHandleSec
 }
 
 function _ImportCurrentRunToCase {
@@ -2729,6 +3047,14 @@ $script:BtnManageCase.Add_Click({ _ShowCaseDialog | Out-Null })
 $script:BtnImportRun.Add_Click({ _ImportCurrentRunToCase })
 
 $script:BtnRefreshRefData.Add_Click({ _StartRefreshReferenceDataJob })
+
+if ($null -ne $script:BtnPullQueuePerfReport) {
+    $script:BtnPullQueuePerfReport.Add_Click({ _StartQueuePerfReportJob })
+}
+
+if ($null -ne $script:CmbQueuePerfDivision) {
+    $script:CmbQueuePerfDivision.Add_SelectionChanged({ _RenderQueuePerfGrid })
+}
 
 $script:BtnRun.Add_Click({
     try {

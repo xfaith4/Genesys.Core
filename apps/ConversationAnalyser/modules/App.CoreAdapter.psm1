@@ -454,10 +454,10 @@ function Get-AgentPerformanceReport {
         OutputRoot\report-agent-perf-<timestamp>\.
 
         Returns a hashtable with keys:
-          AgentPerfFolder  — run folder for the agent-performance dataset
-          UserPerfFolder   — run folder for the user-performance-metrics dataset
-          LoginFolder      — run folder for the login-activity dataset
-          PartialFailure   — $true if any dataset folder is null
+          AgentPerfFolder       — run folder for the conversation-aggregate agent-performance dataset
+          UserPerfFolder        — run folder for the user-aggregate performance-metrics dataset
+          LoginActivityFolder   — run folder for the user-aggregate login-activity dataset
+          PartialFailure        — $true if any dataset call failed
     .PARAMETER StartDateTime
         UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
     .PARAMETER EndDateTime
@@ -505,6 +505,7 @@ function Get-AgentPerformanceReport {
             Write-Warning "Get-AgentPerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
         }
 
+        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
         $runFolder = $null
         foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
             foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
@@ -519,10 +520,10 @@ function Get-AgentPerformanceReport {
     }
 
     return @{
-        AgentPerfFolder = $folderMap['analytics.query.conversation.aggregates.agent.performance']
-        UserPerfFolder  = $folderMap['analytics.query.user.aggregates.performance.metrics']
-        LoginFolder     = $folderMap['analytics.query.user.aggregates.login.activity']
-        PartialFailure  = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+        AgentPerfFolder     = $folderMap['analytics.query.conversation.aggregates.agent.performance']
+        UserPerfFolder      = $folderMap['analytics.query.user.aggregates.performance.metrics']
+        LoginActivityFolder = $folderMap['analytics.query.user.aggregates.login.activity']
+        PartialFailure      = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
     }
 }
 

@@ -64,9 +64,9 @@ $script:DgAgentPerf             = _Ctrl 'DgAgentPerf'
 $script:LblAPerfAgents          = _Ctrl 'LblAPerfAgents'
 $script:LblAPerfConnected       = _Ctrl 'LblAPerfConnected'
 $script:LblAPerfHandle          = _Ctrl 'LblAPerfHandle'
-$script:LblAPerfTalk            = _Ctrl 'LblAPerfTalk'
-$script:LblAPerfTalkRatio       = _Ctrl 'LblAPerfTalkRatio'
-$script:LblAPerfAcwRatio        = _Ctrl 'LblAPerfAcwRatio'
+$script:LblAPerfTalkPct         = _Ctrl 'LblAPerfTalkPct'
+$script:LblAPerfAcwPct          = _Ctrl 'LblAPerfAcwPct'
+$script:LblAPerfIdlePct         = _Ctrl 'LblAPerfIdlePct'
 
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
@@ -1492,9 +1492,9 @@ function _RenderQueuePerfGrid {
 
 function _StartAgentPerfReportJob {
     <#
-        Pulls agent-performance aggregate datasets (agent perf, user metrics,
-        login activity) in a background runspace for the current case time window,
-        then imports the results into report_agent_perf and refreshes the grid.
+        Pulls agent-performance aggregate datasets in a background runspace for the
+        current case time window, then imports the results into report_agent_perf
+        and refreshes the grid.
     #>
     if (-not (Test-DatabaseInitialized)) {
         [System.Windows.MessageBox]::Show('Case store is offline.', 'Agent Performance')
@@ -1609,10 +1609,10 @@ function _StartAgentPerfReportJob {
         }
 
         return @{
-            AgentPerfFolder = $folderMap['analytics.query.conversation.aggregates.agent.performance']
-            UserPerfFolder  = $folderMap['analytics.query.user.aggregates.performance.metrics']
-            LoginFolder     = $folderMap['analytics.query.user.aggregates.login.activity']
-            PartialFailure  = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+            AgentPerfFolder     = $folderMap['analytics.query.conversation.aggregates.agent.performance']
+            UserPerfFolder      = $folderMap['analytics.query.user.aggregates.performance.metrics']
+            LoginActivityFolder = $folderMap['analytics.query.user.aggregates.login.activity']
+            PartialFailure      = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
         }
     })
     [void]$ps.AddArgument($corePath)
@@ -1691,8 +1691,8 @@ function _StartAgentPerfReportJob {
 
 function _PopulateAgentPerfDivisionFilter {
     <#
-        Populates CmbAgentPerfDivision with divisions from report_agent_perf for
-        the active case.  Preserves the current selection if still valid.
+        Populates CmbAgentPerfDivision with divisions from report_agent_perf for the
+        active case.  Preserves the current selection if still valid.
     #>
     if ($null -eq $script:CmbAgentPerfDivision) { return }
     if (-not (Test-DatabaseInitialized))         { return }
@@ -1733,8 +1733,9 @@ function _PopulateAgentPerfDivisionFilter {
 
 function _RenderAgentPerfGrid {
     <#
-        Reads report_agent_perf rows for the active case (with optional division
-        filter), populates the DgAgentPerf DataGrid, and updates the summary bar.
+        Reads report_agent_perf rows for the active case (with optional division filter),
+        populates the DgAgentPerf DataGrid, and updates the summary bar labels.
+        Rows with talk_ratio_pct < 50 % or acw_ratio_pct > 30 % are flagged with ⚠.
     #>
     if (-not (Test-DatabaseInitialized)) { return }
     $caseId = $script:State.ActiveCaseId
@@ -1758,35 +1759,42 @@ function _RenderAgentPerfGrid {
 
     $displayRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($r in $rows) {
-        $tOnQueueHr = if ([double]($r.t_on_queue_sec) -gt 0) {
-            "{0:F2}" -f ([double]($r.t_on_queue_sec) / 3600.0)
-        } else { '0.00' }
+        $talkPct = [double]($r.talk_ratio_pct)
+        $acwPct  = [double]($r.acw_ratio_pct)
+        # ⚠ flag: talk ratio < 50 % suggests long ACW or idle time relative to handle time;
+        # ACW ratio > 30 % suggests after-call work is consuming an unusually large share of handle time.
+        $flag    = if ($talkPct -lt 50 -or $acwPct -gt 30) { '⚠' } else { '' }
         $displayRows.Add([pscustomobject]@{
-            UserName       = [string]($r.user_name)
-            UserEmail      = [string]($r.user_email)
-            DivisionName   = [string]($r.division_name)
-            QueueNames     = [string]($r.queue_names)
-            NConnected     = [int]   ($r.n_connected)
-            NOffered       = [int]   ($r.n_offered)
-            THandleAvgSec  = [string]("{0:F1}" -f [double]($r.t_handle_avg_sec))
-            TTalkAvgSec    = [string]("{0:F1}" -f [double]($r.t_talk_avg_sec))
-            TAcwAvgSec     = [string]("{0:F1}" -f [double]($r.t_acw_avg_sec))
-            TOnQueueHr     = $tOnQueueHr
-            TalkRatioPct   = [string]("{0:F1}" -f [double]($r.talk_ratio_pct))
-            AcwRatioPct    = [string]("{0:F1}" -f [double]($r.acw_ratio_pct))
-            IdleRatioPct   = [string]("{0:F1}" -f [double]($r.idle_ratio_pct))
+            Flag          = $flag
+            UserName      = [string]($r.user_name)
+            DivisionName  = [string]($r.division_name)
+            Department    = [string]($r.department)
+            QueueIds      = [string]($r.queue_ids)
+            NConnected    = [int]   ($r.n_connected)
+            NOffered      = [int]   ($r.n_offered)
+            THandleAvgSec = [string]("{0:F1}" -f [double]($r.t_handle_avg_sec))
+            TTalkAvgSec   = [string]("{0:F1}" -f [double]($r.t_talk_avg_sec))
+            TAcwAvgSec    = [string]("{0:F1}" -f [double]($r.t_acw_avg_sec))
+            TOnQueueSec   = [string]("{0:F1}" -f [double]($r.t_on_queue_sec))
+            TOffQueueSec  = [string]("{0:F1}" -f [double]($r.t_off_queue_sec))
+            TIdleSec      = [string]("{0:F1}" -f [double]($r.t_idle_sec))
+            TalkRatioPct  = [string]("{0:F1}" -f $talkPct)
+            AcwRatioPct   = [string]("{0:F1}" -f $acwPct)
+            IdleRatioPct  = [string]("{0:F1}" -f [double]($r.idle_ratio_pct))
         })
     }
     $script:DgAgentPerf.ItemsSource = $displayRows
 
     # Update summary bar
-    $script:LblAPerfAgents.Text     = [string]($summary.TotalAgents)
-    $script:LblAPerfConnected.Text  = [string]($summary.TotalConnected)
-    $script:LblAPerfHandle.Text     = "{0:F1}" -f $summary.AvgHandleSec
-    $script:LblAPerfTalk.Text       = "{0:F1}" -f $summary.AvgTalkSec
-    $script:LblAPerfTalkRatio.Text  = "{0:F1}%" -f $summary.AvgTalkRatioPct
-    $script:LblAPerfAcwRatio.Text   = "{0:F1}%" -f $summary.AvgAcwRatioPct
+    $script:LblAPerfAgents.Text    = [string]($summary.TotalAgents)
+    $script:LblAPerfConnected.Text = [string]($summary.TotalConnected)
+    $script:LblAPerfHandle.Text    = "{0:F1}" -f $summary.AvgHandleSec
+    $script:LblAPerfTalkPct.Text   = "{0:F1}%" -f $summary.AvgTalkPct
+    $script:LblAPerfAcwPct.Text    = "{0:F1}%" -f $summary.AvgAcwPct
+    $script:LblAPerfIdlePct.Text   = "{0:F1}%" -f $summary.AvgIdlePct
 }
+
+function _ImportCurrentRunToCase {
     if (-not (Test-DatabaseInitialized)) {
         _SetStatus 'Case store offline'
         return

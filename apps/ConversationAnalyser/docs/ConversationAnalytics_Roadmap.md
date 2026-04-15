@@ -369,7 +369,7 @@ All calls are made with `Invoke-Dataset -Dataset <key> -CatalogPath $catalogPath
 
 ---
 
-## Session 13: Reference Data Foundation — Names, Queues, Divisions, Skills
+## Session 13: Reference Data Foundation — Names, Queues, Divisions, Skills — **COMPLETE**
 
 > **What was delivered:** `Refresh-ReferenceData` added to `App.CoreAdapter.psm1` — calls
 > `Invoke-Dataset` for all nine reference datasets in a background runspace and writes results
@@ -440,21 +440,17 @@ Documentation: add a report description to the UI tooltip and to repo notes expl
 > `Invoke-Dataset` for three datasets in sequence (`analytics.query.conversation.aggregates.agent.performance`,
 > `analytics.query.user.aggregates.performance.metrics`, `analytics.query.user.aggregates.login.activity`)
 > using the case time window as the `Interval` `DatasetParameters` override; returns a hashtable with
-> `AgentPerfFolder`, `UserPerfFolder`, and `LoginFolder`.  `Import-AgentPerformanceReport` added to
-> `App.Database.psm1` — merges all three JSONL outputs by `userId` (summing across all intervals),
-> resolves user names, emails, departments and division names from ref tables, derives `queue_names`
-> from the conversations table, computes `talk_ratio_pct` (tTalk / tHandle × 100), `acw_ratio_pct`,
-> and `idle_ratio_pct` (tIdleTime / total on-shift × 100), and upserts into the new `report_agent_perf`
-> table (schema v6).  `Get-AgentPerfRows` and `Get-AgentPerfSummary` added for grid and summary-bar
-> reads.  "Agent Performance" `TabItem` added to `MainWindow.xaml` with header card, summary bar
-> (Agents, Connected, Avg Handle, Avg Talk, Avg Talk Ratio %, Avg ACW Ratio %), Division filter
-> `ComboBox`, and 13-column `DgAgentPerf` `DataGrid`.  `_StartAgentPerfReportJob`,
-> `_PopulateAgentPerfDivisionFilter`, and `_RenderAgentPerfGrid` added to `App.UI.ps1`; the division
-> filter repopulates from the database after each import and on case activation.
->
-> **Note:** Per-agent drilldown panel (queue breakdown, wrapup codes, conversation list) and per-queue
-> filter are deferred to a future session once Session 18 (Wrapup Distribution) provides wrapup data.
-> Queue names are currently derived from the local conversations table for agents already imported.
+> `AgentPerfFolder`, `UserPerfFolder`, and `LoginActivityFolder`. `Import-AgentPerformanceReport` added
+> to `App.Database.psm1` — merges all three JSONL outputs by `userId`, resolves names from `ref_users`
+> and division names from `ref_divisions`, resolves handled queue names via the conversations store,
+> computes `talk_ratio_pct` (tTalk / tHandle × 100), `acw_ratio_pct` (tAcw / tHandle × 100), and
+> `idle_ratio_pct` (tIdle / totalTime × 100), and upserts into the new `report_agent_perf` table
+> (schema v6). `Get-AgentPerfRows` and `Get-AgentPerfSummary` added for grid and summary-bar reads.
+> "Agent Performance" `TabItem` added to `MainWindow.xaml` with header card, summary bar (Agents,
+> Connected, Avg Handle, Avg Talk %, Avg ACW %, Avg Idle %), Division filter `ComboBox`, and 16-column
+> `DgAgentPerf` `DataGrid` with ⚠ flag column (talk < 50 % or ACW > 30 %).
+> `_StartAgentPerfReportJob`, `_RenderAgentPerfGrid`, and `_PopulateAgentPerfDivisionFilter` added
+> to `App.UI.ps1`; the division filter repopulates from the database after each import and on case activation.
 
 Scope: expose per-agent handling efficiency, talk ratio, idle time, and queue distribution so supervisors can identify agents who are outliers without needing a separate Genesys reporting tool.
 

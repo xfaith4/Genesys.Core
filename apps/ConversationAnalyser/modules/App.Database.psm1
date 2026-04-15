@@ -999,7 +999,7 @@ CREATE TABLE IF NOT EXISTS report_agent_perf (
     department          TEXT    NOT NULL DEFAULT '',
     division_id         TEXT    NOT NULL DEFAULT '',
     division_name       TEXT    NOT NULL DEFAULT '',
-    queue_names         TEXT    NOT NULL DEFAULT '',
+    queue_ids           TEXT    NOT NULL DEFAULT '',
     n_connected         INTEGER NOT NULL DEFAULT 0,
     n_offered           INTEGER NOT NULL DEFAULT 0,
     t_handle_avg_sec    REAL    NOT NULL DEFAULT 0,
@@ -1016,9 +1016,9 @@ CREATE TABLE IF NOT EXISTS report_agent_perf (
 '@ | Out-Null
 
     # v6 indexes
-    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_case_id      ON report_agent_perf(case_id)'     | Out-Null
-    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_user_id      ON report_agent_perf(user_id)'     | Out-Null
-    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_division_id  ON report_agent_perf(division_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_case_id       ON report_agent_perf(case_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_user_id       ON report_agent_perf(user_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_division_id   ON report_agent_perf(division_id)'  | Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -2949,24 +2949,26 @@ function Import-AgentPerformanceReport {
         the report_agent_perf table for the active case.
     .DESCRIPTION
         Reads JSONL outputs from:
-          - analytics.query.conversation.aggregates.agent.performance  (nConnected, tHandle, tTalk, tAcw, nOffered)
-          - analytics.query.user.aggregates.performance.metrics        (nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered)
+          - analytics.query.conversation.aggregates.agent.performance (nConnected, tHandle, tTalk, tAcw)
+          - analytics.query.user.aggregates.performance.metrics        (nConnected, nOffered, tHandle, tTalk, tAcw)
           - analytics.query.user.aggregates.login.activity             (tOnQueueTime, tOffQueueTime, tIdleTime)
 
         Each JSONL record has the shape:
-            { "group": { "userId": "..." }, "data": [ { "interval": "start/end", "metrics": [...] } ] }
+            { "group": { "userId": "...", ... }, "data": [ { "interval": "start/end", "metrics": [...] } ] }
 
-        Rows are upserted by (case_id, user_id) — all intervals are summed into a
-        single per-agent row for the full case window.  User names, emails,
-        departments and division names are resolved from ref_users / ref_divisions.
-        Queue names handled by the agent are derived from the conversations table.
+        Rows are upserted by (case_id, user_id).  User names are resolved from
+        ref_users; division names from ref_divisions.
+
+        talk_ratio_pct  = tTalk / tHandle * 100  (0 if tHandle == 0)
+        acw_ratio_pct   = tAcw  / tHandle * 100  (0 if tHandle == 0)
+        idle_ratio_pct  = tIdleTime / (tOnQueueTime + tOffQueueTime + tIdleTime) * 100 (0 if total == 0)
 
         Returns a hashtable with RecordCount and SkippedCount.
     .PARAMETER CaseId
         Target case identifier.
     .PARAMETER FolderMap
         Hashtable returned by Get-AgentPerformanceReport (App.CoreAdapter.psm1).
-        Keys: 'AgentPerfFolder', 'UserPerfFolder', 'LoginFolder'.
+        Keys: 'AgentPerfFolder', 'UserPerfFolder', 'LoginActivityFolder'.
     #>
     param(
         [Parameter(Mandatory)][string]    $CaseId,
@@ -2978,7 +2980,7 @@ function Import-AgentPerformanceReport {
     $stats = @{ RecordCount = 0; SkippedCount = 0 }
 
     # ── Helper: read JSONL records from a run folder ──────────────────────────
-    function _ReadAgentAggJsonl ([string]$RunFolder) {
+    function _ReadAgentJsonl ([string]$RunFolder) {
         if ([string]::IsNullOrWhiteSpace($RunFolder) -or
             -not [System.IO.Directory]::Exists($RunFolder)) {
             return @()
@@ -2999,125 +3001,121 @@ function Import-AgentPerformanceReport {
         return $records.ToArray()
     }
 
-    # ── Helper: accumulate metric totals per user across all intervals ─────────
-    # Returns a hashtable: userId → metric accumulator hashtable
-    function _AccumulateMetrics ([object[]]$Records, [string[]]$MetricNames) {
-        $acc = @{}
-        foreach ($r in $Records) {
-            if ($null -eq $r -or $null -eq $r.data) { continue }
-            $userId = [string]($r.group.userId)
-            if (-not $userId) { continue }
-            if (-not $acc.ContainsKey($userId)) {
-                $entry = @{ UserId = $userId }
-                foreach ($m in $MetricNames) { $entry[$m] = 0.0 }
-                $acc[$userId] = $entry
-            }
-            foreach ($d in @($r.data)) {
-                foreach ($m in @($d.metrics)) {
-                    $mn = [string]($m.metric)
-                    if ($MetricNames -contains $mn) {
-                        $val = if ($null -ne $m.stats) {
-                            if ($null -ne $m.stats.sum)   { [double]($m.stats.sum)   }
-                            elseif ($null -ne $m.stats.count) { [double]($m.stats.count) }
-                            else { 0.0 }
-                        } else { 0.0 }
-                        $acc[$userId][$mn] += $val
-                    }
-                }
+    # ── Helper: flatten a single result record, accumulating per-userId metrics ─
+    # Returns List<hashtable> with keys: UserId, metrics{}
+    function _FlattenUserResult ([object]$Result) {
+        $rows = [System.Collections.Generic.List[hashtable]]::new()
+        if ($null -eq $Result -or $null -eq $Result.data) { return $rows }
+        $userId = [string]($Result.group.userId)
+        if (-not $userId) { return $rows }
+        $mHash = @{}
+        foreach ($d in @($Result.data)) {
+            foreach ($m in @($d.metrics)) {
+                $mn = $m.metric
+                if (-not $mHash.ContainsKey($mn)) { $mHash[$mn] = @{ sum = 0.0; count = 0 } }
+                if ($m.stats.sum)   { $mHash[$mn].sum   += [double]($m.stats.sum)   }
+                if ($m.stats.count) { $mHash[$mn].count += [int]   ($m.stats.count) }
             }
         }
-        return $acc
+        $rows.Add(@{ UserId = $userId; Metrics = $mHash })
+        return $rows
     }
 
-    # ── Read and accumulate each dataset ─────────────────────────────────────
-    $apFolder  = if ($FolderMap.ContainsKey('AgentPerfFolder')) { $FolderMap['AgentPerfFolder'] } else { $null }
-    $upFolder  = if ($FolderMap.ContainsKey('UserPerfFolder'))  { $FolderMap['UserPerfFolder']  } else { $null }
-    $lgFolder  = if ($FolderMap.ContainsKey('LoginFolder'))     { $FolderMap['LoginFolder']     } else { $null }
+    # ── Build merged dictionary keyed by userId ───────────────────────────────
+    $merged = @{}   # userId → hashtable of accumulated metric values
 
-    $apAcc = _AccumulateMetrics -Records (_ReadAgentAggJsonl $apFolder) `
-                -MetricNames @('nConnected','tHandle','tTalk','tAcw','nOffered')
+    function _EnsureAgent ([string]$Uid) {
+        if (-not $merged.ContainsKey($Uid)) {
+            $merged[$Uid] = @{
+                UserId             = $Uid
+                # conversation-aggregate agent performance
+                nConnectedConv     = 0
+                tHandleSumConv     = 0.0
+                tTalkSumConv       = 0.0
+                tAcwSumConv        = 0.0
+                # user-aggregate performance metrics
+                nConnectedUser     = 0
+                nOfferedUser       = 0
+                tHandleSumUser     = 0.0
+                tTalkSumUser       = 0.0
+                tAcwSumUser        = 0.0
+                # login activity
+                tOnQueueMs         = 0.0
+                tOffQueueMs        = 0.0
+                tIdleMs            = 0.0
+            }
+        }
+    }
 
-    $upAcc = _AccumulateMetrics -Records (_ReadAgentAggJsonl $upFolder) `
-                -MetricNames @('nConnected','tHandle','tTalk','tAcw','nOffered')
+    # Conversation-aggregate agent performance dataset
+    $apFolder = if ($FolderMap.ContainsKey('AgentPerfFolder')) { $FolderMap['AgentPerfFolder'] } else { $null }
+    foreach ($r in (_ReadAgentJsonl $apFolder)) {
+        foreach ($row in (_FlattenUserResult $r)) {
+            _EnsureAgent $row.UserId
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('nConnected')) { $merged[$row.UserId].nConnectedConv  += $mx['nConnected'].count }
+            if ($mx.ContainsKey('tHandle'))    { $merged[$row.UserId].tHandleSumConv  += $mx['tHandle'].sum      }
+            if ($mx.ContainsKey('tTalk'))      { $merged[$row.UserId].tTalkSumConv    += $mx['tTalk'].sum        }
+            if ($mx.ContainsKey('tAcw'))       { $merged[$row.UserId].tAcwSumConv     += $mx['tAcw'].sum         }
+        }
+    }
 
-    $lgAcc = _AccumulateMetrics -Records (_ReadAgentAggJsonl $lgFolder) `
-                -MetricNames @('tOnQueueTime','tOffQueueTime','tIdleTime')
+    # User-aggregate performance metrics dataset
+    $upFolder = if ($FolderMap.ContainsKey('UserPerfFolder')) { $FolderMap['UserPerfFolder'] } else { $null }
+    foreach ($r in (_ReadAgentJsonl $upFolder)) {
+        foreach ($row in (_FlattenUserResult $r)) {
+            _EnsureAgent $row.UserId
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('nConnected')) { $merged[$row.UserId].nConnectedUser  += $mx['nConnected'].count }
+            if ($mx.ContainsKey('nOffered'))   { $merged[$row.UserId].nOfferedUser    += $mx['nOffered'].count   }
+            if ($mx.ContainsKey('tHandle'))    { $merged[$row.UserId].tHandleSumUser  += $mx['tHandle'].sum      }
+            if ($mx.ContainsKey('tTalk'))      { $merged[$row.UserId].tTalkSumUser    += $mx['tTalk'].sum        }
+            if ($mx.ContainsKey('tAcw'))       { $merged[$row.UserId].tAcwSumUser     += $mx['tAcw'].sum         }
+        }
+    }
 
-    # ── Merge all user IDs across all three datasets ─────────────────────────
-    $allUserIds = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($uid in $apAcc.Keys) { [void]$allUserIds.Add($uid) }
-    foreach ($uid in $upAcc.Keys) { [void]$allUserIds.Add($uid) }
-    foreach ($uid in $lgAcc.Keys) { [void]$allUserIds.Add($uid) }
+    # Login activity dataset
+    $laFolder = if ($FolderMap.ContainsKey('LoginActivityFolder')) { $FolderMap['LoginActivityFolder'] } else { $null }
+    foreach ($r in (_ReadAgentJsonl $laFolder)) {
+        foreach ($row in (_FlattenUserResult $r)) {
+            _EnsureAgent $row.UserId
+            $mx = $row.Metrics
+            if ($mx.ContainsKey('tOnQueueTime'))  { $merged[$row.UserId].tOnQueueMs  += $mx['tOnQueueTime'].sum  }
+            if ($mx.ContainsKey('tOffQueueTime')) { $merged[$row.UserId].tOffQueueMs += $mx['tOffQueueTime'].sum }
+            if ($mx.ContainsKey('tIdleTime'))     { $merged[$row.UserId].tIdleMs     += $mx['tIdleTime'].sum     }
+        }
+    }
 
-    if ($allUserIds.Count -eq 0) { return $stats }
+    if ($merged.Count -eq 0) {
+        return $stats
+    }
 
+    # ── Resolve names and upsert ──────────────────────────────────────────────
     $conn = _Open
     try {
-        foreach ($userId in $allUserIds) {
-            $rowKey = "$CaseId|aperf|$userId"
+        foreach ($entry in $merged.Values) {
+            $uid    = $entry.UserId
+            $rowKey = "$CaseId|aperf|$uid"
 
-            # ── Merge metrics ────────────────────────────────────────────────
-            # Prefer agent.performance dataset; fall back to user.performance
-            $nConnectedAP = if ($apAcc.ContainsKey($userId)) { [int]$apAcc[$userId]['nConnected'] } else { 0 }
-            $tHandleSumAP = if ($apAcc.ContainsKey($userId)) { $apAcc[$userId]['tHandle']         } else { 0.0 }
-            $tTalkSumAP   = if ($apAcc.ContainsKey($userId)) { $apAcc[$userId]['tTalk']           } else { 0.0 }
-            $tAcwSumAP    = if ($apAcc.ContainsKey($userId)) { $apAcc[$userId]['tAcw']            } else { 0.0 }
-            $nOfferedAP   = if ($apAcc.ContainsKey($userId)) { [int]$apAcc[$userId]['nOffered']   } else { 0 }
-
-            $nConnectedUP = if ($upAcc.ContainsKey($userId)) { [int]$upAcc[$userId]['nConnected'] } else { 0 }
-            $tHandleSumUP = if ($upAcc.ContainsKey($userId)) { $upAcc[$userId]['tHandle']         } else { 0.0 }
-            $tTalkSumUP   = if ($upAcc.ContainsKey($userId)) { $upAcc[$userId]['tTalk']           } else { 0.0 }
-            $tAcwSumUP    = if ($upAcc.ContainsKey($userId)) { $upAcc[$userId]['tAcw']            } else { 0.0 }
-            $nOfferedUP   = if ($upAcc.ContainsKey($userId)) { [int]$upAcc[$userId]['nOffered']   } else { 0 }
-
-            # Use the higher connected count (agent.performance may count queue-routed only)
-            $nConnected = [Math]::Max($nConnectedAP, $nConnectedUP)
-            # Use the higher nOffered count
-            $nOffered   = [Math]::Max($nOfferedAP, $nOfferedUP)
-            # Prefer AP sums when available, fall back to UP
-            $tHandleSum = if ($tHandleSumAP -gt 0) { $tHandleSumAP } else { $tHandleSumUP }
-            $tTalkSum   = if ($tTalkSumAP   -gt 0) { $tTalkSumAP   } else { $tTalkSumUP   }
-            $tAcwSum    = if ($tAcwSumAP    -gt 0) { $tAcwSumAP    } else { $tAcwSumUP    }
-
-            $tHandleAvgSec = if ($nConnected -gt 0) { [Math]::Round($tHandleSum / $nConnected / 1000.0, 1) } else { 0.0 }
-            $tTalkAvgSec   = if ($nConnected -gt 0) { [Math]::Round($tTalkSum   / $nConnected / 1000.0, 1) } else { 0.0 }
-            $tAcwAvgSec    = if ($nConnected -gt 0) { [Math]::Round($tAcwSum    / $nConnected / 1000.0, 1) } else { 0.0 }
-
-            # Login activity (tOnQueueTime, tOffQueueTime, tIdleTime are in ms)
-            $tOnQueueMs  = if ($lgAcc.ContainsKey($userId)) { $lgAcc[$userId]['tOnQueueTime']   } else { 0.0 }
-            $tOffQueueMs = if ($lgAcc.ContainsKey($userId)) { $lgAcc[$userId]['tOffQueueTime']  } else { 0.0 }
-            $tIdleMs     = if ($lgAcc.ContainsKey($userId)) { $lgAcc[$userId]['tIdleTime']      } else { 0.0 }
-
-            $tOnQueueSec  = [Math]::Round($tOnQueueMs  / 1000.0, 0)
-            $tOffQueueSec = [Math]::Round($tOffQueueMs / 1000.0, 0)
-            $tIdleSec     = [Math]::Round($tIdleMs     / 1000.0, 0)
-
-            # Derived ratios
-            $tHandleTotalMs = $tHandleSum
-            $talkRatioPct = if ($tHandleTotalMs -gt 0) { [Math]::Round(($tTalkSum   / $tHandleTotalMs) * 100.0, 1) } else { 0.0 }
-            $acwRatioPct  = if ($tHandleTotalMs -gt 0) { [Math]::Round(($tAcwSum    / $tHandleTotalMs) * 100.0, 1) } else { 0.0 }
-            $totalOnMs    = $tOnQueueMs + $tOffQueueMs + $tIdleMs
-            $idleRatioPct = if ($totalOnMs -gt 0)       { [Math]::Round(($tIdleMs   / $totalOnMs)       * 100.0, 1) } else { 0.0 }
-
-            # ── Resolve user info from ref_users ─────────────────────────────
-            $uName  = ''
-            $uEmail = ''
-            $uDept  = ''
-            $divId  = ''
-            $uRow = _Query -Conn $conn -Sql @'
+            # Resolve user name, email, department, division_id from ref_users
+            $uname   = ''
+            $uemail  = ''
+            $udept   = ''
+            $divId   = ''
+            $uRow    = _Query -Conn $conn -Sql @'
 SELECT name, email, department, division_id FROM ref_users
 WHERE case_id = @cid AND user_id = @uid
 LIMIT 1
-'@ -P @{ '@cid' = $CaseId; '@uid' = $userId }
+'@ -P @{ '@cid' = $CaseId; '@uid' = $uid }
             if ($uRow.Count -gt 0) {
-                $uName  = [string](_RowVal $uRow[0] 'name'        '')
-                $uEmail = [string](_RowVal $uRow[0] 'email'       '')
-                $uDept  = [string](_RowVal $uRow[0] 'department'  '')
-                $divId  = [string](_RowVal $uRow[0] 'division_id' '')
+                $uname  = [string]($uRow[0].name)
+                $uemail = [string]($uRow[0].email)
+                $udept  = [string]($uRow[0].department)
+                $divId  = [string]($uRow[0].division_id)
             }
-            if (-not $uName) { $uName = "$userId (unresolved)" }
+            if (-not $uname) { $uname = "$uid (unresolved)" }
 
-            # ── Resolve division name ────────────────────────────────────────
+            # Resolve division name from ref_divisions
             $divName = ''
             if ($divId) {
                 $dRow = _Query -Conn $conn -Sql @'
@@ -3128,37 +3126,58 @@ LIMIT 1
                 if ($dRow.Count -gt 0) { $divName = [string]($dRow[0].name) }
             }
 
-            # ── Derive queue names from conversations table ───────────────────
-            # Uses pipe-delimited agent_names column to find conversations handled
-            # by this agent and extracts unique queue names from them.
-            $queueNames = ''
-            try {
+            # Resolve queue names that this agent handled in the case conversations.
+            # Use delimiter-aware matching to avoid partial name matches: the
+            # agent_names column stores pipe-delimited display names.
+            $queueIds = ''
+            if ($uname -and -not $uname.EndsWith('(unresolved)')) {
+                # Match exact name: alone, at start, in middle, or at end of the pipe-delimited list
+                $pExact  = $uname
+                $pStart  = "$uname|%"
+                $pMid    = "%|$uname|%"
+                $pEnd    = "%|$uname"
                 $qRows = _Query -Conn $conn -Sql @'
 SELECT DISTINCT queue_name
 FROM conversations
-WHERE case_id = @cid
-  AND queue_name <> ''
-  AND (agent_names LIKE @uid1 OR agent_names LIKE @uid2 OR agent_names LIKE @uid3)
+WHERE case_id = @cid AND queue_name <> ''
+  AND (   agent_names = @exact
+       OR agent_names LIKE @pstart
+       OR agent_names LIKE @pmid
+       OR agent_names LIKE @pend)
 ORDER BY queue_name
-'@ -P @{
-                    '@cid'  = $CaseId
-                    '@uid1' = "$userId|%"
-                    '@uid2' = "%|$userId|%"
-                    '@uid3' = "%|$userId"
-                }
-                if ($qRows.Count -gt 0) {
-                    $queueNames = ($qRows | ForEach-Object { [string]($_.queue_name) }) -join ' | '
-                }
-            } catch {
-                Write-Warning "Import-AgentPerformanceReport: queue-name lookup failed for user '$userId' — $($_.Exception.Message)"
+'@ -P @{ '@cid' = $CaseId; '@exact' = $pExact; '@pstart' = $pStart; '@pmid' = $pMid; '@pend' = $pEnd }
+                $queueIds = ($qRows | ForEach-Object { [string]($_.queue_name) } | Where-Object { $_ }) -join '|'
             }
 
-            # ── Upsert row ───────────────────────────────────────────────────
+            # Choose the best-available handle count and sums
+            # Prefer user-aggregate metrics when available (more complete); fall back to conv-aggregate
+            $nConn     = if ($entry.nConnectedUser -gt 0) { $entry.nConnectedUser } else { $entry.nConnectedConv }
+            $nOffered  = $entry.nOfferedUser
+            $tHandleMs = if ($entry.tHandleSumUser -gt 0) { $entry.tHandleSumUser } else { $entry.tHandleSumConv }
+            $tTalkMs   = if ($entry.tTalkSumUser   -gt 0) { $entry.tTalkSumUser   } else { $entry.tTalkSumConv   }
+            $tAcwMs    = if ($entry.tAcwSumUser    -gt 0) { $entry.tAcwSumUser    } else { $entry.tAcwSumConv    }
+
+            $tHandleAvg = if ($nConn -gt 0) { [Math]::Round($tHandleMs / $nConn / 1000.0, 1) } else { 0.0 }
+            $tTalkAvg   = if ($nConn -gt 0) { [Math]::Round($tTalkMs   / $nConn / 1000.0, 1) } else { 0.0 }
+            $tAcwAvg    = if ($nConn -gt 0) { [Math]::Round($tAcwMs    / $nConn / 1000.0, 1) } else { 0.0 }
+
+            $tOnQueueSec  = [Math]::Round($entry.tOnQueueMs  / 1000.0, 1)
+            $tOffQueueSec = [Math]::Round($entry.tOffQueueMs / 1000.0, 1)
+            $tIdleSec     = [Math]::Round($entry.tIdleMs     / 1000.0, 1)
+
+            # talk_ratio_pct = tTalk / tHandle * 100
+            $talkRatio = if ($tHandleMs -gt 0) { [Math]::Round(($tTalkMs / $tHandleMs) * 100.0, 1) } else { 0.0 }
+            # acw_ratio_pct  = tAcw / tHandle * 100
+            $acwRatio  = if ($tHandleMs -gt 0) { [Math]::Round(($tAcwMs  / $tHandleMs) * 100.0, 1) } else { 0.0 }
+            # idle_ratio_pct = tIdle / (tOnQueue + tOffQueue + tIdle) * 100
+            $totalTime = $entry.tOnQueueMs + $entry.tOffQueueMs + $entry.tIdleMs
+            $idleRatio = if ($totalTime -gt 0) { [Math]::Round(($entry.tIdleMs / $totalTime) * 100.0, 1) } else { 0.0 }
+
             try {
                 _NonQuery -Conn $conn -Sql @'
 INSERT INTO report_agent_perf(
     row_id, case_id, user_id, user_name, user_email, department,
-    division_id, division_name, queue_names,
+    division_id, division_name, queue_ids,
     n_connected, n_offered,
     t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
     t_on_queue_sec, t_off_queue_sec, t_idle_sec,
@@ -3166,17 +3185,17 @@ INSERT INTO report_agent_perf(
     imported_utc)
 VALUES(
     @rid, @cid, @uid, @uname, @uemail, @udept,
-    @divid, @divname, @qnames,
+    @divid, @divname, @qids,
     @nconn, @noff,
     @thandle, @ttalk, @tacw,
     @tonq, @toffq, @tidle,
-    @talkpct, @acwpct, @idlepct,
+    @talkr, @acwr, @idler,
     @ts)
 ON CONFLICT(row_id) DO UPDATE SET
     user_name=excluded.user_name, user_email=excluded.user_email,
     department=excluded.department,
     division_id=excluded.division_id, division_name=excluded.division_name,
-    queue_names=excluded.queue_names,
+    queue_ids=excluded.queue_ids,
     n_connected=excluded.n_connected, n_offered=excluded.n_offered,
     t_handle_avg_sec=excluded.t_handle_avg_sec,
     t_talk_avg_sec=excluded.t_talk_avg_sec,
@@ -3191,29 +3210,29 @@ ON CONFLICT(row_id) DO UPDATE SET
 '@ -P @{
                     '@rid'     = $rowKey
                     '@cid'     = $CaseId
-                    '@uid'     = $userId
-                    '@uname'   = $uName
-                    '@uemail'  = $uEmail
-                    '@udept'   = $uDept
+                    '@uid'     = $uid
+                    '@uname'   = $uname
+                    '@uemail'  = $uemail
+                    '@udept'   = $udept
                     '@divid'   = $divId
                     '@divname' = $divName
-                    '@qnames'  = $queueNames
-                    '@nconn'   = $nConnected
+                    '@qids'    = $queueIds
+                    '@nconn'   = $nConn
                     '@noff'    = $nOffered
-                    '@thandle' = $tHandleAvgSec
-                    '@ttalk'   = $tTalkAvgSec
-                    '@tacw'    = $tAcwAvgSec
+                    '@thandle' = $tHandleAvg
+                    '@ttalk'   = $tTalkAvg
+                    '@tacw'    = $tAcwAvg
                     '@tonq'    = $tOnQueueSec
                     '@toffq'   = $tOffQueueSec
                     '@tidle'   = $tIdleSec
-                    '@talkpct' = $talkRatioPct
-                    '@acwpct'  = $acwRatioPct
-                    '@idlepct' = $idleRatioPct
+                    '@talkr'   = $talkRatio
+                    '@acwr'    = $acwRatio
+                    '@idler'   = $idleRatio
                     '@ts'      = $now
                 } | Out-Null
                 $stats.RecordCount++
             } catch {
-                Write-Warning "Import-AgentPerformanceReport: failed to upsert row for user '$userId' — $($_.Exception.Message)"
+                Write-Warning "Import-AgentPerformanceReport: failed to upsert row for user '$uid' — $($_.Exception.Message)"
                 $stats.SkippedCount++
             }
         }
@@ -3244,7 +3263,7 @@ function Get-AgentPerfRows {
     if ($DivisionId) {
         $sql = @'
 SELECT user_id, user_name, user_email, department,
-       division_id, division_name, queue_names,
+       division_id, division_name, queue_ids,
        n_connected, n_offered,
        t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
        t_on_queue_sec, t_off_queue_sec, t_idle_sec,
@@ -3257,7 +3276,7 @@ ORDER  BY user_name ASC
     } else {
         $sql = @'
 SELECT user_id, user_name, user_email, department,
-       division_id, division_name, queue_names,
+       division_id, division_name, queue_ids,
        n_connected, n_offered,
        t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
        t_on_queue_sec, t_off_queue_sec, t_idle_sec,
@@ -3301,10 +3320,9 @@ SELECT
     COUNT(DISTINCT user_id)     AS total_agents,
     SUM(n_connected)            AS total_connected,
     AVG(t_handle_avg_sec)       AS avg_handle_sec,
-    AVG(t_talk_avg_sec)         AS avg_talk_sec,
-    AVG(t_acw_avg_sec)          AS avg_acw_sec,
-    AVG(talk_ratio_pct)         AS avg_talk_ratio_pct,
-    AVG(acw_ratio_pct)          AS avg_acw_ratio_pct
+    AVG(talk_ratio_pct)         AS avg_talk_pct,
+    AVG(acw_ratio_pct)          AS avg_acw_pct,
+    AVG(idle_ratio_pct)         AS avg_idle_pct
 FROM report_agent_perf
 WHERE case_id = @cid AND division_id = @did
 '@
@@ -3315,10 +3333,9 @@ SELECT
     COUNT(DISTINCT user_id)     AS total_agents,
     SUM(n_connected)            AS total_connected,
     AVG(t_handle_avg_sec)       AS avg_handle_sec,
-    AVG(t_talk_avg_sec)         AS avg_talk_sec,
-    AVG(t_acw_avg_sec)          AS avg_acw_sec,
-    AVG(talk_ratio_pct)         AS avg_talk_ratio_pct,
-    AVG(acw_ratio_pct)          AS avg_acw_ratio_pct
+    AVG(talk_ratio_pct)         AS avg_talk_pct,
+    AVG(acw_ratio_pct)          AS avg_acw_pct,
+    AVG(idle_ratio_pct)         AS avg_idle_pct
 FROM report_agent_perf
 WHERE case_id = @cid
 '@
@@ -3332,24 +3349,22 @@ WHERE case_id = @cid
 
     if ($rows.Count -eq 0) {
         return [pscustomobject]@{
-            TotalAgents      = 0
-            TotalConnected   = 0
-            AvgHandleSec     = 0.0
-            AvgTalkSec       = 0.0
-            AvgAcwSec        = 0.0
-            AvgTalkRatioPct  = 0.0
-            AvgAcwRatioPct   = 0.0
+            TotalAgents    = 0
+            TotalConnected = 0
+            AvgHandleSec   = 0.0
+            AvgTalkPct     = 0.0
+            AvgAcwPct      = 0.0
+            AvgIdlePct     = 0.0
         }
     }
     $r = $rows[0]
     return [pscustomobject]@{
-        TotalAgents     = [int]   (_RowVal $r 'total_agents'       0)
-        TotalConnected  = [int]   (_RowVal $r 'total_connected'    0)
-        AvgHandleSec    = [double](_RowVal $r 'avg_handle_sec'     0.0)
-        AvgTalkSec      = [double](_RowVal $r 'avg_talk_sec'       0.0)
-        AvgAcwSec       = [double](_RowVal $r 'avg_acw_sec'        0.0)
-        AvgTalkRatioPct = [double](_RowVal $r 'avg_talk_ratio_pct' 0.0)
-        AvgAcwRatioPct  = [double](_RowVal $r 'avg_acw_ratio_pct'  0.0)
+        TotalAgents    = [int]   (_RowVal $r 'total_agents'    0)
+        TotalConnected = [int]   (_RowVal $r 'total_connected' 0)
+        AvgHandleSec   = [double](_RowVal $r 'avg_handle_sec'  0.0)
+        AvgTalkPct     = [double](_RowVal $r 'avg_talk_pct'    0.0)
+        AvgAcwPct      = [double](_RowVal $r 'avg_acw_pct'     0.0)
+        AvgIdlePct     = [double](_RowVal $r 'avg_idle_pct'    0.0)
     }
 }
 

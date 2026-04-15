@@ -1309,7 +1309,7 @@
                                                 <TextBlock Text="AGENT PERFORMANCE REPORT"
                                                            Style="{StaticResource LblSection}"
                                                            Margin="0,0,0,4"/>
-                                                <TextBlock Text="Per-agent handle time, talk ratio, ACW, on-queue activity, and queue distribution across the case time window."
+                                                <TextBlock Text="Per-agent handle time, talk ratio, ACW ratio, and on-queue activity across the case time window. ⚠ flags talk ratio &lt; 50 % or ACW ratio &gt; 30 %."
                                                            Foreground="{StaticResource BrushText}"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
@@ -1352,19 +1352,19 @@
                                                            Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
                                             </StackPanel>
                                             <StackPanel Margin="0,0,20,0">
-                                                <TextBlock Text="AVG TALK (s)" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
-                                                <TextBlock x:Name="LblAPerfTalk" Text="—"
-                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
-                                            </StackPanel>
-                                            <StackPanel Margin="0,0,20,0">
-                                                <TextBlock Text="AVG TALK RATIO %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
-                                                <TextBlock x:Name="LblAPerfTalkRatio" Text="—"
+                                                <TextBlock Text="AVG TALK %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblAPerfTalkPct" Text="—"
                                                            Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
                                             </StackPanel>
-                                            <StackPanel>
-                                                <TextBlock Text="AVG ACW RATIO %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
-                                                <TextBlock x:Name="LblAPerfAcwRatio" Text="—"
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="AVG ACW %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblAPerfAcwPct" Text="—"
                                                            Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="AVG IDLE %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblAPerfIdlePct" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -1378,19 +1378,22 @@
                                             Padding="2">
                                         <DataGrid x:Name="DgAgentPerf" Style="{StaticResource DgBase}" Margin="2">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="Agent"          Binding="{Binding UserName}"       Width="170" SortMemberPath="UserName"/>
-                                                <DataGridTextColumn Header="Email"          Binding="{Binding UserEmail}"      Width="200" SortMemberPath="UserEmail"/>
-                                                <DataGridTextColumn Header="Division"       Binding="{Binding DivisionName}"   Width="130" SortMemberPath="DivisionName"/>
-                                                <DataGridTextColumn Header="Queues"         Binding="{Binding QueueNames}"     Width="200" SortMemberPath="QueueNames"/>
-                                                <DataGridTextColumn Header="Connected"      Binding="{Binding NConnected}"     Width="80"  SortMemberPath="NConnected"/>
-                                                <DataGridTextColumn Header="Offered"        Binding="{Binding NOffered}"       Width="70"  SortMemberPath="NOffered"/>
-                                                <DataGridTextColumn Header="Handle (s)"     Binding="{Binding THandleAvgSec}"  Width="80"  SortMemberPath="THandleAvgSec"/>
-                                                <DataGridTextColumn Header="Talk (s)"       Binding="{Binding TTalkAvgSec}"    Width="70"  SortMemberPath="TTalkAvgSec"/>
-                                                <DataGridTextColumn Header="ACW (s)"        Binding="{Binding TAcwAvgSec}"     Width="70"  SortMemberPath="TAcwAvgSec"/>
-                                                <DataGridTextColumn Header="OnQueue (h)"    Binding="{Binding TOnQueueHr}"     Width="90"  SortMemberPath="TOnQueueHr"/>
-                                                <DataGridTextColumn Header="Talk %"         Binding="{Binding TalkRatioPct}"   Width="70"  SortMemberPath="TalkRatioPct"/>
-                                                <DataGridTextColumn Header="ACW %"          Binding="{Binding AcwRatioPct}"    Width="70"  SortMemberPath="AcwRatioPct"/>
-                                                <DataGridTextColumn Header="Idle %"         Binding="{Binding IdleRatioPct}"   Width="70"  SortMemberPath="IdleRatioPct"/>
+                                                <DataGridTextColumn Header="⚠"           Binding="{Binding Flag}"           Width="28"  SortMemberPath="Flag"/>
+                                                <DataGridTextColumn Header="Agent"        Binding="{Binding UserName}"       Width="180" SortMemberPath="UserName"/>
+                                                <DataGridTextColumn Header="Division"     Binding="{Binding DivisionName}"   Width="130" SortMemberPath="DivisionName"/>
+                                                <DataGridTextColumn Header="Department"   Binding="{Binding Department}"     Width="120" SortMemberPath="Department"/>
+                                                <DataGridTextColumn Header="Queues"       Binding="{Binding QueueIds}"       Width="180" SortMemberPath="QueueIds"/>
+                                                <DataGridTextColumn Header="Connected"    Binding="{Binding NConnected}"     Width="80"  SortMemberPath="NConnected"/>
+                                                <DataGridTextColumn Header="Offered"      Binding="{Binding NOffered}"       Width="70"  SortMemberPath="NOffered"/>
+                                                <DataGridTextColumn Header="Handle (s)"  Binding="{Binding THandleAvgSec}"  Width="80"  SortMemberPath="THandleAvgSec"/>
+                                                <DataGridTextColumn Header="Talk (s)"    Binding="{Binding TTalkAvgSec}"    Width="70"  SortMemberPath="TTalkAvgSec"/>
+                                                <DataGridTextColumn Header="ACW (s)"     Binding="{Binding TAcwAvgSec}"     Width="70"  SortMemberPath="TAcwAvgSec"/>
+                                                <DataGridTextColumn Header="On Queue (s)" Binding="{Binding TOnQueueSec}"   Width="90"  SortMemberPath="TOnQueueSec"/>
+                                                <DataGridTextColumn Header="Off Queue (s)" Binding="{Binding TOffQueueSec}" Width="90"  SortMemberPath="TOffQueueSec"/>
+                                                <DataGridTextColumn Header="Idle (s)"    Binding="{Binding TIdleSec}"       Width="70"  SortMemberPath="TIdleSec"/>
+                                                <DataGridTextColumn Header="Talk %"      Binding="{Binding TalkRatioPct}"   Width="70"  SortMemberPath="TalkRatioPct"/>
+                                                <DataGridTextColumn Header="ACW %"       Binding="{Binding AcwRatioPct}"    Width="70"  SortMemberPath="AcwRatioPct"/>
+                                                <DataGridTextColumn Header="Idle %"      Binding="{Binding IdleRatioPct}"   Width="70"  SortMemberPath="IdleRatioPct"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>

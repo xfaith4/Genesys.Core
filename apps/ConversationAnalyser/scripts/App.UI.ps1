@@ -1050,74 +1050,17 @@ function _StartRefreshReferenceDataJob {
     $rs.Open()
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
 
     [void]$ps.AddScript({
-        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri)
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri)
         Set-StrictMode -Version Latest
 
-        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
-        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
-
-        Import-Module $CorePath -Force -ErrorAction Stop
-
-        $assertParams = @{ CatalogPath = $CatalogPath }
-        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
-        Assert-Catalog @assertParams -ErrorAction Stop
-
-        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
-            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
-        }
-
-        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-        $refRoot = [System.IO.Path]::Combine($OutputRoot, "ref-$stamp")
-        [System.IO.Directory]::CreateDirectory($refRoot) | Out-Null
-
-        $datasetKeys = @(
-            'routing-queues',
-            'users',
-            'authorization.get.all.divisions',
-            'routing.get.all.wrapup.codes',
-            'routing.get.all.routing.skills',
-            'routing.get.all.languages',
-            'flows.get.all.flows',
-            'flows.get.flow.outcomes',
-            'flows.get.flow.milestones'
-        )
-
-        $folderMap = @{}
-        foreach ($key in $datasetKeys) {
-            $dsRoot = [System.IO.Path]::Combine($refRoot, $key)
-            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
-
-            $invokeParams = @{
-                Dataset     = $key
-                CatalogPath = $CatalogPath
-                OutputRoot  = $dsRoot
-                BaseUri     = $BaseUri
-            }
-            if ($null -ne $Headers -and $Headers.Count -gt 0) {
-                $invokeParams['Headers'] = $Headers
-            }
-            try {
-                Invoke-Dataset @invokeParams | Out-Null
-            } catch { }
-
-            # Locate the run folder written by Invoke-Dataset
-            $runFolder = $null
-            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                        $runFolder = $grandchild
-                        break
-                    }
-                }
-                if ($runFolder) { break }
-            }
-            $folderMap[$key] = $runFolder
-        }
-
-        return $folderMap
+        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Refresh-ReferenceData -Headers $Headers -BaseUri $BaseUri)
     })
+    [void]$ps.AddArgument($appDir)
     [void]$ps.AddArgument($corePath)
     [void]$ps.AddArgument($catalogPath)
     [void]$ps.AddArgument($schemaPath)
@@ -1246,74 +1189,17 @@ function _StartQueuePerfReportJob {
     $rs.Open()
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
 
     [void]$ps.AddScript({
-        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
-        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
-
-        Import-Module $CorePath -Force -ErrorAction Stop
-
-        $assertParams = @{ CatalogPath = $CatalogPath }
-        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
-        Assert-Catalog @assertParams -ErrorAction Stop
-
-        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
-            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
-        }
-
-        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-        $repRoot = [System.IO.Path]::Combine($OutputRoot, "report-queue-perf-$stamp")
-        [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
-
-        $interval    = "$StartDt/$EndDt"
-        $datasetKeys = @(
-            'analytics.query.conversation.aggregates.queue.performance',
-            'analytics.query.conversation.aggregates.abandon.metrics',
-            'analytics.query.queue.aggregates.service.level'
-        )
-
-        $folderMap = @{}
-        foreach ($key in $datasetKeys) {
-            $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
-            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
-
-            $invokeParams = @{
-                Dataset           = $key
-                CatalogPath       = $CatalogPath
-                OutputRoot        = $dsRoot
-                DatasetParameters = @{ Interval = $interval }
-                BaseUri           = $BaseUri
-            }
-            if ($null -ne $Headers -and $Headers.Count -gt 0) {
-                $invokeParams['Headers'] = $Headers
-            }
-            try { Invoke-Dataset @invokeParams | Out-Null } catch {
-                $folderMap["$key.error"] = $_.Exception.Message
-            }
-
-            $runFolder = $null
-            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                        $runFolder = $grandchild
-                        break
-                    }
-                }
-                if ($runFolder) { break }
-            }
-            $folderMap[$key] = $runFolder
-        }
-
-        return @{
-            QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
-            AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
-            ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
-            PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
-        }
+        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-QueuePerformanceReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
+    [void]$ps.AddArgument($appDir)
     [void]$ps.AddArgument($corePath)
     [void]$ps.AddArgument($catalogPath)
     [void]$ps.AddArgument($schemaPath)
@@ -1547,74 +1433,17 @@ function _StartAgentPerfReportJob {
     $rs.Open()
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
 
     [void]$ps.AddScript({
-        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
-        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
-
-        Import-Module $CorePath -Force -ErrorAction Stop
-
-        $assertParams = @{ CatalogPath = $CatalogPath }
-        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
-        Assert-Catalog @assertParams -ErrorAction Stop
-
-        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
-            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
-        }
-
-        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-        $repRoot = [System.IO.Path]::Combine($OutputRoot, "report-agent-perf-$stamp")
-        [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
-
-        $interval    = "$StartDt/$EndDt"
-        $datasetKeys = @(
-            'analytics.query.conversation.aggregates.agent.performance',
-            'analytics.query.user.aggregates.performance.metrics',
-            'analytics.query.user.aggregates.login.activity'
-        )
-
-        $folderMap = @{}
-        foreach ($key in $datasetKeys) {
-            $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
-            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
-
-            $invokeParams = @{
-                Dataset           = $key
-                CatalogPath       = $CatalogPath
-                OutputRoot        = $dsRoot
-                DatasetParameters = @{ Interval = $interval }
-                BaseUri           = $BaseUri
-            }
-            if ($null -ne $Headers -and $Headers.Count -gt 0) {
-                $invokeParams['Headers'] = $Headers
-            }
-            try { Invoke-Dataset @invokeParams | Out-Null } catch {
-                $folderMap["$key.error"] = $_.Exception.Message
-            }
-
-            $runFolder = $null
-            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                        $runFolder = $grandchild
-                        break
-                    }
-                }
-                if ($runFolder) { break }
-            }
-            $folderMap[$key] = $runFolder
-        }
-
-        return @{
-            AgentPerfFolder     = $folderMap['analytics.query.conversation.aggregates.agent.performance']
-            UserPerfFolder      = $folderMap['analytics.query.user.aggregates.performance.metrics']
-            LoginActivityFolder = $folderMap['analytics.query.user.aggregates.login.activity']
-            PartialFailure      = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
-        }
+        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-AgentPerformanceReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
+    [void]$ps.AddArgument($appDir)
     [void]$ps.AddArgument($corePath)
     [void]$ps.AddArgument($catalogPath)
     [void]$ps.AddArgument($schemaPath)
@@ -2524,50 +2353,24 @@ function _StartRunInBackground {
         & $t "Headers     : $(if ($null -ne $Headers -and $Headers.Count -gt 0) { "$($Headers.Count) key(s): $($Headers.Keys -join ', ')" } else { '(none — no auth token!)' })"
 
         try {
-            # App.CoreAdapter.psm1 cannot be reliably loaded into a [PowerShell]::Create()
-            # runspace (Import-Module scopes to module namespace; dot-source treats .psm1
-            # with module semantics).  Inline the three operations it wraps instead:
-            # validate paths → Import Genesys.Core → Assert-Catalog → Invoke-Dataset.
-
-            if (-not [System.IO.File]::Exists($CorePath)) {
-                throw "Genesys.Core module not found at: $CorePath"
-            }
-            if (-not [System.IO.File]::Exists($CatalogPath)) {
-                throw "Catalog not found at: $CatalogPath"
-            }
+            $adapterPath = [System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')
+            if (-not [System.IO.File]::Exists($adapterPath)) { throw "Core adapter not found at: $adapterPath" }
             & $t "Path checks OK"
 
-            Import-Module $CorePath -Force -ErrorAction Stop
-            & $t "Genesys.Core imported"
+            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+            & $t "Core adapter imported"
 
-            $assertParams = @{ CatalogPath = $CatalogPath }
-            if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
-            Assert-Catalog @assertParams -ErrorAction Stop
-            & $t "Assert-Catalog OK"
+            Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+            & $t "Core adapter initialized"
 
-            if (-not [System.IO.Directory]::Exists($OutputRoot)) {
-                [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
-            }
-
-            $datasetKey = if ($RunType -eq 'preview') {
-                'analytics-conversation-details-query'
+            if ($RunType -eq 'preview') {
+                & $t "Calling Start-PreviewRun..."
+                $result = Start-PreviewRun -DatasetParameters $DatasetParams -Headers $Headers -BaseUri $BaseUri
             } else {
-                'analytics-conversation-details'
+                & $t "Calling Start-FullRun..."
+                $result = Start-FullRun -DatasetParameters $DatasetParams -Headers $Headers -BaseUri $BaseUri
             }
-            & $t "Calling Invoke-Dataset (dataset=$datasetKey)..."
-
-            $invokeParams = @{
-                Dataset           = $datasetKey
-                CatalogPath       = $CatalogPath
-                OutputRoot        = $OutputRoot
-                BaseUri           = $BaseUri
-                DatasetParameters = $DatasetParams
-            }
-            if ($null -ne $Headers -and $Headers.Count -gt 0) {
-                $invokeParams['Headers'] = $Headers
-            }
-            $result = Invoke-Dataset @invokeParams
-            & $t "Invoke-Dataset returned"
+            & $t "Core run returned"
             $result
         } catch {
             & $t "EXCEPTION : $_"
@@ -2660,8 +2463,8 @@ function _PollBackgroundRun {
 
     _SetRunning $false
 
-    # If polling didn't detect the new run folder, recover from the Start-*Run result.
-    # Invoke-Dataset returns a $runContext PSCustomObject (.runFolder), not a bare string.
+    # If polling didn't detect the new run folder, recover from the adapter result.
+    # Core returns a run context object (.runFolder), not a bare string.
     if ($null -eq $script:State.CurrentRunFolder -and $null -ne $runResult) {
         $resultFolder = @($runResult) | ForEach-Object {
             if ($_ -is [string]) { $_ }

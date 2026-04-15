@@ -56,3 +56,34 @@ pwsh .\scripts\Invoke-ValidationMenu.ps1
 # Example: different region, show 10 rows
 pwsh .\scripts\Invoke-ValidationMenu.ps1 -Region mypurecloud.com -PreviewRows 10
 ```
+
+---
+
+## ConversationAnalysis web viewer workflow
+
+The static web page at `apps/ConversationAnalysis/index.html` does not call
+Genesys Cloud directly. It only reads Core run artifacts from disk.
+
+### Generate loadable conversation JSONL
+
+```powershell
+pwsh .\scripts\Get-ConversationAnalysis.ps1 `
+  -Region 'usw2.pure.cloud' `
+  -LookbackHours 24
+```
+
+The script prints a run folder and data folder when it completes.
+
+### Load the web page
+
+1. Open `apps/ConversationAnalysis/index.html` in a browser.
+2. Click **Load Run**.
+3. Select `data\analytics-conversation-details.jsonl` from the printed data folder.
+4. For preview/smaller synchronous runs, select `data\analytics-conversation-details-query.jsonl`.
+
+Do not load `events.jsonl`, `api-calls.log`, `summary.json`, or `index.jsonl`
+into the web page. Those files are diagnostics or supporting artifacts, not
+conversation records.
+
+`manifest.json` is optional. It only adds run metadata to the page header; the
+conversation grid and charts work from the `data\*.jsonl` file.

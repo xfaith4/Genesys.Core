@@ -71,6 +71,48 @@ function _RequireInitialized {
     }
 }
 
+function Invoke-CoreDatasetRun {
+    param(
+        [Parameter(Mandatory)][string]$Dataset,
+        [string]$OutputRoot = $script:OutputRoot,
+        [hashtable]$DatasetParameters = $null,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    $invokeParams = @{
+        Dataset     = $Dataset
+        CatalogPath = $script:CatalogPath
+        OutputRoot  = $OutputRoot
+    }
+    if ($null -ne $DatasetParameters) {
+        $invokeParams['DatasetParameters'] = $DatasetParameters
+    }
+    if ($null -ne $Headers -and $Headers.Count -gt 0) {
+        $invokeParams['Headers'] = $Headers
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BaseUri)) {
+        $invokeParams['BaseUri'] = $BaseUri
+    }
+
+    return Invoke-Dataset @invokeParams
+}
+
+function Find-CoreRunFolder {
+    param([Parameter(Mandatory)][string]$Root)
+
+    foreach ($child in [System.IO.Directory]::GetDirectories($Root)) {
+        foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+            if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                return $grandchild
+            }
+        }
+    }
+
+    return $null
+}
+
 function Start-PreviewRun {
     <#
     .SYNOPSIS
@@ -78,19 +120,12 @@ function Start-PreviewRun {
     #>
     param(
         [Parameter(Mandatory)][hashtable]$DatasetParameters,
-        [hashtable]$Headers = $null
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
     )
     _RequireInitialized
 
-    $invokeParams = @{
-        Dataset           = 'analytics-conversation-details-query'
-        CatalogPath       = $script:CatalogPath
-        OutputRoot        = $script:OutputRoot
-        DatasetParameters = $DatasetParameters
-    }
-    if ($null -ne $Headers) { $invokeParams['Headers'] = $Headers }
-
-    return Invoke-Dataset @invokeParams
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-details-query' -DatasetParameters $DatasetParameters -Headers $Headers -BaseUri $BaseUri
 }
 
 function Start-FullRun {
@@ -100,19 +135,12 @@ function Start-FullRun {
     #>
     param(
         [Parameter(Mandatory)][hashtable]$DatasetParameters,
-        [hashtable]$Headers = $null
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
     )
     _RequireInitialized
 
-    $invokeParams = @{
-        Dataset           = 'analytics-conversation-details'
-        CatalogPath       = $script:CatalogPath
-        OutputRoot        = $script:OutputRoot
-        DatasetParameters = $DatasetParameters
-    }
-    if ($null -ne $Headers) { $invokeParams['Headers'] = $Headers }
-
-    return Invoke-Dataset @invokeParams
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-details' -DatasetParameters $DatasetParameters -Headers $Headers -BaseUri $BaseUri
 }
 
 function Get-RunManifest {
@@ -290,7 +318,8 @@ function Refresh-ReferenceData {
         Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
     #>
     param(
-        [hashtable]$Headers = $null
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
     )
     _RequireInitialized
 
@@ -316,33 +345,13 @@ function Refresh-ReferenceData {
         $dsRoot = [System.IO.Path]::Combine($refRoot, $key)
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
-        $invokeParams = @{
-            Dataset     = $key
-            CatalogPath = $script:CatalogPath
-            OutputRoot  = $dsRoot
-        }
-        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
-        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
-
         try {
-            Invoke-Dataset @invokeParams | Out-Null
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Refresh-ReferenceData: dataset '$key' failed — $($_.Exception.Message)"
         }
 
-        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
-        $runFolder = $null
-        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                    $runFolder = $grandchild
-                    break
-                }
-            }
-            if ($runFolder) { break }
-        }
-
-        $folderMap[$key] = $runFolder
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
     }
 
     return $folderMap
@@ -377,7 +386,8 @@ function Get-QueuePerformanceReport {
     param(
         [Parameter(Mandatory)][string] $StartDateTime,
         [Parameter(Mandatory)][string] $EndDateTime,
-        [hashtable] $Headers = $null
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
     )
     _RequireInitialized
 
@@ -401,33 +411,13 @@ function Get-QueuePerformanceReport {
         $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
-        $invokeParams = @{
-            Dataset            = $key
-            CatalogPath        = $script:CatalogPath
-            OutputRoot         = $dsRoot
-            DatasetParameters  = @{ Interval = $interval }
-        }
-        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
-        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
-
         try {
-            Invoke-Dataset @invokeParams | Out-Null
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-QueuePerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
         }
 
-        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
-        $runFolder = $null
-        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                    $runFolder = $grandchild
-                    break
-                }
-            }
-            if ($runFolder) { break }
-        }
-        $folderMap[$key] = $runFolder
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
     }
 
     return @{
@@ -468,7 +458,8 @@ function Get-AgentPerformanceReport {
     param(
         [Parameter(Mandatory)][string] $StartDateTime,
         [Parameter(Mandatory)][string] $EndDateTime,
-        [hashtable] $Headers = $null
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
     )
     _RequireInitialized
 
@@ -490,33 +481,13 @@ function Get-AgentPerformanceReport {
         $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
-        $invokeParams = @{
-            Dataset            = $key
-            CatalogPath        = $script:CatalogPath
-            OutputRoot         = $dsRoot
-            DatasetParameters  = @{ Interval = $interval }
-        }
-        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
-        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
-
         try {
-            Invoke-Dataset @invokeParams | Out-Null
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-AgentPerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
         }
 
-        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
-        $runFolder = $null
-        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
-            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
-                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
-                    $runFolder = $grandchild
-                    break
-                }
-            }
-            if ($runFolder) { break }
-        }
-        $folderMap[$key] = $runFolder
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
     }
 
     return @{

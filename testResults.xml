@@ -1,88 +1,41 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="31" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-15" time="10:57:41">
-  <environment nunit-version="2.5.8.0" cwd="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core" user-domain="" user="xfaith" os-version="5.15.146.1-microsoft-standard-WSL2" clr-version="10.0.5" platform="Linux" machine-name="TheShire" />
+<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="20" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-15" time="11:11:03">
+  <environment cwd="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core" machine-name="TheShire" user-domain="" clr-version="10.0.5" platform="Linux" os-version="5.15.146.1-microsoft-standard-WSL2" nunit-version="2.5.8.0" user="xfaith" />
   <culture-info current-culture="" current-uiculture="" />
-  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="7.0555" asserts="0" description="Pester">
+  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="1.4923" asserts="0" description="Pester">
     <results>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/RunContract.Tests.ps1" executed="True" result="Success" success="True" time="1.675" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/RunContract.Tests.ps1">
+      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/ConversationAnalysis.Compliance.Tests.ps1" executed="True" result="Success" success="True" time="1.0423" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/ConversationAnalysis.Compliance.Tests.ps1">
         <results>
-          <test-suite type="TestFixture" name="Run output contract" executed="True" result="Success" success="True" time="1.2822" asserts="0" description="Run output contract">
+          <test-suite type="TestFixture" name="ConversationAnalysis — Gate D Compliance" executed="True" result="Success" success="True" time="0.5666" asserts="0" description="ConversationAnalysis — Gate D Compliance">
             <results>
-              <test-case description="creates out/// with manifest and events files" name="Run output contract.creates out/// with manifest and events files" time="0.2562" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="writes git sha into manifest when env var exists" name="Run output contract.writes git sha into manifest when env var exists" time="0.0247" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="local stub run writes contract files" name="Run output contract.local stub run writes contract files" time="0.933" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE B.1: app code must not call Invoke-RestMethod" name="ConversationAnalysis — Gate D Compliance.GATE B.1: app code must not call Invoke-RestMethod" time="0.1213" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE B.2: app code must not call Invoke-WebRequest" name="ConversationAnalysis — Gate D Compliance.GATE B.2: app code must not call Invoke-WebRequest" time="0.0141" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE B.3: app code must not contain literal /api/v2/ paths" name="ConversationAnalysis — Gate D Compliance.GATE B.3: app code must not contain literal /api/v2/ paths" time="0.0119" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE B.4: app code must not call fetch() against Genesys API hosts" name="ConversationAnalysis — Gate D Compliance.GATE B.4: app code must not call fetch() against Genesys API hosts" time="0.0092" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE C.1: Genesys.Core module must not be copied into the app folder" name="ConversationAnalysis — Gate D Compliance.GATE C.1: Genesys.Core module must not be copied into the app folder" time="0.0563" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE C.2: Genesys.Core.psm1 must not be present in the app folder" name="ConversationAnalysis — Gate D Compliance.GATE C.2: Genesys.Core.psm1 must not be present in the app folder" time="0.0479" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.1: apps/ConversationAnalysis/index.html must exist" name="ConversationAnalysis — Gate D Compliance.GATE D.1: apps/ConversationAnalysis/index.html must exist" time="0.0167" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.2: index.html must not bundle chart libraries locally" name="ConversationAnalysis — Gate D Compliance.GATE D.2: index.html must not bundle chart libraries locally" time="0.0245" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.3: index.html must use FileReader API for data loading" name="ConversationAnalysis — Gate D Compliance.GATE D.3: index.html must use FileReader API for data loading" time="0.0371" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.4: app folder must not contain node_modules" name="ConversationAnalysis — Gate D Compliance.GATE D.4: app folder must not contain node_modules" time="0.0193" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.5: app code must not contain hardcoded bearer tokens" name="ConversationAnalysis — Gate D Compliance.GATE D.5: app code must not contain hardcoded bearer tokens" time="0.0086" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.6: app code must not contain hardcoded client_secret values" name="ConversationAnalysis — Gate D Compliance.GATE D.6: app code must not contain hardcoded client_secret values" time="0.0081" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.7: apps/ConversationAnalysis/README.md must exist" name="ConversationAnalysis — Gate D Compliance.GATE D.7: apps/ConversationAnalysis/README.md must exist" time="0.0108" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="GATE D.8: index.html must reference Invoke-Dataset in its content (Core-first traceability)" name="ConversationAnalysis — Gate D Compliance.GATE D.8: index.html must reference Invoke-Dataset in its content (Core-first traceability)" time="0.0409" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
         </results>
       </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AdditionalDatasets.Tests.ps1" executed="True" result="Success" success="True" time="1.051" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AdditionalDatasets.Tests.ps1">
+      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogsConsole.Compliance.Tests.ps1" executed="True" result="Success" success="True" time="0.4499" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogsConsole.Compliance.Tests.ps1">
         <results>
-          <test-suite type="TestFixture" name="Additional dataset implementations" executed="True" result="Success" success="True" time="0.9966" asserts="0" description="Additional dataset implementations">
+          <test-suite type="TestFixture" name="AuditLogsConsole — Core-First Compliance" executed="True" result="Success" success="True" time="0.4141" asserts="0" description="AuditLogsConsole — Core-First Compliance">
             <results>
-              <test-case description="registers users and routing-queues datasets" name="Additional dataset implementations.registers users and routing-queues datasets" time="0.0062" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="runs users dataset with nextUri paging and normalized output" name="Additional dataset implementations.runs users dataset with nextUri paging and normalized output" time="0.2614" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="runs routing-queues dataset and normalizes records" name="Additional dataset implementations.runs routing-queues dataset and normalizes records" time="0.1756" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="runs catalog-defined dataset that is not explicitly registered" name="Additional dataset implementations.runs catalog-defined dataset that is not explicitly registered" time="0.1103" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="applies endpoint defaultQueryParams to route and query values for generic datasets" name="Additional dataset implementations.applies endpoint defaultQueryParams to route and query values for generic datasets" time="0.1163" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="applies DatasetParameters.Query overrides for generic datasets" name="Additional dataset implementations.applies DatasetParameters.Query overrides for generic datasets" time="0.1225" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-        </results>
-      </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/Security.Redaction.Tests.ps1" executed="True" result="Success" success="True" time="0.305" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/Security.Redaction.Tests.ps1">
-        <results>
-          <test-suite type="TestFixture" name="Request logging redaction" executed="True" result="Success" success="True" time="0.2406" asserts="0" description="Request logging redaction">
-            <results>
-              <test-case description="redacts sensitive headers and query parameters in request events" name="Request logging redaction.redacts sensitive headers and query parameters in request events" time="0.2292" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-          <test-suite type="TestFixture" name="Record payload redaction hardening" executed="True" result="Success" success="True" time="0.269" asserts="0" description="Record payload redaction hardening">
-            <results>
-              <test-case description="redacts embedded bearer and query token strings while preserving non-sensitive text" name="Record payload redaction hardening.redacts embedded bearer and query token strings while preserving non-sensitive text" time="0.0128" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-        </results>
-      </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/Paging.Tests.ps1" executed="True" result="Success" success="True" time="0.4409" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/Paging.Tests.ps1">
-        <results>
-          <test-suite type="TestFixture" name="Paging strategies" executed="True" result="Success" success="True" time="0.3925" asserts="0" description="Paging strategies">
-            <results>
-              <test-case description="enumerates nextUri pages and terminates when nextUri is empty" name="Paging strategies.enumerates nextUri pages and terminates when nextUri is empty" time="0.0529" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="resolves relative nextUri values to absolute URIs" name="Paging strategies.resolves relative nextUri values to absolute URIs" time="0.0431" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="enumerates pageNumber pages and stops when totalHits reached" name="Paging strategies.enumerates pageNumber pages and stops when totalHits reached" time="0.0413" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="terminates pageNumber when empty page is returned" name="Paging strategies.terminates pageNumber when empty page is returned" time="0.0391" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="enumerates cursor pages and terminates when cursor is missing" name="Paging strategies.enumerates cursor pages and terminates when cursor is missing" time="0.0531" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="enumerates bodyPaging pages and stops when totalHits reached" name="Paging strategies.enumerates bodyPaging pages and stops when totalHits reached" time="0.0425" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="treats itemsPath $ as a single response item" name="Paging strategies.treats itemsPath $ as a single response item" time="0.0066" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="treats itemsPath $. as a single response item" name="Paging strategies.treats itemsPath $. as a single response item" time="0.007" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="uses explicit RetryProfile parameter over EndpointSpec.retry" name="Paging strategies.uses explicit RetryProfile parameter over EndpointSpec.retry" time="0.0166" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="terminates pageNumber_default paging when pageCount is reached" name="Paging strategies.terminates pageNumber_default paging when pageCount is reached" time="0.0371" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="terminates nextUri_default paging when nextUri is null" name="Paging strategies.terminates nextUri_default paging when nextUri is null" time="0.0279" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-        </results>
-      </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AsyncJob.Engine.Tests.ps1" executed="True" result="Success" success="True" time="0.309" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AsyncJob.Engine.Tests.ps1">
-        <results>
-          <test-suite type="TestFixture" name="Async job engine" executed="True" result="Success" success="True" time="0.2721" asserts="0" description="Async job engine">
-            <results>
-              <test-case description="runs analytics-style async profile with custom id/state paths" name="Async job engine.runs analytics-style async profile with custom id/state paths" time="0.0793" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="uses configured terminalStates fallback when terminalStatesPath is missing in status payload" name="Async job engine.uses configured terminalStates fallback when terminalStatesPath is missing in status payload" time="0.0497" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="handles transient retries + paging + async polling in one flow" name="Async job engine.handles transient retries + paging + async polling in one flow" time="0.1083" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-        </results>
-      </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1" executed="True" result="Success" success="True" time="3.2746" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1">
-        <results>
-          <test-suite type="TestFixture" name="Analytics conversation details dataset" executed="True" result="Success" success="True" time="3.196" asserts="0" description="Analytics conversation details dataset">
-            <results>
-              <test-case description="runs submit-&gt;poll-&gt;results flow with cursor paging and writes outputs" name="Analytics conversation details dataset.runs submit-&gt;poll-&gt;results flow with cursor paging and writes outputs" time="2.2825" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails when analytics job reaches FAILED terminal state" name="Analytics conversation details dataset.fails when analytics job reaches FAILED terminal state" time="0.1369" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sends segmentFilters when QueueIds DatasetParameter is provided" name="Analytics conversation details dataset.sends segmentFilters when QueueIds DatasetParameter is provided" time="0.1673" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sends conversationFilters when ConversationId DatasetParameter is provided" name="Analytics conversation details dataset.sends conversationFilters when ConversationId DatasetParameter is provided" time="0.1615" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="sends conversationFilters when DivisionIds DatasetParameter is provided" name="Analytics conversation details dataset.sends conversationFilters when DivisionIds DatasetParameter is provided" time="0.1731" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="runs analytics-conversation-details-query with body paging via generic dispatch" name="Analytics conversation details dataset.runs analytics-conversation-details-query with body paging via generic dispatch" time="0.1004" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="contains no Invoke-RestMethod usage in the app" name="AuditLogsConsole — Core-First Compliance.contains no Invoke-RestMethod usage in the app" time="0.0087" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="contains no Invoke-WebRequest usage in the app" name="AuditLogsConsole — Core-First Compliance.contains no Invoke-WebRequest usage in the app" time="0.0059" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="contains no /api/v2/ literal in the app" name="AuditLogsConsole — Core-First Compliance.contains no /api/v2/ literal in the app" time="0.0063" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="does not copy Genesys.Core into the app folder" name="AuditLogsConsole — Core-First Compliance.does not copy Genesys.Core into the app folder" time="0.0975" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="keeps Invoke-Dataset usage inside App.CoreAdapter only" name="AuditLogsConsole — Core-First Compliance.keeps Invoke-Dataset usage inside App.CoreAdapter only" time="0.035" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="keeps Assert-Catalog usage inside App.CoreAdapter or App.ps1 startup narrative only" name="AuditLogsConsole — Core-First Compliance.keeps Assert-Catalog usage inside App.CoreAdapter or App.ps1 startup narrative only" time="0.0062" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
         </results>

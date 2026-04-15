@@ -57,6 +57,17 @@ $script:LblQPerfAbandonPct      = _Ctrl 'LblQPerfAbandonPct'
 $script:LblQPerfSLAPct          = _Ctrl 'LblQPerfSLAPct'
 $script:LblQPerfHandle          = _Ctrl 'LblQPerfHandle'
 
+# Agent Performance tab
+$script:BtnPullAgentPerfReport  = _Ctrl 'BtnPullAgentPerfReport'
+$script:CmbAgentPerfDivision    = _Ctrl 'CmbAgentPerfDivision'
+$script:DgAgentPerf             = _Ctrl 'DgAgentPerf'
+$script:LblAPerfAgents          = _Ctrl 'LblAPerfAgents'
+$script:LblAPerfConnected       = _Ctrl 'LblAPerfConnected'
+$script:LblAPerfHandle          = _Ctrl 'LblAPerfHandle'
+$script:LblAPerfTalk            = _Ctrl 'LblAPerfTalk'
+$script:LblAPerfTalkRatio       = _Ctrl 'LblAPerfTalkRatio'
+$script:LblAPerfAcwRatio        = _Ctrl 'LblAPerfAcwRatio'
+
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
 $script:BtnSearch              = _Ctrl 'BtnSearch'
@@ -132,6 +143,10 @@ $script:State = @{
     QueuePerfRunspace   = $null
     QueuePerfTimer      = $null
     QueuePerfCaseId     = ''       # case targeted by in-progress queue-perf pull
+    AgentPerfJob        = $null    # PSDataCollection for agent-performance background pull
+    AgentPerfRunspace   = $null
+    AgentPerfTimer      = $null
+    AgentPerfCaseId     = ''       # case targeted by in-progress agent-perf pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -354,6 +369,8 @@ function _RefreshActiveCaseStatus {
         $script:BtnRefreshRefData.IsEnabled = $true
         _PopulateQueuePerfDivisionFilter
         _RenderQueuePerfGrid
+        _PopulateAgentPerfDivisionFilter
+        _RenderAgentPerfGrid
     }
 }
 
@@ -1473,7 +1490,303 @@ function _RenderQueuePerfGrid {
     $script:LblQPerfHandle.Text     = "{0:F1}" -f $summary.AvgHandleSec
 }
 
-function _ImportCurrentRunToCase {
+function _StartAgentPerfReportJob {
+    <#
+        Pulls agent-performance aggregate datasets (agent perf, user metrics,
+        login activity) in a background runspace for the current case time window,
+        then imports the results into report_agent_perf and refreshes the grid.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Agent Performance')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Agent Performance')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling agent performance data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Agent Performance')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling agent performance data.', 'Agent Performance')
+        return
+    }
+
+    $startDt   = $range.Start.ToUniversalTime().ToString('o')
+    $endDt     = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Pulling agent performance report…'
+    $script:BtnPullAgentPerfReport.IsEnabled = $false
+    $script:State.AgentPerfCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+
+    [void]$ps.AddScript({
+        param($CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        Set-StrictMode -Version Latest
+
+        if (-not [System.IO.File]::Exists($CorePath))    { throw "Genesys.Core module not found: $CorePath" }
+        if (-not [System.IO.File]::Exists($CatalogPath)) { throw "Catalog not found: $CatalogPath" }
+
+        Import-Module $CorePath -Force -ErrorAction Stop
+
+        $assertParams = @{ CatalogPath = $CatalogPath }
+        if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
+        Assert-Catalog @assertParams -ErrorAction Stop
+
+        if (-not [System.IO.Directory]::Exists($OutputRoot)) {
+            [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+        }
+
+        $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+        $repRoot = [System.IO.Path]::Combine($OutputRoot, "report-agent-perf-$stamp")
+        [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+        $interval    = "$StartDt/$EndDt"
+        $datasetKeys = @(
+            'analytics.query.conversation.aggregates.agent.performance',
+            'analytics.query.user.aggregates.performance.metrics',
+            'analytics.query.user.aggregates.login.activity'
+        )
+
+        $folderMap = @{}
+        foreach ($key in $datasetKeys) {
+            $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+            $invokeParams = @{
+                Dataset           = $key
+                CatalogPath       = $CatalogPath
+                OutputRoot        = $dsRoot
+                DatasetParameters = @{ Interval = $interval }
+                BaseUri           = $BaseUri
+            }
+            if ($null -ne $Headers -and $Headers.Count -gt 0) {
+                $invokeParams['Headers'] = $Headers
+            }
+            try { Invoke-Dataset @invokeParams | Out-Null } catch {
+                $folderMap["$key.error"] = $_.Exception.Message
+            }
+
+            $runFolder = $null
+            foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+                foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                    if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                        $runFolder = $grandchild
+                        break
+                    }
+                }
+                if ($runFolder) { break }
+            }
+            $folderMap[$key] = $runFolder
+        }
+
+        return @{
+            AgentPerfFolder = $folderMap['analytics.query.conversation.aggregates.agent.performance']
+            UserPerfFolder  = $folderMap['analytics.query.user.aggregates.performance.metrics']
+            LoginFolder     = $folderMap['analytics.query.user.aggregates.login.activity']
+            PartialFailure  = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+        }
+    })
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.AgentPerfJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.AgentPerfRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.AgentPerfTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.AgentPerfJob
+        if ($null -eq $job) { $script:State.AgentPerfTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.AgentPerfTimer.Stop()
+        $script:State.AgentPerfTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                                catch {}
+            try { $script:State.AgentPerfRunspace.Close() }         catch {}
+            try { $script:State.AgentPerfRunspace.Dispose() }       catch {}
+            $script:State.AgentPerfJob      = $null
+            $script:State.AgentPerfRunspace = $null
+            $script:State.AgentPerfCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Agent performance pull failed'
+            _Dispatch { $script:BtnPullAgentPerfReport.IsEnabled = $true }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Agent Performance')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-AgentPerformanceReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary     = "Loaded $($importStats.RecordCount) agent rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' — WARNING: one or more datasets failed to pull; data may be incomplete.' }
+                _SetStatus $summary
+                _PopulateAgentPerfDivisionFilter
+                _RenderAgentPerfGrid
+                [System.Windows.MessageBox]::Show($summary, 'Agent Performance Report')
+            } catch {
+                _SetStatus 'Agent performance import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Agent Performance')
+            }
+        } else {
+            _SetStatus 'Agent performance pull completed (no data returned)'
+        }
+
+        _Dispatch { $script:BtnPullAgentPerfReport.IsEnabled = $true }
+    })
+
+    $timer.Start()
+}
+
+function _PopulateAgentPerfDivisionFilter {
+    <#
+        Populates CmbAgentPerfDivision with divisions from report_agent_perf for
+        the active case.  Preserves the current selection if still valid.
+    #>
+    if ($null -eq $script:CmbAgentPerfDivision) { return }
+    if (-not (Test-DatabaseInitialized))         { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId))        { return }
+
+    $divRows = @()
+    try {
+        $rows    = @(Get-AgentPerfRows -CaseId $caseId)
+        $divRows = $rows |
+            Where-Object { $_.division_id -and $_.division_name } |
+            Select-Object @{n='DivisionId';e={$_.division_id}}, @{n='Name';e={$_.division_name}} |
+            Sort-Object Name -Unique
+    } catch {}
+
+    $prevSel = $null
+    if ($null -ne $script:CmbAgentPerfDivision.SelectedItem) {
+        $prevSel = $script:CmbAgentPerfDivision.SelectedItem.DivisionId
+    }
+
+    $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+    foreach ($d in $divRows) { $items.Add($d) }
+
+    $script:CmbAgentPerfDivision.ItemsSource       = $items
+    $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
+    $script:CmbAgentPerfDivision.SelectedIndex     = 0
+
+    if ($prevSel) {
+        for ($i = 1; $i -lt $items.Count; $i++) {
+            if ($items[$i].DivisionId -eq $prevSel) {
+                $script:CmbAgentPerfDivision.SelectedIndex = $i
+                break
+            }
+        }
+    }
+}
+
+function _RenderAgentPerfGrid {
+    <#
+        Reads report_agent_perf rows for the active case (with optional division
+        filter), populates the DgAgentPerf DataGrid, and updates the summary bar.
+    #>
+    if (-not (Test-DatabaseInitialized)) { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { return }
+
+    $divisionId = ''
+    if ($null -ne $script:CmbAgentPerfDivision) {
+        $sel = $script:CmbAgentPerfDivision.SelectedItem
+        if ($null -ne $sel -and $sel.DivisionId) {
+            $divisionId = [string]$sel.DivisionId
+        }
+    }
+
+    try {
+        $rows    = @(Get-AgentPerfRows    -CaseId $caseId -DivisionId $divisionId)
+        $summary = Get-AgentPerfSummary   -CaseId $caseId -DivisionId $divisionId
+    } catch {
+        _SetStatus "Agent perf read failed: $_"
+        return
+    }
+
+    $displayRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($r in $rows) {
+        $tOnQueueHr = if ([double]($r.t_on_queue_sec) -gt 0) {
+            "{0:F2}" -f ([double]($r.t_on_queue_sec) / 3600.0)
+        } else { '0.00' }
+        $displayRows.Add([pscustomobject]@{
+            UserName       = [string]($r.user_name)
+            UserEmail      = [string]($r.user_email)
+            DivisionName   = [string]($r.division_name)
+            QueueNames     = [string]($r.queue_names)
+            NConnected     = [int]   ($r.n_connected)
+            NOffered       = [int]   ($r.n_offered)
+            THandleAvgSec  = [string]("{0:F1}" -f [double]($r.t_handle_avg_sec))
+            TTalkAvgSec    = [string]("{0:F1}" -f [double]($r.t_talk_avg_sec))
+            TAcwAvgSec     = [string]("{0:F1}" -f [double]($r.t_acw_avg_sec))
+            TOnQueueHr     = $tOnQueueHr
+            TalkRatioPct   = [string]("{0:F1}" -f [double]($r.talk_ratio_pct))
+            AcwRatioPct    = [string]("{0:F1}" -f [double]($r.acw_ratio_pct))
+            IdleRatioPct   = [string]("{0:F1}" -f [double]($r.idle_ratio_pct))
+        })
+    }
+    $script:DgAgentPerf.ItemsSource = $displayRows
+
+    # Update summary bar
+    $script:LblAPerfAgents.Text     = [string]($summary.TotalAgents)
+    $script:LblAPerfConnected.Text  = [string]($summary.TotalConnected)
+    $script:LblAPerfHandle.Text     = "{0:F1}" -f $summary.AvgHandleSec
+    $script:LblAPerfTalk.Text       = "{0:F1}" -f $summary.AvgTalkSec
+    $script:LblAPerfTalkRatio.Text  = "{0:F1}%" -f $summary.AvgTalkRatioPct
+    $script:LblAPerfAcwRatio.Text   = "{0:F1}%" -f $summary.AvgAcwRatioPct
+}
     if (-not (Test-DatabaseInitialized)) {
         _SetStatus 'Case store offline'
         return
@@ -3054,6 +3367,14 @@ if ($null -ne $script:BtnPullQueuePerfReport) {
 
 if ($null -ne $script:CmbQueuePerfDivision) {
     $script:CmbQueuePerfDivision.Add_SelectionChanged({ _RenderQueuePerfGrid })
+}
+
+if ($null -ne $script:BtnPullAgentPerfReport) {
+    $script:BtnPullAgentPerfReport.Add_Click({ _StartAgentPerfReportJob })
+}
+
+if ($null -ne $script:CmbAgentPerfDivision) {
+    $script:CmbAgentPerfDivision.Add_SelectionChanged({ _RenderAgentPerfGrid })
 }
 
 $script:BtnRun.Add_Click({

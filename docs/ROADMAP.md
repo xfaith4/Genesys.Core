@@ -369,7 +369,19 @@ that implement it, and the backing catalog key(s).
 | Agent Insights                  | 18–21 | 1                     | 4               |
 | WebRTC & Latency                | 22–23 | —                     | 2               |
 | WFM & Journey                   | 24–25 | 2                     | 2               |
-| Composite Snapshots             | 26    | —                     | 4               |
-| Planned (future phases)         | 27–30 | —                     | —               |
-| **Total**                       | **30**| **16**                | **27**          |
+| Composite Snapshots             | 26–30 | —                     | 8               |
+| **Total**                       | **30**| **16**                | **31**          |
+
+### ConversationAnalyser Reporting Sessions (Session 13–20+)
+
+| Session | Feature                              | Status           |
+|---------|--------------------------------------|------------------|
+| 13      | Reference Data Foundation            | ✅ Delivered     |
+| 14      | Queue Performance Aggregate Report   | ✅ Delivered     |
+| 15      | Agent Performance Report             | ✅ Delivered     |
+| 16      | Transfer and Escalation Chain Intel  | 🔲 Planned       |
+| 17      | IVR and Flow Containment Report      | 🔲 Planned       |
+| 18      | Wrapup Code Distribution             | 🔲 Planned       |
+| 19      | Quality and Voice-of-Customer Overlay| 🔲 Planned       |
+| 20      | Temporal Trend and Comparative       | 🔲 Planned       |
 

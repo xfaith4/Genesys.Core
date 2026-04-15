@@ -438,9 +438,98 @@ function Get-QueuePerformanceReport {
     }
 }
 
+function Get-AgentPerformanceReport {
+    <#
+    .SYNOPSIS
+        Session 15 — pulls three agent-performance aggregate datasets and returns
+        their run folder paths for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.agent.performance
+          - analytics.query.user.aggregates.performance.metrics
+          - analytics.query.user.aggregates.login.activity
+
+        All three calls use the same StartDateTime / EndDateTime window so the
+        data aligns on interval boundaries.  Results are written under
+        OutputRoot\report-agent-perf-<timestamp>\.
+
+        Returns a hashtable with keys:
+          AgentPerfFolder       — run folder for the conversation-aggregate agent-performance dataset
+          UserPerfFolder        — run folder for the user-aggregate performance-metrics dataset
+          LoginActivityFolder   — run folder for the user-aggregate login-activity dataset
+          PartialFailure        — $true if any dataset call failed
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-agent-perf-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.agent.performance',
+        'analytics.query.user.aggregates.performance.metrics',
+        'analytics.query.user.aggregates.login.activity'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        $invokeParams = @{
+            Dataset            = $key
+            CatalogPath        = $script:CatalogPath
+            OutputRoot         = $dsRoot
+            DatasetParameters  = @{ Interval = $interval }
+        }
+        if ($script:SchemaPath) { $invokeParams['SchemaPath'] = $script:SchemaPath }
+        if ($null -ne $Headers) { $invokeParams['Headers']    = $Headers }
+
+        try {
+            Invoke-Dataset @invokeParams | Out-Null
+        } catch {
+            Write-Warning "Get-AgentPerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        # Locate the run folder (OutputRoot\DatasetKey\RunId\)
+        $runFolder = $null
+        foreach ($child in [System.IO.Directory]::GetDirectories($dsRoot)) {
+            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                    $runFolder = $grandchild
+                    break
+                }
+            }
+            if ($runFolder) { break }
+        }
+        $folderMap[$key] = $runFolder
+    }
+
+    return @{
+        AgentPerfFolder     = $folderMap['analytics.query.conversation.aggregates.agent.performance']
+        UserPerfFolder      = $folderMap['analytics.query.user.aggregates.performance.metrics']
+        LoginActivityFolder = $folderMap['analytics.query.user.aggregates.login.activity']
+        PartialFailure      = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
-    Refresh-ReferenceData, Get-QueuePerformanceReport
+    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport

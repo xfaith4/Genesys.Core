@@ -434,7 +434,27 @@ Documentation: add a report description to the UI tooltip and to repo notes expl
 
 ---
 
-## Session 15: Agent Performance Report — Cross-Queue View
+## Session 15: Agent Performance Report — Cross-Queue View — **COMPLETE**
+
+> **What was delivered:** `Get-AgentPerformanceReport` added to `App.CoreAdapter.psm1` — calls
+> `Invoke-Dataset` for three datasets in sequence (`analytics.query.conversation.aggregates.agent.performance`,
+> `analytics.query.user.aggregates.performance.metrics`, `analytics.query.user.aggregates.login.activity`)
+> using the case time window as the `Interval` `DatasetParameters` override; returns a hashtable with
+> `AgentPerfFolder`, `UserPerfFolder`, and `LoginFolder`.  `Import-AgentPerformanceReport` added to
+> `App.Database.psm1` — merges all three JSONL outputs by `userId` (summing across all intervals),
+> resolves user names, emails, departments and division names from ref tables, derives `queue_names`
+> from the conversations table, computes `talk_ratio_pct` (tTalk / tHandle × 100), `acw_ratio_pct`,
+> and `idle_ratio_pct` (tIdleTime / total on-shift × 100), and upserts into the new `report_agent_perf`
+> table (schema v6).  `Get-AgentPerfRows` and `Get-AgentPerfSummary` added for grid and summary-bar
+> reads.  "Agent Performance" `TabItem` added to `MainWindow.xaml` with header card, summary bar
+> (Agents, Connected, Avg Handle, Avg Talk, Avg Talk Ratio %, Avg ACW Ratio %), Division filter
+> `ComboBox`, and 13-column `DgAgentPerf` `DataGrid`.  `_StartAgentPerfReportJob`,
+> `_PopulateAgentPerfDivisionFilter`, and `_RenderAgentPerfGrid` added to `App.UI.ps1`; the division
+> filter repopulates from the database after each import and on case activation.
+>
+> **Note:** Per-agent drilldown panel (queue breakdown, wrapup codes, conversation list) and per-queue
+> filter are deferred to a future session once Session 18 (Wrapup Distribution) provides wrapup data.
+> Queue names are currently derived from the local conversations table for agents already imported.
 
 Scope: expose per-agent handling efficiency, talk ratio, idle time, and queue distribution so supervisors can identify agents who are outliers without needing a separate Genesys reporting tool.
 

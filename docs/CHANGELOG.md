@@ -1,6 +1,17 @@
 # Changelog
 
-## 2026-04-14
+## 2026-04-15
+
+### Added
+
+- **ConversationAnalyser Session 15 — Agent Performance Report:**
+  - `Get-AgentPerformanceReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.conversation.aggregates.agent.performance`, `analytics.query.user.aggregates.performance.metrics`, and `analytics.query.user.aggregates.login.activity` for the case time window and returns a `{AgentPerfFolder, UserPerfFolder, LoginFolder}` hashtable.
+  - `Import-AgentPerformanceReport` added to `App.Database.psm1` — merges all three JSONL outputs by `userId` (summing across all intervals), resolves user names, emails, departments and division names from ref tables, derives `queue_names` from the conversations table, computes `talk_ratio_pct`, `acw_ratio_pct`, and `idle_ratio_pct`, and upserts into `report_agent_perf`.
+  - `Get-AgentPerfRows` and `Get-AgentPerfSummary` added to `App.Database.psm1` for grid reads and summary-bar roll-ups.
+  - Schema bumped to **v6** — adds `report_agent_perf` table with three indexes.
+  - **"Agent Performance" tab** added to `MainWindow.xaml`: header card with Pull Report button and Division filter, summary bar (Agents, Connected, Avg Handle, Avg Talk, Avg Talk Ratio %, Avg ACW Ratio %), 13-column `DgAgentPerf` DataGrid.
+  - `_StartAgentPerfReportJob`, `_RenderAgentPerfGrid`, `_PopulateAgentPerfDivisionFilter` added to `App.UI.ps1`; division filter repopulates from the database after each import and on case activation.
+
 
 ### Added
 

@@ -3126,16 +3126,26 @@ LIMIT 1
                 if ($dRow.Count -gt 0) { $divName = [string]($dRow[0].name) }
             }
 
-            # Resolve queue names that this agent handled in the case conversations
-            # by matching the agent's display name against the pipe-delimited agent_names column
+            # Resolve queue names that this agent handled in the case conversations.
+            # Use delimiter-aware matching to avoid partial name matches: the
+            # agent_names column stores pipe-delimited display names.
             $queueIds = ''
             if ($uname -and -not $uname.EndsWith('(unresolved)')) {
+                # Match exact name: alone, at start, in middle, or at end of the pipe-delimited list
+                $pExact  = $uname
+                $pStart  = "$uname|%"
+                $pMid    = "%|$uname|%"
+                $pEnd    = "%|$uname"
                 $qRows = _Query -Conn $conn -Sql @'
 SELECT DISTINCT queue_name
 FROM conversations
-WHERE case_id = @cid AND agent_names LIKE @uname AND queue_name <> ''
+WHERE case_id = @cid AND queue_name <> ''
+  AND (   agent_names = @exact
+       OR agent_names LIKE @pstart
+       OR agent_names LIKE @pmid
+       OR agent_names LIKE @pend)
 ORDER BY queue_name
-'@ -P @{ '@cid' = $CaseId; '@uname' = "%$uname%" }
+'@ -P @{ '@cid' = $CaseId; '@exact' = $pExact; '@pstart' = $pStart; '@pmid' = $pMid; '@pend' = $pEnd }
                 $queueIds = ($qRows | ForEach-Object { [string]($_.queue_name) } | Where-Object { $_ }) -join '|'
             }
 

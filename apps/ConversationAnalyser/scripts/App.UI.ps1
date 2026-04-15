@@ -1761,6 +1761,8 @@ function _RenderAgentPerfGrid {
     foreach ($r in $rows) {
         $talkPct = [double]($r.talk_ratio_pct)
         $acwPct  = [double]($r.acw_ratio_pct)
+        # ⚠ flag: talk ratio < 50 % suggests long ACW or idle time relative to handle time;
+        # ACW ratio > 30 % suggests after-call work is consuming an unusually large share of handle time.
         $flag    = if ($talkPct -lt 50 -or $acwPct -gt 30) { '⚠' } else { '' }
         $displayRows.Add([pscustomobject]@{
             Flag          = $flag

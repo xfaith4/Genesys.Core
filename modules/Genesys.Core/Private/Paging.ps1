@@ -264,6 +264,7 @@ function Invoke-PagingNextUri {
             Method = $method
             Headers = $Headers
             Body = $currentBody
+            EndpointKey = $EndpointSpec.key
         }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
@@ -295,6 +296,7 @@ function Invoke-PagingNextUri {
 
         $RunEvents.Add($progressEvent)
         $telemetry.Add($progressEvent) | Out-Null
+        Write-GcProgressMessage -Message "Paging $($EndpointSpec.key): page $($pageNumber), received $($pageItems.Count) item(s)."
 
         if ([string]::IsNullOrWhiteSpace($nextUri)) {
             break
@@ -426,6 +428,7 @@ function Invoke-PagingPageNumber {
             Method = $method
             Headers = $Headers
             Body = $InitialBody
+            EndpointKey = $EndpointSpec.key
         }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
@@ -469,6 +472,7 @@ function Invoke-PagingPageNumber {
 
         $RunEvents.Add($progressEvent)
         $telemetry.Add($progressEvent) | Out-Null
+        Write-GcProgressMessage -Message "Paging $($EndpointSpec.key): page $($pageNumber), received $($pageItems.Count) item(s)."
 
         if ($null -eq $nextUri) {
             break
@@ -568,6 +572,7 @@ function Invoke-PagingBodyPaging {
             Method = $method
             Headers = $Headers
             Body = $requestBodyJson
+            EndpointKey = $EndpointSpec.key
         }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
@@ -604,6 +609,7 @@ function Invoke-PagingBodyPaging {
 
         $RunEvents.Add($progressEvent)
         $telemetry.Add($progressEvent) | Out-Null
+        Write-GcProgressMessage -Message "Paging $($EndpointSpec.key): page $($pageNumber), received $($pageItems.Count) item(s)."
 
         if ($null -eq $nextUri) {
             break
@@ -732,6 +738,7 @@ function Invoke-PagingCursor {
             Method = $method
             Headers = $Headers
             Body = $InitialBody
+            EndpointKey = $EndpointSpec.key
         }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
         $response = $responseEnvelope
@@ -779,6 +786,7 @@ function Invoke-PagingCursor {
 
         $RunEvents.Add($progressEvent)
         $telemetry.Add($progressEvent) | Out-Null
+        Write-GcProgressMessage -Message "Paging $($EndpointSpec.key): page $($pageNumber), received $($pageItems.Count) item(s)."
 
         if ([string]::IsNullOrWhiteSpace($nextUri)) {
             break
@@ -892,6 +900,7 @@ function Invoke-CoreEndpoint {
                 Method = $EndpointSpec.method
                 Headers = $Headers
                 Body = $InitialBody
+                EndpointKey = $EndpointSpec.key
             }) -RetrySettings $retrySettings -RequestInvoker $RequestInvoker -RunEvents $RunEvents
 
             $response = $responseEnvelope
@@ -918,6 +927,7 @@ function Invoke-CoreEndpoint {
 
             $RunEvents.Add($progressEvent)
             $telemetry.Add($progressEvent) | Out-Null
+            Write-GcProgressMessage -Message "Endpoint $($EndpointSpec.key): received $($pageItems.Count) item(s)."
 
             return [pscustomobject]@{
                 Items = $items

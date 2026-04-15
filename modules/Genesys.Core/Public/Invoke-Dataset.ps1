@@ -97,11 +97,12 @@ function Invoke-Dataset {
             manifestPath = (Join-Path -Path $plannedRunFolder -ChildPath 'manifest.json')
             eventsPath = (Join-Path -Path $plannedRunFolder -ChildPath 'events.jsonl')
             summaryPath = (Join-Path -Path $plannedRunFolder -ChildPath 'summary.json')
+            apiLogPath = (Join-Path -Path $plannedRunFolder -ChildPath 'api-calls.log')
         }
 
         Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($catalogResolution.pathUsed)'."
         Write-Host "[WhatIf] Planned output root: '$($resolvedOutputRoot)'."
-        Write-Host "[WhatIf] Would write outputs under '$($plannedContext.runFolder)' (manifest/events/summary/data)."
+        Write-Host "[WhatIf] Would write outputs under '$($plannedContext.runFolder)' (manifest/events/summary/data plus api-calls.log)."
         Write-Host "[WhatIf] No files or directories were created."
         return $plannedContext
     }
@@ -111,6 +112,8 @@ function Invoke-Dataset {
     }
 
     $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $resolvedOutputRoot
+    Write-Host "[Genesys.Core] Starting dataset '$($Dataset)' run '$($runContext.runId)'."
+    Write-Host "[Genesys.Core] Run folder: $($runContext.runFolder)"
 
     if (-not $PSBoundParameters.ContainsKey('Headers') -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_BEARER_TOKEN)) {
         $Headers = @{ Authorization = "Bearer $($env:GENESYS_BEARER_TOKEN)" }
@@ -118,14 +121,22 @@ function Invoke-Dataset {
 
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
+    $previousRunContext = (Get-Variable -Name 'GcActiveRunContext' -Scope Script -ErrorAction SilentlyContinue).Value
+    $script:GcActiveRunContext = $runContext
+
     try {
         Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -NoRedact:$NoRedact | Out-Null
+        Write-Host "[Genesys.Core] Completed dataset '$($Dataset)' run '$($runContext.runId)'."
         return $runContext
     }
     catch {
+        Write-Host "[Genesys.Core] Dataset '$($Dataset)' run '$($runContext.runId)' failed: $($_.Exception.Message)"
         Write-RunEvent -RunContext $runContext -EventType 'run.failed' -Payload @{ message = $_.Exception.Message } | Out-Null
         Write-Manifest -RunContext $runContext -Counts @{ itemCount = 0 } -Warnings @($_.Exception.Message) | Out-Null
         throw
+    }
+    finally {
+        $script:GcActiveRunContext = $previousRunContext
     }
 }
 

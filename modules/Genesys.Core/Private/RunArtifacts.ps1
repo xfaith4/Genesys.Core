@@ -14,8 +14,10 @@ function New-RunContext {
 
     $runFolder = Join-Path -Path $OutputRoot -ChildPath (Join-Path -Path $DatasetKey -ChildPath $RunId)
     $dataFolder = Join-Path -Path $runFolder -ChildPath 'data'
+    $apiLogPath = Join-Path -Path $runFolder -ChildPath 'api-calls.log'
 
     New-Item -Path $dataFolder -ItemType Directory -Force | Out-Null
+    New-Item -Path $apiLogPath -ItemType File -Force | Out-Null
 
     [pscustomobject]@{
         datasetKey = $DatasetKey
@@ -26,6 +28,7 @@ function New-RunContext {
         manifestPath = (Join-Path -Path $runFolder -ChildPath 'manifest.json')
         eventsPath = (Join-Path -Path $runFolder -ChildPath 'events.jsonl')
         summaryPath = (Join-Path -Path $runFolder -ChildPath 'summary.json')
+        apiLogPath = $apiLogPath
         startedAtUtc = [DateTime]::UtcNow
     }
 }
@@ -75,7 +78,50 @@ function Write-RunEvent {
     }
 
     Write-Jsonl -Path $RunContext.eventsPath -InputObject $event
+
     return [pscustomobject]$event
+}
+
+function Write-ApiCallLogEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNull()]
+        [psobject]$RunContext,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNull()]
+        [psobject]$Event
+    )
+
+    $payload = $Event.payload
+    if ($null -eq $payload) {
+        return
+    }
+
+    $apiLogPath = $RunContext.apiLogPath
+    if ([string]::IsNullOrWhiteSpace([string]$apiLogPath)) {
+        $apiLogPath = Join-Path -Path $RunContext.runFolder -ChildPath 'api-calls.log'
+    }
+
+    $logEntry = [ordered]@{
+        timestampUtc = $Event.timestampUtc
+        datasetKey = $RunContext.datasetKey
+        runId = $RunContext.runId
+        eventType = $Event.eventType
+        endpointKey = $payload.endpointKey
+        method = $payload.method
+        uri = $payload.uri
+        success = $payload.success
+        statusCode = $payload.statusCode
+        durationMs = $payload.durationMs
+        attempts = $payload.attempts
+        responseBytes = $payload.responseBytes
+        responseItemCount = $payload.responseItemCount
+        errorMessage = $payload.errorMessage
+    }
+
+    Write-Jsonl -Path $apiLogPath -InputObject $logEntry
 }
 
 function Write-Manifest {

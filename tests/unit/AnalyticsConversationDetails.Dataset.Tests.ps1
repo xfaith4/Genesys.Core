@@ -101,6 +101,11 @@ Describe 'Analytics conversation details dataset' {
         {
             Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker
         } | Should -Throw "*Analytics conversation details job ended in state 'FAILED'.*"
+
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'analytics-conversation-details') -Directory | Select-Object -First 1
+        $apiLogPath = Join-Path -Path $runFolder.FullName -ChildPath 'api-calls.log'
+        Test-Path -Path $apiLogPath | Should -BeTrue
+        @(Get-Content -Path $apiLogPath | ForEach-Object { $_ | ConvertFrom-Json }).Count | Should -Be 2
     }
 
     It 'sends segmentFilters when QueueIds DatasetParameter is provided' {

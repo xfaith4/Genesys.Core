@@ -96,11 +96,18 @@ Describe 'Run output contract' {
 
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'manifest.json') | Should -BeTrue
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl') | Should -BeTrue
+        Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'api-calls.log') | Should -BeTrue
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'summary.json') | Should -BeTrue
         Test-Path -Path (Join-Path -Path $runFolder.FullName -ChildPath 'data/audit.jsonl') | Should -BeTrue
 
         $events = @(Get-Content -Path (Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl'))
         $events.Count | Should -BeGreaterThan 0
+
+        $apiLog = @(Get-Content -Path (Join-Path -Path $runFolder.FullName -ChildPath 'api-calls.log') | ForEach-Object { $_ | ConvertFrom-Json })
+        $apiLog.Count | Should -BeGreaterThan 0
+        $apiLog[0].method | Should -Not -BeNullOrEmpty
+        $apiLog[0].uri | Should -Not -BeNullOrEmpty
+        $apiLog[0].durationMs | Should -Not -BeNullOrEmpty
     }
 }
 

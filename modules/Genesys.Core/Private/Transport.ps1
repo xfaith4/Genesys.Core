@@ -344,6 +344,270 @@ function Resolve-RetryRuntimeSettings {
     }
 }
 
+function Write-GcProgressMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Message
+    )
+
+    Write-Host "[Genesys.Core] $Message"
+}
+
+function Get-GcHeaderValue {
+    [CmdletBinding()]
+    param(
+        [object]$Headers,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name
+    )
+
+    if ($null -eq $Headers) {
+        return $null
+    }
+
+    if ($Headers -is [System.Collections.IDictionary]) {
+        foreach ($key in $Headers.Keys) {
+            if ([string]$key -eq $Name) {
+                return $Headers[$key]
+            }
+        }
+    }
+
+    foreach ($property in $Headers.PSObject.Properties) {
+        if ($property.Name -eq $Name) {
+            return $property.Value
+        }
+    }
+
+    return $null
+}
+
+function Get-GcResponseMetrics {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$Response,
+
+        [object]$ResponseHeaders
+    )
+
+    $responseItemCount = $null
+    if ($null -eq $Response) {
+        $responseItemCount = 0
+    }
+    elseif ($Response -is [string]) {
+        $responseItemCount = $null
+    }
+    elseif ($Response -is [System.Collections.IEnumerable] -and $Response -isnot [System.Collections.IDictionary]) {
+        $responseItemCount = @($Response).Count
+    }
+    else {
+        foreach ($propertyName in @('results', 'conversations', 'entities', 'items')) {
+            if ($Response.PSObject.Properties.Name -contains $propertyName -and $null -ne $Response.$propertyName) {
+                $responseItemCount = @($Response.$propertyName).Count
+                break
+            }
+        }
+    }
+
+    $responseBytes = $null
+    $contentLength = Get-GcHeaderValue -Headers $ResponseHeaders -Name 'Content-Length'
+    if ($null -ne $contentLength -and [string]::IsNullOrWhiteSpace([string]$contentLength) -eq $false) {
+        $parsedLength = 0L
+        if ([long]::TryParse([string]$contentLength, [ref]$parsedLength)) {
+            $responseBytes = $parsedLength
+        }
+    }
+
+    if ($null -eq $responseBytes -and $null -ne $Response) {
+        try {
+            $responseJson = $Response | ConvertTo-Json -Depth 50 -Compress
+            $responseBytes = [System.Text.Encoding]::UTF8.GetByteCount([string]$responseJson)
+        }
+        catch {
+            $responseBytes = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        responseBytes = $responseBytes
+        responseItemCount = $responseItemCount
+    }
+}
+
+function Add-GcRequestInvokedEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$RunEvents,
+
+        [string]$EndpointKey,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Method,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+
+        [hashtable]$Headers
+    )
+
+    $sanitizedHeaders = @{}
+    if ($null -ne $Headers) {
+        foreach ($headerKey in $Headers.Keys) {
+            if ($headerKey -match 'Authorization|Token|Secret') {
+                $sanitizedHeaders[$headerKey] = '[REDACTED]'
+            }
+            else {
+                $sanitizedHeaders[$headerKey] = $Headers[$headerKey]
+            }
+        }
+    }
+
+    $safeUri = Protect-GcUri -Uri $Uri
+    $RunEvents.Add([pscustomobject]@{
+        eventType = 'request.invoked'
+        endpointKey = $EndpointKey
+        method = $Method.ToUpperInvariant()
+        uri = $safeUri
+        headers = $sanitizedHeaders
+        timestampUtc = [DateTime]::UtcNow.ToString('o')
+    })
+
+    Write-GcProgressMessage -Message "Calling $($Method.ToUpperInvariant()) $($safeUri)"
+}
+
+function Add-GcRequestCompletedEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$RunEvents,
+
+        [string]$EndpointKey,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Method,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+
+        [AllowNull()]
+        [object]$Response,
+
+        [object]$ResponseHeaders,
+
+        [Nullable[int]]$StatusCode,
+
+        [Nullable[int]]$Attempts,
+
+        [Parameter(Mandatory = $true)]
+        [long]$DurationMs
+    )
+
+    $metrics = Get-GcResponseMetrics -Response $Response -ResponseHeaders $ResponseHeaders
+    $safeUri = Protect-GcUri -Uri $Uri
+
+    $requestEvent = [pscustomobject]@{
+        eventType = 'request.completed'
+        endpointKey = $EndpointKey
+        method = $Method.ToUpperInvariant()
+        uri = $safeUri
+        success = $true
+        statusCode = $StatusCode
+        durationMs = $DurationMs
+        attempts = $Attempts
+        responseBytes = $metrics.responseBytes
+        responseItemCount = $metrics.responseItemCount
+        timestampUtc = [DateTime]::UtcNow.ToString('o')
+    }
+
+    $RunEvents.Add($requestEvent)
+    Write-GcApiLogEvent -RequestEvent $requestEvent
+
+    $itemText = if ($null -ne $metrics.responseItemCount) { ", items: $($metrics.responseItemCount)" } else { '' }
+    $attemptText = if ($null -ne $Attempts) { ", attempts: $($Attempts)" } else { '' }
+    Write-GcProgressMessage -Message "$($Method.ToUpperInvariant()) $($safeUri) completed in $($DurationMs) ms$($attemptText)$($itemText)."
+}
+
+function Add-GcRequestFailedEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$RunEvents,
+
+        [string]$EndpointKey,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Method,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+
+        [Nullable[int]]$StatusCode,
+
+        [Parameter(Mandatory = $true)]
+        [long]$DurationMs,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ErrorMessage
+    )
+
+    $safeUri = Protect-GcUri -Uri $Uri
+    $requestEvent = [pscustomobject]@{
+        eventType = 'request.failed'
+        endpointKey = $EndpointKey
+        method = $Method.ToUpperInvariant()
+        uri = $safeUri
+        success = $false
+        statusCode = $StatusCode
+        durationMs = $DurationMs
+        attempts = $null
+        responseBytes = $null
+        responseItemCount = $null
+        errorMessage = $ErrorMessage
+        timestampUtc = [DateTime]::UtcNow.ToString('o')
+    }
+
+    $RunEvents.Add($requestEvent)
+    Write-GcApiLogEvent -RequestEvent $requestEvent
+
+    Write-GcProgressMessage -Message "$($Method.ToUpperInvariant()) $($safeUri) failed after $($DurationMs) ms: $($ErrorMessage)"
+}
+
+function Write-GcApiLogEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$RequestEvent
+    )
+
+    $activeRunContextVariable = Get-Variable -Name 'GcActiveRunContext' -Scope Script -ErrorAction SilentlyContinue
+    if ($null -eq $activeRunContextVariable -or $null -eq $activeRunContextVariable.Value) {
+        return
+    }
+
+    if (-not (Get-Command -Name 'Write-ApiCallLogEntry' -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $event = [pscustomobject]@{
+        timestampUtc = $RequestEvent.timestampUtc
+        datasetKey = $activeRunContextVariable.Value.datasetKey
+        runId = $activeRunContextVariable.Value.runId
+        eventType = $RequestEvent.eventType
+        payload = $RequestEvent
+    }
+
+    Write-ApiCallLogEntry -RunContext $activeRunContextVariable.Value -Event $event | Out-Null
+}
+
 function Invoke-RequestWithRetry {
     [CmdletBinding()]
     param(
@@ -372,8 +636,13 @@ function Invoke-RequestWithRetry {
         $effectiveMethod = [string]$Request.Method
     }
 
+    $endpointKey = $null
+    if ($Request.PSObject.Properties.Name -contains 'EndpointKey' -and [string]::IsNullOrWhiteSpace([string]$Request.EndpointKey) -eq $false) {
+        $endpointKey = [string]$Request.EndpointKey
+    }
+
     if ($null -eq $RequestInvoker) {
-        return Invoke-GcRequest -Uri $Request.Uri -Method $effectiveMethod -Headers $Request.Headers -Body $Request.Body -MaxRetries $RetrySettings.maxRetries -BaseDelaySeconds $RetrySettings.baseDelaySeconds -MaxDelaySeconds $RetrySettings.maxDelaySeconds -JitterSeconds $RetrySettings.jitterSeconds -AllowRetryOnPost:$RetrySettings.allowRetryOnPost -RetryOnStatusCodes $RetrySettings.retryOnStatusCodes -RetryOnMethods $RetrySettings.retryOnMethods -RandomSeed $RetrySettings.randomSeed -RunEvents $RunEvents
+        return Invoke-GcRequest -Uri $Request.Uri -Method $effectiveMethod -Headers $Request.Headers -Body $Request.Body -EndpointKey $endpointKey -MaxRetries $RetrySettings.maxRetries -BaseDelaySeconds $RetrySettings.baseDelaySeconds -MaxDelaySeconds $RetrySettings.maxDelaySeconds -JitterSeconds $RetrySettings.jitterSeconds -AllowRetryOnPost:$RetrySettings.allowRetryOnPost -RetryOnStatusCodes $RetrySettings.retryOnStatusCodes -RetryOnMethods $RetrySettings.retryOnMethods -RandomSeed $RetrySettings.randomSeed -RunEvents $RunEvents
     }
 
     $requestData = [ordered]@{}
@@ -419,7 +688,29 @@ function Invoke-RequestWithRetry {
         $retryParams['SleepAction'] = $SleepAction
     }
 
-    return Invoke-WithRetry @retryParams
+    Add-GcRequestInvokedEvent -RunEvents $RunEvents -EndpointKey $endpointKey -Method $effectiveMethod -Uri $Request.Uri -Headers $Request.Headers
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $retryResult = Invoke-WithRetry @retryParams
+        $stopwatch.Stop()
+
+        $response = $retryResult
+        $attempts = $null
+        if ($null -ne $retryResult -and $retryResult.PSObject.Properties.Name -contains 'Result') {
+            $response = $retryResult.Result
+        }
+        if ($null -ne $retryResult -and $retryResult.PSObject.Properties.Name -contains 'Attempts') {
+            $attempts = [int]$retryResult.Attempts
+        }
+
+        Add-GcRequestCompletedEvent -RunEvents $RunEvents -EndpointKey $endpointKey -Method $effectiveMethod -Uri $Request.Uri -Response $response -ResponseHeaders $null -StatusCode $null -Attempts $attempts -DurationMs $stopwatch.ElapsedMilliseconds
+        return $retryResult
+    }
+    catch {
+        $stopwatch.Stop()
+        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $endpointKey -Method $effectiveMethod -Uri $Request.Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $_.Exception.Message
+        throw
+    }
 }
 
 ### BEGIN: InvokeGcRequest
@@ -541,6 +832,8 @@ function Invoke-GcRequest {
 
         [int]$RandomSeed = 17,
 
+        [string]$EndpointKey,
+
         [System.Collections.Generic.List[object]]$RunEvents
     )
 
@@ -548,34 +841,20 @@ function Invoke-GcRequest {
         $RunEvents = [System.Collections.Generic.List[object]]::new()
     }
 
-    $sanitizedHeaders = @{}
-    if ($null -ne $Headers) {
-        foreach ($headerKey in $Headers.Keys) {
-            if ($headerKey -match 'Authorization|Token|Secret') {
-                $sanitizedHeaders[$headerKey] = '[REDACTED]'
-            }
-            else {
-                $sanitizedHeaders[$headerKey] = $Headers[$headerKey]
-            }
-        }
-    }
-
-    $RunEvents.Add([pscustomobject]@{
-        eventType = 'request.invoked'
-        method = $Method.ToUpperInvariant()
-        uri = (Protect-GcUri -Uri $Uri)
-        headers = $sanitizedHeaders
-        timestampUtc = [DateTime]::UtcNow.ToString('o')
-    })
+    Add-GcRequestInvokedEvent -RunEvents $RunEvents -EndpointKey $EndpointKey -Method $Method -Uri $Uri -Headers $Headers
 
     $hasBody = $PSBoundParameters.ContainsKey('Body')
 
     $operation = {
+        $gcResponseStatusCode = $null
+        $gcResponseHeaders = $null
         $invokeParams = @{
             Uri = $Uri
             Method = $Method
             TimeoutSec = $TimeoutSec
             ErrorAction = 'Stop'
+            StatusCodeVariable = 'gcResponseStatusCode'
+            ResponseHeadersVariable = 'gcResponseHeaders'
         }
 
         if ($null -ne $Headers) {
@@ -607,9 +886,54 @@ function Invoke-GcRequest {
             }
         }
 
-        Invoke-RestMethod @invokeParams
+        $result = Invoke-RestMethod @invokeParams
+        return [pscustomobject]@{
+            __gcTransportResponse = $true
+            Result = $result
+            StatusCode = $gcResponseStatusCode
+            ResponseHeaders = $gcResponseHeaders
+        }
     }.GetNewClosure()
 
-    Invoke-WithRetry -Operation $operation -Method $Method -MaxRetries $MaxRetries -BaseDelaySeconds $BaseDelaySeconds -MaxDelaySeconds $MaxDelaySeconds -JitterSeconds $JitterSeconds -AllowRetryOnPost:$AllowRetryOnPost -RetryOnStatusCodes $RetryOnStatusCodes -RetryOnMethods $RetryOnMethods -RandomSeed $RandomSeed -RunEvents $RunEvents
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $retryResult = Invoke-WithRetry -Operation $operation -Method $Method -MaxRetries $MaxRetries -BaseDelaySeconds $BaseDelaySeconds -MaxDelaySeconds $MaxDelaySeconds -JitterSeconds $JitterSeconds -AllowRetryOnPost:$AllowRetryOnPost -RetryOnStatusCodes $RetryOnStatusCodes -RetryOnMethods $RetryOnMethods -RandomSeed $RandomSeed -RunEvents $RunEvents
+        $stopwatch.Stop()
+
+        $response = $retryResult
+        $statusCode = $null
+        $responseHeaders = $null
+        $attempts = $null
+
+        if ($null -ne $retryResult -and $retryResult.PSObject.Properties.Name -contains 'Attempts') {
+            $attempts = [int]$retryResult.Attempts
+        }
+
+        if ($null -ne $retryResult -and $retryResult.PSObject.Properties.Name -contains 'Result') {
+            $response = $retryResult.Result
+        }
+
+        if ($null -ne $response -and $response.PSObject.Properties.Name -contains '__gcTransportResponse') {
+            $statusCode = $response.StatusCode
+            $responseHeaders = $response.ResponseHeaders
+            $response = $response.Result
+
+            if ($retryResult.PSObject.Properties.Name -contains 'Result') {
+                $retryResult.Result = $response
+            }
+
+            if ($retryResult.PSObject.Properties.Name -notcontains 'StatusCode') {
+                $retryResult | Add-Member -MemberType NoteProperty -Name StatusCode -Value $statusCode
+            }
+        }
+
+        Add-GcRequestCompletedEvent -RunEvents $RunEvents -EndpointKey $EndpointKey -Method $Method -Uri $Uri -Response $response -ResponseHeaders $responseHeaders -StatusCode $statusCode -Attempts $attempts -DurationMs $stopwatch.ElapsedMilliseconds
+        return $retryResult
+    }
+    catch {
+        $stopwatch.Stop()
+        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $EndpointKey -Method $Method -Uri $Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $_.Exception.Message
+        throw
+    }
 }
 ### END: InvokeGcRequest

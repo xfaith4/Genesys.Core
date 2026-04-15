@@ -353,6 +353,8 @@ function Invoke-AsyncJob {
         $jobLabel = [string]$AsyncProfile.jobLabel
     }
 
+    Write-GcProgressMessage -Message "$($jobLabel) submitted. Job id: $($jobId)"
+
     $pollEventType = 'async.job.poll'
     if ($null -ne $AsyncProfile -and $AsyncProfile.PSObject.Properties.Name -contains 'pollEventType' -and [string]::IsNullOrWhiteSpace([string]$AsyncProfile.pollEventType) -eq $false) {
         $pollEventType = [string]$AsyncProfile.pollEventType
@@ -371,6 +373,8 @@ function Invoke-AsyncJob {
             state = $currentState
             timestampUtc = [DateTime]::UtcNow.ToString('o')
         })
+
+        Write-GcProgressMessage -Message "$($jobLabel) poll $($poll)/$($MaxPolls): state '$($currentState)'."
 
         if ($latestStatus.IsTerminal) {
             break
@@ -393,6 +397,7 @@ function Invoke-AsyncJob {
     }
 
     $results = Get-AsyncJobResults -ResultsEndpointSpec $ResultsEndpointSpec -JobId $jobId -AsyncProfile $AsyncProfile -BaseUri $BaseUri -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+    Write-GcProgressMessage -Message "$($jobLabel) results received. Items: $(@($results.Items).Count)."
 
     return [pscustomobject]@{
         JobId = $jobId

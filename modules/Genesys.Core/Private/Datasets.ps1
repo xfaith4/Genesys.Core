@@ -238,6 +238,8 @@ function Invoke-AuditLogsDataset {
 
     Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $sanitizedRecords.Count } | Out-Null
     Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } | Out-Null
+    Write-GcProgressMessage -Message "Wrote $($sanitizedRecords.Count) audit record(s) to $($dataPath)."
+    Write-GcProgressMessage -Message "API call log: $($RunContext.apiLogPath)"
 
     return [pscustomobject]@{
         Items = $sanitizedRecords
@@ -447,6 +449,8 @@ function Write-DatasetOutputs {
 
     Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $Records.Count } | Out-Null
     Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $Records.Count } | Out-Null
+    Write-GcProgressMessage -Message "Wrote $($Records.Count) record(s) to $($dataPath)."
+    Write-GcProgressMessage -Message "API call log: $($RunContext.apiLogPath)"
 }
 
 function Invoke-SimpleCollectionDataset {
@@ -733,7 +737,8 @@ function Invoke-AnalyticsConversationDetailsDataset {
 
     Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $sanitizedRecords.Count } | Out-Null
     Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } | Out-Null
-    Write-Host "Dataset run completed. Total conversations: $($sanitizedRecords.Count)"
+    Write-GcProgressMessage -Message "Wrote $($sanitizedRecords.Count) conversation record(s) to $($dataPath)."
+    Write-GcProgressMessage -Message "API call log: $($RunContext.apiLogPath)"
     return [pscustomobject]@{
         Items   = $sanitizedRecords
         Summary = $summary

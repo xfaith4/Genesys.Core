@@ -92,6 +92,7 @@ try {
         summaryPath  = $run.summaryPath
         manifestPath = $run.manifestPath
         eventsPath   = $run.eventsPath
+        apiLogPath   = $run.apiLogPath
         dataFolder   = $run.dataFolder
     }
 

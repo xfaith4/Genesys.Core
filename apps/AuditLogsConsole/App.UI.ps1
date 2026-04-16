@@ -1,9 +1,62 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
+function _Find-NamedElement {
+    param(
+        [AllowNull()][object]$Root,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    if ($null -eq $Root) {
+        return $null
+    }
+
+    if ($Root -is [System.Windows.FrameworkElement] -and $Root.Name -eq $Name) {
+        return $Root
+    }
+
+    try {
+        foreach ($child in [System.Windows.LogicalTreeHelper]::GetChildren($Root)) {
+            $found = _Find-NamedElement -Root $child -Name $Name
+            if ($null -ne $found) {
+                return $found
+            }
+        }
+    } catch { }
+
+    try {
+        if ($Root -is [System.Windows.DependencyObject]) {
+            $childCount = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($Root)
+            for ($i = 0; $i -lt $childCount; $i++) {
+                $child = [System.Windows.Media.VisualTreeHelper]::GetChild($Root, $i)
+                $found = _Find-NamedElement -Root $child -Name $Name
+                if ($null -ne $found) {
+                    return $found
+                }
+            }
+        }
+    } catch { }
+
+    return $null
+}
+
 function _Ctrl {
     param([string]$Name)
-    return $script:Window.FindName($Name)
+
+    $control = $null
+    try {
+        $control = $script:Window.FindName($Name)
+    } catch { }
+
+    if ($null -eq $control) {
+        $control = _Find-NamedElement -Root $script:Window -Name $Name
+    }
+
+    if ($null -eq $control) {
+        throw "Required UI control '$Name' was not found. Verify apps/AuditLogsConsole/XAML/MainWindow.xaml is loaded and the element has a matching Name or x:Name."
+    }
+
+    return $control
 }
 
 $script:CmbRegion             = _Ctrl 'CmbRegion'

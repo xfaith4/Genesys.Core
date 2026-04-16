@@ -2587,6 +2587,7 @@ function _ShowConnectDialog {
 
     _AddLbl 'Client ID'
     $tbClientId = _AddTxt 'tbClientId' ''
+    $tbClientId.Text = $cfg.PkceClientId
 
     _AddLbl 'Client Secret (leave empty for PKCE)'
     $pwSecret = _AddPwd
@@ -2691,6 +2692,7 @@ function _ShowConnectDialog {
                     $capturedElpConn.Fill = [System.Windows.Media.Brushes]::LightGreen
                 }
                 Update-AppConfig -Key 'Region' -Value $region
+                Update-AppConfig -Key 'PkceClientId' -Value $clientId
                 $capturedTxtMain.Text  = "Connected via PKCE ($region)"
                 $capturedTxtRight.Text = ''
             } catch {

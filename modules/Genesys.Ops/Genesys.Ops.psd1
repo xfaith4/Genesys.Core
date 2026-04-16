@@ -133,17 +133,30 @@
         # ACW Anomaly Detection  (Roadmap idea 21)
         'Get-GenesysAgentAcwAnomaly'
 
-        # Workforce Management  (Roadmap idea 22)
+        # Phase 5 Visibility Dashboard  (Roadmap ideas 24–30)
+        # Idea 24 — Workforce Management Unit Visibility
         'Get-GenesysWorkforceManagementUnit'
 
-        # Journey / Predictive Engagement  (Roadmap idea 23)
+        # Idea 25 — Journey Action Map Inventory
         'Get-GenesysJourneyActionMap'
 
-        # Composite Dashboard Snapshots  (Roadmap ideas 24–30)
+        # Idea 26 — Enhanced Operations Report
         'Get-GenesysAbandonRateDashboard'
         'Get-GenesysQueueHealthSnapshot'
         'Get-GenesysAgentQualitySnapshot'
         'Invoke-GenesysOperationsReport'
+
+        # Idea 27 — Peak Hour Load Analysis
+        'Get-GenesysPeakHourLoad'
+
+        # Idea 28 — Configuration Change Audit Feed
+        'Get-GenesysChangeAuditFeed'
+
+        # Idea 29 — Outbound Campaign Performance Dashboard
+        'Get-GenesysOutboundCampaignPerformance'
+
+        # Idea 30 — Flow Outcome KPI Correlation
+        'Get-GenesysFlowOutcomeKpiCorrelation'
     )
 
     CmdletsToExport   = @()

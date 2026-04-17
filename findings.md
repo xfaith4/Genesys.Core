@@ -1,4 +1,4 @@
-# Transfer Report Findings
+# ConversationAnalyser Reporting Findings
 
 ## Current Session
 
@@ -11,3 +11,8 @@
 - Hardening review found name-only transfer touches could collapse into one flow bucket because aggregation row keys used only queue IDs. Flow aggregation now keys by queue ID when present, otherwise by the stable sequence key (`name:<queueName>`).
 - Session 16 UI follows Session 14/15 report patterns: background CoreAdapter pull, main-runspace database import, grid render from public database accessors, and no direct `Invoke-Dataset` call from UI.
 - Multi-hop transfer chain clicks force database drilldown mode and select the existing drilldown tab so operators land on the stored conversation segment view.
+- Code review found stale report-tab state when the case store goes offline or no active case exists; Transfer and Flow report grids now clear in those paths.
+- Session 17 follows the same report architecture: CoreAdapter owns dataset pulls, Database owns schema/import/accessors/correlation, UI owns background job orchestration and rendering only.
+- Flow containment summary rates should be weighted by `n_flow` entries rather than an unweighted average of per-flow percentages; the summary accessor now computes weighted containment and failure rates.
+- Flow-to-queue correlation needs to tolerate flow IDs/names appearing at participant, session, or segment level in stored conversation details; the accessor now checks all three levels before counting reached queues.
+- The environment still lacks the native SQLite `e_sqlite3` library, so database runtime smoke remains skipped while static/database code paths are covered by parse and architecture tests.

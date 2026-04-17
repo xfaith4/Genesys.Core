@@ -415,7 +415,11 @@ $requiredControls = @(
     'BtnPullTransferReport','CmbTransferType',
     'DgTransferFlows','DgTransferDestinations','DgTransferChains',
     'LblXferFlows','LblXferTransfers','LblXferBlind',
-    'LblXferConsult','LblXferBlindPct','LblXferMultiHop'
+    'LblXferConsult','LblXferBlindPct','LblXferMultiHop',
+    'BtnPullFlowContainmentReport','CmbFlowType',
+    'DgFlowPerf','DgFlowMilestones','DgFlowQueues',
+    'LblFlowTotal','LblFlowEntries','LblFlowContainment',
+    'LblFlowFailures','LblFlowLowContainment'
 )
 
 foreach ($ctrl in $requiredControls) {
@@ -474,8 +478,9 @@ Check 'XFER-01' 'App.CoreAdapter.psm1 exposes Get-TransferReport dataset pull' {
     $adapterContent -match 'analytics\.query\.conversation\.aggregates\.transfer\.metrics'
 }
 
-Check 'XFER-02' 'App.Database.psm1 defines schema v7 transfer tables' {
-    $dbContent -match '\$script:SchemaVersion\s*=\s*7' -and
+Check 'XFER-02' 'App.Database.psm1 defines schema v7+ transfer tables' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 7 -and
     $dbContent -match 'CREATE TABLE IF NOT EXISTS report_transfer_flows' -and
     $dbContent -match 'CREATE TABLE IF NOT EXISTS report_transfer_chains'
 }
@@ -495,6 +500,41 @@ Check 'XFER-04' 'App.UI.ps1 wires Transfer & Escalation pull, render, and drilld
     $uiContent -match 'function _OpenTransferChainConversation' -and
     $uiContent -match 'BtnPullTransferReport\.Add_Click' -and
     $uiContent -match 'DgTransferChains\.Add_SelectionChanged'
+}
+
+# ── FLOW / IVR REPORTING (FLOW) ────────────────────────────────────────────────
+
+Write-Host "`n=== FLOW / IVR REPORTING ===" -ForegroundColor Cyan
+
+Check 'FLOW-01' 'App.CoreAdapter.psm1 exposes Get-FlowContainmentReport dataset pulls' {
+    $adapterContent -match 'function Get-FlowContainmentReport' -and
+    $adapterContent -match 'analytics\.query\.flow\.aggregates\.execution\.metrics' -and
+    $adapterContent -match 'flows\.get\.all\.flows' -and
+    $adapterContent -match 'flows\.get\.flow\.milestones'
+}
+
+Check 'FLOW-02' 'App.Database.psm1 defines schema v8 flow containment tables' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 8 -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_flow_perf' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_flow_milestone_distribution'
+}
+
+Check 'FLOW-03' 'App.Database.psm1 exports flow import and accessors' {
+    $required = @('Import-FlowContainmentReport','Get-FlowPerfRows','Get-FlowMilestoneRows','Get-FlowContainmentSummary','Get-FlowQueueRouteRows')
+    $allPresent = $true
+    foreach ($fn in $required) {
+        if ($dbContent -notmatch $fn) { $allPresent = $false; break }
+    }
+    $allPresent
+}
+
+Check 'FLOW-04' 'App.UI.ps1 wires Flow & IVR pull, render, and selection handlers' {
+    $uiContent -match 'function _StartFlowContainmentReportJob' -and
+    $uiContent -match 'function _RenderFlowContainmentGrid' -and
+    $uiContent -match 'function _RenderSelectedFlowDetail' -and
+    $uiContent -match 'BtnPullFlowContainmentReport\.Add_Click' -and
+    $uiContent -match 'DgFlowPerf\.Add_SelectionChanged'
 }
 
 # ── SUMMARY ────────────────────────────────────────────────────────────────────

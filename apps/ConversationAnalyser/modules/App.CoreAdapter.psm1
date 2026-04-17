@@ -566,10 +566,79 @@ function Get-TransferReport {
     }
 }
 
+function Get-FlowContainmentReport {
+    <#
+    .SYNOPSIS
+        Session 17 — pulls flow execution aggregate data and flow reference
+        datasets for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.flow.aggregates.execution.metrics
+          - flows.get.all.flows
+          - flows.get.flow.outcomes
+          - flows.get.flow.milestones
+
+        The aggregate call uses StartDateTime / EndDateTime as the interval
+        DatasetParameters override. Results are written under
+        OutputRoot\report-flow-containment-<timestamp>\.
+
+        Returns a hashtable with keys:
+          FlowAggFolder        — run folder for flow execution aggregate metrics
+          FlowDefsFolder       — run folder for Architect flow definitions
+          FlowOutcomesFolder   — run folder for flow outcome definitions
+          FlowMilestonesFolder — run folder for flow milestone definitions
+          PartialFailure       — $true if any dataset call failed
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-flow-containment-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.flow.aggregates.execution.metrics',
+        'flows.get.all.flows',
+        'flows.get.flow.outcomes',
+        'flows.get.flow.milestones'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $params = if ($key -eq 'analytics.query.flow.aggregates.execution.metrics') { @{ Interval = $interval } } else { $null }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-FlowContainmentReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        FlowAggFolder        = $folderMap['analytics.query.flow.aggregates.execution.metrics']
+        FlowDefsFolder       = $folderMap['flows.get.all.flows']
+        FlowOutcomesFolder   = $folderMap['flows.get.flow.outcomes']
+        FlowMilestonesFolder = $folderMap['flows.get.flow.milestones']
+        PartialFailure       = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
     Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
-    Get-TransferReport
+    Get-TransferReport, Get-FlowContainmentReport

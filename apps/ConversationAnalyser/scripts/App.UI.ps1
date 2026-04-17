@@ -83,6 +83,18 @@ $script:LblXferConsult          = _Ctrl 'LblXferConsult'
 $script:LblXferBlindPct         = _Ctrl 'LblXferBlindPct'
 $script:LblXferMultiHop         = _Ctrl 'LblXferMultiHop'
 
+# Flow & IVR tab
+$script:BtnPullFlowContainmentReport = _Ctrl 'BtnPullFlowContainmentReport'
+$script:CmbFlowType                  = _Ctrl 'CmbFlowType'
+$script:DgFlowPerf                   = _Ctrl 'DgFlowPerf'
+$script:DgFlowMilestones             = _Ctrl 'DgFlowMilestones'
+$script:DgFlowQueues                 = _Ctrl 'DgFlowQueues'
+$script:LblFlowTotal                 = _Ctrl 'LblFlowTotal'
+$script:LblFlowEntries               = _Ctrl 'LblFlowEntries'
+$script:LblFlowContainment           = _Ctrl 'LblFlowContainment'
+$script:LblFlowFailures              = _Ctrl 'LblFlowFailures'
+$script:LblFlowLowContainment        = _Ctrl 'LblFlowLowContainment'
+
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
 $script:BtnSearch              = _Ctrl 'BtnSearch'
@@ -166,6 +178,10 @@ $script:State = @{
     TransferRunspace    = $null
     TransferTimer       = $null
     TransferCaseId      = ''       # case targeted by in-progress transfer pull
+    FlowContainmentJob      = $null    # PSDataCollection for flow-containment background pull
+    FlowContainmentRunspace = $null
+    FlowContainmentTimer    = $null
+    FlowContainmentCaseId   = ''       # case targeted by in-progress flow-containment pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -360,6 +376,8 @@ function _RefreshActiveCaseStatus {
             $script:BtnManageCase.IsEnabled    = $false
             $script:BtnImportRun.IsEnabled     = $false
             $script:BtnRefreshRefData.IsEnabled = $false
+            _ClearTransferGrid
+            _ClearFlowContainmentGrid
         }
         return
     }
@@ -373,6 +391,8 @@ function _RefreshActiveCaseStatus {
             $script:BtnManageCase.IsEnabled    = $true
             $script:BtnImportRun.IsEnabled     = $true
             $script:BtnRefreshRefData.IsEnabled = $true
+            _ClearTransferGrid
+            _ClearFlowContainmentGrid
         }
         return
     }
@@ -391,6 +411,7 @@ function _RefreshActiveCaseStatus {
         _PopulateAgentPerfDivisionFilter
         _RenderAgentPerfGrid
         _RenderTransferGrid
+        _RenderFlowContainmentGrid
     }
 }
 
@@ -1657,6 +1678,19 @@ function _EnsureTransferTypeFilter {
     $script:CmbTransferType.SelectedIndex     = 0
 }
 
+function _ClearTransferGrid {
+    $empty = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    if ($null -ne $script:DgTransferFlows)        { $script:DgTransferFlows.ItemsSource = $empty }
+    if ($null -ne $script:DgTransferDestinations) { $script:DgTransferDestinations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgTransferChains)       { $script:DgTransferChains.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:LblXferFlows)           { $script:LblXferFlows.Text = '—' }
+    if ($null -ne $script:LblXferTransfers)       { $script:LblXferTransfers.Text = '—' }
+    if ($null -ne $script:LblXferBlind)           { $script:LblXferBlind.Text = '—' }
+    if ($null -ne $script:LblXferConsult)         { $script:LblXferConsult.Text = '—' }
+    if ($null -ne $script:LblXferBlindPct)        { $script:LblXferBlindPct.Text = '—' }
+    if ($null -ne $script:LblXferMultiHop)        { $script:LblXferMultiHop.Text = '—' }
+}
+
 function _StartTransferReportJob {
     <#
         Pulls transfer aggregate data in a background runspace for the current
@@ -1804,9 +1838,9 @@ function _RenderTransferGrid {
         blind/consult filter to the flow grids, and updates summary labels.
     #>
     _EnsureTransferTypeFilter
-    if (-not (Test-DatabaseInitialized)) { return }
+    if (-not (Test-DatabaseInitialized)) { _ClearTransferGrid; return }
     $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { return }
+    if ([string]::IsNullOrEmpty($caseId)) { _ClearTransferGrid; return }
 
     $transferType = ''
     if ($null -ne $script:CmbTransferType) {
@@ -1893,6 +1927,301 @@ function _OpenTransferChainConversation {
     if ($null -ne $script:TabWorkspace -and $null -ne $script:TabDrilldownWorkspace) {
         $script:TabWorkspace.SelectedItem = $script:TabDrilldownWorkspace
     }
+}
+
+function _EnsureFlowTypeFilter {
+    if ($null -eq $script:CmbFlowType) { return }
+    if ($null -ne $script:CmbFlowType.ItemsSource) { return }
+
+    $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $items.Add([pscustomobject]@{ FlowType = '';            Name = '(All flow types)' })
+    $items.Add([pscustomobject]@{ FlowType = 'inboundcall'; Name = 'Inbound call' })
+    $items.Add([pscustomobject]@{ FlowType = 'inqueuecall'; Name = 'In-queue call' })
+    $items.Add([pscustomobject]@{ FlowType = 'bot';         Name = 'Bot' })
+    $items.Add([pscustomobject]@{ FlowType = 'workflow';    Name = 'Workflow' })
+    $items.Add([pscustomobject]@{ FlowType = 'outboundcall';Name = 'Outbound call' })
+    $items.Add([pscustomobject]@{ FlowType = 'securecall';  Name = 'Secure call' })
+
+    $script:CmbFlowType.ItemsSource       = $items
+    $script:CmbFlowType.DisplayMemberPath = 'Name'
+    $script:CmbFlowType.SelectedIndex     = 0
+}
+
+function _ClearFlowContainmentGrid {
+    if ($null -ne $script:DgFlowPerf)       { $script:DgFlowPerf.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:LblFlowTotal)     { $script:LblFlowTotal.Text = '—' }
+    if ($null -ne $script:LblFlowEntries)   { $script:LblFlowEntries.Text = '—' }
+    if ($null -ne $script:LblFlowContainment) { $script:LblFlowContainment.Text = '—' }
+    if ($null -ne $script:LblFlowFailures)  { $script:LblFlowFailures.Text = '—' }
+    if ($null -ne $script:LblFlowLowContainment) { $script:LblFlowLowContainment.Text = '—' }
+}
+
+function _StartFlowContainmentReportJob {
+    <#
+        Pulls flow aggregate and flow reference data in a background runspace,
+        imports containment metrics into the case store, and refreshes the
+        Flow & IVR tab.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Flow & IVR')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Flow & IVR')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling flow data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Flow & IVR')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling flow data.', 'Flow & IVR')
+        return
+    }
+
+    $startDt = $range.Start.ToUniversalTime().ToString('o')
+    $endDt   = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Pulling flow containment report...'
+    if ($null -ne $script:BtnPullFlowContainmentReport) {
+        $script:BtnPullFlowContainmentReport.IsEnabled = $false
+    }
+    $script:State.FlowContainmentCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
+
+    [void]$ps.AddScript({
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        Set-StrictMode -Version Latest
+
+        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-FlowContainmentReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.FlowContainmentJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.FlowContainmentRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.FlowContainmentTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.FlowContainmentJob
+        if ($null -eq $job) { $script:State.FlowContainmentTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.FlowContainmentTimer.Stop()
+        $script:State.FlowContainmentTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                                  catch {}
+            try { $script:State.FlowContainmentRunspace.Close() }       catch {}
+            try { $script:State.FlowContainmentRunspace.Dispose() }     catch {}
+            $script:State.FlowContainmentJob      = $null
+            $script:State.FlowContainmentRunspace = $null
+            $script:State.FlowContainmentCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Flow containment report pull failed'
+            _Dispatch { if ($null -ne $script:BtnPullFlowContainmentReport) { $script:BtnPullFlowContainmentReport.IsEnabled = $true } }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Flow & IVR')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-FlowContainmentReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary     = "Loaded $($importStats.RecordCount) flow rows and $($importStats.MilestoneCount) milestone rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' - WARNING: one or more flow datasets failed.' }
+                _SetStatus $summary
+                _RenderFlowContainmentGrid
+                [System.Windows.MessageBox]::Show($summary, 'Flow & IVR Report')
+            } catch {
+                _SetStatus 'Flow containment report import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Flow & IVR')
+            }
+        } else {
+            _SetStatus 'Flow containment report pull completed (no data returned)'
+        }
+
+        _Dispatch { if ($null -ne $script:BtnPullFlowContainmentReport) { $script:BtnPullFlowContainmentReport.IsEnabled = $true } }
+    })
+
+    $timer.Start()
+}
+
+function _RenderFlowContainmentGrid {
+    <#
+        Reads flow containment rows for the active case, applies the flow-type
+        filter, updates the summary bar, and refreshes selected-flow details.
+    #>
+    _EnsureFlowTypeFilter
+    if (-not (Test-DatabaseInitialized)) { _ClearFlowContainmentGrid; return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { _ClearFlowContainmentGrid; return }
+
+    $flowType = ''
+    if ($null -ne $script:CmbFlowType) {
+        $sel = $script:CmbFlowType.SelectedItem
+        if ($null -ne $sel -and $sel.FlowType) {
+            $flowType = [string]$sel.FlowType
+        }
+    }
+
+    try {
+        $rows    = @(Get-FlowPerfRows -CaseId $caseId -FlowType $flowType)
+        $summary = Get-FlowContainmentSummary -CaseId $caseId
+    } catch {
+        _SetStatus "Flow containment read failed: $_"
+        return
+    }
+
+    $previousFlowId = ''
+    if ($null -ne $script:DgFlowPerf -and $null -ne $script:DgFlowPerf.SelectedItem) {
+        $previousFlowId = [string]$script:DgFlowPerf.SelectedItem.FlowId
+    }
+
+    $displayRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($r in $rows) {
+        $containPct = [double]($r.containment_rate_pct)
+        $failPct    = [double]($r.failure_rate_pct)
+        $displayRows.Add([pscustomobject]@{
+            Flag               = if ($containPct -lt 50 -or $failPct -gt 25) { '!' } else { '' }
+            FlowId             = [string]($r.flow_id)
+            FlowName           = [string]($r.flow_name)
+            FlowType           = [string]($r.flow_type)
+            DivisionName       = [string]($r.division_name)
+            NFlow              = [int]   ($r.n_flow)
+            NSuccess           = [int]   ($r.n_flow_outcome_success)
+            NFailed            = [int]   ($r.n_flow_outcome_failed)
+            NMilestone         = [int]   ($r.n_flow_milestone_hit)
+            ContainmentRatePct = [string]("{0:F1}" -f $containPct)
+            FailureRatePct     = [string]("{0:F1}" -f $failPct)
+        })
+    }
+
+    if ($null -ne $script:DgFlowPerf) {
+        $script:DgFlowPerf.ItemsSource = $displayRows
+        if ($displayRows.Count -gt 0) {
+            $target = $displayRows[0]
+            if ($previousFlowId) {
+                foreach ($row in $displayRows) {
+                    if ($row.FlowId -eq $previousFlowId) { $target = $row; break }
+                }
+            }
+            $script:DgFlowPerf.SelectedItem = $target
+            try { $script:DgFlowPerf.ScrollIntoView($target) } catch {}
+        }
+    }
+
+    if ($null -ne $script:LblFlowTotal)          { $script:LblFlowTotal.Text = [string]($summary.TotalFlows) }
+    if ($null -ne $script:LblFlowEntries)        { $script:LblFlowEntries.Text = [string]($summary.TotalEntries) }
+    if ($null -ne $script:LblFlowContainment)    { $script:LblFlowContainment.Text = "{0:F1}%" -f $summary.AvgContainmentPct }
+    if ($null -ne $script:LblFlowFailures)       { $script:LblFlowFailures.Text = "{0:F1}%" -f $summary.AvgFailurePct }
+    if ($null -ne $script:LblFlowLowContainment) { $script:LblFlowLowContainment.Text = [string]($summary.LowContainmentFlows) }
+
+    _RenderSelectedFlowDetail
+}
+
+function _RenderSelectedFlowDetail {
+    if (-not (Test-DatabaseInitialized)) {
+        if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) {
+        if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+    if ($null -eq $script:DgFlowPerf -or $null -eq $script:DgFlowPerf.SelectedItem) {
+        if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+
+    $sel      = $script:DgFlowPerf.SelectedItem
+    $flowId   = [string]$sel.FlowId
+    $flowName = [string]$sel.FlowName
+
+    try {
+        $milestones = @(Get-FlowMilestoneRows -CaseId $caseId -FlowId $flowId)
+        $queues     = @(Get-FlowQueueRouteRows -CaseId $caseId -FlowId $flowId -FlowName $flowName)
+    } catch {
+        _SetStatus "Flow detail read failed: $_"
+        return
+    }
+
+    $milestoneRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($m in $milestones) {
+        $milestoneRows.Add([pscustomobject]@{
+            MilestoneName = [string]($m.milestone_name)
+            NHit          = [int]   ($m.n_hit)
+            PctOfEntries  = [string]("{0:F1}" -f [double]($m.pct_of_entries))
+        })
+    }
+    if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = $milestoneRows }
+
+    $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($q in $queues) {
+        $queueRows.Add([pscustomobject]@{
+            QueueName         = [string]($q.QueueName)
+            ConversationCount = [int]   ($q.ConversationCount)
+        })
+    }
+    if ($null -ne $script:DgFlowQueues) { $script:DgFlowQueues.ItemsSource = $queueRows }
 }
 
 function _ImportCurrentRunToCase {
@@ -3473,6 +3802,19 @@ if ($null -ne $script:CmbTransferType) {
 
 if ($null -ne $script:DgTransferChains) {
     $script:DgTransferChains.Add_SelectionChanged({ _OpenTransferChainConversation })
+}
+
+if ($null -ne $script:BtnPullFlowContainmentReport) {
+    $script:BtnPullFlowContainmentReport.Add_Click({ _StartFlowContainmentReportJob })
+}
+
+if ($null -ne $script:CmbFlowType) {
+    _EnsureFlowTypeFilter
+    $script:CmbFlowType.Add_SelectionChanged({ _RenderFlowContainmentGrid })
+}
+
+if ($null -ne $script:DgFlowPerf) {
+    $script:DgFlowPerf.Add_SelectionChanged({ _RenderSelectedFlowDetail })
 }
 
 $script:BtnRun.Add_Click({

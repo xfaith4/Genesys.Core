@@ -500,9 +500,21 @@ Documentation: define what constitutes a "transfer hop" in the context of the Ge
 
 ---
 
-## Session 17: IVR and Flow Containment Report
+## Session 17: IVR and Flow Containment Report — **COMPLETE**
 
 Scope: identify which Architect flows are self-serving successfully, which are routing callers to agents unnecessarily, and where callers are disconnecting in-flow — enabling IVR optimization without requiring access to the Architect editor.
+
+Delivered:
+
+> `Get-FlowContainmentReport` pulls flow execution aggregates plus flow, outcome, and milestone reference
+> datasets through `App.CoreAdapter.psm1` and `Invoke-Dataset`.
+> Schema v8 adds `report_flow_perf` and `report_flow_milestone_distribution`; `Import-FlowContainmentReport`
+> computes containment, failed outcomes, milestone hit distribution, and queue overflow correlation from the
+> local case store.
+> "Flow & IVR" `TabItem` added to `MainWindow.xaml` with Pull Report, flow-type filter, summary bar,
+> flow performance grid, milestone grid, and queues-reached grid.
+> `_StartFlowContainmentReportJob`, `_RenderFlowContainmentGrid`, and `_RenderSelectedFlowDetail`
+> added to `App.UI.ps1`; report tabs clear stale rows when no active case is available.
 
 Task: add `Get-FlowContainmentReport` to `App.CoreAdapter.psm1`. It calls `Invoke-Dataset` for `analytics.query.flow.aggregates.execution.metrics`, `flows.get.all.flows`, `flows.get.flow.outcomes`, and `flows.get.flow.milestones` using the case time window. Results land in a `report-flow-containment-<timestamp>` run folder.
 

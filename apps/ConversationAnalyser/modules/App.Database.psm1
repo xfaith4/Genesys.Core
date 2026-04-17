@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 7
+$script:SchemaVersion = 8
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -1060,6 +1060,47 @@ CREATE TABLE IF NOT EXISTS report_transfer_chains (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_case     ON report_transfer_chains(case_id)'           | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_conv     ON report_transfer_chains(conversation_id)'   | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_hop      ON report_transfer_chains(hop_count)'         | Out-Null
+
+    # Schema v8 — Flow & IVR containment report tables (Session 17)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_flow_perf (
+    row_id                  TEXT    PRIMARY KEY,
+    case_id                 TEXT    NOT NULL REFERENCES cases(case_id),
+    flow_id                 TEXT    NOT NULL DEFAULT '',
+    flow_name               TEXT    NOT NULL DEFAULT '',
+    flow_type               TEXT    NOT NULL DEFAULT '',
+    division_id             TEXT    NOT NULL DEFAULT '',
+    division_name           TEXT    NOT NULL DEFAULT '',
+    n_flow                  INTEGER NOT NULL DEFAULT 0,
+    n_flow_outcome_success  INTEGER NOT NULL DEFAULT 0,
+    n_flow_outcome_failed   INTEGER NOT NULL DEFAULT 0,
+    n_flow_milestone_hit    INTEGER NOT NULL DEFAULT 0,
+    containment_rate_pct    REAL    NOT NULL DEFAULT 0,
+    failure_rate_pct        REAL    NOT NULL DEFAULT 0,
+    imported_utc            TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_flow_milestone_distribution (
+    row_id           TEXT    PRIMARY KEY,
+    case_id          TEXT    NOT NULL REFERENCES cases(case_id),
+    flow_id          TEXT    NOT NULL DEFAULT '',
+    flow_name        TEXT    NOT NULL DEFAULT '',
+    milestone_id     TEXT    NOT NULL DEFAULT '',
+    milestone_name   TEXT    NOT NULL DEFAULT '',
+    n_hit            INTEGER NOT NULL DEFAULT 0,
+    pct_of_entries   REAL    NOT NULL DEFAULT 0,
+    imported_utc     TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    # v8 indexes
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_perf_case       ON report_flow_perf(case_id)'                       | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_perf_flow       ON report_flow_perf(flow_id)'                       | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_perf_contain    ON report_flow_perf(containment_rate_pct)'          | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_milestone_case  ON report_flow_milestone_distribution(case_id)'     | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_milestone_flow  ON report_flow_milestone_distribution(flow_id)'     | Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -3890,6 +3931,406 @@ WHERE case_id = @cid
     }
 }
 
+# ── Public: Flow & IVR Containment Report (Session 17) ───────────────────────
+
+function Import-FlowContainmentReport {
+    <#
+    .SYNOPSIS
+        Session 17 — imports flow execution aggregate data into the local case
+        store and computes IVR containment/failure metrics.
+    .DESCRIPTION
+        Reads JSONL outputs from:
+          - analytics.query.flow.aggregates.execution.metrics
+          - flows.get.all.flows
+          - flows.get.flow.outcomes
+          - flows.get.flow.milestones
+
+        Rows are upserted into report_flow_perf by (case_id, flow_id, flow_type)
+        and report_flow_milestone_distribution by
+        (case_id, flow_id, milestone_id).  When the aggregate payload does not
+        include a milestone dimension, the milestone table stores an aggregate
+        "(all milestones)" row for the flow.
+
+        Containment is a conservative aggregate proxy:
+          (nFlowOutcome - nFlowOutcomeFailed) / nFlow * 100
+
+        This treats successful defined outcomes as self-service completions.
+        Queue overflow correlation is computed separately from local
+        conversation detail rows by Get-FlowQueueRouteRows.
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    $now   = [datetime]::UtcNow.ToString('o')
+    $stats = @{ RecordCount = 0; MilestoneCount = 0; SkippedCount = 0 }
+
+    function _ReadFlowJsonl ([string]$RunFolder) {
+        if ([string]::IsNullOrWhiteSpace($RunFolder) -or
+            -not [System.IO.Directory]::Exists($RunFolder)) {
+            return @()
+        }
+        $dataDir = [System.IO.Path]::Combine($RunFolder, 'data')
+        if (-not [System.IO.Directory]::Exists($dataDir)) { return @() }
+        $records = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+            foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                $t = $line.Trim()
+                if ($t) {
+                    try { $records.Add(($t | ConvertFrom-Json)) } catch {
+                        Write-Warning "Import-FlowContainmentReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+        return $records.ToArray()
+    }
+
+    $flowDefsFolder = if ($FolderMap.ContainsKey('FlowDefsFolder')) { $FolderMap['FlowDefsFolder'] } else { $null }
+    $milestoneFolder = if ($FolderMap.ContainsKey('FlowMilestonesFolder')) { $FolderMap['FlowMilestonesFolder'] } else { $null }
+    $aggFolder = if ($FolderMap.ContainsKey('FlowAggFolder')) { $FolderMap['FlowAggFolder'] } else { $null }
+
+    $conn = _Open
+    try {
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_flow_perf WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_flow_milestone_distribution WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+
+        $divisionMap = @{}
+        foreach ($d in (_Query -Conn $conn -Sql 'SELECT division_id, name FROM ref_divisions WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $did = [string]$d.division_id
+            if ($did) { $divisionMap[$did] = [string]$d.name }
+        }
+
+        $flowMap = @{}
+        foreach ($f in (_Query -Conn $conn -Sql 'SELECT flow_id, name, flow_type FROM ref_flows WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $fid = [string]$f.flow_id
+            if ($fid) {
+                $flowMap[$fid] = @{
+                    Name         = [string]$f.name
+                    FlowType     = [string]$f.flow_type
+                    DivisionId   = ''
+                    DivisionName = ''
+                }
+            }
+        }
+
+        foreach ($f in (_ReadFlowJsonl $flowDefsFolder)) {
+            $fid = [string](_ObjVal $f @('id','flowId') '')
+            if (-not $fid) { continue }
+            $divId = [string](_ObjVal (_ObjVal $f @('division') $null) @('id') '')
+            $divName = [string](_ObjVal (_ObjVal $f @('division') $null) @('name') '')
+            if (-not $divName -and $divId -and $divisionMap.ContainsKey($divId)) { $divName = $divisionMap[$divId] }
+            $flowMap[$fid] = @{
+                Name         = [string](_ObjVal $f @('name') '')
+                FlowType     = [string](_ObjVal $f @('type','flowType') '')
+                DivisionId   = $divId
+                DivisionName = $divName
+            }
+        }
+
+        $milestoneMap = @{}
+        foreach ($m in (_Query -Conn $conn -Sql 'SELECT milestone_id, name FROM ref_flow_milestones WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $mid = [string]$m.milestone_id
+            if ($mid) { $milestoneMap[$mid] = [string]$m.name }
+        }
+        foreach ($m in (_ReadFlowJsonl $milestoneFolder)) {
+            $mid = [string](_ObjVal $m @('id','milestoneId','flowMilestoneId') '')
+            if ($mid) { $milestoneMap[$mid] = [string](_ObjVal $m @('name') '') }
+        }
+
+        $merged = @{}
+        $milestones = @{}
+
+        foreach ($r in (_ReadFlowJsonl $aggFolder)) {
+            if ($null -eq $r -or $null -eq $r.data) { continue }
+            $group = $r.group
+            $flowId = [string](_ObjVal $group @('flowId') '')
+            if (-not $flowId) { $stats.SkippedCount++; continue }
+            $flowType = [string](_ObjVal $group @('flowType') '')
+            $key = "$flowId|$flowType"
+            if (-not $merged.ContainsKey($key)) {
+                $merged[$key] = @{
+                    FlowId = $flowId; FlowType = $flowType
+                    nFlow = 0; nOutcome = 0; nFailed = 0; nMilestone = 0
+                }
+            }
+
+            $milestoneId = [string](_ObjVal $group @('flowMilestoneId','milestoneId') '')
+            foreach ($d in @($r.data)) {
+                foreach ($m in @($d.metrics)) {
+                    $metric = [string]$m.metric
+                    $count = if ($m.stats -and $m.stats.count) { [int]$m.stats.count } else { 0 }
+                    if ($count -eq 0) { continue }
+                    switch ($metric) {
+                        'nFlow' { $merged[$key].nFlow += $count }
+                        'nFlowOutcome' { $merged[$key].nOutcome += $count }
+                        'nFlowOutcomeFailed' { $merged[$key].nFailed += $count }
+                        'nFlowMilestone' {
+                            $merged[$key].nMilestone += $count
+                            $mKey = if ($milestoneId) { "$flowId|$milestoneId" } else { "$flowId|__all__" }
+                            if (-not $milestones.ContainsKey($mKey)) {
+                                $milestones[$mKey] = @{ FlowId = $flowId; MilestoneId = $milestoneId; Count = 0 }
+                            }
+                            $milestones[$mKey].Count += $count
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($entry in $merged.Values) {
+            $fid = [string]$entry.FlowId
+            $meta = if ($flowMap.ContainsKey($fid)) { $flowMap[$fid] } else { $null }
+            $flowName = if ($null -ne $meta -and $meta.Name) { [string]$meta.Name } else { "$fid (unresolved)" }
+            $flowType = if ($entry.FlowType) { [string]$entry.FlowType } elseif ($null -ne $meta) { [string]$meta.FlowType } else { '' }
+            $divId = if ($null -ne $meta) { [string]$meta.DivisionId } else { '' }
+            $divName = if ($null -ne $meta) { [string]$meta.DivisionName } else { '' }
+            $success = [Math]::Max(0, [int]$entry.nOutcome - [int]$entry.nFailed)
+            $contain = if ($entry.nFlow -gt 0) { [Math]::Round(($success / $entry.nFlow) * 100.0, 1) } else { 0.0 }
+            $failure = if ($entry.nFlow -gt 0) { [Math]::Round(($entry.nFailed / $entry.nFlow) * 100.0, 1) } else { 0.0 }
+            $rowKey = "$CaseId|flow|$fid|$flowType"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_flow_perf(
+    row_id, case_id, flow_id, flow_name, flow_type, division_id, division_name,
+    n_flow, n_flow_outcome_success, n_flow_outcome_failed, n_flow_milestone_hit,
+    containment_rate_pct, failure_rate_pct, imported_utc)
+VALUES(
+    @rid, @cid, @fid, @fname, @ftype, @divid, @divname,
+    @nflow, @nsuccess, @nfailed, @nms,
+    @contain, @fail, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    flow_name=excluded.flow_name, flow_type=excluded.flow_type,
+    division_id=excluded.division_id, division_name=excluded.division_name,
+    n_flow=excluded.n_flow,
+    n_flow_outcome_success=excluded.n_flow_outcome_success,
+    n_flow_outcome_failed=excluded.n_flow_outcome_failed,
+    n_flow_milestone_hit=excluded.n_flow_milestone_hit,
+    containment_rate_pct=excluded.containment_rate_pct,
+    failure_rate_pct=excluded.failure_rate_pct,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowKey; '@cid' = $CaseId; '@fid' = $fid; '@fname' = $flowName
+                '@ftype' = $flowType; '@divid' = $divId; '@divname' = $divName
+                '@nflow' = [int]$entry.nFlow; '@nsuccess' = [int]$success
+                '@nfailed' = [int]$entry.nFailed; '@nms' = [int]$entry.nMilestone
+                '@contain' = [double]$contain; '@fail' = [double]$failure; '@ts' = $now
+            } | Out-Null
+            $stats.RecordCount++
+        }
+
+        foreach ($m in $milestones.Values) {
+            $fid = [string]$m.FlowId
+            $meta = if ($flowMap.ContainsKey($fid)) { $flowMap[$fid] } else { $null }
+            $flowName = if ($null -ne $meta -and $meta.Name) { [string]$meta.Name } else { "$fid (unresolved)" }
+            $mid = [string]$m.MilestoneId
+            $mName = if ($mid -and $milestoneMap.ContainsKey($mid)) { $milestoneMap[$mid] } elseif ($mid) { "$mid (unresolved)" } else { '(all milestones)' }
+            $flowTotal = 0
+            foreach ($entry in $merged.Values) { if ($entry.FlowId -eq $fid) { $flowTotal += [int]$entry.nFlow } }
+            $pct = if ($flowTotal -gt 0) { [Math]::Round(($m.Count / $flowTotal) * 100.0, 1) } else { 0.0 }
+            $rowKey = "$CaseId|flowms|$fid|$(if ($mid) { $mid } else { '__all__' })"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_flow_milestone_distribution(
+    row_id, case_id, flow_id, flow_name, milestone_id, milestone_name,
+    n_hit, pct_of_entries, imported_utc)
+VALUES(
+    @rid, @cid, @fid, @fname, @mid, @mname,
+    @n, @pct, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    flow_name=excluded.flow_name,
+    milestone_name=excluded.milestone_name,
+    n_hit=excluded.n_hit,
+    pct_of_entries=excluded.pct_of_entries,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowKey; '@cid' = $CaseId; '@fid' = $fid; '@fname' = $flowName
+                '@mid' = $mid; '@mname' = $mName; '@n' = [int]$m.Count; '@pct' = [double]$pct; '@ts' = $now
+            } | Out-Null
+            $stats.MilestoneCount++
+        }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return $stats
+}
+
+function Get-FlowPerfRows {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $FlowType = ''
+    )
+    _RequireDb
+
+    if ($FlowType) {
+        $sql = @'
+SELECT flow_id, flow_name, flow_type, division_id, division_name,
+       n_flow, n_flow_outcome_success, n_flow_outcome_failed, n_flow_milestone_hit,
+       containment_rate_pct, failure_rate_pct
+FROM report_flow_perf
+WHERE case_id = @cid AND LOWER(flow_type) = LOWER(@type)
+ORDER BY containment_rate_pct ASC, n_flow DESC, flow_name ASC
+'@
+        $p = @{ '@cid' = $CaseId; '@type' = $FlowType }
+    } else {
+        $sql = @'
+SELECT flow_id, flow_name, flow_type, division_id, division_name,
+       n_flow, n_flow_outcome_success, n_flow_outcome_failed, n_flow_milestone_hit,
+       containment_rate_pct, failure_rate_pct
+FROM report_flow_perf
+WHERE case_id = @cid
+ORDER BY containment_rate_pct ASC, n_flow DESC, flow_name ASC
+'@
+        $p = @{ '@cid' = $CaseId }
+    }
+
+    $conn = _Open
+    try { $rows = _Query -Conn $conn -Sql $sql -P $p }
+    finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-FlowMilestoneRows {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $FlowId = ''
+    )
+    _RequireDb
+
+    if ($FlowId) {
+        $sql = @'
+SELECT flow_id, flow_name, milestone_id, milestone_name, n_hit, pct_of_entries
+FROM report_flow_milestone_distribution
+WHERE case_id = @cid AND flow_id = @fid
+ORDER BY n_hit DESC, milestone_name ASC
+'@
+        $p = @{ '@cid' = $CaseId; '@fid' = $FlowId }
+    } else {
+        $sql = @'
+SELECT flow_id, flow_name, milestone_id, milestone_name, n_hit, pct_of_entries
+FROM report_flow_milestone_distribution
+WHERE case_id = @cid
+ORDER BY n_hit DESC, flow_name ASC
+'@
+        $p = @{ '@cid' = $CaseId }
+    }
+
+    $conn = _Open
+    try { $rows = _Query -Conn $conn -Sql $sql -P $p }
+    finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-FlowContainmentSummary {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT
+    COUNT(*) AS total_flows,
+    COALESCE(SUM(n_flow), 0) AS total_entries,
+    CASE WHEN COALESCE(SUM(n_flow), 0) > 0
+         THEN ROUND((COALESCE(SUM(n_flow_outcome_success), 0) * 100.0) / SUM(n_flow), 1)
+         ELSE 0 END AS avg_containment_pct,
+    CASE WHEN COALESCE(SUM(n_flow), 0) > 0
+         THEN ROUND((COALESCE(SUM(n_flow_outcome_failed), 0) * 100.0) / SUM(n_flow), 1)
+         ELSE 0 END AS avg_failure_pct,
+    SUM(CASE WHEN containment_rate_pct < 50 THEN 1 ELSE 0 END) AS low_containment_flows
+FROM report_flow_perf
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    if ($rows.Count -eq 0) {
+        return [pscustomobject]@{ TotalFlows = 0; TotalEntries = 0; AvgContainmentPct = 0.0; AvgFailurePct = 0.0; LowContainmentFlows = 0 }
+    }
+    $r = $rows[0]
+    return [pscustomobject]@{
+        TotalFlows          = [int]   (_RowVal $r 'total_flows' 0)
+        TotalEntries        = [int]   (_RowVal $r 'total_entries' 0)
+        AvgContainmentPct   = [double](_RowVal $r 'avg_containment_pct' 0.0)
+        AvgFailurePct       = [double](_RowVal $r 'avg_failure_pct' 0.0)
+        LowContainmentFlows = [int]   (_RowVal $r 'low_containment_flows' 0)
+    }
+}
+
+function Get-FlowQueueRouteRows {
+    <#
+    .SYNOPSIS
+        Derives queues reached by conversations that touched a selected flow,
+        using local participants_json stored in the case.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $FlowId = '',
+        [string] $FlowName = ''
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $convRows = _Query -Conn $conn -Sql @'
+SELECT conversation_id, participants_json
+FROM conversations
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $queueCounts = @{}
+    foreach ($cr in $convRows) {
+        $partJson = _RowVal $cr 'participants_json' $null
+        if ($null -eq $partJson -or [string]::IsNullOrWhiteSpace([string]$partJson)) { continue }
+        try { $participants = @($partJson | ConvertFrom-Json) } catch { continue }
+
+        $flowTouched = $false
+        $queues = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($p in $participants) {
+            $partFlowId = [string](_ObjVal $p @('flowId') '')
+            $partFlowName = [string](_ObjVal $p @('flowName','participantName') '')
+            if (($FlowId -and $partFlowId -eq $FlowId) -or
+                ($FlowName -and $partFlowName -eq $FlowName)) {
+                $flowTouched = $true
+            }
+            if (-not $p.PSObject.Properties['sessions']) { continue }
+            foreach ($s in @($p.sessions)) {
+                $sessFlowId = [string](_ObjVal $s @('flowId') '')
+                $sessFlowName = [string](_ObjVal $s @('flowName') '')
+                if (($FlowId -and $sessFlowId -eq $FlowId) -or
+                    ($FlowName -and $sessFlowName -eq $FlowName)) {
+                    $flowTouched = $true
+                }
+                $sessQueueName = [string](_ObjVal $s @('queueName') '')
+                if ($sessQueueName) { $queues.Add($sessQueueName) | Out-Null }
+                if (-not $s.PSObject.Properties['segments']) { continue }
+                foreach ($seg in @($s.segments)) {
+                    $segFlowId = [string](_ObjVal $seg @('flowId') '')
+                    $segFlowName = [string](_ObjVal $seg @('flowName') '')
+                    if (($FlowId -and $segFlowId -eq $FlowId) -or
+                        ($FlowName -and $segFlowName -eq $FlowName)) {
+                        $flowTouched = $true
+                    }
+                    $qName = [string](_ObjVal $seg @('queueName') '')
+                    if ($qName) { $queues.Add($qName) | Out-Null }
+                }
+            }
+        }
+
+        if (-not $flowTouched) { continue }
+        foreach ($q in $queues) {
+            if (-not $queueCounts.ContainsKey($q)) { $queueCounts[$q] = 0 }
+            $queueCounts[$q]++
+        }
+    }
+
+    $rows = @($queueCounts.GetEnumerator() | Sort-Object @{ Expression = { $_.Value }; Descending = $true }, Name | ForEach-Object {
+        [pscustomobject]@{ QueueName = [string]$_.Key; ConversationCount = [int]$_.Value }
+    })
+    return $rows
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -3906,4 +4347,6 @@ Export-ModuleMember -Function `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `
     Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `
-    Import-TransferReport, Get-TransferFlowRows, Get-TransferChainRows, Get-TransferSummary
+    Import-TransferReport, Get-TransferFlowRows, Get-TransferChainRows, Get-TransferSummary, `
+    Import-FlowContainmentReport, Get-FlowPerfRows, Get-FlowMilestoneRows, `
+    Get-FlowContainmentSummary, Get-FlowQueueRouteRows

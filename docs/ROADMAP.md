@@ -380,7 +380,7 @@ that implement it, and the backing catalog key(s).
 | 14      | Queue Performance Aggregate Report   | ✅ Delivered     |
 | 15      | Agent Performance Report             | ✅ Delivered     |
 | 16      | Transfer and Escalation Chain Intel  | ✅ Delivered     |
-| 17      | IVR and Flow Containment Report      | 🔲 Planned       |
+| 17      | IVR and Flow Containment Report      | ✅ Delivered     |
 | 18      | Wrapup Code Distribution             | 🔲 Planned       |
 | 19      | Quality and Voice-of-Customer Overlay| 🔲 Planned       |
 | 20      | Temporal Trend and Comparative       | 🔲 Planned       |

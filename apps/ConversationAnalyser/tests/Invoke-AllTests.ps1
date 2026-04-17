@@ -311,6 +311,35 @@ ArchCheck 'ARCH-42' 'Transfer tab controls and handlers are wired' {
     $uiPs -match 'function _OpenTransferChainConversation'
 }
 
+Write-Host "`n--- Flow and IVR containment reporting ---" -ForegroundColor DarkCyan
+
+ArchCheck 'ARCH-43' 'CoreAdapter exposes flow containment pulls without UI direct dataset access' {
+    $adapter -match 'function Get-FlowContainmentReport' -and
+    $adapter -match 'analytics\.query\.flow\.aggregates\.execution\.metrics' -and
+    $adapter -match 'flows\.get\.all\.flows' -and
+    $uiPs -notmatch 'Invoke-Dataset'
+}
+
+ArchCheck 'ARCH-44' 'Database owns flow containment schema, import, accessors, and queue correlation' {
+    $database -match 'CREATE TABLE IF NOT EXISTS report_flow_perf' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_flow_milestone_distribution' -and
+    $database -match 'function Import-FlowContainmentReport' -and
+    $database -match 'function Get-FlowPerfRows' -and
+    $database -match 'function Get-FlowMilestoneRows' -and
+    $database -match 'function Get-FlowContainmentSummary' -and
+    $database -match 'function Get-FlowQueueRouteRows'
+}
+
+ArchCheck 'ARCH-45' 'Flow & IVR tab controls and handlers are wired' {
+    $xaml -match 'BtnPullFlowContainmentReport' -and
+    $xaml -match 'DgFlowPerf' -and
+    $xaml -match 'DgFlowMilestones' -and
+    $xaml -match 'DgFlowQueues' -and
+    $uiPs -match 'function _StartFlowContainmentReportJob' -and
+    $uiPs -match 'function _RenderFlowContainmentGrid' -and
+    $uiPs -match 'function _RenderSelectedFlowDetail'
+}
+
 # ── Architecture: config & strict mode ────────────────────────────────────────
 Write-Host "`n--- Config and strict mode ---" -ForegroundColor DarkCyan
 

@@ -4,6 +4,15 @@
 
 ### Added
 
+- **ConversationAnalyser Session 17 — IVR and Flow Containment Report:**
+  - `Get-FlowContainmentReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.flow.aggregates.execution.metrics`, `flows.get.all.flows`, `flows.get.flow.outcomes`, and `flows.get.flow.milestones` into a report folder map.
+  - Schema bumped to **v8** with `report_flow_perf` and `report_flow_milestone_distribution` plus supporting indexes.
+  - `Import-FlowContainmentReport`, `Get-FlowPerfRows`, `Get-FlowMilestoneRows`, `Get-FlowContainmentSummary`, and `Get-FlowQueueRouteRows` added to `App.Database.psm1`.
+  - Containment and failure summaries are weighted by flow entries; queue correlation reads already-imported conversation detail data without adding a frontend API path.
+  - **"Flow & IVR" tab** added to `MainWindow.xaml`: Pull Report button, flow-type filter, summary bar, flow performance grid, milestone grid, and queues-reached grid.
+  - `_StartFlowContainmentReportJob`, `_RenderFlowContainmentGrid`, and `_RenderSelectedFlowDetail` added to `App.UI.ps1`; Transfer and Flow tabs now clear stale rows when the case store is offline or no active case is selected.
+  - Flow-specific compliance and architecture checks added to the ConversationAnalyser test runner.
+
 - **ConversationAnalyser Session 16 — Transfer and Escalation Chain Intel:**
   - Schema bumped to **v7** with `report_transfer_flows` and `report_transfer_chains` plus supporting indexes.
   - `Import-TransferReport` added to `App.Database.psm1` — imports the transfer aggregate run folder, derives transfer chains from stored `participants_json`, classifies blind versus consult transfers, and upserts flow and chain rows.

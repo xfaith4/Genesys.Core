@@ -1,6 +1,6 @@
-# Transfer Report Phase Plan
+# ConversationAnalyser Reporting Phase Plan
 
-Goal: finish the last development phase for the Transfer & Escalation work, currently focused on Step 2: schema v7, Import-TransferReport, and database accessors.
+Goal: finish the current ConversationAnalyser reporting phases, review and harden recent changes, and proceed through the next roadmap release slice.
 
 ## Phases
 
@@ -14,6 +14,8 @@ Goal: finish the last development phase for the Transfer & Escalation work, curr
 | Complete Session 16 UI release slice | complete | Added Transfer & Escalation tab and handlers following Queue/Agent report patterns. |
 | Final verification | complete | Parse checks and Invoke-AllTests passed: 179 PASS / 0 FAIL / 1 SKIP. |
 | Release docs update | complete | Updated roadmap/changelog/planning notes; Session 16 now delivered. |
+| Code review latest changes | complete | Hardened stale report-tab state, weighted Flow summary rates, robust flow-to-queue correlation, and line-ending cleanliness. |
+| Session 17 roadmap phase | complete | Implemented IVR and Flow Containment report using the established CoreAdapter/Database/XAML/UI/test/doc pattern. |
 
 ## Constraints
 
@@ -26,4 +28,4 @@ Goal: finish the last development phase for the Transfer & Escalation work, curr
 | --- | --- | --- |
 | Initial parser command contained a NUL byte due malformed shell quoting | Parse attempt 1 | Reran parser with explicit `$tokens`/`$errors` variables; all parse checks passed. |
 | SQLite smoke path skipped native database runtime | Invoke-AllTests | Existing environment lacks `e_sqlite3` native library; test runner marked SMK-10 SKIP while overall suite passed. |
-| `git diff --check` reports thousands of trailing-whitespace hits | Final scoped check | Files are already large CRLF-style rewrites against HEAD, so this check is noisy and not specific to Step 2; parser and test suite results are clean. |
+| In-place LF normalization failed inside sandbox with read-only temp-file error | Line-ending cleanup | Reran the mechanical normalization command with escalation; `git diff --check` is now clean on touched files. |

@@ -16,6 +16,8 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Release docs update | complete | Updated roadmap/changelog/planning notes; Session 16 now delivered. |
 | Code review latest changes | complete | Hardened stale report-tab state, weighted Flow summary rates, robust flow-to-queue correlation, and line-ending cleanliness. |
 | Session 17 roadmap phase | complete | Implemented IVR and Flow Containment report using the established CoreAdapter/Database/XAML/UI/test/doc pattern. |
+| Conversation display investigation | complete | Traced API run completion through output folder discovery, config path resolution, async job polling, indexing, and grid display. |
+| Conversation display fix | complete | Patched path resolution, run-folder selection, and async terminal-state handling; parser/tests/diff checks passed. |
 
 ## Constraints
 
@@ -29,3 +31,4 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Initial parser command contained a NUL byte due malformed shell quoting | Parse attempt 1 | Reran parser with explicit `$tokens`/`$errors` variables; all parse checks passed. |
 | SQLite smoke path skipped native database runtime | Invoke-AllTests | Existing environment lacks `e_sqlite3` native library; test runner marked SMK-10 SKIP while overall suite passed. |
 | In-place LF normalization failed inside sandbox with read-only temp-file error | Line-ending cleanup | Reran the mechanical normalization command with escalation; `git diff --check` is now clean on touched files. |
+| Persisted `C:\Users\...` paths resolved as app-relative paths under WSL | Config/output investigation | Added config and Core output-root normalization so Windows drive paths map to `/mnt/<drive>/...` and relative backslash paths resolve correctly. |

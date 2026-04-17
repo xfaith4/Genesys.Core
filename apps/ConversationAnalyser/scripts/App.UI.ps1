@@ -151,6 +151,9 @@ $script:State = @{
     ConvStoreIncidentKey = ''
     BackgroundRunJob    = $null        # PSDataCollection / runspace handle
     BackgroundRunspace  = $null
+    BackgroundRunDataset = ''
+    BackgroundRunOutputRoot = ''
+    BackgroundRunStartedUtc = $null
     PollingTimer        = $null
     DiagnosticsContext  = $null        # last run folder for diagnostics
     IsRunning           = $false
@@ -498,6 +501,70 @@ function _ResolveImportRunFolder {
         return $sel.FullPath
     }
     return ''
+}
+
+function _ResolveRunFolderFromResult {
+    param([object]$RunResult)
+
+    if ($null -eq $RunResult) { return $null }
+
+    $folder = @($RunResult) | ForEach-Object {
+        if ($_ -is [string]) {
+            $_
+        } elseif ($null -ne $_ -and $_.PSObject.Properties.Name -contains 'runFolder') {
+            $_.runFolder
+        }
+    } | Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string]$_) -and [System.IO.Directory]::Exists([string]$_)
+    } | Select-Object -First 1
+
+    return $folder
+}
+
+function _FindInProgressRunFolder {
+    param(
+        [string]$OutputRoot,
+        [string]$DatasetKey,
+        [Nullable[datetime]]$StartedAfterUtc
+    )
+
+    if ([string]::IsNullOrWhiteSpace($OutputRoot) -or -not [System.IO.Directory]::Exists($OutputRoot)) {
+        return $null
+    }
+
+    $searchRoot = $OutputRoot
+    if (-not [string]::IsNullOrWhiteSpace($DatasetKey)) {
+        $candidateRoot = [System.IO.Path]::Combine($OutputRoot, $DatasetKey)
+        if ([System.IO.Directory]::Exists($candidateRoot)) {
+            $searchRoot = $candidateRoot
+        }
+    }
+
+    $threshold = $null
+    if ($StartedAfterUtc.HasValue) {
+        $threshold = $StartedAfterUtc.Value.AddMinutes(-2)
+    }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    foreach ($dir in [System.IO.Directory]::GetDirectories($searchRoot)) {
+        $apiLog = [System.IO.Path]::Combine($dir, 'api-calls.log')
+        $events = [System.IO.Path]::Combine($dir, 'events.jsonl')
+        if (-not ([System.IO.File]::Exists($apiLog) -or [System.IO.File]::Exists($events))) {
+            continue
+        }
+
+        if ($null -ne $threshold) {
+            $created = [System.IO.Directory]::GetCreationTimeUtc($dir)
+            $written = [System.IO.Directory]::GetLastWriteTimeUtc($dir)
+            if ($created -lt $threshold -and $written -lt $threshold) {
+                continue
+            }
+        }
+
+        $candidates.Add($dir)
+    }
+
+    return @($candidates.ToArray() | Sort-Object { [System.IO.Directory]::GetLastWriteTimeUtc($_) } -Descending | Select-Object -First 1)
 }
 
 function _GetCurrentViewSnapshot {
@@ -1097,7 +1164,7 @@ function _StartRefreshReferenceDataJob {
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri)
         Set-StrictMode -Version Latest
 
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
         Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
         return (Refresh-ReferenceData -Headers $Headers -BaseUri $BaseUri)
     })
@@ -1236,7 +1303,7 @@ function _StartQueuePerfReportJob {
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
         Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
         return (Get-QueuePerformanceReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
@@ -1480,7 +1547,7 @@ function _StartAgentPerfReportJob {
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
         Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
         return (Get-AgentPerformanceReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
@@ -1754,7 +1821,7 @@ function _StartTransferReportJob {
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
         Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
         return (Get-TransferReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
@@ -2023,7 +2090,7 @@ function _StartFlowContainmentReportJob {
         param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
         Set-StrictMode -Version Latest
 
-        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
         Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
         return (Get-FlowContainmentReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
     })
@@ -2906,11 +2973,15 @@ function _StartRunInBackground {
     $connInfo = Get-ConnectionInfo
     $region   = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
     $baseUri  = "https://api.$region"
+    $datasetKey = if ($RunType -eq 'preview') { 'analytics-conversation-details-query' } else { 'analytics-conversation-details' }
 
     $script:State.RunCancelled = $false
     # Clear any stale run folder so _PollBackgroundRun discovers the new one
     $script:State.CurrentRunFolder   = $null
     $script:State.DiagnosticsContext = $null
+    $script:State.BackgroundRunDataset = $datasetKey
+    $script:State.BackgroundRunOutputRoot = $outputRoot
+    $script:State.BackgroundRunStartedUtc = [DateTime]::UtcNow
     _SetRunning $true
     _Dispatch {
         $script:TxtRunStatus.Text   = "Starting $RunType run…"
@@ -2958,7 +3029,7 @@ function _StartRunInBackground {
             if (-not [System.IO.File]::Exists($adapterPath)) { throw "Core adapter not found at: $adapterPath" }
             & $t "Path checks OK"
 
-            Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+            Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
             & $t "Core adapter imported"
 
             Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
@@ -3022,12 +3093,13 @@ function _PollBackgroundRun {
             }
         }
     } else {
-        # Try to find the run folder that was just created
-        $cfg     = Get-AppConfig
-        $folders = @(Get-RecentRunFolders -OutputRoot $cfg.OutputRoot -Max 1)
-        if ($folders.Count -gt 0) {
-            $script:State.CurrentRunFolder   = $folders[0]
-            $script:State.DiagnosticsContext = $folders[0]
+        $folder = _FindInProgressRunFolder `
+            -OutputRoot $script:State.BackgroundRunOutputRoot `
+            -DatasetKey $script:State.BackgroundRunDataset `
+            -StartedAfterUtc $script:State.BackgroundRunStartedUtc
+        if ($folder) {
+            $script:State.CurrentRunFolder   = $folder
+            $script:State.DiagnosticsContext = $folder
         }
     }
 
@@ -3064,17 +3136,12 @@ function _PollBackgroundRun {
 
     _SetRunning $false
 
-    # If polling didn't detect the new run folder, recover from the adapter result.
-    # Core returns a run context object (.runFolder), not a bare string.
-    if ($null -eq $script:State.CurrentRunFolder -and $null -ne $runResult) {
-        $resultFolder = @($runResult) | ForEach-Object {
-            if ($_ -is [string]) { $_ }
-            elseif ($null -ne $_ -and $_.PSObject.Properties.Name -contains 'runFolder') { $_.runFolder }
-        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and [System.IO.Directory]::Exists($_) } | Select-Object -First 1
-        if ($resultFolder) {
-            $script:State.CurrentRunFolder   = $resultFolder
-            $script:State.DiagnosticsContext = $resultFolder
-        }
+    # Prefer the completed run's actual output folder over any in-progress folder
+    # discovered while polling.
+    $resultFolder = _ResolveRunFolderFromResult -RunResult $runResult
+    if ($resultFolder) {
+        $script:State.CurrentRunFolder   = $resultFolder
+        $script:State.DiagnosticsContext = $resultFolder
     }
 
     # Read trace log written by the background script (always in $env:TEMP).
@@ -3097,6 +3164,9 @@ function _PollBackgroundRun {
         }
         $topError = if ($null -ne $endInvokeFailure) { $endInvokeFailure } elseif ($errors.Count -gt 0) { $errors[0] } else { 'Unknown background run failure' }
         _SetStatus "Run failed: $topError"
+        $script:State.BackgroundRunDataset = ''
+        $script:State.BackgroundRunOutputRoot = ''
+        $script:State.BackgroundRunStartedUtc = $null
         return
     }
 
@@ -3131,6 +3201,10 @@ function _PollBackgroundRun {
         $script:TxtDiagnostics.Text   = $diagText
     }
     _SetStatus 'Run complete'
+
+    $script:State.BackgroundRunDataset = ''
+    $script:State.BackgroundRunOutputRoot = ''
+    $script:State.BackgroundRunStartedUtc = $null
 }
 
 function _CancelBackgroundRun {
@@ -3148,6 +3222,9 @@ function _CancelBackgroundRun {
     }
     $script:State.BackgroundRunJob   = $null
     $script:State.BackgroundRunspace = $null
+    $script:State.BackgroundRunDataset = ''
+    $script:State.BackgroundRunOutputRoot = ''
+    $script:State.BackgroundRunStartedUtc = $null
 
     if ($null -ne $script:State.PollingTimer) {
         try { $script:State.PollingTimer.Stop() } catch { }

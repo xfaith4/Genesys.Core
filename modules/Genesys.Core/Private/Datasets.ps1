@@ -690,8 +690,10 @@ function Invoke-AnalyticsConversationDetailsDataset {
     $asyncProfile = [pscustomobject]@{
         transactionIdPath  = '$.jobId'
         statePath          = '$.state'
-        terminalStates     = @('FULFILLED', 'FAILED', 'CANCELLED')
-        successStates      = @('FULFILLED')
+        terminalStates     = @('FULFILLED', 'COMPLETED', 'COMPLETE', 'SUCCEEDED', 'SUCCESS', 'FAILED', 'CANCELLED', 'CANCELED', 'EXPIRED')
+        successStates      = @('FULFILLED', 'COMPLETED', 'COMPLETE', 'SUCCEEDED', 'SUCCESS')
+        pollIntervalSeconds = 2
+        maxPolls           = 300
         submittedEventType = 'analytics.job.submitted'
         pollEventType      = 'analytics.job.poll'
         jobLabel           = 'Analytics conversation details job'

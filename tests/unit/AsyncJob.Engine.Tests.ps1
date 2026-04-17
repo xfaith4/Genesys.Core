@@ -85,7 +85,7 @@ Describe 'Async job engine' {
         (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 1
     }
 
-    It 'uses configured terminalStates fallback when terminalStatesPath is missing in status payload' {
+    It 'uses configured terminalStates fallback case-insensitively when terminalStatesPath is missing in status payload' {
         $runEvents = [System.Collections.Generic.List[object]]::new()
 
         $submitEndpoint = [pscustomobject]@{
@@ -131,7 +131,7 @@ Describe 'Async job engine' {
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback') {
-                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'fulfilled' } }
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback/results') {

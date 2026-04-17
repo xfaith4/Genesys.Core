@@ -194,10 +194,26 @@ try {
         $saved = [System.IO.File]::ReadAllText($configFile, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
         $reloaded = Get-AppConfig
 
+        $winOutputRoot = 'C:\Users\Example\AppData\Local\GenesysConversationAnalysis\runs'
+        $rawPortable = [ordered]@{
+            OutputRoot     = $winOutputRoot
+            CoreModulePath = '..\..\modules\Genesys.Core\Genesys.Core.psd1'
+            RecentRuns     = @('C:\Users\Example\AppData\Local\GenesysConversationAnalysis\runs\analytics-conversation-details\20260417T120000Z')
+        }
+        [System.IO.File]::WriteAllText($configFile, ([pscustomobject]$rawPortable | ConvertTo-Json -Depth 5), [System.Text.Encoding]::UTF8)
+        $winReloaded = Get-AppConfig
+        $expectedWinOutputRoot = if ([System.IO.Path]::DirectorySeparatorChar -eq '\') {
+            $winOutputRoot
+        } else {
+            '/mnt/c/Users/Example/AppData/Local/GenesysConversationAnalysis/runs'
+        }
+
         (-not [System.IO.Path]::IsPathRooted([string]$saved.OutputRoot)) -and
         ($reloaded.OutputRoot -eq (Join-Path $AppRoot 'tests/smoke-output')) -and
         ($reloaded.RecentRuns.Count -eq 1) -and
-        ($reloaded.RecentRuns[0] -eq $runFolder)
+        ($reloaded.RecentRuns[0] -eq $runFolder) -and
+        ($winReloaded.OutputRoot -eq $expectedWinOutputRoot) -and
+        ([System.IO.File]::Exists($winReloaded.CoreModulePath))
     }
 
     Write-Host "`n--- Run Folder ---" -ForegroundColor DarkCyan

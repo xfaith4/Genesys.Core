@@ -35,6 +35,14 @@ function Resolve-OutputRootPath {
         $effectiveOutputRoot = 'out'
     }
 
+    if ([System.IO.Path]::DirectorySeparatorChar -ne '\' -and $effectiveOutputRoot -match '^([A-Za-z]):[\\/](.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $rest  = ($Matches[2] -replace '\\', '/').TrimStart('/')
+        $effectiveOutputRoot = "/mnt/$drive/$rest"
+    } elseif ([System.IO.Path]::DirectorySeparatorChar -ne '\') {
+        $effectiveOutputRoot = $effectiveOutputRoot -replace '\\', '/'
+    }
+
     if ([System.IO.Path]::IsPathRooted($effectiveOutputRoot)) {
         return [System.IO.Path]::GetFullPath($effectiveOutputRoot)
     }

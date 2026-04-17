@@ -240,9 +240,13 @@ function Get-AsyncJobStatus {
         $successStates = @($AsyncProfile.successStates | ForEach-Object { [string]$_ } | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) -eq $false })
     }
 
-    $state = [string](Get-AsyncValueFromResponse -Response $statusEnvelope -Path $statePath)
-    $isTerminal = $terminalStates -contains $state
-    $isSuccess = $successStates -contains $state
+    $state = ([string](Get-AsyncValueFromResponse -Response $statusEnvelope -Path $statePath)).Trim()
+    $isTerminal = @($terminalStates | Where-Object {
+        [string]::Equals(([string]$_).Trim(), $state, [System.StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
+    $isSuccess = @($successStates | Where-Object {
+        [string]::Equals(([string]$_).Trim(), $state, [System.StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
 
     return [pscustomobject]@{
         JobId = $JobId

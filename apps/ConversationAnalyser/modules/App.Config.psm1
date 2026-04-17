@@ -25,6 +25,40 @@ function _GetFullPathSafe {
     }
 }
 
+function _NormalizeConfigPathInput {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+
+    $value = $Path.Trim()
+    if ([System.IO.Path]::DirectorySeparatorChar -eq '\') {
+        return $value
+    }
+
+    if ($value -match '^([A-Za-z]):[\\/](.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $rest  = ($Matches[2] -replace '\\', '/').TrimStart('/')
+        return "/mnt/$drive/$rest"
+    }
+
+    return ($value -replace '\\', '/')
+}
+
+function _IsPathUnderDirectory {
+    param(
+        [Parameter(Mandatory)][string]$BasePath,
+        [Parameter(Mandatory)][string]$FullPath
+    )
+
+    $base = (_GetFullPathSafe $BasePath).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $full = _GetFullPathSafe $FullPath
+    if ($full.Equals($base, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    $prefix = $base + [System.IO.Path]::DirectorySeparatorChar
+    return $full.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 function _GetRelativePathPortable {
     param(
         [Parameter(Mandatory)][string]$BasePath,
@@ -48,18 +82,25 @@ function _GetRelativePathPortable {
 function _ResolveConfigPath {
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return (_GetFullPathSafe $Path)
+    $normalized = _NormalizeConfigPathInput -Path $Path
+    if ([System.IO.Path]::IsPathRooted($normalized)) {
+        return (_GetFullPathSafe $normalized)
     }
-    return (_GetFullPathSafe ([System.IO.Path]::Combine($script:AppDir, $Path)))
+    return (_GetFullPathSafe ([System.IO.Path]::Combine($script:AppDir, $normalized)))
 }
 
 function _CollapseConfigPath {
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
-    if (-not [System.IO.Path]::IsPathRooted($Path)) { return $Path }
+    $normalized = _NormalizeConfigPathInput -Path $Path
+    if (-not [System.IO.Path]::IsPathRooted($normalized)) { return $normalized }
 
-    $full = _GetFullPathSafe $Path
+    $full = _GetFullPathSafe $normalized
+    if (-not (_IsPathUnderDirectory -BasePath $script:AppDir -FullPath $full) -and
+        -not (_IsPathUnderDirectory -BasePath $script:_CoreSiblingRoot -FullPath $full)) {
+        return $full
+    }
+
     $rel  = _GetRelativePathPortable -BasePath $script:AppDir -FullPath $full
     if (-not [string]::IsNullOrWhiteSpace($rel) -and -not [System.IO.Path]::IsPathRooted($rel)) {
         return $rel

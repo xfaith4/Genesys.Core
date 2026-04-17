@@ -28,3 +28,10 @@
 - Verified parser checks for CoreAdapter, Database, UI, and tests; verified XML parse for `MainWindow.xaml`; `git diff --check` is clean on touched files.
 - Ran `pwsh -NoProfile -File apps/ConversationAnalyser/tests/Invoke-AllTests.ps1`: 196 PASS, 0 FAIL, 1 SKIP (`e_sqlite3` native library absent for database smoke).
 - Updated `docs/CHANGELOG.md`, `docs/ROADMAP.md`, and `apps/ConversationAnalyser/docs/ConversationAnalytics_Roadmap.md`; Session 17 is now marked delivered.
+- Investigated the ConversationAnalyser run output path and found persisted Windows-style config paths were resolving incorrectly under WSL/Linux, e.g. `C:\Users\...` became app-relative instead of `/mnt/c/Users/...`.
+- Hardened `App.Config.psm1` and `Invoke-Dataset.ps1` path normalization for Windows drive paths and backslash relative paths.
+- Hardened `App.UI.ps1` background run polling so in-progress diagnostics use the new run folder and completed display always prefers the returned run context `.runFolder` over any folder discovered while polling.
+- Hardened async job polling so terminal/success state comparisons are case-insensitive, and the analytics conversation-details job uses a longer 300-poll profile with common success-state aliases.
+- Added smoke coverage for Windows-style persisted config paths and unit coverage for lower-case async terminal states.
+- Verified current config now resolves OutputRoot to `/mnt/c/Users/benfu/AppData/Local/GenesysConversationAnalysis/runs` and the Core/catalog/schema paths to the repo paths.
+- Verified parser checks, `Invoke-AllTests.ps1` (196 PASS, 0 FAIL, 1 SKIP), `Invoke-Pester tests/unit/AsyncJob.Engine.Tests.ps1` (3 PASS), and scoped `git diff --check`.

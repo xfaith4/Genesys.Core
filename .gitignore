@@ -14,6 +14,9 @@ generated/
 *.pdb
 *.cache
 
+# Vendored runtime dependency shipped with the Conversation Analyzer
+!apps/ConversationAnalyser/lib/System.Data.SQLite.dll
+
 # Temporary files
 tmp/
 temp/

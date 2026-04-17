@@ -122,7 +122,7 @@ Click **Impact Report** to generate an aggregate summary over the currently filt
 
 ### 6. Refresh with additional runs
 
-Import a second Core run into the same case to extend coverage. Each import is recorded with its source run folder; provenance is preserved across refreshes.
+Import additional Core runs into the same case to extend coverage. Each conversation-detail job completes → auto-imports → dedupes against existing rows → new rows land with per-run provenance. You can run many queries against different time ranges or queues and keep accumulating into one store for research.
 
 ### 7. Close, archive, or purge
 

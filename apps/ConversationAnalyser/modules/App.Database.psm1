@@ -1147,6 +1147,16 @@ function Initialize-Database {
         [System.IO.Directory]::CreateDirectory($dbDir) | Out-Null
     }
 
+    # First-run fast path: seed from the shipped pre-built DB if the target is
+    # missing. _ApplySchema still runs below (idempotent) so any migrations
+    # beyond the seed's schema version are applied to the copied file.
+    if (-not [System.IO.File]::Exists($DatabasePath) -and $AppDir) {
+        $seed = [System.IO.Path]::Combine($AppDir, 'lib', 'cases.seed.sqlite')
+        if ([System.IO.File]::Exists($seed)) {
+            [System.IO.File]::Copy($seed, $DatabasePath, $false)
+        }
+    }
+
     $script:ConnStr = "Data Source=$DatabasePath;Version=3;"
 
     $conn = _Open
@@ -1166,6 +1176,33 @@ function Test-DatabaseInitialized {
         Returns $true if Initialize-Database has completed successfully.
     #>
     return $script:DbInitialized
+}
+
+function New-DefaultCaseIfEmpty {
+    <#
+    .SYNOPSIS
+        Creates a default "Research" case when the store contains no cases yet.
+        Lets engineers run conversation-detail jobs and accumulate results
+        without first ceremony (open Case Manager → New Case → pick name).
+
+        Returns the new case_id on creation, or $null if cases already exist
+        or the store is not initialized.
+    #>
+    param(
+        [string]$Name        = 'Research',
+        [string]$Description = 'Default case. Conversation-detail runs accumulate here unless you create and activate another case.'
+    )
+    if (-not $script:DbInitialized) { return $null }
+
+    $conn = _Open
+    try {
+        $count = [int](_Scalar -Conn $conn -Sql 'SELECT COUNT(*) FROM cases')
+    } finally {
+        $conn.Close(); $conn.Dispose()
+    }
+    if ($count -gt 0) { return $null }
+
+    return (New-Case -Name $Name -Description $Description)
 }
 
 function _RequireDb {
@@ -4332,7 +4369,7 @@ WHERE case_id = @cid
 }
 
 Export-ModuleMember -Function `
-    Initialize-Database, Test-DatabaseInitialized, `
+    Initialize-Database, Test-DatabaseInitialized, New-DefaultCaseIfEmpty, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
     Set-CaseExpiry, Get-CaseRetentionStatus, Get-CaseAudit, `
     Set-CaseTags, Get-CaseTags, `

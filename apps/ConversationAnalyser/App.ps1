@@ -34,7 +34,6 @@ Import-Module (Join-Path $AppDir 'modules\App.Index.psm1')        -Force -ErrorA
 Import-Module (Join-Path $AppDir 'modules\App.Export.psm1')       -Force -ErrorAction Stop
 Import-Module (Join-Path $AppDir 'modules\App.Reporting.psm1')    -Force -ErrorAction Stop
 Import-Module (Join-Path $AppDir 'modules\App.Database.psm1')     -Force -ErrorAction Stop
-Import-Module (Join-Path $AppDir 'modules\App.ConvStore.psm1')    -Force -ErrorAction Stop
 
 # ── Bootstrap: auto-clone Genesys.Core if it has never been set up ───────────
 #
@@ -246,28 +245,22 @@ try {
     Write-Warning "Gate A – CoreAdapter init failed: $script:CoreInitError"
 }
 
-# ── 4c. Gate G: Initialize ConvStore (non-fatal – shown in status bar) ───────
-$script:ConvStoreWarning = ''
-try {
-    Initialize-ConvStore `
-        -ConnStr       $cfg.ConvStoreConnStr `
-        -NpgsqlDllPath $cfg.ConvStoreNpgsqlDllPath `
-        -AppDir        $AppDir
-    if (Test-ConvStoreReady) {
-        Invoke-ConvStoreRetentionPurge -RetentionDays $cfg.ConvStoreRetentionDays | Out-Null
-    }
-} catch {
-    $script:ConvStoreWarning = "Conversation store unavailable: $_"
-    Write-Warning $script:ConvStoreWarning
-}
-
-# ── 4d. Gate F: Initialize Database (non-fatal – missing DLL shown in status bar) ──
+# ── 4c. Gate F: Initialize Database (non-fatal – missing DLL shown in status bar) ──
 $script:DatabaseWarning = ''
 try {
     Initialize-Database `
         -DatabasePath  $cfg.DatabasePath `
         -SqliteDllPath $cfg.SqliteDllPath `
         -AppDir        $AppDir
+
+    # First-launch convenience: create a default case and activate it so
+    # conversation-detail runs accumulate in one place without the user having
+    # to open Case Manager first.
+    $defaultCaseId = New-DefaultCaseIfEmpty
+    if ($defaultCaseId) {
+        $cfg | Add-Member -NotePropertyName 'ActiveCaseId' -NotePropertyValue $defaultCaseId -Force
+        Save-AppConfig -Config $cfg
+    }
 } catch {
     $script:DatabaseWarning = "Case store unavailable: $_"
     Write-Warning $script:DatabaseWarning

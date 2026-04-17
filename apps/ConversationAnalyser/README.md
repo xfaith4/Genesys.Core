@@ -82,15 +82,17 @@ Environment variables override the persisted Core paths at runtime:
 
 ## Case-Driven Pivot Workflow
 
-Most interactive analysis happens over a **local SQLite case store**, not by re-querying Genesys Cloud on every pivot. The intended operator flow is:
+All interactive analysis runs against a **local SQLite case store** (`cases.sqlite`), not by re-querying Genesys Cloud on every pivot. The store ships pre-built (`lib/cases.seed.sqlite`) and is copied into `%LOCALAPPDATA%\GenesysConversationAnalysis\` on first launch — no schema-bootstrap step, no external database, no connection string.
 
-### 1. Create a case
+### 1. First launch — zero ceremony
 
-Open the Case Manager (toolbar button). Click **New Case**, give it a name and optional notes. The active case is shown in the status bar. All subsequent imports and investigative state attach to this case.
+The app creates a default case named **Research** on first launch and sets it active. Run a conversation-detail job and every result is auto-imported into that case. You can keep accumulating multiple job runs — dedupe is handled by primary key, and each run's provenance is preserved in the `imports` / `core_runs` tables.
+
+To start a separate investigation, open the Case Manager and click **New Case**. Name it, and it becomes the active case.
 
 ### 2. Import a Core run
 
-Select a completed `Genesys.Core` run folder from the Recent Runs list and click **Import to Case**. The importer reads the normalized JSONL output and writes rows into the case store. Import progress is shown in the status bar; details appear in the Run Console tab.
+Runs triggered from the app are auto-imported into the active case. To import a historical run, select a completed `Genesys.Core` run folder from the Recent Runs list and click **Import to Case**. Progress appears in the status bar; details go to the Run Console tab.
 
 ### 3. Pivot without re-querying Genesys Cloud
 

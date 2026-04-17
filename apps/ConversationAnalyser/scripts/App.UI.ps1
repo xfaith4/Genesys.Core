@@ -145,10 +145,8 @@ $script:State = @{
     FilterAgent         = ''           # agent user-ID filter (DB mode only)
     FilterUserId        = ''           # user/agent GUID pre-query filter (SHAPE SIGNAL)
     FilterDivisionId    = ''           # division GUID pre-query filter (SHAPE SIGNAL)
-    DataSource          = 'index'      # 'index' (JSONL) | 'database' (SQLite) | 'convstore' (PostgreSQL)
-    DbConversationCount = 0            # total filtered count in DB / convstore mode
-    ConvStoreCaseKey    = ''           # case_key used in convstore mode
-    ConvStoreIncidentKey = ''
+    DataSource          = 'index'      # 'index' (JSONL) | 'database' (SQLite case store)
+    DbConversationCount = 0            # total filtered count in DB mode
     BackgroundRunJob    = $null        # PSDataCollection / runspace handle
     BackgroundRunspace  = $null
     BackgroundRunDataset = ''
@@ -211,21 +209,6 @@ $script:_DbColMap = @{
     AgentNames       = 'agent_names'
     DurationSec      = 'duration_sec'
     Disconnect       = 'disconnect_type'
-    HasHold          = 'has_hold'
-    HasMos           = 'has_mos'
-    SegmentCount     = 'segment_count'
-    ParticipantCount = 'participant_count'
-}
-
-# Maps display-row property names (SortMemberPath) → PostgreSQL conversation_grid column names
-$script:_CsColMap = @{
-    ConversationId   = 'conversation_id'
-    Direction        = 'originating_direction'
-    MediaType        = 'media_types'
-    Queue            = 'queue_names'
-    AgentNames       = 'agent_ids'
-    DurationSec      = 'duration_ms'
-    Disconnect       = 'disconnect_types'
     HasHold          = 'has_hold'
     HasMos           = 'has_mos'
     SegmentCount     = 'segment_count'
@@ -2455,129 +2438,6 @@ function _SwitchToDbMode {
     _RefreshGridFromDb
 }
 
-function _RefreshGridFromConvStore {
-    <#
-    .SYNOPSIS
-        Queries convo.conversation_grid for the current page and filter state,
-        then pushes rows to DgConversations via Dispatcher.
-        Used when State.DataSource = 'convstore'.
-    #>
-    if (-not (Test-ConvStoreReady)) {
-        _SetStatus 'Conversation store not available – configure PostgreSQL connection in Settings'
-        return
-    }
-
-    $caseKey = $script:State.ConvStoreCaseKey
-    $dir     = $script:State.FilterDirection
-    $media   = $script:State.FilterMedia
-    $disc    = $script:State.FilterDisconnect
-    $agent   = $script:State.FilterAgent
-    $srch    = $script:State.SearchText
-    $divId   = $script:TxtFilterDivisionId.Text.Trim()
-    $convId  = $script:TxtConversationId.Text.Trim()
-    if ($convId -and -not $srch) { $srch = $convId }
-
-    $startDt = ''; $endDt = ''
-    try {
-        $range = _GetQueryBoundaryDateTimes
-        if ($null -ne $range.Start) { $startDt = $range.Start.ToUniversalTime().ToString('o') }
-        if ($null -ne $range.End)   { $endDt   = $range.End.ToUniversalTime().ToString('o')   }
-    } catch { }
-
-    try {
-        $count = Get-ConvStoreConversationCount `
-            -CaseKey        $caseKey `
-            -Direction      $dir `
-            -MediaType      $media `
-            -SearchText     $srch `
-            -DisconnectType $disc `
-            -AgentId        $agent `
-            -DivisionId     $divId `
-            -StartDateTime  $startDt `
-            -EndDateTime    $endDt
-
-        $script:State.DbConversationCount = $count
-        $script:State.TotalPages = [math]::Max(1, [math]::Ceiling($count / $script:State.PageSize))
-        if ($script:State.CurrentPage -gt $script:State.TotalPages) {
-            $script:State.CurrentPage = $script:State.TotalPages
-        }
-
-        $sortBy  = if ($script:State.SortColumn -and $script:_CsColMap.ContainsKey($script:State.SortColumn)) {
-            $script:_CsColMap[$script:State.SortColumn]
-        } else { 'conversation_start_utc' }
-        $sortDir = if ($script:State.SortAscending) { 'ASC' } else { 'DESC' }
-
-        $rows = @(Get-ConvStoreConversationsPage `
-            -CaseKey        $caseKey `
-            -PageNumber     $script:State.CurrentPage `
-            -PageSize       $script:State.PageSize `
-            -Direction      $dir `
-            -MediaType      $media `
-            -SearchText     $srch `
-            -DisconnectType $disc `
-            -AgentId        $agent `
-            -DivisionId     $divId `
-            -StartDateTime  $startDt `
-            -EndDateTime    $endDt `
-            -SortBy         $sortBy `
-            -SortDir        $sortDir)
-
-        $displayRows = @($rows | ForEach-Object { Get-ConvStoreDisplayRow -GridRow $_ })
-
-        # Apply per-column text filters in memory (post-fetch)
-        if ($script:State.ColumnFilters.Count -gt 0) {
-            foreach ($bindPath in @($script:State.ColumnFilters.Keys)) {
-                $val = $script:State.ColumnFilters[$bindPath]
-                if (-not $val) { continue }
-                $lo = $val.ToLowerInvariant()
-                $displayRows = @($displayRows | Where-Object {
-                    $propVal = $_.PSObject.Properties[$bindPath]
-                    $null -ne $propVal -and [string]$propVal.Value -like "*$lo*"
-                })
-            }
-        }
-
-        $page  = $script:State.CurrentPage
-        $pages = $script:State.TotalPages
-        $ck    = if ($caseKey) { " [$caseKey]" } else { ' [all]' }
-
-        _Dispatch {
-            $script:DgConversations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($displayRows)
-            $script:TxtPageInfo.Text = "Page $page of $pages  |  $count records  [convstore$ck]"
-            $script:BtnPrevPage.IsEnabled = ($page -gt 1)
-            $script:BtnNextPage.IsEnabled = ($page -lt $pages)
-        }
-
-        $script:State.CurrentIndex = @($rows)
-        _RefreshReportButtons
-    } catch {
-        _SetStatus "Conversation store grid error: $_"
-    }
-}
-
-function _SwitchToConvStoreMode {
-    <#
-    .SYNOPSIS
-        Switches the conversations grid to convstore (PostgreSQL) mode.
-    #>
-    param(
-        [string]$CaseKey     = '',
-        [string]$IncidentKey = ''
-    )
-    if (-not (Test-ConvStoreReady)) {
-        _SetStatus 'Conversation store not available – configure PostgreSQL connection in Settings'
-        return
-    }
-    $script:State.DataSource          = 'convstore'
-    $script:State.ConvStoreCaseKey    = $CaseKey
-    $script:State.ConvStoreIncidentKey = $IncidentKey
-    $script:State.CurrentPage         = 1
-    $script:State.CurrentImpactReport = $null
-    $label = if ($CaseKey) { "convstore [$CaseKey]" } else { 'convstore [all]' }
-    _SetStatus "Conversation store view: $label"
-    _RefreshGridFromConvStore
-}
-
 # ── Index / paging ────────────────────────────────────────────────────────────
 
 function _LoadRunAndRefreshGrid {
@@ -2605,13 +2465,9 @@ function _LoadRunAndRefreshGrid {
 function _ApplyFiltersAndRefresh {
     param([object[]]$AllIndex = $null)
 
-    # DB / convstore mode: delegate entirely to the server-side paging path
+    # DB mode: delegate entirely to the server-side paging path
     if ($script:State.DataSource -eq 'database') {
         _RefreshGridFromDb
-        return
-    }
-    if ($script:State.DataSource -eq 'convstore') {
-        _RefreshGridFromConvStore
         return
     }
 
@@ -2679,13 +2535,9 @@ function _ApplyFiltersAndRefresh {
 }
 
 function _RenderCurrentPage {
-    # In DB / convstore mode the grid is always rendered via a live server-side query
+    # In DB mode the grid is always rendered via a live server-side query
     if ($script:State.DataSource -eq 'database') {
         _RefreshGridFromDb
-        return
-    }
-    if ($script:State.DataSource -eq 'convstore') {
-        _RefreshGridFromConvStore
         return
     }
 
@@ -2755,20 +2607,6 @@ function _LoadDrilldown {
                         $record | Add-Member -NotePropertyName 'attributes' `
                                              -NotePropertyValue ($atjson | ConvertFrom-Json) -Force
                     }
-                }
-            }
-        } catch { $record = $null }
-    }
-
-    # ── ConvStore path: reconstruct from payload_json stored in conversation_grid ──
-    if ($null -eq $record -and $script:State.DataSource -eq 'convstore') {
-        try {
-            $csRow = Get-ConvStoreConversationById -ConversationId $ConversationId
-            if ($null -ne $csRow) {
-                $pjProp = $csRow.PSObject.Properties['payload_json']
-                $pj     = if ($null -ne $pjProp) { $pjProp.Value } else { $null }
-                if (-not [string]::IsNullOrWhiteSpace($pj)) {
-                    $record = $pj | ConvertFrom-Json
                 }
             }
         } catch { $record = $null }
@@ -3176,17 +3014,15 @@ function _PollBackgroundRun {
         _RefreshRecentRuns
         _LoadRunAndRefreshGrid -RunFolder $script:State.CurrentRunFolder
 
-        # Auto-import to ConvStore if it is ready
-        if (Test-ConvStoreReady) {
+        # Auto-import into the active case so every run accumulates in one place
+        if ((Test-DatabaseInitialized) -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
             try {
-                $cfg3 = Get-AppConfig
-                Import-RunFolderToConvStore `
-                    -RunFolder      $script:State.CurrentRunFolder `
-                    -CaseKey        $script:State.ConvStoreCaseKey `
-                    -IncidentKey    $script:State.ConvStoreIncidentKey `
-                    -RetentionDays  $cfg3.ConvStoreRetentionDays | Out-Null
+                Import-RunFolderToCase `
+                    -CaseId    $script:State.ActiveCaseId `
+                    -RunFolder $script:State.CurrentRunFolder | Out-Null
+                _SwitchToDbMode
             } catch {
-                Write-Warning "ConvStore auto-import failed: $_"
+                Write-Warning "Case auto-import failed: $_"
             }
         }
     }
@@ -3618,83 +3454,6 @@ function _ShowSettingsDialog {
         [void](_SyncCoreCompanionPaths -UpdateStatus)
     })
 
-    # ── Conversation Store (PostgreSQL) ───────────────────────────────────────
-    _SectionHead 'Conversation Store (PostgreSQL)'
-    $tbCsConnStr      = _Row 'Connection string'  $cfg.ConvStoreConnStr
-    $tbCsRetention    = _Row 'Retention (days)'   $cfg.ConvStoreRetentionDays
-    $tbCsNpgsqlDll    = _Row 'Npgsql DLL path'    $cfg.ConvStoreNpgsqlDllPath
-
-    # Test Connection button
-    $pnlCsTest = New-Object System.Windows.Controls.StackPanel
-    $pnlCsTest.Orientation = 'Horizontal'
-    $pnlCsTest.Margin = [System.Windows.Thickness]::new(0, 4, 0, 0)
-
-    $btnCsTest = New-Object System.Windows.Controls.Button
-    $btnCsTest.Content = 'Test Connection'; $btnCsTest.Width = 120; $btnCsTest.Height = 26
-    $btnCsTest.Margin  = [System.Windows.Thickness]::new(0, 0, 8, 0)
-
-    $btnCsDeploy = New-Object System.Windows.Controls.Button
-    $btnCsDeploy.Content = 'Deploy Schema'; $btnCsDeploy.Width = 110; $btnCsDeploy.Height = 26
-    $btnCsDeploy.Margin  = [System.Windows.Thickness]::new(0, 0, 8, 0)
-
-    $btnCsView = New-Object System.Windows.Controls.Button
-    $btnCsView.Content = 'Browse Store'; $btnCsView.Width = 100; $btnCsView.Height = 26
-
-    $lblCsStatus = New-Object System.Windows.Controls.TextBlock
-    $lblCsStatus.Margin      = [System.Windows.Thickness]::new(0, 6, 0, 0)
-    $lblCsStatus.TextWrapping = 'Wrap'
-    if (Test-ConvStoreReady) {
-        $lblCsStatus.Text       = 'Conversation store is connected.'
-        $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::DarkGreen
-    } else {
-        $lblCsStatus.Text       = 'Conversation store not connected. Enter a connection string and click Test.'
-        $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::Gray
-    }
-
-    $pnlCsTest.Children.Add($btnCsTest)   | Out-Null
-    $pnlCsTest.Children.Add($btnCsDeploy) | Out-Null
-    $pnlCsTest.Children.Add($btnCsView)   | Out-Null
-    $sp.Children.Add($pnlCsTest)           | Out-Null
-    $sp.Children.Add($lblCsStatus)         | Out-Null
-
-    $btnCsTest.Add_Click({
-        try {
-            Initialize-ConvStore `
-                -ConnStr       $tbCsConnStr.Text.Trim() `
-                -NpgsqlDllPath $tbCsNpgsqlDll.Text.Trim() `
-                -AppDir        $AppDir
-            $lblCsStatus.Text       = 'Connection successful.'
-            $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::DarkGreen
-            $script:ConvStoreWarning = ''
-        } catch {
-            $lblCsStatus.Text       = "Connection failed: $_"
-            $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::Firebrick
-        }
-    })
-
-    $btnCsDeploy.Add_Click({
-        try {
-            if (-not (Test-ConvStoreReady)) {
-                Initialize-ConvStore `
-                    -ConnStr       $tbCsConnStr.Text.Trim() `
-                    -NpgsqlDllPath $tbCsNpgsqlDll.Text.Trim() `
-                    -AppDir        $AppDir
-            }
-            $schemaFile = [System.IO.Path]::Combine($AppDir, 'lib', 'conversations_schema_v2.sql')
-            Deploy-ConvStoreSchema -SchemaFilePath $schemaFile
-            $lblCsStatus.Text       = 'Schema deployed successfully.'
-            $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::DarkGreen
-        } catch {
-            $lblCsStatus.Text       = "Schema deploy failed: $_"
-            $lblCsStatus.Foreground = [System.Windows.Media.Brushes]::Firebrick
-        }
-    })
-
-    $btnCsView.Add_Click({
-        $dialog.Close()
-        _SwitchToConvStoreMode
-    })
-
     # ── Authentication ────────────────────────────────────────────────────────
     _SectionHead 'Authentication'
     $tbPkceClientId = _Row 'PKCE client ID'    $cfg.PkceClientId
@@ -3733,9 +3492,6 @@ function _ShowSettingsDialog {
             $cfg2 | Add-Member -NotePropertyName 'SchemaPath'      -NotePropertyValue $tbSchemaPath.Text.Trim()    -Force
             $cfg2 | Add-Member -NotePropertyName 'PkceClientId'          -NotePropertyValue $tbPkceClientId.Text.Trim()     -Force
             $cfg2 | Add-Member -NotePropertyName 'PkceRedirectUri'       -NotePropertyValue $tbPkceRedirect.Text.Trim()     -Force
-            $cfg2 | Add-Member -NotePropertyName 'ConvStoreConnStr'       -NotePropertyValue $tbCsConnStr.Text.Trim()       -Force
-            $cfg2 | Add-Member -NotePropertyName 'ConvStoreRetentionDays' -NotePropertyValue ([int]$tbCsRetention.Text)     -Force
-            $cfg2 | Add-Member -NotePropertyName 'ConvStoreNpgsqlDllPath' -NotePropertyValue $tbCsNpgsqlDll.Text.Trim()     -Force
             Save-AppConfig -Config $cfg2
             $script:State.PageSize = [int]$tbPageSize.Text
 
@@ -3974,14 +3730,14 @@ if ($null -ne $script:TxtFilterAgent) {
 
 # Date/time range pickers – refresh server-side grid when selection changes (no-op in index mode)
 $script:DtpStartDate.Add_SelectedDateChanged({
-    if ($script:State.DataSource -in @('database','convstore')) {
+    if ($script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
     }
 })
 
 $script:DtpEndDate.Add_SelectedDateChanged({
-    if ($script:State.DataSource -in @('database','convstore')) {
+    if ($script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
     }
@@ -3989,7 +3745,7 @@ $script:DtpEndDate.Add_SelectedDateChanged({
 
 $script:TxtStartTime.Add_KeyDown({
     param($sender, $e)
-    if ($e.Key -eq [System.Windows.Input.Key]::Return -and $script:State.DataSource -in @('database','convstore')) {
+    if ($e.Key -eq [System.Windows.Input.Key]::Return -and $script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
     }
@@ -3997,7 +3753,7 @@ $script:TxtStartTime.Add_KeyDown({
 
 $script:TxtEndTime.Add_KeyDown({
     param($sender, $e)
-    if ($e.Key -eq [System.Windows.Input.Key]::Return -and $script:State.DataSource -in @('database','convstore')) {
+    if ($e.Key -eq [System.Windows.Input.Key]::Return -and $script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
     }
@@ -4131,14 +3887,6 @@ if ($script:CoreInitError) {
 } elseif ($script:DatabaseWarning) {
     _SetStatus "WARNING: $script:DatabaseWarning"
     $script:TxtStatusRight.Text = 'Case store offline'
-} elseif ($script:ConvStoreWarning) {
-    # ConvStore offline is informational only (connection string may simply not be configured yet)
-    _SetStatus 'Ready  |  Conversation store not connected – configure in Settings to enable'
 } else {
-    if (Test-ConvStoreReady) {
-        _SetStatus 'Ready  |  Conversation store connected'
-        $script:TxtStatusRight.Text = 'ConvStore ready'
-    } else {
-        _SetStatus 'Ready'
-    }
+    _SetStatus 'Ready'
 }

@@ -194,10 +194,6 @@ function Get-AppConfig {
         LastEndTime     = '23:59:59'
         PkceClientId    = ''
         PkceRedirectUri = 'http://localhost:8080/callback'
-        # Conversation Store (PostgreSQL)
-        ConvStoreConnStr       = ''   # e.g. Host=localhost;Database=genesys;Username=app;Password=secret
-        ConvStoreRetentionDays = 90
-        ConvStoreNpgsqlDllPath = ''   # empty = env:NPGSQL_DLL or .\lib\Npgsql.dll
     }
 
     if (-not [System.IO.File]::Exists($script:ConfigFile)) {

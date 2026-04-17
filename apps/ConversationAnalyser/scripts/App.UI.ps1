@@ -11,6 +11,8 @@ Set-StrictMode -Version Latest
 function _Ctrl { param([string]$Name) $script:Window.FindName($Name) }
 
 # Header
+$script:TabWorkspace           = _Ctrl 'TabWorkspace'
+$script:TabDrilldownWorkspace  = _Ctrl 'TabDrilldownWorkspace'
 $script:ElpConnStatus          = _Ctrl 'ElpConnStatus'
 $script:LblConnectionStatus    = _Ctrl 'LblConnectionStatus'
 $script:BtnConnect             = _Ctrl 'BtnConnect'
@@ -67,6 +69,19 @@ $script:LblAPerfHandle          = _Ctrl 'LblAPerfHandle'
 $script:LblAPerfTalkPct         = _Ctrl 'LblAPerfTalkPct'
 $script:LblAPerfAcwPct          = _Ctrl 'LblAPerfAcwPct'
 $script:LblAPerfIdlePct         = _Ctrl 'LblAPerfIdlePct'
+
+# Transfer & Escalation tab
+$script:BtnPullTransferReport   = _Ctrl 'BtnPullTransferReport'
+$script:CmbTransferType         = _Ctrl 'CmbTransferType'
+$script:DgTransferFlows         = _Ctrl 'DgTransferFlows'
+$script:DgTransferDestinations  = _Ctrl 'DgTransferDestinations'
+$script:DgTransferChains        = _Ctrl 'DgTransferChains'
+$script:LblXferFlows            = _Ctrl 'LblXferFlows'
+$script:LblXferTransfers        = _Ctrl 'LblXferTransfers'
+$script:LblXferBlind            = _Ctrl 'LblXferBlind'
+$script:LblXferConsult          = _Ctrl 'LblXferConsult'
+$script:LblXferBlindPct         = _Ctrl 'LblXferBlindPct'
+$script:LblXferMultiHop         = _Ctrl 'LblXferMultiHop'
 
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
@@ -147,6 +162,10 @@ $script:State = @{
     AgentPerfRunspace   = $null
     AgentPerfTimer      = $null
     AgentPerfCaseId     = ''       # case targeted by in-progress agent-perf pull
+    TransferJob         = $null    # PSDataCollection for transfer report background pull
+    TransferRunspace    = $null
+    TransferTimer       = $null
+    TransferCaseId      = ''       # case targeted by in-progress transfer pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -371,6 +390,7 @@ function _RefreshActiveCaseStatus {
         _RenderQueuePerfGrid
         _PopulateAgentPerfDivisionFilter
         _RenderAgentPerfGrid
+        _RenderTransferGrid
     }
 }
 
@@ -1621,6 +1641,258 @@ function _RenderAgentPerfGrid {
     $script:LblAPerfTalkPct.Text   = "{0:F1}%" -f $summary.AvgTalkPct
     $script:LblAPerfAcwPct.Text    = "{0:F1}%" -f $summary.AvgAcwPct
     $script:LblAPerfIdlePct.Text   = "{0:F1}%" -f $summary.AvgIdlePct
+}
+
+function _EnsureTransferTypeFilter {
+    if ($null -eq $script:CmbTransferType) { return }
+    if ($null -ne $script:CmbTransferType.ItemsSource) { return }
+
+    $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $items.Add([pscustomobject]@{ TransferType = '';        Name = '(All types)' })
+    $items.Add([pscustomobject]@{ TransferType = 'blind';   Name = 'Blind' })
+    $items.Add([pscustomobject]@{ TransferType = 'consult'; Name = 'Consult' })
+
+    $script:CmbTransferType.ItemsSource       = $items
+    $script:CmbTransferType.DisplayMemberPath = 'Name'
+    $script:CmbTransferType.SelectedIndex     = 0
+}
+
+function _StartTransferReportJob {
+    <#
+        Pulls transfer aggregate data in a background runspace for the current
+        case time window, then imports local chain intelligence from the case
+        store and refreshes the Transfer & Escalation tab.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Transfer & Escalation')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Transfer & Escalation')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling transfer data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Transfer & Escalation')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling transfer data.', 'Transfer & Escalation')
+        return
+    }
+
+    $startDt   = $range.Start.ToUniversalTime().ToString('o')
+    $endDt     = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Pulling transfer report...'
+    $script:BtnPullTransferReport.IsEnabled = $false
+    $script:State.TransferCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
+
+    [void]$ps.AddScript({
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        Set-StrictMode -Version Latest
+
+        Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-TransferReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.TransferJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.TransferRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.TransferTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.TransferJob
+        if ($null -eq $job) { $script:State.TransferTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.TransferTimer.Stop()
+        $script:State.TransferTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                            catch {}
+            try { $script:State.TransferRunspace.Close() }       catch {}
+            try { $script:State.TransferRunspace.Dispose() }     catch {}
+            $script:State.TransferJob      = $null
+            $script:State.TransferRunspace = $null
+            $script:State.TransferCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Transfer report pull failed'
+            _Dispatch { $script:BtnPullTransferReport.IsEnabled = $true }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Transfer & Escalation')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-TransferReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary     = "Loaded $($importStats.RecordCount) transfer flow rows and $($importStats.ChainCount) chain rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' - WARNING: aggregate dataset failed; percentages use local chain totals.' }
+                _SetStatus $summary
+                _RenderTransferGrid
+                [System.Windows.MessageBox]::Show($summary, 'Transfer & Escalation Report')
+            } catch {
+                _SetStatus 'Transfer report import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Transfer & Escalation')
+            }
+        } else {
+            _SetStatus 'Transfer report pull completed (no data returned)'
+        }
+
+        _Dispatch { $script:BtnPullTransferReport.IsEnabled = $true }
+    })
+
+    $timer.Start()
+}
+
+function _RenderTransferGrid {
+    <#
+        Reads transfer flow and chain rows for the active case, applies the
+        blind/consult filter to the flow grids, and updates summary labels.
+    #>
+    _EnsureTransferTypeFilter
+    if (-not (Test-DatabaseInitialized)) { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { return }
+
+    $transferType = ''
+    if ($null -ne $script:CmbTransferType) {
+        $sel = $script:CmbTransferType.SelectedItem
+        if ($null -ne $sel -and $sel.TransferType) {
+            $transferType = [string]$sel.TransferType
+        }
+    }
+
+    try {
+        $flows  = @(Get-TransferFlowRows  -CaseId $caseId -TransferType $transferType)
+        $chains = @(Get-TransferChainRows -CaseId $caseId -MinHops 2)
+        $summary = Get-TransferSummary -CaseId $caseId
+    } catch {
+        _SetStatus "Transfer report read failed: $_"
+        return
+    }
+
+    $flowRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($r in $flows) {
+        $flowRows.Add([pscustomobject]@{
+            QueueNameFrom     = [string]($r.queue_name_from)
+            QueueNameTo       = [string]($r.queue_name_to)
+            TransferType      = [string]($r.transfer_type)
+            NTransfers        = [int]   ($r.n_transfers)
+            PctOfTotalOffered = [string]("{0:F1}" -f [double]($r.pct_of_total_offered))
+        })
+    }
+    $script:DgTransferFlows.ItemsSource = $flowRows
+
+    $destAgg = @{}
+    foreach ($r in $flows) {
+        $dest = [string]($r.queue_name_to)
+        if ([string]::IsNullOrWhiteSpace($dest)) { $dest = [string]($r.queue_id_to) }
+        if ([string]::IsNullOrWhiteSpace($dest)) { $dest = '(unknown)' }
+        if (-not $destAgg.ContainsKey($dest)) {
+            $destAgg[$dest] = @{ Destination = $dest; Transfers = 0; Percent = 0.0 }
+        }
+        $destAgg[$dest].Transfers += [int]($r.n_transfers)
+        $destAgg[$dest].Percent   += [double]($r.pct_of_total_offered)
+    }
+
+    $destRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($d in @($destAgg.Values | Sort-Object @{ Expression = { $_.Transfers }; Descending = $true }, Destination | Select-Object -First 10)) {
+        $destRows.Add([pscustomobject]@{
+            Destination       = [string]$d.Destination
+            NTransfers        = [int]$d.Transfers
+            PctOfTotalOffered = [string]("{0:F1}" -f [double]$d.Percent)
+        })
+    }
+    $script:DgTransferDestinations.ItemsSource = $destRows
+
+    $chainRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($c in $chains) {
+        $chainRows.Add([pscustomobject]@{
+            ConversationId       = [string]($c.conversation_id)
+            TransferSequence     = [string]($c.transfer_sequence)
+            HopCount             = [int]   ($c.hop_count)
+            FinalQueueName       = [string]($c.final_queue_name)
+            FinalDisconnectType  = [string]($c.final_disconnect_type)
+            HasBlindTransfer     = if ([int]($c.has_blind_transfer) -eq 1) { 'Yes' } else { '' }
+            HasConsultTransfer   = if ([int]($c.has_consult_transfer) -eq 1) { 'Yes' } else { '' }
+        })
+    }
+    $script:DgTransferChains.ItemsSource = $chainRows
+
+    $script:LblXferFlows.Text     = [string]($summary.TotalFlows)
+    $script:LblXferTransfers.Text = [string]($summary.TotalTransfers)
+    $script:LblXferBlind.Text     = [string]($summary.BlindTransfers)
+    $script:LblXferConsult.Text   = [string]($summary.ConsultTransfers)
+    $script:LblXferBlindPct.Text  = "{0:F1}%" -f $summary.BlindPct
+    $script:LblXferMultiHop.Text  = [string]($summary.MultiHopChains)
+}
+
+function _OpenTransferChainConversation {
+    if ($null -eq $script:DgTransferChains) { return }
+    $sel = $script:DgTransferChains.SelectedItem
+    if ($null -eq $sel) { return }
+    $convId = [string]$sel.ConversationId
+    if ([string]::IsNullOrWhiteSpace($convId)) { return }
+
+    $script:State.DataSource = 'database'
+    _LoadDrilldown -ConversationId $convId
+    if ($null -ne $script:TabWorkspace -and $null -ne $script:TabDrilldownWorkspace) {
+        $script:TabWorkspace.SelectedItem = $script:TabDrilldownWorkspace
+    }
 }
 
 function _ImportCurrentRunToCase {
@@ -3188,6 +3460,19 @@ if ($null -ne $script:BtnPullAgentPerfReport) {
 
 if ($null -ne $script:CmbAgentPerfDivision) {
     $script:CmbAgentPerfDivision.Add_SelectionChanged({ _RenderAgentPerfGrid })
+}
+
+if ($null -ne $script:BtnPullTransferReport) {
+    $script:BtnPullTransferReport.Add_Click({ _StartTransferReportJob })
+}
+
+if ($null -ne $script:CmbTransferType) {
+    _EnsureTransferTypeFilter
+    $script:CmbTransferType.Add_SelectionChanged({ _RenderTransferGrid })
+}
+
+if ($null -ne $script:DgTransferChains) {
+    $script:DgTransferChains.Add_SelectionChanged({ _OpenTransferChainConversation })
 }
 
 $script:BtnRun.Add_Click({

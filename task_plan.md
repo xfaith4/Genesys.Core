@@ -10,6 +10,10 @@ Goal: finish the last development phase for the Transfer & Escalation work, curr
 | Step 2 database changes | complete | v7 transfer tables/import/accessors were present; denominator handling was corrected for transfer metrics catalog fields. |
 | Verify | complete | Parser checks passed; Invoke-AllTests passed 159 PASS / 0 FAIL / 1 SKIP. |
 | Documentation | complete | Updated ROADMAP.md and CHANGELOG.md for Session 16 database foundation status. |
+| Review and harden Session 16 foundation | complete | Fixed name-only queue transfer flow key collision risk. |
+| Complete Session 16 UI release slice | complete | Added Transfer & Escalation tab and handlers following Queue/Agent report patterns. |
+| Final verification | complete | Parse checks and Invoke-AllTests passed: 179 PASS / 0 FAIL / 1 SKIP. |
+| Release docs update | complete | Updated roadmap/changelog/planning notes; Session 16 now delivered. |
 
 ## Constraints
 

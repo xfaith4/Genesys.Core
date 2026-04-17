@@ -285,6 +285,32 @@ ArchCheck 'ARCH-37' 'App.UI.ps1 case dialog can save notes, tags, and current vi
     $uiPs -match 'New-SavedView'
 }
 
+Write-Host "`n--- Transfer and escalation reporting ---" -ForegroundColor DarkCyan
+
+ArchCheck 'ARCH-40' 'CoreAdapter exposes transfer aggregate pull without UI direct dataset access' {
+    $adapter -match 'function Get-TransferReport' -and
+    $adapter -match 'analytics\.query\.conversation\.aggregates\.transfer\.metrics' -and
+    $uiPs -notmatch 'Invoke-Dataset'
+}
+
+ArchCheck 'ARCH-41' 'Database owns transfer report schema, import, and accessors' {
+    $database -match 'CREATE TABLE IF NOT EXISTS report_transfer_flows' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_transfer_chains' -and
+    $database -match 'function Import-TransferReport' -and
+    $database -match 'function Get-TransferFlowRows' -and
+    $database -match 'function Get-TransferChainRows' -and
+    $database -match 'function Get-TransferSummary'
+}
+
+ArchCheck 'ARCH-42' 'Transfer tab controls and handlers are wired' {
+    $xaml -match 'BtnPullTransferReport' -and
+    $xaml -match 'DgTransferFlows' -and
+    $xaml -match 'DgTransferChains' -and
+    $uiPs -match 'function _StartTransferReportJob' -and
+    $uiPs -match 'function _RenderTransferGrid' -and
+    $uiPs -match 'function _OpenTransferChainConversation'
+}
+
 # ── Architecture: config & strict mode ────────────────────────────────────────
 Write-Host "`n--- Config and strict mode ---" -ForegroundColor DarkCyan
 

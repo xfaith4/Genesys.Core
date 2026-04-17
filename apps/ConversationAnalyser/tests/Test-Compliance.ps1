@@ -410,7 +410,12 @@ $requiredControls = @(
     'TxtAttributeSearch','DgAttributes',
     'TxtMosQuality','TxtRawJson',
     'TxtConsoleStatus','DgRunEvents','TxtDiagnostics',
-    'TxtStatusMain'
+    'TxtStatusMain',
+    'TabWorkspace','TabDrilldownWorkspace',
+    'BtnPullTransferReport','CmbTransferType',
+    'DgTransferFlows','DgTransferDestinations','DgTransferChains',
+    'LblXferFlows','LblXferTransfers','LblXferBlind',
+    'LblXferConsult','LblXferBlindPct','LblXferMultiHop'
 )
 
 foreach ($ctrl in $requiredControls) {
@@ -458,6 +463,38 @@ Check 'CASE-03' 'App.UI.ps1 case dialog uses notes, tags, saved views, archive, 
     $uiContent -match 'New-SavedView' -and
     $uiContent -match 'Archive-Case' -and
     $uiContent -match 'Purge-Case'
+}
+
+# ── TRANSFER REPORTING (XFER) ────────────────────────────────────────────────
+
+Write-Host "`n=== TRANSFER REPORTING ===" -ForegroundColor Cyan
+
+Check 'XFER-01' 'App.CoreAdapter.psm1 exposes Get-TransferReport dataset pull' {
+    $adapterContent -match 'function Get-TransferReport' -and
+    $adapterContent -match 'analytics\.query\.conversation\.aggregates\.transfer\.metrics'
+}
+
+Check 'XFER-02' 'App.Database.psm1 defines schema v7 transfer tables' {
+    $dbContent -match '\$script:SchemaVersion\s*=\s*7' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_transfer_flows' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_transfer_chains'
+}
+
+Check 'XFER-03' 'App.Database.psm1 exports transfer import and accessors' {
+    $required = @('Import-TransferReport','Get-TransferFlowRows','Get-TransferChainRows','Get-TransferSummary')
+    $allPresent = $true
+    foreach ($fn in $required) {
+        if ($dbContent -notmatch $fn) { $allPresent = $false; break }
+    }
+    $allPresent
+}
+
+Check 'XFER-04' 'App.UI.ps1 wires Transfer & Escalation pull, render, and drilldown handlers' {
+    $uiContent -match 'function _StartTransferReportJob' -and
+    $uiContent -match 'function _RenderTransferGrid' -and
+    $uiContent -match 'function _OpenTransferChainConversation' -and
+    $uiContent -match 'BtnPullTransferReport\.Add_Click' -and
+    $uiContent -match 'DgTransferChains\.Add_SelectionChanged'
 }
 
 # ── SUMMARY ────────────────────────────────────────────────────────────────────

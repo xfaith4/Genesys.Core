@@ -4,11 +4,15 @@
 
 ### Added
 
-- **ConversationAnalyser Session 16 — Transfer and Escalation Chain Intel database foundation:**
+- **ConversationAnalyser Session 16 — Transfer and Escalation Chain Intel:**
   - Schema bumped to **v7** with `report_transfer_flows` and `report_transfer_chains` plus supporting indexes.
   - `Import-TransferReport` added to `App.Database.psm1` — imports the transfer aggregate run folder, derives transfer chains from stored `participants_json`, classifies blind versus consult transfers, and upserts flow and chain rows.
   - `Get-TransferFlowRows`, `Get-TransferChainRows`, and `Get-TransferSummary` added for grid reads and summary roll-ups.
   - Transfer import denominator handling now matches the catalog-backed metrics: it supports `nOffered` when present, otherwise falls back to `nConnected`, then `nTransferred`, then local hop totals.
+  - Hardened transfer flow aggregation so name-only queue touches use stable `name:<queueName>` row keys instead of collapsing into one empty-ID bucket.
+  - **"Transfer & Escalation" tab** added to `MainWindow.xaml`: Pull Report button, blind/consult filter, summary bar, flow grid, top destination grid, and multi-hop conversation grid.
+  - `_StartTransferReportJob`, `_RenderTransferGrid`, and `_OpenTransferChainConversation` added to `App.UI.ps1`; selecting a multi-hop conversation opens the existing drilldown view.
+  - Transfer-specific compliance and architecture checks added to the ConversationAnalyser test runner.
 
 ## 2026-04-15
 

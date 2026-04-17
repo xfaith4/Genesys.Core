@@ -3649,11 +3649,15 @@ WHERE  case_id = @cid
                             elseif ($to.QueueId -and $queueNameMap.ContainsKey($to.QueueId)) { $queueNameMap[$to.QueueId] }
                             elseif ($to.QueueId) { "$($to.QueueId) (unresolved)" }
                             else { '(unknown)' }
-                $flowKey  = "$($from.QueueId)|$($to.QueueId)|$convType"
+                $fromKey  = if ($from.QueueId) { [string]$from.QueueId } else { [string]$from.Key }
+                $toKey    = if ($to.QueueId)   { [string]$to.QueueId   } else { [string]$to.Key }
+                $flowKey  = "$fromKey|$toKey|$convType"
                 if (-not $flowAgg.ContainsKey($flowKey)) {
                     $flowAgg[$flowKey] = @{
+                        FromKey      = $fromKey
                         From         = $from.QueueId
                         FromName     = $fromName
+                        ToKey        = $toKey
                         To           = $to.QueueId
                         ToName       = $toName
                         Type         = $convType
@@ -3676,7 +3680,7 @@ WHERE  case_id = @cid
         }
 
         foreach ($f in $flowAgg.Values) {
-            $rowKey = "$CaseId|xfer|$($f.From)|$($f.To)|$($f.Type)"
+            $rowKey = "$CaseId|xfer|$($f.FromKey)|$($f.ToKey)|$($f.Type)"
             $pct    = [Math]::Round(($f.Count / $denominator) * 100.0, 1)
             try {
                 _NonQuery -Conn $conn -Sql @'

@@ -470,9 +470,19 @@ Documentation: document the `talk_ratio_pct` and `idle_ratio_pct` formulas and n
 
 ---
 
-## Session 16: Transfer and Escalation Chain Intelligence
+## Session 16: Transfer and Escalation Chain Intelligence — **COMPLETE**
 
 Scope: surface transfer behavior so routing engineers can identify where conversations are bouncing, which queues transfer most frequently, and whether blind versus consult transfer patterns differ — all without building a custom segment parser outside Core.
+
+Delivered:
+
+> `Get-TransferReport` pulls `analytics.query.conversation.aggregates.transfer.metrics` for the case window.
+> Schema v7 adds `report_transfer_flows` and `report_transfer_chains`; `Import-TransferReport`
+> derives local queue-hop chains from stored conversation participants and writes flow and chain rows.
+> "Transfer & Escalation" `TabItem` added to `MainWindow.xaml` with Pull Report, blind/consult filter,
+> flow grid, top destination grid, summary split, and multi-hop conversation grid.
+> `_StartTransferReportJob`, `_RenderTransferGrid`, and `_OpenTransferChainConversation` added to `App.UI.ps1`;
+> selecting a multi-hop conversation opens the existing drilldown view.
 
 Task: add `Get-TransferReport` to `App.CoreAdapter.psm1`. It calls `Invoke-Dataset` for `analytics.query.conversation.aggregates.transfer.metrics` for the case time window. It additionally issues a follow-on pass over the already-imported conversation detail records in the local case store (no new API call) to extract segment-level transfer chains: for each conversation that has a transfer segment, record source queue ID, target queue ID (or external), transfer type (`blind`, `consult`), and durationSec before the transfer.
 

@@ -994,7 +994,7 @@
                                 </Grid>
                             </TabItem>
 
-                            <TabItem Header="Drilldown" Foreground="{StaticResource BrushText}">
+                            <TabItem x:Name="TabDrilldownWorkspace" Header="Drilldown" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -1397,6 +1397,160 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem Header="Transfer &amp; Escalation" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Header card -->
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="TRANSFER &amp; ESCALATION"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Queue-to-queue transfer flows, blind versus consult split, and multi-hop conversations across the case time window."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Type:" Foreground="{StaticResource BrushSubtext}"
+                                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbTransferType"
+                                                          Width="140" Height="28"
+                                                          ToolTip="Filter flow grids by transfer type"/>
+                                            </StackPanel>
+                                            <Button x:Name="BtnPullTransferReport" Grid.Column="3"
+                                                    Content="Pull Report"
+                                                    Style="{StaticResource BtnAccent}" Height="30"
+                                                    ToolTip="Fetches transfer metrics from Genesys Cloud and derives local escalation chains from the active case store."/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Summary bar -->
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="FLOWS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferFlows" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="TRANSFERS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferTransfers" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="BLIND" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferBlind" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="CONSULT" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferConsult" Text="—"
+                                                           Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="BLIND %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferBlindPct" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="MULTI-HOP" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblXferMultiHop" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.1*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="0.9*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="10"/>
+                                            <RowDefinition Height="0.75*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Grid.Column="0" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgTransferFlows" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="From Queue" Binding="{Binding QueueNameFrom}" Width="180" SortMemberPath="QueueNameFrom"/>
+                                                    <DataGridTextColumn Header="To Queue" Binding="{Binding QueueNameTo}" Width="180" SortMemberPath="QueueNameTo"/>
+                                                    <DataGridTextColumn Header="Type" Binding="{Binding TransferType}" Width="80" SortMemberPath="TransferType"/>
+                                                    <DataGridTextColumn Header="Transfers" Binding="{Binding NTransfers}" Width="80" SortMemberPath="NTransfers"/>
+                                                    <DataGridTextColumn Header="% Offered" Binding="{Binding PctOfTotalOffered}" Width="80" SortMemberPath="PctOfTotalOffered"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="0" Grid.Row="2"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgTransferDestinations" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Top Destination" Binding="{Binding Destination}" Width="*" SortMemberPath="Destination"/>
+                                                    <DataGridTextColumn Header="Transfers" Binding="{Binding NTransfers}" Width="90" SortMemberPath="NTransfers"/>
+                                                    <DataGridTextColumn Header="% Offered" Binding="{Binding PctOfTotalOffered}" Width="90" SortMemberPath="PctOfTotalOffered"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Grid.RowSpan="3"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgTransferChains" Style="{StaticResource DgBase}" Margin="2"
+                                                      ToolTip="Select a multi-hop conversation to open the existing drilldown view.">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Conversation" Binding="{Binding ConversationId}" Width="160" SortMemberPath="ConversationId"/>
+                                                    <DataGridTextColumn Header="Sequence" Binding="{Binding TransferSequence}" Width="260" SortMemberPath="TransferSequence"/>
+                                                    <DataGridTextColumn Header="Hops" Binding="{Binding HopCount}" Width="55" SortMemberPath="HopCount"/>
+                                                    <DataGridTextColumn Header="Final Queue" Binding="{Binding FinalQueueName}" Width="150" SortMemberPath="FinalQueueName"/>
+                                                    <DataGridTextColumn Header="Disconnect" Binding="{Binding FinalDisconnectType}" Width="90" SortMemberPath="FinalDisconnectType"/>
+                                                    <DataGridTextColumn Header="Blind" Binding="{Binding HasBlindTransfer}" Width="55" SortMemberPath="HasBlindTransfer"/>
+                                                    <DataGridTextColumn Header="Consult" Binding="{Binding HasConsultTransfer}" Width="65" SortMemberPath="HasConsultTransfer"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+                                    </Grid>
                                 </Grid>
                             </TabItem>
 

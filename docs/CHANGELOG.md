@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-17
+
+### Added
+
+- **ConversationAnalyser Session 16 — Transfer and Escalation Chain Intel database foundation:**
+  - Schema bumped to **v7** with `report_transfer_flows` and `report_transfer_chains` plus supporting indexes.
+  - `Import-TransferReport` added to `App.Database.psm1` — imports the transfer aggregate run folder, derives transfer chains from stored `participants_json`, classifies blind versus consult transfers, and upserts flow and chain rows.
+  - `Get-TransferFlowRows`, `Get-TransferChainRows`, and `Get-TransferSummary` added for grid reads and summary roll-ups.
+  - Transfer import denominator handling now matches the catalog-backed metrics: it supports `nOffered` when present, otherwise falls back to `nConnected`, then `nTransferred`, then local hop totals.
+
 ## 2026-04-15
 
 ### Added

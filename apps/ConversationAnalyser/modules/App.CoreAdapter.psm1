@@ -498,9 +498,78 @@ function Get-AgentPerformanceReport {
     }
 }
 
+function Get-TransferReport {
+    <#
+    .SYNOPSIS
+        Session 16 — pulls the transfer-metrics aggregate dataset and returns its
+        run folder path for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.transfer.metrics
+
+        The call uses the case's StartDateTime / EndDateTime as the interval
+        DatasetParameters override.  Results are written under
+        OutputRoot\report-transfer-<timestamp>\.
+
+        Session 16 also builds per-conversation transfer chains by reading
+        segment data from the conversations table already in the case store —
+        that second pass is pure-local and does not require a new API call.
+        This function only handles the aggregate dataset fetch; the chain
+        extraction runs inside Import-TransferReport (App.Database.psm1).
+
+        Returns a hashtable with keys:
+          TransferMetricsFolder  — run folder for the transfer-metrics dataset
+          PartialFailure         — $true if the dataset call failed
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-transfer-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.transfer.metrics'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-TransferReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        TransferMetricsFolder = $folderMap['analytics.query.conversation.aggregates.transfer.metrics']
+        PartialFailure        = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
-    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport
+    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
+    Get-TransferReport

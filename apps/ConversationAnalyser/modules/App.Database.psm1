@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 6
+$script:SchemaVersion = 7
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -1019,6 +1019,47 @@ CREATE TABLE IF NOT EXISTS report_agent_perf (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_case_id       ON report_agent_perf(case_id)'      | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_user_id       ON report_agent_perf(user_id)'      | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_aperf_division_id   ON report_agent_perf(division_id)'  | Out-Null
+
+    # Schema v7 — Transfer & Escalation Chain report tables (Session 16)
+    # report_transfer_flows : per queue-to-queue pair, transfer count by type
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_transfer_flows (
+    row_id               TEXT    PRIMARY KEY,
+    case_id              TEXT    NOT NULL REFERENCES cases(case_id),
+    queue_id_from        TEXT    NOT NULL DEFAULT '',
+    queue_name_from      TEXT    NOT NULL DEFAULT '',
+    queue_id_to          TEXT    NOT NULL DEFAULT '',
+    queue_name_to        TEXT    NOT NULL DEFAULT '',
+    transfer_type        TEXT    NOT NULL DEFAULT '',
+    n_transfers          INTEGER NOT NULL DEFAULT 0,
+    pct_of_total_offered REAL    NOT NULL DEFAULT 0,
+    imported_utc         TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    # report_transfer_chains : per conversation, the ordered queue-hop sequence
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_transfer_chains (
+    row_id                  TEXT    PRIMARY KEY,
+    case_id                 TEXT    NOT NULL REFERENCES cases(case_id),
+    conversation_id         TEXT    NOT NULL DEFAULT '',
+    transfer_sequence       TEXT    NOT NULL DEFAULT '',
+    hop_count               INTEGER NOT NULL DEFAULT 0,
+    final_queue_name        TEXT    NOT NULL DEFAULT '',
+    final_disconnect_type   TEXT    NOT NULL DEFAULT '',
+    has_blind_transfer      INTEGER NOT NULL DEFAULT 0,
+    has_consult_transfer    INTEGER NOT NULL DEFAULT 0,
+    imported_utc            TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    # v7 indexes
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_flows_case      ON report_transfer_flows(case_id)'            | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_flows_from      ON report_transfer_flows(queue_id_from)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_flows_to        ON report_transfer_flows(queue_id_to)'        | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_case     ON report_transfer_chains(case_id)'           | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_conv     ON report_transfer_chains(conversation_id)'   | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_xfer_chains_hop      ON report_transfer_chains(hop_count)'         | Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -3368,6 +3409,483 @@ WHERE case_id = @cid
     }
 }
 
+function Import-TransferReport {
+    <#
+    .SYNOPSIS
+        Session 16 — imports transfer aggregate data and derives per-conversation
+        escalation chains from the already-imported participants_json payloads.
+    .DESCRIPTION
+        Two-phase import:
+
+        Phase 1 — read the aggregate dataset run folder for
+        analytics.query.conversation.aggregates.transfer.metrics to derive the
+        denominator for pct_of_total_offered.  The catalog emits nConnected and
+        nTransferred for this dataset; nOffered is supported when present.
+
+        Phase 2 — walk every conversation row for the case, parse
+        participants_json, collect segments that carry a queueId (any segment
+        type), sort them chronologically, and build a distinct-queue sequence.
+        From that sequence we derive:
+          - per-conversation transfer chain  → report_transfer_chains
+          - per (from, to, type) aggregate   → report_transfer_flows
+
+        Transfer-type classification is per-conversation:
+          - consult : the conversation contains any segment whose segmentType
+                      matches 'consult' OR a participant whose purpose is
+                      'internal' or 'peer' (consult call peer).
+          - blind   : default when no consult indicator is present.
+
+        The whole conversation's hops inherit that label.  This is a
+        pragmatic inference — the Genesys segment model does not emit a
+        per-hop transfer-type flag — and is documented in code so readers
+        understand the limitation.
+
+        Rows in report_transfer_flows are upserted by
+        (case_id, queue_id_from, queue_id_to, transfer_type).
+        Rows in report_transfer_chains are upserted by
+        (case_id, conversation_id).
+
+        Returns a hashtable with RecordCount (flow rows written),
+        ChainCount (chain rows written), TotalOffered (denominator),
+        and SkippedCount.
+    .PARAMETER CaseId
+        Target case identifier.
+    .PARAMETER FolderMap
+        Hashtable returned by Get-TransferReport (App.CoreAdapter.psm1).
+        Keys: 'TransferMetricsFolder'.  When null/missing, phase 1 is skipped
+        and pct_of_total_offered is computed against the sum of n_transfers.
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    $now   = [datetime]::UtcNow.ToString('o')
+    $stats = @{ RecordCount = 0; ChainCount = 0; TotalOffered = 0; SkippedCount = 0 }
+
+    # ── Phase 1 : read aggregate dataset for the denominator ──────────────────
+    $metricTotals = @{
+        nOffered     = 0
+        nConnected   = 0
+        nTransferred = 0
+    }
+    $xferFolder = if ($FolderMap.ContainsKey('TransferMetricsFolder')) { $FolderMap['TransferMetricsFolder'] } else { $null }
+    if (-not [string]::IsNullOrWhiteSpace($xferFolder) -and
+        [System.IO.Directory]::Exists($xferFolder)) {
+
+        $dataDir = [System.IO.Path]::Combine($xferFolder, 'data')
+        if ([System.IO.Directory]::Exists($dataDir)) {
+            foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+                foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                    $t = $line.Trim()
+                    if (-not $t) { continue }
+                    try {
+                        $result = $t | ConvertFrom-Json
+                        if ($null -eq $result -or $null -eq $result.data) { continue }
+                        foreach ($d in @($result.data)) {
+                            foreach ($m in @($d.metrics)) {
+                                $metricName = [string]$m.metric
+                                if ($metricTotals.ContainsKey($metricName) -and $m.stats -and $m.stats.count) {
+                                    $metricTotals[$metricName] += [int]$m.stats.count
+                                }
+                            }
+                        }
+                    } catch {
+                        Write-Warning "Import-TransferReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+    }
+    $totalOffered = if ($metricTotals.nOffered -gt 0) {
+        $metricTotals.nOffered
+    } elseif ($metricTotals.nConnected -gt 0) {
+        $metricTotals.nConnected
+    } else {
+        $metricTotals.nTransferred
+    }
+    $stats.TotalOffered = $totalOffered
+
+    # ── Phase 2 : walk conversations, build chains ────────────────────────────
+    $conn = _Open
+    try {
+        # Purge any existing flow+chain rows for this case so the import is
+        # authoritative and repeat pulls don't accumulate stale pairs.
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_transfer_flows  WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_transfer_chains WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+
+        # Read all conversations for this case.  We only need the side-car
+        # participants JSON + disconnect_type to build chains.
+        $convRows = _Query -Conn $conn -Sql @'
+SELECT conversation_id, disconnect_type, participants_json
+FROM   conversations
+WHERE  case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+
+        # Resolve queue-id → queue-name map for this case from ref_queues.
+        $queueNameMap = @{}
+        $qRefRows = _Query -Conn $conn -Sql 'SELECT queue_id, name FROM ref_queues WHERE case_id = @cid' -P @{ '@cid' = $CaseId }
+        foreach ($qr in $qRefRows) {
+            $qid = [string]$qr.queue_id
+            if ($qid) { $queueNameMap[$qid] = [string]$qr.name }
+        }
+
+        # Accumulator:  "from|to|type"  →  @{ From; To; FromName; ToName; Type; Count }
+        $flowAgg = @{}
+        # List<chainRow>
+        $chainRows = [System.Collections.Generic.List[hashtable]]::new()
+
+        foreach ($cr in $convRows) {
+            $convId        = [string]$cr.conversation_id
+            $convDisconn   = [string]$cr.disconnect_type
+            $partJson      = _RowVal $cr 'participants_json' $null
+            if ($null -eq $partJson -or [string]::IsNullOrWhiteSpace([string]$partJson)) { continue }
+
+            try {
+                $participants = @($partJson | ConvertFrom-Json)
+            } catch {
+                $stats.SkippedCount++
+                continue
+            }
+            if ($participants.Count -eq 0) { continue }
+
+            # Collect queue touches from every segment that carries a queueId.
+            # Also track consult-indicator presence anywhere in the conversation.
+            $touches       = [System.Collections.Generic.List[pscustomobject]]::new()
+            $hasConsult    = $false
+            $lastDisconn   = $convDisconn
+            $lastQueueName = ''
+
+            foreach ($p in $participants) {
+                $purpose = if ($p.PSObject.Properties['purpose']) { [string]$p.purpose } else { '' }
+                # 'internal' or 'peer' participant purpose is a consult-call signal
+                if ($purpose -eq 'internal' -or $purpose -eq 'peer') { $hasConsult = $true }
+
+                if (-not $p.PSObject.Properties['sessions']) { continue }
+                foreach ($s in @($p.sessions)) {
+                    if (-not $s.PSObject.Properties['segments']) { continue }
+                    foreach ($seg in @($s.segments)) {
+                        $segType = if ($seg.PSObject.Properties['segmentType']) { [string]$seg.segmentType } else { '' }
+                        if ($segType -match '(?i)consult') { $hasConsult = $true }
+
+                        $qId   = if ($seg.PSObject.Properties['queueId'])   { [string]$seg.queueId   } else { '' }
+                        $qName = if ($seg.PSObject.Properties['queueName']) { [string]$seg.queueName } else { '' }
+                        if (-not $qId -and -not $qName) { continue }
+
+                        $startStr = if ($seg.PSObject.Properties['segmentStart']) { [string]$seg.segmentStart } else { '' }
+                        $startDt  = [datetime]::MinValue
+                        if ($startStr) {
+                            try { $startDt = [datetime]::Parse($startStr).ToUniversalTime() } catch { }
+                        }
+                        $segDisconn = if ($seg.PSObject.Properties['disconnectType']) { [string]$seg.disconnectType } else { '' }
+
+                        $touches.Add([pscustomobject]@{
+                            Start       = $startDt
+                            QueueId     = $qId
+                            QueueName   = $qName
+                            DisconnType = $segDisconn
+                        })
+                    }
+                }
+            }
+
+            if ($touches.Count -eq 0) { continue }
+
+            # Sort chronologically and build a distinct-queue sequence.
+            $ordered = @($touches | Sort-Object Start)
+            $sequence = [System.Collections.Generic.List[pscustomobject]]::new()
+            foreach ($tch in $ordered) {
+                $qKey = if ($tch.QueueId) { $tch.QueueId } else { "name:$($tch.QueueName)" }
+                if ($sequence.Count -eq 0 -or $sequence[$sequence.Count - 1].Key -ne $qKey) {
+                    $sequence.Add([pscustomobject]@{
+                        Key         = $qKey
+                        QueueId     = $tch.QueueId
+                        QueueName   = $tch.QueueName
+                        DisconnType = $tch.DisconnType
+                    })
+                }
+                if ($tch.DisconnType) { $lastDisconn = $tch.DisconnType }
+                if ($tch.QueueName)   { $lastQueueName = $tch.QueueName }
+            }
+
+            $hopCount = [Math]::Max(0, $sequence.Count - 1)
+            if ($hopCount -eq 0) { continue }   # queue-touched but never transferred
+
+            # Classify conversation type (applied to every hop in the chain).
+            $convType = if ($hasConsult) { 'consult' } else { 'blind' }
+
+            # Build pipe-delimited sequence of queue display names.
+            $seqNames = [System.Collections.Generic.List[string]]::new()
+            foreach ($n in $sequence) {
+                $disp = if ($n.QueueName) { $n.QueueName }
+                        elseif ($n.QueueId -and $queueNameMap.ContainsKey($n.QueueId)) { $queueNameMap[$n.QueueId] }
+                        elseif ($n.QueueId) { "$($n.QueueId) (unresolved)" }
+                        else { '(unknown)' }
+                $seqNames.Add($disp) | Out-Null
+            }
+            $transferSeq   = ($seqNames -join '|')
+            $finalQueueNm  = if ($seqNames.Count -gt 0) { $seqNames[$seqNames.Count - 1] } else { $lastQueueName }
+
+            $chainRows.Add(@{
+                ConversationId      = $convId
+                TransferSequence    = $transferSeq
+                HopCount            = $hopCount
+                FinalQueueName      = $finalQueueNm
+                FinalDisconnectType = $lastDisconn
+                HasBlind            = if ($convType -eq 'blind')   { 1 } else { 0 }
+                HasConsult          = if ($convType -eq 'consult') { 1 } else { 0 }
+            })
+
+            # Aggregate hops into flow buckets.
+            for ($i = 0; $i -lt $sequence.Count - 1; $i++) {
+                $from = $sequence[$i]
+                $to   = $sequence[$i + 1]
+                $fromName = if ($from.QueueName) { $from.QueueName }
+                            elseif ($from.QueueId -and $queueNameMap.ContainsKey($from.QueueId)) { $queueNameMap[$from.QueueId] }
+                            elseif ($from.QueueId) { "$($from.QueueId) (unresolved)" }
+                            else { '(unknown)' }
+                $toName   = if ($to.QueueName) { $to.QueueName }
+                            elseif ($to.QueueId -and $queueNameMap.ContainsKey($to.QueueId)) { $queueNameMap[$to.QueueId] }
+                            elseif ($to.QueueId) { "$($to.QueueId) (unresolved)" }
+                            else { '(unknown)' }
+                $flowKey  = "$($from.QueueId)|$($to.QueueId)|$convType"
+                if (-not $flowAgg.ContainsKey($flowKey)) {
+                    $flowAgg[$flowKey] = @{
+                        From         = $from.QueueId
+                        FromName     = $fromName
+                        To           = $to.QueueId
+                        ToName       = $toName
+                        Type         = $convType
+                        Count        = 0
+                    }
+                }
+                $flowAgg[$flowKey].Count++
+            }
+        }
+
+        # ── Write report_transfer_flows ───────────────────────────────────────
+        $denominator = if ($totalOffered -gt 0) {
+            $totalOffered
+        } else {
+            # Fallback: use the sum of all hop counts if the aggregate dataset
+            # returned no data. Percentages then reflect share of total hops.
+            $sum = 0
+            foreach ($v in $flowAgg.Values) { $sum += $v.Count }
+            if ($sum -eq 0) { 1 } else { $sum }
+        }
+
+        foreach ($f in $flowAgg.Values) {
+            $rowKey = "$CaseId|xfer|$($f.From)|$($f.To)|$($f.Type)"
+            $pct    = [Math]::Round(($f.Count / $denominator) * 100.0, 1)
+            try {
+                _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_transfer_flows(
+    row_id, case_id,
+    queue_id_from, queue_name_from, queue_id_to, queue_name_to,
+    transfer_type, n_transfers, pct_of_total_offered, imported_utc)
+VALUES(
+    @rid, @cid,
+    @qfid, @qfname, @qtid, @qtname,
+    @type, @n, @pct, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    queue_name_from=excluded.queue_name_from,
+    queue_name_to=excluded.queue_name_to,
+    n_transfers=excluded.n_transfers,
+    pct_of_total_offered=excluded.pct_of_total_offered,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                    '@rid'    = $rowKey
+                    '@cid'    = $CaseId
+                    '@qfid'   = [string]$f.From
+                    '@qfname' = [string]$f.FromName
+                    '@qtid'   = [string]$f.To
+                    '@qtname' = [string]$f.ToName
+                    '@type'   = [string]$f.Type
+                    '@n'      = [int]$f.Count
+                    '@pct'    = [double]$pct
+                    '@ts'     = $now
+                } | Out-Null
+                $stats.RecordCount++
+            } catch {
+                Write-Warning "Import-TransferReport: failed to upsert flow row '$rowKey' — $($_.Exception.Message)"
+                $stats.SkippedCount++
+            }
+        }
+
+        # ── Write report_transfer_chains ──────────────────────────────────────
+        foreach ($c in $chainRows) {
+            $rowKey = "$CaseId|chain|$($c.ConversationId)"
+            try {
+                _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_transfer_chains(
+    row_id, case_id, conversation_id, transfer_sequence, hop_count,
+    final_queue_name, final_disconnect_type,
+    has_blind_transfer, has_consult_transfer, imported_utc)
+VALUES(
+    @rid, @cid, @cvid, @seq, @hops,
+    @finalq, @finald,
+    @blind, @consult, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    transfer_sequence=excluded.transfer_sequence,
+    hop_count=excluded.hop_count,
+    final_queue_name=excluded.final_queue_name,
+    final_disconnect_type=excluded.final_disconnect_type,
+    has_blind_transfer=excluded.has_blind_transfer,
+    has_consult_transfer=excluded.has_consult_transfer,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                    '@rid'     = $rowKey
+                    '@cid'     = $CaseId
+                    '@cvid'    = [string]$c.ConversationId
+                    '@seq'     = [string]$c.TransferSequence
+                    '@hops'    = [int]   $c.HopCount
+                    '@finalq'  = [string]$c.FinalQueueName
+                    '@finald'  = [string]$c.FinalDisconnectType
+                    '@blind'   = [int]   $c.HasBlind
+                    '@consult' = [int]   $c.HasConsult
+                    '@ts'      = $now
+                } | Out-Null
+                $stats.ChainCount++
+            } catch {
+                Write-Warning "Import-TransferReport: failed to upsert chain row '$rowKey' — $($_.Exception.Message)"
+                $stats.SkippedCount++
+            }
+        }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return $stats
+}
+
+function Get-TransferFlowRows {
+    <#
+    .SYNOPSIS
+        Returns report_transfer_flows rows for a case, sorted by n_transfers
+        descending then queue_name_from ascending.
+    .PARAMETER CaseId
+        The case to query.
+    .PARAMETER TransferType
+        Optional 'blind' or 'consult' filter. Empty returns both.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $TransferType = ''
+    )
+    _RequireDb
+
+    if ($TransferType) {
+        $sql = @'
+SELECT queue_id_from, queue_name_from, queue_id_to, queue_name_to,
+       transfer_type, n_transfers, pct_of_total_offered
+FROM   report_transfer_flows
+WHERE  case_id = @cid AND transfer_type = @type
+ORDER  BY n_transfers DESC, queue_name_from ASC
+'@
+        $p = @{ '@cid' = $CaseId; '@type' = $TransferType }
+    } else {
+        $sql = @'
+SELECT queue_id_from, queue_name_from, queue_id_to, queue_name_to,
+       transfer_type, n_transfers, pct_of_total_offered
+FROM   report_transfer_flows
+WHERE  case_id = @cid
+ORDER  BY n_transfers DESC, queue_name_from ASC
+'@
+        $p = @{ '@cid' = $CaseId }
+    }
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-TransferChainRows {
+    <#
+    .SYNOPSIS
+        Returns report_transfer_chains rows for a case, sorted by hop_count
+        descending then conversation_id ascending.
+    .PARAMETER CaseId
+        The case to query.
+    .PARAMETER MinHops
+        Minimum hop_count to include (default 1). Use 2 for the multi-hop view.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [int] $MinHops = 1
+    )
+    _RequireDb
+
+    $sql = @'
+SELECT conversation_id, transfer_sequence, hop_count,
+       final_queue_name, final_disconnect_type,
+       has_blind_transfer, has_consult_transfer
+FROM   report_transfer_chains
+WHERE  case_id = @cid AND hop_count >= @min
+ORDER  BY hop_count DESC, conversation_id ASC
+'@
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P @{ '@cid' = $CaseId; '@min' = $MinHops }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-TransferSummary {
+    <#
+    .SYNOPSIS
+        Returns aggregate Blind vs Consult counts and totals for the summary tiles.
+    .DESCRIPTION
+        Produces a single PSCustomObject with:
+          TotalFlows, TotalTransfers, BlindTransfers, ConsultTransfers,
+          BlindPct, ConsultPct, TotalChains, MultiHopChains.
+    .PARAMETER CaseId
+        The case to query.
+    #>
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $fRow = _Query -Conn $conn -Sql @'
+SELECT
+    COUNT(*)                                                      AS total_flows,
+    COALESCE(SUM(n_transfers), 0)                                 AS total_transfers,
+    COALESCE(SUM(CASE WHEN transfer_type='blind'   THEN n_transfers ELSE 0 END), 0) AS blind_count,
+    COALESCE(SUM(CASE WHEN transfer_type='consult' THEN n_transfers ELSE 0 END), 0) AS consult_count
+FROM report_transfer_flows
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+        $cRow = _Query -Conn $conn -Sql @'
+SELECT
+    COUNT(*)                              AS total_chains,
+    SUM(CASE WHEN hop_count >= 2 THEN 1 ELSE 0 END) AS multi_hop_chains
+FROM report_transfer_chains
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $total  = if ($fRow.Count -gt 0) { [int](_RowVal $fRow[0] 'total_transfers' 0) } else { 0 }
+    $blind  = if ($fRow.Count -gt 0) { [int](_RowVal $fRow[0] 'blind_count'     0) } else { 0 }
+    $cons   = if ($fRow.Count -gt 0) { [int](_RowVal $fRow[0] 'consult_count'   0) } else { 0 }
+    $flows  = if ($fRow.Count -gt 0) { [int](_RowVal $fRow[0] 'total_flows'     0) } else { 0 }
+    $chains = if ($cRow.Count -gt 0) { [int](_RowVal $cRow[0] 'total_chains'    0) } else { 0 }
+    $multi  = if ($cRow.Count -gt 0) { [int](_RowVal $cRow[0] 'multi_hop_chains' 0) } else { 0 }
+    $blindPct   = if ($total -gt 0) { [Math]::Round(($blind / $total) * 100.0, 1) } else { 0.0 }
+    $consultPct = if ($total -gt 0) { [Math]::Round(($cons  / $total) * 100.0, 1) } else { 0.0 }
+
+    return [pscustomobject]@{
+        TotalFlows       = $flows
+        TotalTransfers   = $total
+        BlindTransfers   = $blind
+        ConsultTransfers = $cons
+        BlindPct         = $blindPct
+        ConsultPct       = $consultPct
+        TotalChains      = $chains
+        MultiHopChains   = $multi
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -3383,4 +3901,5 @@ Export-ModuleMember -Function `
     Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationById, `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `
-    Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary
+    Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `
+    Import-TransferReport, Get-TransferFlowRows, Get-TransferChainRows, Get-TransferSummary

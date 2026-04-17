@@ -379,7 +379,7 @@ that implement it, and the backing catalog key(s).
 | 13      | Reference Data Foundation            | ✅ Delivered     |
 | 14      | Queue Performance Aggregate Report   | ✅ Delivered     |
 | 15      | Agent Performance Report             | ✅ Delivered     |
-| 16      | Transfer and Escalation Chain Intel  | 🔲 Planned       |
+| 16      | Transfer and Escalation Chain Intel  | 🟡 In progress — database v7 foundation complete |
 | 17      | IVR and Flow Containment Report      | 🔲 Planned       |
 | 18      | Wrapup Code Distribution             | 🔲 Planned       |
 | 19      | Quality and Voice-of-Customer Overlay| 🔲 Planned       |

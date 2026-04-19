@@ -33,7 +33,7 @@ if ($WhatIfPreference) {
 
 $report = & $syncScriptPath @syncParams
 
-Write-Host "Swagger sync report: totalSwaggerOps=$($report.totalSwaggerOps); totalCatalogEndpoints=$($report.totalCatalogEndpoints); addedCount=$($report.addedCount); skippedExistingCount=$($report.skippedExistingCount); missingAfterMergeCount=$($report.missingAfterMergeCount)"
+Write-Host "Swagger sync report: totalSwaggerOps=$($report.totalSwaggerOps); totalCatalogEndpoints=$($report.totalCatalogEndpoints); addedCount=$($report.addedCount); skippedExistingCount=$($report.skippedExistingCount); caseCollisionSkippedCount=$($report.caseCollisionSkippedCount); missingAfterMergeCount=$($report.missingAfterMergeCount)"
 
 if ($RunValidation) {
     Import-Module (Join-Path -Path $repoRoot -ChildPath 'modules/Genesys.Core/Genesys.Core.psd1') -Force
@@ -41,7 +41,7 @@ if ($RunValidation) {
 
     Assert-Catalog -CatalogPath $CatalogPath -SchemaPath $schemaPath | Out-Null
 
-    $coveragePath = Join-Path -Path $repoRoot -ChildPath 'tests/SwaggerCoverage.Tests.ps1'
+    $coveragePath = Join-Path -Path $repoRoot -ChildPath 'tests/unit/SwaggerCoverage.Tests.ps1'
     Invoke-Pester -Path $coveragePath | Out-Null
 }
 

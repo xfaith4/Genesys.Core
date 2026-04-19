@@ -1,33 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="12" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-15" time="22:35:39">
-  <environment machine-name="TheShire" user-domain="" os-version="5.15.146.1-microsoft-standard-WSL2" platform="Linux" clr-version="10.0.5" nunit-version="2.5.8.0" user="xfaith" cwd="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core" />
+<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="1" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-19" time="16:13:37">
+  <environment machine-name="computer" user="user" cwd="/mnt/g/development/20_staging/genesyscloud/genesys.core" platform="Linux" os-version="5.15.146.1-microsoft-standard-WSL2" clr-version="10.0.5" user-domain="" nunit-version="2.5.8.0" />
   <culture-info current-culture="" current-uiculture="" />
-  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="5.007" asserts="0" description="Pester">
+  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="3.484" asserts="0" description="Pester">
     <results>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogs.Dataset.Tests.ps1" executed="True" result="Success" success="True" time="4.4004" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogs.Dataset.Tests.ps1">
+      <test-suite type="TestFixture" name="/mnt/g/development/20_staging/genesyscloud/genesys.core/tests/unit/SwaggerCoverage.Tests.ps1" executed="True" result="Success" success="True" time="3.484" asserts="0" description="/mnt/g/development/20_staging/genesyscloud/genesys.core/tests/unit/SwaggerCoverage.Tests.ps1">
         <results>
-          <test-suite type="TestFixture" name="Audit logs dataset" executed="True" result="Success" success="True" time="3.9183" asserts="0" description="Audit logs dataset">
+          <test-suite type="TestFixture" name="Swagger coverage" executed="True" result="Success" success="True" time="3.0944" asserts="0" description="Swagger coverage">
             <results>
-              <test-case description="runs submit-&gt;poll-&gt;results flow and writes audit outputs" name="Audit logs dataset.runs submit-&gt;poll-&gt;results flow and writes audit outputs" time="3.0908" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="supports dataset parameter overrides for interval, service names, and actions" name="Audit logs dataset.supports dataset parameter overrides for interval, service names, and actions" time="0.2315" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails when transaction reaches FAILED terminal state" name="Audit logs dataset.fails when transaction reaches FAILED terminal state" time="0.1799" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="fails when transaction reaches CANCELLED terminal state" name="Audit logs dataset.fails when transaction reaches CANCELLED terminal state" time="0.1447" asserts="0" success="True" result="Success" executed="True" />
-            </results>
-          </test-suite>
-        </results>
-      </test-suite>
-      <test-suite type="TestFixture" name="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogsConsole.Compliance.Tests.ps1" executed="True" result="Success" success="True" time="0.6066" asserts="0" description="/mnt/g/Development/20_Staging/GenesysCloud/Genesys.Core/tests/unit/AuditLogsConsole.Compliance.Tests.ps1">
-        <results>
-          <test-suite type="TestFixture" name="AuditLogsConsole — Core-First Compliance" executed="True" result="Success" success="True" time="0.5639" asserts="0" description="AuditLogsConsole — Core-First Compliance">
-            <results>
-              <test-case description="contains no Invoke-RestMethod usage in the app" name="AuditLogsConsole — Core-First Compliance.contains no Invoke-RestMethod usage in the app" time="0.0138" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="contains no Invoke-WebRequest usage in the app" name="AuditLogsConsole — Core-First Compliance.contains no Invoke-WebRequest usage in the app" time="0.0058" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="contains no /api/v2/ literal in the app" name="AuditLogsConsole — Core-First Compliance.contains no /api/v2/ literal in the app" time="0.0075" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="does not copy Genesys.Core into the app folder" name="AuditLogsConsole — Core-First Compliance.does not copy Genesys.Core into the app folder" time="0.1028" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="keeps Invoke-Dataset usage inside App.CoreAdapter only" name="AuditLogsConsole — Core-First Compliance.keeps Invoke-Dataset usage inside App.CoreAdapter only" time="0.0076" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="keeps Assert-Catalog usage inside App.CoreAdapter or App.ps1 startup narrative only" name="AuditLogsConsole — Core-First Compliance.keeps Assert-Catalog usage inside App.CoreAdapter or App.ps1 startup narrative only" time="0.0136" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="maps every App.UI control reference to a named XAML element" name="AuditLogsConsole — Core-First Compliance.maps every App.UI control reference to a named XAML element" time="0.0479" asserts="0" success="True" result="Success" executed="True" />
-              <test-case description="uses recursive control lookup before wiring events" name="AuditLogsConsole — Core-First Compliance.uses recursive control lookup before wiring events" time="0.041" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="covers all swagger operationIds in catalog endpoints when swagger is available" name="Swagger coverage.covers all swagger operationIds in catalog endpoints when swagger is available" time="3.0632" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
         </results>

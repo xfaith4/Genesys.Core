@@ -4,7 +4,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$Dataset,
 
-    [string]$Region = 'mypurecloud.com',
+    [string]$Region = 'usw2.pure.cloud',
 
     [string]$OutputRoot = 'out',
 

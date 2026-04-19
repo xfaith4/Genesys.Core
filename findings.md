@@ -30,3 +30,16 @@
 - `_SaveImpactReportSnapshot` saves only the report content; it does not explicitly wrap the exact canonical filter state used for generation.
 - DB grid path currently calls `Get-ConversationsPage` and then applies `ColumnFilters` locally in UI after fetching the page. This can make count/page count/visible rows disagree.
 - DB drilldown currently reconstructs primary detail from `participants_json`; there is no separate canonical raw conversation payload column or lineage/version table visible in the current schema search.
+
+## Core Contract Fixture Hardening Findings
+
+- Core run artifacts are created by `modules/Genesys.Core/Private/RunArtifacts.ps1`: `New-RunContext` writes `out/<datasetKey>/<runId>/` with `manifest.json`, `events.jsonl`, `summary.json`, `api-calls.log`, and `data/`.
+- Conversation details Core output writes `data/analytics-conversation-details.jsonl`; preview/query output writes `data/analytics-conversation-details-query.jsonl`.
+- Core manifest shape is camelCase: `datasetKey`, `runId`, `startedAtUtc`, `endedAtUtc`, `counts.itemCount`, `warnings`. It does not currently emit `schema_version` or `normalization_version`.
+- Core conversation summary shape includes `datasetKey`, `runId`, `totals.totalConversations`, and `generatedAtUtc` for conversation details.
+- Current Analyzer importer tolerates missing schema/normalization version and accepts both snake_case and camelCase dataset/run fields, but it does not yet reconcile `manifest.counts.itemCount` or `summary.totals.totalConversations` against parsed/imported records.
+- Existing Pester Core tests generate real Core-shaped run folders via `Invoke-Dataset` with `RequestInvoker`; these are better contract fixtures than the app-local `New-SmokeRunFolder` helper.
+
+- `Invoke-SmokeTests.ps1` now creates a Core-produced `analytics-conversation-details-query` fixture through `Genesys.Core Invoke-Dataset` and a mocked request invoker, then validates Analyzer contract/index/display behavior against the actual Core artifact layout.
+- Core fixture validation passes without SQLite: Analyzer validates `manifest.counts.itemCount`, `summary.totals.totalRecords`, `data/analytics-conversation-details-query.jsonl`, required `conversationId`, and can build/render index display rows from the Core-written JSONL.
+- Database import runtime tests still skip in WSL due missing native `e_sqlite3`, but the new DB import test will import the Core-produced fixture and reconcile expected/data/imported counts when SQLite is available.

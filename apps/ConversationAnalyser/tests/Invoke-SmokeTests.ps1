@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:Results = New-Object System.Collections.Generic.List[object]
+$script:SmokeDbCaseId = ''
 
 function SmokeCheck {
     param(
@@ -170,6 +171,126 @@ function New-SmokeRunFolder {
     return $runFolder
 }
 
+function New-CoreConversationRunFixture {
+    param([string]$Root)
+
+    $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $AppRoot '..\..'))
+    $coreModule = Join-Path $repoRoot 'modules/Genesys.Core/Genesys.Core.psd1'
+    $catalogPath = Join-Path $repoRoot 'catalog/genesys.catalog.json'
+    Import-Module $coreModule -Force -ErrorAction Stop
+
+    $outputRoot = Join-Path $Root 'core-out'
+    $script:CoreFixturePage = 0
+    $requestInvoker = {
+        param($request)
+        $script:CoreFixturePage++
+        if ($request.Method -eq 'POST' -and $request.Uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/query') {
+            $body = $request.Body | ConvertFrom-Json
+            if ($body.pageNumber -eq 1) {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    conversations = @(
+                        [pscustomobject]@{
+                            conversationId = 'core-fixture-001'
+                            conversationStart = '2026-04-01T09:00:00Z'
+                            conversationEnd = '2026-04-01T09:07:00Z'
+                            divisionIds = @('division-core-a')
+                            participants = @(
+                                [pscustomobject]@{
+                                    purpose = 'customer'
+                                    sessions = @(
+                                        [pscustomobject]@{
+                                            mediaType = 'voice'
+                                            direction = 'inbound'
+                                            ani = '15550000001'
+                                            dnis = '18005550100'
+                                            segments = @(
+                                                [pscustomobject]@{
+                                                    segmentType = 'interact'
+                                                    queueId = 'queue-core-support'
+                                                    queueName = 'Core Support'
+                                                    disconnectType = 'client'
+                                                    segmentStart = '2026-04-01T09:00:00Z'
+                                                    segmentEnd = '2026-04-01T09:07:00Z'
+                                                }
+                                            )
+                                        }
+                                    )
+                                },
+                                [pscustomobject]@{
+                                    purpose = 'agent'
+                                    userId = 'agent-core-001'
+                                    name = 'Core Agent One'
+                                    sessions = @(
+                                        [pscustomobject]@{
+                                            mediaType = 'voice'
+                                            segments = @(
+                                                [pscustomobject]@{
+                                                    segmentType = 'hold'
+                                                    queueId = 'queue-core-support'
+                                                    queueName = 'Core Support'
+                                                    segmentStart = '2026-04-01T09:02:00Z'
+                                                    segmentEnd = '2026-04-01T09:03:00Z'
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                    totalHits = 2
+                } }
+            }
+
+            return [pscustomobject]@{ Result = [pscustomobject]@{
+                conversations = @(
+                    [pscustomobject]@{
+                        conversationId = 'core-fixture-002'
+                        conversationStart = '2026-04-01T10:00:00Z'
+                        conversationEnd = '2026-04-01T10:12:00Z'
+                        divisionIds = @('division-core-b')
+                        participants = @(
+                            [pscustomobject]@{
+                                purpose = 'customer'
+                                sessions = @(
+                                    [pscustomobject]@{
+                                        mediaType = 'chat'
+                                        direction = 'inbound'
+                                        ani = '15550000002'
+                                        segments = @(
+                                            [pscustomobject]@{
+                                                segmentType = 'interact'
+                                                queueId = 'queue-core-billing'
+                                                queueName = 'Core Billing'
+                                                disconnectType = 'system'
+                                                segmentStart = '2026-04-01T10:00:00Z'
+                                                segmentEnd = '2026-04-01T10:12:00Z'
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        )
+                    }
+                )
+                totalHits = 2
+            } }
+        }
+
+        throw "Unexpected Core fixture request: $($request.Method) $($request.Uri)"
+    }
+
+    $run = Invoke-Dataset `
+        -Dataset 'analytics-conversation-details-query' `
+        -CatalogPath $catalogPath `
+        -OutputRoot $outputRoot `
+        -BaseUri 'https://api.test.local' `
+        -RequestInvoker $requestInvoker `
+        -NoRedact
+
+    return $run.runFolder
+}
+
 $tempRoot = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('gca-smoke-' + [System.Guid]::NewGuid().ToString('N')))
 $oldLocalAppData = $env:LOCALAPPDATA
 $runFolder = $null
@@ -291,9 +412,52 @@ try {
         ($report.TimeWindow.End   -eq '2026-03-01T11:00:00.0000000Z')
     }
 
-    Write-Host "`n--- Database ---" -ForegroundColor DarkCyan
+    Write-Host "`n--- Core Contract Fixture ---" -ForegroundColor DarkCyan
 
     Import-AppModule 'modules\App.Database.psm1'
+    $coreRunFolder = New-CoreConversationRunFixture -Root $tempRoot
+
+    SmokeCheck 'SMK-09A' 'Analyzer validates real Core conversation run artifact contract' {
+        $contract = Test-CoreRunArtifactContract -RunFolder $coreRunFolder
+        $manifest = Get-Content -Raw (Join-Path $coreRunFolder 'manifest.json') | ConvertFrom-Json
+        $summary = Get-Content -Raw (Join-Path $coreRunFolder 'summary.json') | ConvertFrom-Json
+        $dataPath = Join-Path $coreRunFolder 'data/analytics-conversation-details-query.jsonl'
+        $contract.IsValid -and
+        ($contract.DatasetKey -eq 'analytics-conversation-details-query') -and
+        ($contract.ExpectedRecordCount -eq 2) -and
+        ($contract.DataRecordCount -eq 2) -and
+        ($manifest.counts.itemCount -eq 2) -and
+        ($summary.totals.totalRecords -eq 2) -and
+        (Test-Path $dataPath)
+    }
+
+    SmokeCheck 'SMK-09B' 'Analyzer index/display path consumes Core-produced conversation JSONL' {
+        $idx = @(Build-RunIndex -RunFolder $coreRunFolder)
+        $page = @(Get-IndexedPage -RunFolder $coreRunFolder -IndexEntries $idx)
+        $display = @($idx | ForEach-Object { Get-ConversationDisplayRow -IndexEntry $_ })
+        ($idx.Count -eq 2) -and
+        (($page | ForEach-Object { $_.conversationId }) -join ',') -eq 'core-fixture-001,core-fixture-002' -and
+        (($display | Where-Object { $_.ConversationId -eq 'core-fixture-001' } | Select-Object -First 1).Queue -eq 'Core Support') -and
+        (($display | Where-Object { $_.ConversationId -eq 'core-fixture-002' } | Select-Object -First 1).MediaType -eq 'chat')
+    }
+
+    SmokeCheck 'SMK-09C' 'Analyzer rejects Core artifact count drift before import' {
+        $badRoot = Join-Path $tempRoot 'bad-core-contract'
+        Copy-Item -Path $coreRunFolder -Destination $badRoot -Recurse
+        $manifestPath = Join-Path $badRoot 'manifest.json'
+        $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+        $manifest.counts.itemCount = 99
+        [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 20), [System.Text.Encoding]::UTF8)
+        try {
+            Test-CoreRunArtifactContract -RunFolder $badRoot -ThrowOnError | Out-Null
+            return $false
+        } catch {
+            return ([string]$_ -match 'count mismatch')
+        }
+    }
+
+    Write-Host "`n--- Database ---" -ForegroundColor DarkCyan
+
     $dbPath = Join-Path $tempRoot 'cases.sqlite'
     try {
         Initialize-Database -DatabasePath $dbPath -SqliteDllPath (Join-Path $AppRoot 'lib/System.Data.SQLite.dll') -AppDir $AppRoot
@@ -314,13 +478,29 @@ try {
     if ($dbAvailable) {
         SmokeCheck 'SMK-11' 'Import-RunFolderToCase imports a synthetic run into the case store' {
             $caseId = New-Case -Name 'Smoke Case' -Description 'Runtime smoke'
+            $script:SmokeDbCaseId = $caseId
             $import = Import-RunFolderToCase -CaseId $caseId -RunFolder $runFolder -BatchSize 2
             $count = Get-ConversationCount -CaseId $caseId
             ($import.RecordCount -eq 3) -and ($count -eq 3)
         }
 
+        SmokeCheck 'SMK-11A' 'Import-RunFolderToCase imports Core-produced conversation artifacts with reconciled counts' {
+            $caseId = New-Case -Name 'Core Fixture Case' -Description 'Core output contract runtime smoke'
+            $import = Import-RunFolderToCase -CaseId $caseId -RunFolder $coreRunFolder -BatchSize 1
+            $count = Get-ConversationCount -CaseId $caseId
+            $support = Get-ConversationCount -CaseId $caseId -Queue 'Core Support'
+            $row = Get-ConversationById -CaseId $caseId -ConversationId 'core-fixture-001'
+            ($import.RecordCount -eq 2) -and
+            ($import.ExpectedRecordCount -eq 2) -and
+            ($import.DataRecordCount -eq 2) -and
+            ($count -eq 2) -and
+            ($support -eq 1) -and
+            ($row.raw_json -match 'core-fixture-001') -and
+            (-not [string]::IsNullOrWhiteSpace([string]$row.payload_hash))
+        }
+
         SmokeCheck 'SMK-12' 'Re-import supersedes the prior import without duplicating conversations' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $second = Import-RunFolderToCase -CaseId $caseId -RunFolder $runFolder -BatchSize 2
             $imports = @(Get-Imports -CaseId $caseId)
             $count = Get-ConversationCount -CaseId $caseId
@@ -328,7 +508,7 @@ try {
         }
 
         SmokeCheck 'SMK-13' 'Update-Finding preserves unmodified fields when changing status only' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $findingId = New-Finding -CaseId $caseId -Title 'Queue issue' -Summary 'Original summary' -Severity 'medium'
             Update-Finding -CaseId $caseId -FindingId $findingId -Status 'closed'
             $finding = Get-Findings -CaseId $caseId | Where-Object { $_.finding_id -eq $findingId } | Select-Object -First 1
@@ -336,7 +516,7 @@ try {
         }
 
         SmokeCheck 'SMK-14' 'DB population reports are independent of page changes' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $filter = [pscustomobject]@{
                 StartDateTimeUtc = '2026-03-01T00:00:00Z'
                 EndDateTimeUtc   = '2026-03-01T23:59:59Z'
@@ -364,7 +544,7 @@ try {
         }
 
         SmokeCheck 'SMK-15' 'SQL-backed column filters keep counts and pages aligned' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $filter = [pscustomobject]@{
                 StartDateTimeUtc = ''
                 EndDateTimeUtc   = ''
@@ -387,20 +567,20 @@ try {
         }
 
         SmokeCheck 'SMK-16' 'DB drilldown source row stores canonical raw JSON' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $row = Get-ConversationById -CaseId $caseId -ConversationId 'conv-001'
             $raw = $row.raw_json | ConvertFrom-Json
             ($raw.conversationId -eq 'conv-001') -and (-not [string]::IsNullOrWhiteSpace([string]$row.payload_hash))
         }
 
         SmokeCheck 'SMK-17' 'Reimports preserve conversation lineage versions' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $versions = @(Get-ConversationVersions -CaseId $caseId -ConversationId 'conv-001')
             ($versions.Count -ge 2) -and (@($versions | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.payload_hash) }).Count -eq 0)
         }
 
         SmokeCheck 'SMK-18' 'Saved views can restore identical filter state and result count' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $filter = [pscustomobject]@{
                 StartDateTimeUtc = ''
                 EndDateTimeUtc   = ''
@@ -426,7 +606,7 @@ try {
         }
 
         SmokeCheck 'SMK-19' 'Core DB analytics helpers stay responsive on warm smoke data' {
-            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $caseId = $script:SmokeDbCaseId
             $filter = [pscustomobject]@{
                 StartDateTimeUtc = ''
                 EndDateTimeUtc   = ''

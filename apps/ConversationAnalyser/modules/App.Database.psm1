@@ -603,6 +603,141 @@ function _ResolveRunImportMetadata {
     }
 }
 
+function _GetExpectedConversationRecordCount {
+    param([Parameter(Mandatory)][object]$Metadata)
+
+    $candidates = New-Object System.Collections.Generic.List[object]
+    if ($Metadata.Manifest -and $Metadata.Manifest.PSObject.Properties['counts'] -and $null -ne $Metadata.Manifest.counts) {
+        $manifestCount = _ObjVal $Metadata.Manifest.counts @('itemCount','recordCount','totalConversations','totalRecords') $null
+        if ($null -ne $manifestCount -and "$manifestCount" -ne '') {
+            $candidates.Add([pscustomobject]@{ Source = 'manifest.counts'; Value = [int]$manifestCount }) | Out-Null
+        }
+    }
+    if ($Metadata.Summary -and $Metadata.Summary.PSObject.Properties['totals'] -and $null -ne $Metadata.Summary.totals) {
+        $summaryCount = _ObjVal $Metadata.Summary.totals @('totalConversations','itemCount','recordCount','totalRecords') $null
+        if ($null -ne $summaryCount -and "$summaryCount" -ne '') {
+            $candidates.Add([pscustomobject]@{ Source = 'summary.totals'; Value = [int]$summaryCount }) | Out-Null
+        }
+    }
+    $summaryTop = _ObjVal $Metadata.Summary @('itemCount','recordCount','totalConversations','totalRecords') $null
+    if ($null -ne $summaryTop -and "$summaryTop" -ne '') {
+        $candidates.Add([pscustomobject]@{ Source = 'summary'; Value = [int]$summaryTop }) | Out-Null
+    }
+
+    if ($candidates.Count -eq 0) { return $null }
+    $distinct = @($candidates | Select-Object -ExpandProperty Value -Unique)
+    if ($distinct.Count -gt 1) {
+        $parts = @($candidates | ForEach-Object { "$($_.Source)=$($_.Value)" })
+        throw "Core artifact contract count mismatch: $($parts -join ', ')"
+    }
+    return [int]$distinct[0]
+}
+
+function Test-CoreRunArtifactContract {
+    <#
+    .SYNOPSIS
+        Validates the Analyzer/Core run artifact contract without requiring SQLite.
+    .DESCRIPTION
+        Checks manifest/summary/data presence, supported conversation dataset keys,
+        manifest/summary run identity consistency, JSONL parseability, required
+        conversationId on every data record, and Core count reconciliation.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [switch]$ThrowOnError
+    )
+
+    $errors = New-Object System.Collections.Generic.List[string]
+    $warnings = New-Object System.Collections.Generic.List[string]
+    $meta = $null
+
+    try {
+        $meta = _ResolveRunImportMetadata -RunFolder $RunFolder
+    } catch {
+        $errors.Add($_.Exception.Message) | Out-Null
+    }
+
+    $dataRecordCount = 0
+    $expectedCount = $null
+    if ($null -ne $meta) {
+        $manifestDataset = [string](_ObjVal $meta.Manifest @('datasetKey','dataset_key','dataset') '')
+        $summaryDataset  = [string](_ObjVal $meta.Summary  @('datasetKey','dataset_key','dataset') '')
+        if ($manifestDataset -and $summaryDataset -and $manifestDataset -ne $summaryDataset) {
+            $errors.Add("manifest/summary dataset mismatch: manifest=$manifestDataset summary=$summaryDataset") | Out-Null
+        }
+
+        $manifestRun = [string](_ObjVal $meta.Manifest @('runId','run_id','id') '')
+        $summaryRun  = [string](_ObjVal $meta.Summary  @('runId','run_id','id') '')
+        if ($manifestRun -and $summaryRun -and $manifestRun -ne $summaryRun) {
+            $errors.Add("manifest/summary runId mismatch: manifest=$manifestRun summary=$summaryRun") | Out-Null
+        }
+
+        try {
+            $expectedCount = _GetExpectedConversationRecordCount -Metadata $meta
+        } catch {
+            $errors.Add($_.Exception.Message) | Out-Null
+        }
+
+        $expectedDataFileName = "$($meta.DatasetKey).jsonl"
+        $hasExpectedDataFile = @($meta.DataFiles | Where-Object { [System.IO.Path]::GetFileName($_) -eq $expectedDataFileName }).Count -gt 0
+        if (-not $hasExpectedDataFile) {
+            $warnings.Add("Expected Core data file '$expectedDataFileName' not found; importing all data/*.jsonl files instead.") | Out-Null
+        }
+
+        foreach ($file in $meta.DataFiles) {
+            $rel = _GetRelativePath -BasePath $RunFolder -FullPath $file
+            $lineNo = 0
+            $reader = [System.IO.StreamReader]::new($file, [System.Text.Encoding]::UTF8, $true)
+            try {
+                while (($line = $reader.ReadLine()) -ne $null) {
+                    $lineNo++
+                    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+                    $dataRecordCount++
+                    try {
+                        $record = $line | ConvertFrom-Json
+                        $convId = [string](_ObjVal $record @('conversationId') '')
+                        if ([string]::IsNullOrWhiteSpace($convId)) {
+                            $errors.Add("Missing required conversationId at ${rel}:${lineNo}") | Out-Null
+                        }
+                    } catch {
+                        $errors.Add("Invalid JSONL record at ${rel}:${lineNo}: $($_.Exception.Message)") | Out-Null
+                    }
+                    if ($errors.Count -ge 25) {
+                        $warnings.Add('Stopped detailed contract validation after 25 errors.') | Out-Null
+                        break
+                    }
+                }
+            } finally {
+                $reader.Close()
+                $reader.Dispose()
+            }
+            if ($errors.Count -ge 25) { break }
+        }
+
+        if ($null -ne $expectedCount -and $expectedCount -ne $dataRecordCount) {
+            $errors.Add("Core artifact contract count mismatch: expected $expectedCount conversation record(s), found $dataRecordCount data JSONL record(s).") | Out-Null
+        }
+    }
+
+    $result = [pscustomobject]@{
+        IsValid = ($errors.Count -eq 0)
+        RunFolder = $RunFolder
+        DatasetKey = if ($null -ne $meta) { $meta.DatasetKey } else { '' }
+        RunId = if ($null -ne $meta) { $meta.RunId } else { '' }
+        DataFileCount = if ($null -ne $meta) { @($meta.DataFiles).Count } else { 0 }
+        DataRecordCount = $dataRecordCount
+        ExpectedRecordCount = $expectedCount
+        Errors = $errors.ToArray()
+        Warnings = $warnings.ToArray()
+    }
+
+    if ($ThrowOnError -and -not $result.IsValid) {
+        throw "Core run artifact contract failed for '$RunFolder': $($result.Errors -join '; ')"
+    }
+
+    return $result
+}
+
 function _ConvertConversationRecordToStoreRow {
     param(
         [Parameter(Mandatory)][object]$Record,
@@ -1167,6 +1302,7 @@ function _ImportJsonlFileToConnection {
                         $lineBuffer.RemoveAt($lineBuffer.Count - 1)
                     }
                     if ($lineBuffer.Count -gt 0) {
+                        $Stats.DataLineCount++
                         $line = [System.Text.Encoding]::UTF8.GetString($lineBuffer.ToArray())
                         try {
                             $record = $line | ConvertFrom-Json
@@ -1201,6 +1337,7 @@ function _ImportJsonlFileToConnection {
                 $lineBuffer.RemoveAt($lineBuffer.Count - 1)
             }
             if ($lineBuffer.Count -gt 0) {
+                $Stats.DataLineCount++
                 $line = [System.Text.Encoding]::UTF8.GetString($lineBuffer.ToArray())
                 try {
                     $record = $line | ConvertFrom-Json
@@ -2852,6 +2989,7 @@ function Import-RunFolderToCase {
     }
 
     $meta  = _ResolveRunImportMetadata -RunFolder $RunFolder
+    $contract = Test-CoreRunArtifactContract -RunFolder $RunFolder -ThrowOnError
     $runId = Register-CoreRun `
         -CaseId          $CaseId `
         -RunFolder       $meta.RunFolder `
@@ -2869,6 +3007,7 @@ function Import-RunFolderToCase {
         RecordCount  = 0
         SkippedCount = 0
         FailedCount  = 0
+        DataLineCount = 0
     }
 
     $conn = _Open
@@ -2912,6 +3051,13 @@ function Import-RunFolderToCase {
                 $batch.Clear()
             }
 
+            if ($stats.SkippedCount -gt 0 -or $stats.FailedCount -gt 0) {
+                throw "Import contract failed after parsing Core data: skipped=$($stats.SkippedCount), failed=$($stats.FailedCount)."
+            }
+            if ($stats.RecordCount -ne $contract.DataRecordCount) {
+                throw "Import reconciliation failed: inserted $($stats.RecordCount) conversation row(s), Core data contained $($contract.DataRecordCount)."
+            }
+
             $tx.Commit()
         } catch {
             $tx.Rollback()
@@ -2945,9 +3091,12 @@ function Import-RunFolderToCase {
                 run_id        = $runId
                 run_folder    = $RunFolder
                 dataset_key   = $meta.DatasetKey
+                expected_count = $contract.ExpectedRecordCount
+                data_record_count = $contract.DataRecordCount
                 record_count  = $stats.RecordCount
                 skipped_count = $stats.SkippedCount
                 failed_count  = $stats.FailedCount
+                contract_warnings = $contract.Warnings
             })
     } finally { $connComplete.Close(); $connComplete.Dispose() }
 
@@ -2961,6 +3110,9 @@ function Import-RunFolderToCase {
         RecordCount          = $stats.RecordCount
         SkippedCount         = $stats.SkippedCount
         FailedCount          = $stats.FailedCount
+        ExpectedRecordCount  = $contract.ExpectedRecordCount
+        DataRecordCount      = $contract.DataRecordCount
+        ContractWarnings     = $contract.Warnings
         ExtractionStart      = $meta.ExtractionStart
         ExtractionEnd        = $meta.ExtractionEnd
         SchemaVersion        = $meta.SchemaVersion
@@ -5825,7 +5977,7 @@ Export-ModuleMember -Function `
     New-SavedView, Get-SavedViews, Remove-SavedView, `
     New-ReportSnapshot, Get-ReportSnapshots, Remove-ReportSnapshot, `
     Close-Case, Mark-CasePurgeReady, Archive-Case, Purge-Case, `
-    Register-CoreRun, Get-CoreRuns, `
+    Register-CoreRun, Get-CoreRuns, Test-CoreRunArtifactContract, `
     New-Import, Complete-Import, Fail-Import, Get-Imports, Import-RunFolderToCase, `
     Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationPopulationRows, `
     Get-ConversationPopulationSummary, Get-ConversationFacetCounts, Get-RepresentativeConversations, `

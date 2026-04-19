@@ -221,6 +221,12 @@ ArchCheck 'ARCH-22E' 'Case store preserves raw payloads and lineage versions' {
     $database -match 'CREATE TABLE IF NOT EXISTS conversation_versions'
 }
 
+ArchCheck 'ARCH-22F' 'Analyzer validates Core artifact contract before database import' {
+    $database -match 'function Test-CoreRunArtifactContract' -and
+    $database -match 'Test-CoreRunArtifactContract -RunFolder \$RunFolder -ThrowOnError' -and
+    $database -match 'Import reconciliation failed'
+}
+
 # ── Architecture: auth containment ────────────────────────────────────────────
 Write-Host "`n--- Auth containment (Genesys.Auth – sibling Core repo) ---" -ForegroundColor DarkCyan
 

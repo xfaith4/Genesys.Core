@@ -102,6 +102,8 @@ To start a separate investigation, open the Case Manager and click **New Case**.
 
 Runs triggered from the app are auto-imported into the active case. To import a historical run, select a completed `Genesys.Core` run folder from the Recent Runs list and click **Import to Case**. Progress appears in the status bar; details go to the Run Console tab.
 
+Before import, the app validates the Core artifact contract: supported dataset key, consistent manifest/summary run identity, reconciled expected counts, parseable `data/*.jsonl`, and required `conversationId` on every conversation record. Contract failures stop the import before case-store mutation.
+
 ### 3. Pivot without re-querying Genesys Cloud
 
 Once imported, the grid switches to **case-store mode**. Filter, count, page, report, and saved-view operations use the same canonical filter state and SQL-backed WHERE builder. Column filters are not page-local in DB mode, so record count, page count, and visible rows agree.

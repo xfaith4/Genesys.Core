@@ -641,6 +641,23 @@ Check 'WB-06' 'Reporting module defines explicit population report and conversat
     $reportingContent -match "ReportType\s*=\s*'ConversationDossier'"
 }
 
+Check 'WB-07' 'Analyzer validates Core run artifact contract before DB import' {
+    $dbContent -match 'function Test-CoreRunArtifactContract' -and
+    $dbContent -match 'Core artifact contract count mismatch' -and
+    $dbContent -match 'Missing required conversationId' -and
+    $dbContent -match 'Invalid JSONL record' -and
+    $dbContent -match 'Test-CoreRunArtifactContract -RunFolder \$RunFolder -ThrowOnError'
+}
+
+Check 'WB-08' 'Analyzer smoke tests generate and consume a Core-produced conversation fixture' {
+    $smokeContent = ReadFile 'tests\Invoke-SmokeTests.ps1'
+    $smokeContent -match 'function New-CoreConversationRunFixture' -and
+    $smokeContent -match 'Invoke-Dataset' -and
+    $smokeContent -match 'Test-CoreRunArtifactContract' -and
+    $smokeContent -match 'Build-RunIndex -RunFolder \$coreRunFolder' -and
+    $smokeContent -match 'Import-RunFolderToCase -CaseId \$caseId -RunFolder \$coreRunFolder'
+}
+
 # ── SUMMARY ────────────────────────────────────────────────────────────────────
 
 Write-Host "`n============================================" -ForegroundColor Cyan

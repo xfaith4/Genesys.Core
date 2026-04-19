@@ -19,10 +19,13 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Conversation display investigation | complete | Traced API run completion through output folder discovery, config path resolution, async job polling, indexing, and grid display. |
 | Conversation display fix | complete | Patched path resolution, run-folder selection, and async terminal-state handling; parser/tests/diff checks passed. |
 | Product-purpose reorientation P0/P1 foundation | complete | Implemented canonical filter state, full-filtered-set DB reports, SQL-backed column filtering, canonical raw JSON drilldown, lineage, derived analysis columns, bridge tables, analytics helpers, tests, saved-view restore, and README updates. |
+| Core contract fixture hardening | complete | Added real Core-output fixture validation, tightened importer contract checks/reconciliation, improved Analyzer/Core alignment, documented the contract gate, and ran feasible fixture/runtime tests. |
 
 ## Current Task Scope
 
 User goal: move ConversationAnalyser from a page-row viewer toward a Core-backed investigation workbench with trustworthy full-population analysis, faithful drilldown, provenance, and analytical schema support.
+
+Current user goal: use readiness findings to test against real/Core-shaped output fixtures and harden the Analyzer/Core contract so imported Core conversations display reliably in the UI.
 
 Execution strategy:
 1. P0 correctness first: canonical filter object, DB report/page independence, SQL-backed column filters, raw JSON drilldown, import lineage.

@@ -51,3 +51,13 @@
 - Final verification after saved-view restore and line-ending cleanup: `Invoke-AllTests.ps1` passed 222 PASS / 0 FAIL / 1 SKIP; DB runtime smoke remains skipped because native `e_sqlite3` is absent in this WSL environment. `git diff --check` is clean on touched files.
 
 - Completed the product-purpose reorientation foundation phase in `task_plan.md`. Saved-view restore is now wired by double-clicking a saved view in Case Manager, applying its canonical filter state and refreshing the grid from that exact scope.
+
+- Started Core contract fixture hardening phase. Session catchup script reported Codex session parsing is not implemented, so current plan/findings/progress plus git state are the source of continuity.
+
+- Added Analyzer Core contract validation: manifest/summary identity checks, expected count reconciliation, JSONL parse checks, required conversationId validation, and pre-import/post-import enforcement. Added smoke fixture generation using `Genesys.Core Invoke-Dataset` with a mocked request invoker.
+
+- Ran `Invoke-SmokeTests.ps1`: Core-produced fixture tests passed (`SMK-09A/B/C`); DB runtime section still skipped due missing native `e_sqlite3`.
+
+- Ran full `apps/ConversationAnalyser/tests/Invoke-AllTests.ps1`: 228 PASS / 0 FAIL / 1 SKIP. The new Core-generated fixture tests pass; DB runtime still skips in WSL due missing native `e_sqlite3`.
+
+- Cleaned importer doc line endings, reran parser checks for touched PowerShell files, and reran scoped `git diff --check`; both passed. Marked Core contract fixture hardening complete in `task_plan.md`.

@@ -28,6 +28,7 @@ User goal: move ConversationAnalyser from a page-row viewer toward a Core-backed
 Current user goal: use readiness findings to test against real/Core-shaped output fixtures and harden the Analyzer/Core contract so imported Core conversations display reliably in the UI.
 
 Execution strategy:
+
 1. P0 correctness first: canonical filter object, DB report/page independence, SQL-backed column filters, raw JSON drilldown, import lineage.
 2. P1 database foundation next: derived columns, many-to-many bridge tables, analytics query helpers for summaries/facets/representatives.
 3. P2 UI/report/documentation where feasible in this turn: scope bar/population summary/representative path and README purpose update.

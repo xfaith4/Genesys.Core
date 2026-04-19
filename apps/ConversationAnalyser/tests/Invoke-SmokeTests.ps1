@@ -334,6 +334,122 @@ try {
             $finding = Get-Findings -CaseId $caseId | Where-Object { $_.finding_id -eq $findingId } | Select-Object -First 1
             ($finding.status -eq 'closed') -and ($finding.summary -eq 'Original summary')
         }
+
+        SmokeCheck 'SMK-14' 'DB population reports are independent of page changes' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $filter = [pscustomobject]@{
+                StartDateTimeUtc = '2026-03-01T00:00:00Z'
+                EndDateTimeUtc   = '2026-03-01T23:59:59Z'
+                Direction        = 'inbound'
+                MediaType        = 'voice'
+                QueueText        = 'Support'
+                ConversationId   = ''
+                SearchText       = ''
+                DisconnectType   = ''
+                AgentName        = ''
+                Ani              = ''
+                DivisionId       = ''
+                ColumnFilters    = @{}
+                SortBy           = 'conversation_start'
+                SortDirection    = 'ASC'
+            }
+            $page1 = @(Get-ConversationsPage -CaseId $caseId -FilterState $filter -PageNumber 1 -PageSize 1)
+            $page2 = @(Get-ConversationsPage -CaseId $caseId -FilterState $filter -PageNumber 2 -PageSize 1)
+            $rowsA = @(Get-ConversationPopulationRows -CaseId $caseId -FilterState $filter)
+            $rowsB = @(Get-ConversationPopulationRows -CaseId $caseId -FilterState $filter)
+            $reportA = New-PopulationReport -Rows $rowsA -FilterState $filter -Summary (Get-ConversationPopulationSummary -CaseId $caseId -FilterState $filter)
+            $reportB = New-PopulationReport -Rows $rowsB -FilterState $filter -Summary (Get-ConversationPopulationSummary -CaseId $caseId -FilterState $filter)
+            ($page1.Count -eq 1) -and ($page2.Count -eq 1) -and
+            ($reportA.TotalConversations -eq 2) -and ($reportB.TotalConversations -eq 2)
+        }
+
+        SmokeCheck 'SMK-15' 'SQL-backed column filters keep counts and pages aligned' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $filter = [pscustomobject]@{
+                StartDateTimeUtc = ''
+                EndDateTimeUtc   = ''
+                Direction        = ''
+                MediaType        = ''
+                QueueText        = ''
+                ConversationId   = ''
+                SearchText       = ''
+                DisconnectType   = ''
+                AgentName        = ''
+                Ani              = ''
+                DivisionId       = ''
+                ColumnFilters    = @{ Queue = 'Support' }
+                SortBy           = 'conversation_start'
+                SortDirection    = 'ASC'
+            }
+            $count = Get-ConversationCount -CaseId $caseId -FilterState $filter
+            $page = @(Get-ConversationsPage -CaseId $caseId -FilterState $filter -PageNumber 1 -PageSize 10)
+            ($count -eq 2) -and ($page.Count -eq 2) -and (@($page | Where-Object { $_.queue_name -ne 'Support' }).Count -eq 0)
+        }
+
+        SmokeCheck 'SMK-16' 'DB drilldown source row stores canonical raw JSON' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $row = Get-ConversationById -CaseId $caseId -ConversationId 'conv-001'
+            $raw = $row.raw_json | ConvertFrom-Json
+            ($raw.conversationId -eq 'conv-001') -and (-not [string]::IsNullOrWhiteSpace([string]$row.payload_hash))
+        }
+
+        SmokeCheck 'SMK-17' 'Reimports preserve conversation lineage versions' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $versions = @(Get-ConversationVersions -CaseId $caseId -ConversationId 'conv-001')
+            ($versions.Count -ge 2) -and (@($versions | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.payload_hash) }).Count -eq 0)
+        }
+
+        SmokeCheck 'SMK-18' 'Saved views can restore identical filter state and result count' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $filter = [pscustomobject]@{
+                StartDateTimeUtc = ''
+                EndDateTimeUtc   = ''
+                Direction        = ''
+                MediaType        = ''
+                QueueText        = 'Billing'
+                ConversationId   = ''
+                SearchText       = ''
+                DisconnectType   = ''
+                AgentName        = ''
+                Ani              = ''
+                DivisionId       = 'division-a'
+                ColumnFilters    = @{}
+                SortBy           = 'conversation_start'
+                SortDirection    = 'DESC'
+            }
+            $expected = Get-ConversationCount -CaseId $caseId -FilterState $filter
+            New-SavedView -CaseId $caseId -Name 'Billing division view' -ViewDefinition ([pscustomobject]@{ canonical_filter = $filter }) | Out-Null
+            $saved = Get-SavedViews -CaseId $caseId | Where-Object { $_.name -eq 'Billing division view' } | Select-Object -First 1
+            $restored = ($saved.filters_json | ConvertFrom-Json).canonical_filter
+            $actual = Get-ConversationCount -CaseId $caseId -FilterState $restored
+            ($expected -eq 1) -and ($actual -eq $expected)
+        }
+
+        SmokeCheck 'SMK-19' 'Core DB analytics helpers stay responsive on warm smoke data' {
+            $caseId = (Get-Cases | Select-Object -First 1).case_id
+            $filter = [pscustomobject]@{
+                StartDateTimeUtc = ''
+                EndDateTimeUtc   = ''
+                Direction        = ''
+                MediaType        = ''
+                QueueText        = ''
+                ConversationId   = ''
+                SearchText       = ''
+                DisconnectType   = ''
+                AgentName        = ''
+                Ani              = ''
+                DivisionId       = ''
+                ColumnFilters    = @{}
+                SortBy           = 'conversation_start'
+                SortDirection    = 'DESC'
+            }
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $count = Get-ConversationCount -CaseId $caseId -FilterState $filter
+            $page = @(Get-ConversationsPage -CaseId $caseId -FilterState $filter -PageNumber 1 -PageSize 50)
+            $summary = Get-ConversationPopulationSummary -CaseId $caseId -FilterState $filter
+            $sw.Stop()
+            ($count -eq 3) -and ($page.Count -eq 3) -and ($summary.total_conversations -eq 3) -and ($sw.ElapsedMilliseconds -lt 1000)
+        }
     }
 } finally {
     if ($null -ne $oldLocalAppData) {

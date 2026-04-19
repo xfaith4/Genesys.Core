@@ -14,13 +14,14 @@ Set-StrictMode -Version Latest
 #   2. SQLITE_DLL environment variable
 #   3. .\lib\System.Data.SQLite.dll  (repo-relative default)
 #
-# Schema version: 2
-# Reserved future tables (not created here): participants, segments
+# Schema version: 10
+# Conversation detail is stored as canonical raw JSON plus flattened and
+# normalized analytical dimensions. App.Database.psm1 owns all SQLite access.
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 9
+$script:SchemaVersion = 10
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -181,6 +182,280 @@ function _ToJsonOrNull {
     }
 }
 
+function _GetSha256Hex {
+    param([string]$Text)
+    if ($null -eq $Text) { $Text = '' }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        $hash  = $sha.ComputeHash($bytes)
+        return (($hash | ForEach-Object { $_.ToString('x2') }) -join '')
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function _TryParseDateUtc {
+    param([object]$Value)
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return $null }
+    try { return ([datetime]::Parse([string]$Value)).ToUniversalTime() } catch { return $null }
+}
+
+function _GetDurationSeconds {
+    param([object]$Start, [object]$End)
+    $s = _TryParseDateUtc $Start
+    $e = _TryParseDateUtc $End
+    if ($null -eq $s -or $null -eq $e -or $e -lt $s) { return 0 }
+    return [int][Math]::Round(($e - $s).TotalSeconds)
+}
+
+function _AddDistinctString {
+    param(
+        [System.Collections.Generic.List[string]]$List,
+        [object]$Value
+    )
+    if ($null -eq $Value) { return }
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+    if (-not ($List -contains $text)) { $List.Add($text) | Out-Null }
+}
+
+function _NewBridgeList {
+    return (New-Object System.Collections.Generic.List[object])
+}
+
+function _NormalizeFilterState {
+    <#
+    .SYNOPSIS
+        Returns the canonical conversation filter object used by SQL counts,
+        pages, population reports, saved views, and exports.
+    #>
+    param(
+        [object]$FilterState = $null,
+        [string]$StartDateTimeUtc = '',
+        [string]$EndDateTimeUtc = '',
+        [string]$Direction = '',
+        [string]$MediaType = '',
+        [string]$QueueText = '',
+        [string]$ConversationId = '',
+        [string]$SearchText = '',
+        [string]$DisconnectType = '',
+        [string]$AgentName = '',
+        [string]$Ani = '',
+        [string]$DivisionId = '',
+        [hashtable]$ColumnFilters = @{},
+        [string]$SortBy = 'conversation_start',
+        [string]$SortDirection = 'DESC'
+    )
+
+    $read = {
+        param([string]$Name, $Default = '')
+        if ($null -eq $FilterState) { return $Default }
+        if ($FilterState -is [hashtable] -and $FilterState.ContainsKey($Name)) {
+            $v = $FilterState[$Name]
+        } else {
+            $prop = $FilterState.PSObject.Properties[$Name]
+            $v = if ($null -ne $prop) { $prop.Value } else { $null }
+        }
+        if ($null -eq $v) { return $Default }
+        return $v
+    }
+
+    $cols = (& $read 'ColumnFilters' $ColumnFilters)
+    if ($null -eq $cols) { $cols = @{} }
+    if (-not ($cols -is [hashtable])) {
+        $ht = @{}
+        foreach ($p in $cols.PSObject.Properties) { $ht[$p.Name] = [string]$p.Value }
+        $cols = $ht
+    }
+
+    $sortDir = [string](& $read 'SortDirection' $SortDirection)
+    if ([string]::IsNullOrWhiteSpace($sortDir)) { $sortDir = $SortDirection }
+    $sortDir = $sortDir.ToUpperInvariant()
+    if ($sortDir -notin @('ASC','DESC')) { $sortDir = 'DESC' }
+
+    return [pscustomobject][ordered]@{
+        StartDateTimeUtc = [string](& $read 'StartDateTimeUtc' $StartDateTimeUtc)
+        EndDateTimeUtc   = [string](& $read 'EndDateTimeUtc'   $EndDateTimeUtc)
+        Direction        = [string](& $read 'Direction'        $Direction)
+        MediaType        = [string](& $read 'MediaType'        $MediaType)
+        QueueText        = [string](& $read 'QueueText'        $QueueText)
+        ConversationId   = [string](& $read 'ConversationId'   $ConversationId)
+        SearchText       = [string](& $read 'SearchText'       $SearchText)
+        DisconnectType   = [string](& $read 'DisconnectType'   $DisconnectType)
+        AgentName        = [string](& $read 'AgentName'        $AgentName)
+        Ani              = [string](& $read 'Ani'              $Ani)
+        DivisionId       = [string](& $read 'DivisionId'       $DivisionId)
+        ColumnFilters    = $cols
+        SortBy           = [string](& $read 'SortBy'           $SortBy)
+        SortDirection    = $sortDir
+    }
+}
+
+function _GetConversationSortClause {
+    param(
+        [string]$SortBy = 'conversation_start',
+        [string]$SortDirection = 'DESC'
+    )
+
+    $allowedCols = @{
+        conversation_id = 'conversation_id'
+        direction = 'direction'
+        media_type = 'media_type'
+        queue_name = 'queue_name'
+        disconnect_type = 'disconnect_type'
+        duration_sec = 'duration_sec'
+        has_hold = 'has_hold'
+        has_mos = 'has_mos'
+        segment_count = 'segment_count'
+        participant_count = 'participant_count'
+        conversation_start = 'conversation_start'
+        agent_names = 'agent_names'
+        ani = 'ani'
+        imported_utc = 'imported_utc'
+        newest = 'conversation_start'
+        oldest = 'conversation_start'
+        longest_duration = 'duration_sec'
+        highest_transfer_count = 'transfer_count'
+        longest_hold = 'hold_duration_sec'
+        lowest_mos = 'mos_min'
+        highest_risk_score = 'risk_score'
+        conversation_signature_frequency = 'signature_frequency'
+        repeated_ani_frequency = 'ani_frequency'
+        risk_score = 'risk_score'
+        transfer_count = 'transfer_count'
+        hold_duration_sec = 'hold_duration_sec'
+        mos_min = 'mos_min'
+        conversation_signature = 'conversation_signature'
+    }
+    $displayMap = @{
+        ConversationId = 'conversation_id'
+        Direction = 'direction'
+        MediaType = 'media_type'
+        Queue = 'queue_name'
+        AgentNames = 'agent_names'
+        DurationSec = 'duration_sec'
+        Disconnect = 'disconnect_type'
+        HasHold = 'has_hold'
+        HasMos = 'has_mos'
+        SegmentCount = 'segment_count'
+        ParticipantCount = 'participant_count'
+        ConversationStart = 'conversation_start'
+        RiskScore = 'risk_score'
+        TransferCount = 'transfer_count'
+        HoldDurationSec = 'hold_duration_sec'
+        MosMin = 'mos_min'
+    }
+
+    if ($displayMap.ContainsKey($SortBy)) { $SortBy = $displayMap[$SortBy] }
+    if (-not $allowedCols.ContainsKey($SortBy)) { $SortBy = 'conversation_start' }
+
+    $col = $allowedCols[$SortBy]
+    $dir = if ([string]$SortDirection -and ([string]$SortDirection).ToUpperInvariant() -eq 'ASC') { 'ASC' } else { 'DESC' }
+    if ($SortBy -eq 'oldest') { $dir = 'ASC' }
+    if ($SortBy -eq 'newest') { $dir = 'DESC' }
+    if ($SortBy -eq 'lowest_mos') { $dir = 'ASC' }
+
+    if ($col -eq 'signature_frequency') {
+        return "(SELECT COUNT(*) FROM conversations c2 WHERE c2.case_id = conversations.case_id AND c2.conversation_signature = conversations.conversation_signature) $dir, conversation_start DESC"
+    }
+    if ($col -eq 'ani_frequency') {
+        return "(SELECT COUNT(*) FROM conversations c2 WHERE c2.case_id = conversations.case_id AND c2.ani = conversations.ani AND c2.ani <> '') $dir, conversation_start DESC"
+    }
+    return "$col $dir, conversation_id ASC"
+}
+
+function _GetConversationWhereClause {
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null,
+        [string]$Direction = '',
+        [string]$MediaType = '',
+        [string]$Queue = '',
+        [string]$SearchText = '',
+        [string]$DisconnectType = '',
+        [string]$AgentName = '',
+        [string]$Ani = '',
+        [string]$DivisionId = '',
+        [string]$ConversationId = '',
+        [string]$StartDateTime = '',
+        [string]$EndDateTime = '',
+        [hashtable]$ColumnFilters = @{}
+    )
+
+    $f = _NormalizeFilterState `
+        -FilterState $FilterState `
+        -StartDateTimeUtc $StartDateTime `
+        -EndDateTimeUtc $EndDateTime `
+        -Direction $Direction `
+        -MediaType $MediaType `
+        -QueueText $Queue `
+        -ConversationId $ConversationId `
+        -SearchText $SearchText `
+        -DisconnectType $DisconnectType `
+        -AgentName $AgentName `
+        -Ani $Ani `
+        -DivisionId $DivisionId `
+        -ColumnFilters $ColumnFilters
+
+    $where = 'case_id = @cid'
+    $p = @{ '@cid' = $CaseId }
+
+    if ($f.Direction)      { $where += ' AND direction = @dir'; $p['@dir'] = $f.Direction }
+    if ($f.MediaType)      { $where += ' AND media_type = @media'; $p['@media'] = $f.MediaType }
+    if ($f.QueueText)      { $where += ' AND (queue_name LIKE @queue OR primary_queue LIKE @queue OR final_queue LIKE @queue)'; $p['@queue'] = "%$($f.QueueText)%" }
+    if ($f.ConversationId) { $where += ' AND conversation_id = @convId'; $p['@convId'] = $f.ConversationId }
+    if ($f.SearchText)     { $where += ' AND (conversation_id LIKE @srch OR queue_name LIKE @srch OR agent_names LIKE @srch OR ani LIKE @srch OR dnis LIKE @srch OR conversation_signature LIKE @srch)'; $p['@srch'] = "%$($f.SearchText)%" }
+    if ($f.DisconnectType) { $where += ' AND disconnect_type = @disc'; $p['@disc'] = $f.DisconnectType }
+    if ($f.AgentName)      { $where += ' AND agent_names LIKE @agent'; $p['@agent'] = "%$($f.AgentName)%" }
+    if ($f.Ani)            { $where += ' AND ani LIKE @ani'; $p['@ani'] = "%$($f.Ani)%" }
+    if ($f.DivisionId)     { $where += ' AND division_ids LIKE @divid'; $p['@divid'] = "%$($f.DivisionId)%" }
+    if ($f.StartDateTimeUtc) { $where += ' AND conversation_start >= @startDt'; $p['@startDt'] = $f.StartDateTimeUtc }
+    if ($f.EndDateTimeUtc)   { $where += ' AND conversation_start <= @endDt'; $p['@endDt'] = $f.EndDateTimeUtc }
+
+    $colMap = @{
+        ConversationId = 'conversation_id'
+        Direction = 'direction'
+        MediaType = 'media_type'
+        Queue = 'queue_name'
+        AgentNames = 'agent_names'
+        DurationSec = 'duration_sec'
+        Disconnect = 'disconnect_type'
+        HasHold = 'has_hold'
+        HasMos = 'has_mos'
+        SegmentCount = 'segment_count'
+        ParticipantCount = 'participant_count'
+        Ani = 'ani'
+        Dnis = 'dnis'
+        ConversationStart = 'conversation_start'
+        PrimaryQueue = 'primary_queue'
+        FinalQueue = 'final_queue'
+        TransferCount = 'transfer_count'
+        HoldDurationSec = 'hold_duration_sec'
+        MosMin = 'mos_min'
+        RiskScore = 'risk_score'
+        ConversationSignature = 'conversation_signature'
+        WrapupCode = 'wrapup_code'
+        WrapupName = 'wrapup_name'
+    }
+    $i = 0
+    foreach ($key in @($f.ColumnFilters.Keys)) {
+        $val = [string]$f.ColumnFilters[$key]
+        if ([string]::IsNullOrWhiteSpace($val)) { continue }
+        if (-not $colMap.ContainsKey($key)) { continue }
+        $paramName = "@cf$i"
+        $where += " AND CAST($($colMap[$key]) AS TEXT) LIKE $paramName"
+        $p[$paramName] = "%$val%"
+        $i++
+    }
+
+    return [pscustomobject]@{
+        Where = $where
+        Parameters = $p
+        FilterState = $f
+    }
+}
+
 function _ReadJsonFile {
     param([string]$Path)
     if (-not [System.IO.File]::Exists($Path)) { return $null }
@@ -338,6 +613,8 @@ function _ConvertConversationRecordToStoreRow {
     $convId = [string](_ObjVal $Record @('conversationId') '')
     if ([string]::IsNullOrWhiteSpace($convId)) { return $null }
 
+    $rawJson      = _ToJsonOrNull -Value $Record
+    $payloadHash  = _GetSha256Hex -Text $rawJson
     $direction    = ''
     $mediaType    = ''
     $queue        = ''
@@ -349,8 +626,34 @@ function _ConvertConversationRecordToStoreRow {
     $durationSec  = 0
     $ani          = ''
     $dnis         = ''
+
     $agentIds     = New-Object System.Collections.Generic.List[string]
+    $agentNames   = New-Object System.Collections.Generic.List[string]
+    $queueNames   = New-Object System.Collections.Generic.List[string]
+    $flowIds      = New-Object System.Collections.Generic.List[string]
+    $flowNames    = New-Object System.Collections.Generic.List[string]
+    $wrapupCodes  = New-Object System.Collections.Generic.List[string]
+    $wrapupNames  = New-Object System.Collections.Generic.List[string]
+    $mosValues    = New-Object System.Collections.Generic.List[double]
     $divIdSet     = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
+
+    $agentBridge  = _NewBridgeList
+    $queueBridge  = _NewBridgeList
+    $divBridge    = _NewBridgeList
+    $flowBridge   = _NewBridgeList
+    $wrapBridge   = _NewBridgeList
+
+    $transferCount = 0
+    $blindTransferCount = 0
+    $consultTransferCount = 0
+    $holdCount = 0
+    $holdDurationSec = 0
+    $externalContactPresent = $false
+    $customerDisconnect = $false
+    $agentDisconnect = $false
+    $acdDisconnect = $false
+    $containsCallback = $false
+    $containsVoicemail = $false
 
     if ($Record.PSObject.Properties['participants']) {
         $participants = @($Record.participants)
@@ -360,13 +663,29 @@ function _ConvertConversationRecordToStoreRow {
             $isCustomer = ($purpose -eq 'customer')
             $isAgent    = ($purpose -eq 'agent')
             if ($isAgent -and $p.PSObject.Properties['userId'] -and $p.userId) {
-                $agentIds.Add([string]$p.userId) | Out-Null
+                _AddDistinctString -List $agentIds -Value $p.userId
+                $agentName = [string](_ObjVal $p @('name','userName') '')
+                _AddDistinctString -List $agentNames -Value $(if ($agentName) { $agentName } else { $p.userId })
+                $agentBridge.Add([pscustomobject]@{
+                    user_id = [string]$p.userId
+                    user_name = $agentName
+                    purpose = $purpose
+                }) | Out-Null
+            }
+            if ($p.PSObject.Properties['divisionId'] -and $p.divisionId) {
+                $divIdSet.Add([string]$p.divisionId) | Out-Null
+                $divBridge.Add([pscustomobject]@{ division_id = [string]$p.divisionId; source = 'participant' }) | Out-Null
+            }
+            if ($p.PSObject.Properties['externalContactId'] -and $p.externalContactId) {
+                $externalContactPresent = $true
             }
             if (-not $p.PSObject.Properties['sessions']) { continue }
             foreach ($s in @($p.sessions)) {
                 if (-not $mediaType -and $s.PSObject.Properties['mediaType']) {
                     $mediaType = [string]$s.mediaType
                 }
+                if ($s.PSObject.Properties['mediaType'] -and [string]$s.mediaType -match 'callback') { $containsCallback = $true }
+                if ($s.PSObject.Properties['mediaType'] -and [string]$s.mediaType -match 'voicemail') { $containsVoicemail = $true }
                 if ($isCustomer -and -not $direction -and $s.PSObject.Properties['direction']) {
                     $direction = [string]$s.direction
                 }
@@ -379,21 +698,75 @@ function _ConvertConversationRecordToStoreRow {
                         if ($m.PSObject.Properties['name'] -and
                             ($m.name -like '*mos*' -or $m.name -like '*Mos*')) {
                             $hasMos = $true
+                            foreach ($prop in $m.PSObject.Properties) {
+                                if ($prop.Value -is [double] -or $prop.Value -is [int] -or $prop.Value -is [long] -or $prop.Value -is [decimal]) {
+                                    $mosValues.Add([double]$prop.Value) | Out-Null
+                                }
+                            }
+                            if ($m.PSObject.Properties['stats'] -and $null -ne $m.stats) {
+                                foreach ($sp in $m.stats.PSObject.Properties) {
+                                    if ($sp.Value -is [double] -or $sp.Value -is [int] -or $sp.Value -is [long] -or $sp.Value -is [decimal]) {
+                                        $mosValues.Add([double]$sp.Value) | Out-Null
+                                    }
+                                }
+                            }
                         }
                     }
+                }
+                if ($s.PSObject.Properties['flow'] -and $null -ne $s.flow) {
+                    $fid = [string](_ObjVal $s.flow @('id','flowId') '')
+                    $fname = [string](_ObjVal $s.flow @('name','flowName') '')
+                    _AddDistinctString -List $flowIds -Value $fid
+                    _AddDistinctString -List $flowNames -Value $fname
+                    if ($fid -or $fname) { $flowBridge.Add([pscustomobject]@{ flow_id = $fid; flow_name = $fname }) | Out-Null }
                 }
                 if (-not $s.PSObject.Properties['segments']) { continue }
                 foreach ($seg in @($s.segments)) {
                     $segmentCount++
-                    if ($seg.PSObject.Properties['segmentType'] -and $seg.segmentType -eq 'hold') {
+                    $segType = if ($seg.PSObject.Properties['segmentType']) { [string]$seg.segmentType } else { '' }
+                    if ($segType -eq 'hold') {
                         $hasHold = $true
+                        $holdCount++
+                        $holdDurationSec += _GetDurationSeconds -Start (_ObjVal $seg @('segmentStart') $null) -End (_ObjVal $seg @('segmentEnd') $null)
+                    }
+                    if ($segType -match 'transfer') {
+                        $transferCount++
+                        if ($segType -match 'blind') { $blindTransferCount++ }
+                        if ($segType -match 'consult') { $consultTransferCount++ }
                     }
                     if (-not $disconnect -and $seg.PSObject.Properties['disconnectType']) {
                         $disconnect = [string]$seg.disconnectType
                     }
+                    if ($seg.PSObject.Properties['disconnectType'] -and $seg.disconnectType) {
+                        $disc = [string]$seg.disconnectType
+                        if ($isCustomer -or $disc -match 'client|customer|peer') { $customerDisconnect = $true }
+                        if ($isAgent -or $disc -match 'agent|endpoint') { $agentDisconnect = $true }
+                        if ($disc -match 'acd|system|transfer') { $acdDisconnect = $true }
+                    }
                     if (-not $queue -and $seg.PSObject.Properties['queueName']) {
                         $queue = [string]$seg.queueName
                     }
+                    $qid = [string](_ObjVal $seg @('queueId') '')
+                    $qname = [string](_ObjVal $seg @('queueName') '')
+                    _AddDistinctString -List $queueNames -Value $qname
+                    if ($qid -or $qname) {
+                        $queueBridge.Add([pscustomobject]@{ queue_id = $qid; queue_name = $qname; purpose = $purpose }) | Out-Null
+                    }
+                    $fid = [string](_ObjVal $seg @('flowId') '')
+                    $fname = [string](_ObjVal $seg @('flowName') '')
+                    _AddDistinctString -List $flowIds -Value $fid
+                    _AddDistinctString -List $flowNames -Value $fname
+                    if ($fid -or $fname) { $flowBridge.Add([pscustomobject]@{ flow_id = $fid; flow_name = $fname }) | Out-Null }
+
+                    $wcode = [string](_ObjVal $seg @('wrapUpCode','wrapupCode','wrapupCodeId') '')
+                    $wname = [string](_ObjVal $seg @('wrapUpCodeName','wrapupCodeName','wrapupName') '')
+                    _AddDistinctString -List $wrapupCodes -Value $wcode
+                    _AddDistinctString -List $wrapupNames -Value $wname
+                    if ($wcode -or $wname) {
+                        $wrapBridge.Add([pscustomobject]@{ wrapup_code = $wcode; wrapup_name = $wname }) | Out-Null
+                    }
+                    if (($seg | ConvertTo-Json -Compress -Depth 8) -match 'callback') { $containsCallback = $true }
+                    if (($seg | ConvertTo-Json -Compress -Depth 8) -match 'voicemail') { $containsVoicemail = $true }
                 }
             }
         }
@@ -402,7 +775,10 @@ function _ConvertConversationRecordToStoreRow {
     # Division IDs from top-level divisionIds array
     if ($Record.PSObject.Properties['divisionIds'] -and $null -ne $Record.divisionIds) {
         foreach ($d in @($Record.divisionIds)) {
-            if ($d) { $divIdSet.Add([string]$d) | Out-Null }
+            if ($d) {
+                $divIdSet.Add([string]$d) | Out-Null
+                $divBridge.Add([pscustomobject]@{ division_id = [string]$d; source = 'top_level' }) | Out-Null
+            }
         }
     }
 
@@ -414,6 +790,37 @@ function _ConvertConversationRecordToStoreRow {
             $durationSec = [int]($e - $s).TotalSeconds
         } catch { }
     }
+
+    $primaryQueue = if ($queueNames.Count -gt 0) { $queueNames[0] } else { $queue }
+    $finalQueue   = if ($queueNames.Count -gt 0) { $queueNames[$queueNames.Count - 1] } else { $queue }
+    $mosMin = $null
+    $mosMax = $null
+    $mosAvg = $null
+    if ($mosValues.Count -gt 0) {
+        $mosMin = [double]($mosValues | Measure-Object -Minimum).Minimum
+        $mosMax = [double]($mosValues | Measure-Object -Maximum).Maximum
+        $mosAvg = [double]($mosValues | Measure-Object -Average).Average
+    }
+    $wrapupCode = if ($wrapupCodes.Count -gt 0) { $wrapupCodes[0] } else { '' }
+    $wrapupName = if ($wrapupNames.Count -gt 0) { $wrapupNames[0] } else { '' }
+    $flowId = if ($flowIds.Count -gt 0) { $flowIds[0] } else { '' }
+    $flowName = if ($flowNames.Count -gt 0) { $flowNames[0] } else { '' }
+    $signature = (@($direction, $mediaType, $primaryQueue, $finalQueue, $transferCount, $disconnect, $wrapupCode) | ForEach-Object { [string]$_ }) -join '|'
+    $flags = New-Object System.Collections.Generic.List[string]
+    if ($transferCount -ge 2) { $flags.Add('multi_transfer') | Out-Null }
+    if ($holdDurationSec -ge 300) { $flags.Add('long_hold') | Out-Null }
+    if ($hasMos -and $null -ne $mosMin -and $mosMin -lt 3.5) { $flags.Add('low_mos') | Out-Null }
+    if (-not $primaryQueue) { $flags.Add('missing_queue') | Out-Null }
+    if ($agentIds.Count -eq 0) { $flags.Add('missing_agent') | Out-Null }
+    if ($customerDisconnect) { $flags.Add('customer_disconnect') | Out-Null }
+    if ($acdDisconnect) { $flags.Add('acd_disconnect') | Out-Null }
+    $riskScore = 0
+    $riskScore += [Math]::Min(30, $transferCount * 10)
+    if ($holdDurationSec -gt 0) { $riskScore += [Math]::Min(25, [int]($holdDurationSec / 60)) }
+    if ($hasMos -and $null -ne $mosMin -and $mosMin -lt 3.5) { $riskScore += 25 }
+    if ($customerDisconnect) { $riskScore += 10 }
+    if ($acdDisconnect) { $riskScore += 10 }
+    if ($riskScore -gt 100) { $riskScore = 100 }
 
     return [pscustomobject]@{
         conversation_id    = $convId
@@ -430,12 +837,131 @@ function _ConvertConversationRecordToStoreRow {
         conversation_end   = [string](_ObjVal $Record @('conversationEnd') '')
         participants_json  = if ($Record.PSObject.Properties['participants']) { _ToJsonOrNull -Value $Record.participants } else { $null }
         attributes_json    = if ($Record.PSObject.Properties['attributes'])   { _ToJsonOrNull -Value $Record.attributes   } else { $null }
+        raw_json           = $rawJson
+        payload_hash       = $payloadHash
         source_file        = $RelativePath
         source_offset      = $ByteOffset
-        agent_names        = ($agentIds | Select-Object -Unique) -join '|'
+        agent_names        = if ($agentNames.Count -gt 0) { ($agentNames | Select-Object -Unique) -join '|' } else { ($agentIds | Select-Object -Unique) -join '|' }
         division_ids       = ($divIdSet.GetEnumerator() | ForEach-Object { $_ }) -join '|'
         ani                = $ani
         dnis               = $dnis
+        primary_queue      = $primaryQueue
+        final_queue        = $finalQueue
+        queue_count        = @($queueNames | Select-Object -Unique).Count
+        agent_count        = @($agentIds | Select-Object -Unique).Count
+        transfer_count     = $transferCount
+        blind_transfer_count = $blindTransferCount
+        consult_transfer_count = $consultTransferCount
+        hold_count         = $holdCount
+        hold_duration_sec  = $holdDurationSec
+        mos_min            = $mosMin
+        mos_max            = $mosMax
+        mos_avg            = $mosAvg
+        wrapup_code        = $wrapupCode
+        wrapup_name        = $wrapupName
+        flow_id            = $flowId
+        flow_name          = $flowName
+        external_contact_present = $externalContactPresent
+        customer_disconnect = $customerDisconnect
+        agent_disconnect   = $agentDisconnect
+        acd_disconnect     = $acdDisconnect
+        contains_callback  = $containsCallback
+        contains_voicemail = $containsVoicemail
+        conversation_signature = $signature
+        anomaly_flags      = ($flags.ToArray() -join '|')
+        risk_score         = $riskScore
+        _bridge_agents     = $agentBridge.ToArray()
+        _bridge_queues     = $queueBridge.ToArray()
+        _bridge_divisions  = $divBridge.ToArray()
+        _bridge_flows      = $flowBridge.ToArray()
+        _bridge_wrapups    = $wrapBridge.ToArray()
+    }
+}
+
+function _WriteConversationLineageAndBridges {
+    param(
+        [Parameter(Mandatory)][System.Data.SQLite.SQLiteConnection]$Conn,
+        [Parameter(Mandatory)][string]$CaseId,
+        [Parameter(Mandatory)][string]$ImportId,
+        [Parameter(Mandatory)][string]$RunId,
+        [Parameter(Mandatory)][object]$Row,
+        [Parameter(Mandatory)][string]$ImportedUtc
+    )
+
+    $cvid = [string](_RowVal $Row 'conversation_id' '')
+    if ([string]::IsNullOrWhiteSpace($cvid)) { return }
+
+    _NonQuery -Conn $Conn -Sql @'
+INSERT INTO conversation_versions(
+    version_id, case_id, conversation_id, import_id, run_id,
+    source_file, source_offset, imported_utc, payload_hash, raw_json)
+VALUES(@vid, @cid, @cvid, @iid, @rid, @srcf, @srco, @now, @hash, @raw)
+'@ -P @{
+        '@vid'  = [System.Guid]::NewGuid().ToString()
+        '@cid'  = $CaseId
+        '@cvid' = $cvid
+        '@iid'  = $ImportId
+        '@rid'  = $RunId
+        '@srcf' = [string](_RowVal $Row 'source_file' '')
+        '@srco' = [long](_RowVal $Row 'source_offset' 0)
+        '@now'  = $ImportedUtc
+        '@hash' = [string](_RowVal $Row 'payload_hash' '')
+        '@raw'  = if (_RowVal $Row 'raw_json' $null) { [object](_RowVal $Row 'raw_json' '') } else { $null }
+    } | Out-Null
+
+    foreach ($tbl in @('conversation_agents','conversation_queues','conversation_divisions','conversation_flows','conversation_wrapups')) {
+        _NonQuery -Conn $Conn -Sql "DELETE FROM $tbl WHERE case_id = @cid AND conversation_id = @cvid" -P @{ '@cid' = $CaseId; '@cvid' = $cvid } | Out-Null
+    }
+
+    foreach ($a in @(_RowVal $Row '_bridge_agents' @())) {
+        _NonQuery -Conn $Conn -Sql @'
+INSERT OR IGNORE INTO conversation_agents(case_id, conversation_id, import_id, run_id, user_id, user_name, purpose, imported_utc)
+VALUES(@cid, @cvid, @iid, @rid, @uid, @uname, @purpose, @now)
+'@ -P @{
+            '@cid' = $CaseId; '@cvid' = $cvid; '@iid' = $ImportId; '@rid' = $RunId
+            '@uid' = [string](_RowVal $a 'user_id' ''); '@uname' = [string](_RowVal $a 'user_name' '')
+            '@purpose' = [string](_RowVal $a 'purpose' ''); '@now' = $ImportedUtc
+        } | Out-Null
+    }
+    foreach ($q in @(_RowVal $Row '_bridge_queues' @())) {
+        _NonQuery -Conn $Conn -Sql @'
+INSERT OR IGNORE INTO conversation_queues(case_id, conversation_id, import_id, run_id, queue_id, queue_name, purpose, imported_utc)
+VALUES(@cid, @cvid, @iid, @rid, @qid, @qname, @purpose, @now)
+'@ -P @{
+            '@cid' = $CaseId; '@cvid' = $cvid; '@iid' = $ImportId; '@rid' = $RunId
+            '@qid' = [string](_RowVal $q 'queue_id' ''); '@qname' = [string](_RowVal $q 'queue_name' '')
+            '@purpose' = [string](_RowVal $q 'purpose' ''); '@now' = $ImportedUtc
+        } | Out-Null
+    }
+    foreach ($d in @(_RowVal $Row '_bridge_divisions' @())) {
+        _NonQuery -Conn $Conn -Sql @'
+INSERT OR IGNORE INTO conversation_divisions(case_id, conversation_id, import_id, run_id, division_id, source, imported_utc)
+VALUES(@cid, @cvid, @iid, @rid, @did, @source, @now)
+'@ -P @{
+            '@cid' = $CaseId; '@cvid' = $cvid; '@iid' = $ImportId; '@rid' = $RunId
+            '@did' = [string](_RowVal $d 'division_id' ''); '@source' = [string](_RowVal $d 'source' '')
+            '@now' = $ImportedUtc
+        } | Out-Null
+    }
+    foreach ($f in @(_RowVal $Row '_bridge_flows' @())) {
+        _NonQuery -Conn $Conn -Sql @'
+INSERT OR IGNORE INTO conversation_flows(case_id, conversation_id, import_id, run_id, flow_id, flow_name, imported_utc)
+VALUES(@cid, @cvid, @iid, @rid, @fid, @fname, @now)
+'@ -P @{
+            '@cid' = $CaseId; '@cvid' = $cvid; '@iid' = $ImportId; '@rid' = $RunId
+            '@fid' = [string](_RowVal $f 'flow_id' ''); '@fname' = [string](_RowVal $f 'flow_name' '')
+            '@now' = $ImportedUtc
+        } | Out-Null
+    }
+    foreach ($w in @(_RowVal $Row '_bridge_wrapups' @())) {
+        _NonQuery -Conn $Conn -Sql @'
+INSERT OR IGNORE INTO conversation_wrapups(case_id, conversation_id, import_id, run_id, wrapup_code, wrapup_name, imported_utc)
+VALUES(@cid, @cvid, @iid, @rid, @wcode, @wname, @now)
+'@ -P @{
+            '@cid' = $CaseId; '@cvid' = $cvid; '@iid' = $ImportId; '@rid' = $RunId
+            '@wcode' = [string](_RowVal $w 'wrapup_code' ''); '@wname' = [string](_RowVal $w 'wrapup_name' '')
+            '@now' = $ImportedUtc
+        } | Out-Null
     }
 }
 
@@ -460,26 +986,44 @@ INSERT OR REPLACE INTO conversations
      direction, media_type, queue_name, disconnect_type,
      duration_sec, has_hold, has_mos, segment_count, participant_count,
      conversation_start, conversation_end,
-     participants_json, attributes_json,
+     participants_json, attributes_json, raw_json, payload_hash,
      source_file, source_offset, imported_utc,
-     agent_names, division_ids, ani, dnis)
+     agent_names, division_ids, ani, dnis,
+     primary_queue, final_queue, queue_count, agent_count,
+     transfer_count, blind_transfer_count, consult_transfer_count,
+     hold_count, hold_duration_sec, mos_min, mos_max, mos_avg,
+     wrapup_code, wrapup_name, flow_id, flow_name,
+     external_contact_present, customer_disconnect, agent_disconnect, acd_disconnect,
+     contains_callback, contains_voicemail, conversation_signature, anomaly_flags, risk_score)
 VALUES
     (@cvid, @cid, @iid, @rid,
      @dir, @media, @queue, @disc,
      @dur, @hold, @mos, @segs, @ptcnt,
      @start, @end,
-     @ptjson, @atjson,
+     @ptjson, @atjson, @rawjson, @hash,
      @srcf, @srco, @now,
-     @anames, @divids, @ani, @dnis)
+     @anames, @divids, @ani, @dnis,
+     @pqueue, @fqueue, @qcnt, @acnt,
+     @xcnt, @bxcnt, @cxcnt,
+     @hcnt, @hdur, @mosmin, @mosmax, @mosavg,
+     @wcode, @wname, @flowid, @flowname,
+     @extcontact, @custdisc, @agentdisc, @acddisc,
+     @callback, @voicemail, @signature, @flags, @risk)
 '@
 
     $pNames = '@cvid','@cid','@iid','@rid',
               '@dir','@media','@queue','@disc',
               '@dur','@hold','@mos','@segs','@ptcnt',
               '@start','@end',
-              '@ptjson','@atjson',
+              '@ptjson','@atjson','@rawjson','@hash',
               '@srcf','@srco','@now',
-              '@anames','@divids','@ani','@dnis'
+              '@anames','@divids','@ani','@dnis',
+              '@pqueue','@fqueue','@qcnt','@acnt',
+              '@xcnt','@bxcnt','@cxcnt',
+              '@hcnt','@hdur','@mosmin','@mosmax','@mosavg',
+              '@wcode','@wname','@flowid','@flowname',
+              '@extcontact','@custdisc','@agentdisc','@acddisc',
+              '@callback','@voicemail','@signature','@flags','@risk'
     $pMap = @{}
     foreach ($n in $pNames) {
         $p = $cmd.CreateParameter()
@@ -517,8 +1061,11 @@ VALUES
 
                 $ptj = _RowVal $row 'participants_json' $null
                 $atj = _RowVal $row 'attributes_json'   $null
+                $raw = _RowVal $row 'raw_json'           $null
                 $pMap['@ptjson'].Value = if ($null -ne $ptj) { [object]$ptj } else { [System.DBNull]::Value }
                 $pMap['@atjson'].Value = if ($null -ne $atj) { [object]$atj } else { [System.DBNull]::Value }
+                $pMap['@rawjson'].Value = if ($null -ne $raw) { [object]$raw } else { [System.DBNull]::Value }
+                $pMap['@hash'  ].Value = [string](_RowVal $row 'payload_hash' '')
 
                 $pMap['@srcf'  ].Value = [string](_RowVal $row 'source_file'   '')
                 $pMap['@srco'  ].Value = [long]  (_RowVal $row 'source_offset'  0)
@@ -527,8 +1074,39 @@ VALUES
                 $pMap['@divids'].Value = [string](_RowVal $row 'division_ids'  '')
                 $pMap['@ani'   ].Value = [string](_RowVal $row 'ani'           '')
                 $pMap['@dnis'  ].Value = [string](_RowVal $row 'dnis'          '')
+                $pMap['@pqueue'].Value = [string](_RowVal $row 'primary_queue' '')
+                $pMap['@fqueue'].Value = [string](_RowVal $row 'final_queue' '')
+                $pMap['@qcnt'  ].Value = [int](_RowVal $row 'queue_count' 0)
+                $pMap['@acnt'  ].Value = [int](_RowVal $row 'agent_count' 0)
+                $pMap['@xcnt'  ].Value = [int](_RowVal $row 'transfer_count' 0)
+                $pMap['@bxcnt' ].Value = [int](_RowVal $row 'blind_transfer_count' 0)
+                $pMap['@cxcnt' ].Value = [int](_RowVal $row 'consult_transfer_count' 0)
+                $pMap['@hcnt'  ].Value = [int](_RowVal $row 'hold_count' 0)
+                $pMap['@hdur'  ].Value = [int](_RowVal $row 'hold_duration_sec' 0)
+                foreach ($pair in @(
+                    @{ Name='@mosmin'; Key='mos_min' },
+                    @{ Name='@mosmax'; Key='mos_max' },
+                    @{ Name='@mosavg'; Key='mos_avg' }
+                )) {
+                    $mv = _RowVal $row $pair['Key'] $null
+                    $pMap[$pair['Name']].Value = if ($null -ne $mv) { [double]$mv } else { [System.DBNull]::Value }
+                }
+                $pMap['@wcode' ].Value = [string](_RowVal $row 'wrapup_code' '')
+                $pMap['@wname' ].Value = [string](_RowVal $row 'wrapup_name' '')
+                $pMap['@flowid'].Value = [string](_RowVal $row 'flow_id' '')
+                $pMap['@flowname'].Value = [string](_RowVal $row 'flow_name' '')
+                $pMap['@extcontact'].Value = [int](if ([bool](_RowVal $row 'external_contact_present' $false)) { 1 } else { 0 })
+                $pMap['@custdisc'  ].Value = [int](if ([bool](_RowVal $row 'customer_disconnect' $false)) { 1 } else { 0 })
+                $pMap['@agentdisc' ].Value = [int](if ([bool](_RowVal $row 'agent_disconnect' $false)) { 1 } else { 0 })
+                $pMap['@acddisc'   ].Value = [int](if ([bool](_RowVal $row 'acd_disconnect' $false)) { 1 } else { 0 })
+                $pMap['@callback'  ].Value = [int](if ([bool](_RowVal $row 'contains_callback' $false)) { 1 } else { 0 })
+                $pMap['@voicemail' ].Value = [int](if ([bool](_RowVal $row 'contains_voicemail' $false)) { 1 } else { 0 })
+                $pMap['@signature' ].Value = [string](_RowVal $row 'conversation_signature' '')
+                $pMap['@flags'     ].Value = [string](_RowVal $row 'anomaly_flags' '')
+                $pMap['@risk'      ].Value = [int](_RowVal $row 'risk_score' 0)
 
                 $cmd.ExecuteNonQuery() | Out-Null
+                _WriteConversationLineageAndBridges -Conn $Conn -CaseId $CaseId -ImportId $ImportId -RunId $RunId -Row $row -ImportedUtc $ImportedUtc
                 $inserted++
             } catch {
                 $failed++
@@ -1139,6 +1717,132 @@ CREATE TABLE IF NOT EXISTS report_wrapup_by_hour (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_hour_code     ON report_wrapup_by_hour(wrapup_code_id)'      | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_hour_h        ON report_wrapup_by_hour(hour_of_day)'         | Out-Null
 
+    # Schema v10 — investigation workbench foundation
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "raw_json TEXT"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "payload_hash TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "primary_queue TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "final_queue TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "queue_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "agent_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "transfer_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "blind_transfer_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "consult_transfer_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "hold_count INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "hold_duration_sec INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "mos_min REAL"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "mos_max REAL"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "mos_avg REAL"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "wrapup_code TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "wrapup_name TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "flow_id TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "flow_name TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "external_contact_present INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "customer_disconnect INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "agent_disconnect INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "acd_disconnect INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "contains_callback INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "contains_voicemail INTEGER NOT NULL DEFAULT 0"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "conversation_signature TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "anomaly_flags TEXT NOT NULL DEFAULT ''"
+    _AddColumnIfMissing -Conn $Conn -Table 'conversations' -ColDef "risk_score INTEGER NOT NULL DEFAULT 0"
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_versions (
+    version_id      TEXT PRIMARY KEY,
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    source_file     TEXT NOT NULL DEFAULT '',
+    source_offset   INTEGER NOT NULL DEFAULT 0,
+    imported_utc    TEXT NOT NULL,
+    payload_hash    TEXT NOT NULL DEFAULT '',
+    raw_json        TEXT
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_agents (
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    user_id         TEXT NOT NULL DEFAULT '',
+    user_name       TEXT NOT NULL DEFAULT '',
+    purpose         TEXT NOT NULL DEFAULT '',
+    imported_utc    TEXT NOT NULL,
+    PRIMARY KEY(case_id, conversation_id, user_id, purpose)
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_queues (
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    queue_id        TEXT NOT NULL DEFAULT '',
+    queue_name      TEXT NOT NULL DEFAULT '',
+    purpose         TEXT NOT NULL DEFAULT '',
+    imported_utc    TEXT NOT NULL,
+    PRIMARY KEY(case_id, conversation_id, queue_id, queue_name, purpose)
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_divisions (
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    division_id     TEXT NOT NULL DEFAULT '',
+    source          TEXT NOT NULL DEFAULT '',
+    imported_utc    TEXT NOT NULL,
+    PRIMARY KEY(case_id, conversation_id, division_id, source)
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_flows (
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    flow_id         TEXT NOT NULL DEFAULT '',
+    flow_name       TEXT NOT NULL DEFAULT '',
+    imported_utc    TEXT NOT NULL,
+    PRIMARY KEY(case_id, conversation_id, flow_id, flow_name)
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS conversation_wrapups (
+    case_id         TEXT NOT NULL REFERENCES cases(case_id),
+    conversation_id TEXT NOT NULL DEFAULT '',
+    import_id       TEXT NOT NULL REFERENCES imports(import_id),
+    run_id          TEXT NOT NULL REFERENCES core_runs(run_id),
+    wrapup_code     TEXT NOT NULL DEFAULT '',
+    wrapup_name     TEXT NOT NULL DEFAULT '',
+    imported_utc    TEXT NOT NULL,
+    PRIMARY KEY(case_id, conversation_id, wrapup_code, wrapup_name)
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_payload_hash ON conversations(payload_hash)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_primary_queue ON conversations(primary_queue)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_final_queue ON conversations(final_queue)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_transfer_count ON conversations(transfer_count)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_hold_duration ON conversations(hold_duration_sec)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_risk_score ON conversations(risk_score)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_signature ON conversations(conversation_signature)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_versions_case_conv ON conversation_versions(case_id, conversation_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_versions_import ON conversation_versions(import_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_agents_case_user ON conversation_agents(case_id, user_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_queues_case_queue ON conversation_queues(case_id, queue_name)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_divs_case_div ON conversation_divisions(case_id, division_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_flows_case_flow ON conversation_flows(case_id, flow_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_wrapups_case_code ON conversation_wrapups(case_id, wrapup_code)' | Out-Null
+
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
     if ($count -eq 0) {
@@ -1430,6 +2134,9 @@ function Remove-CaseData {
     try {
         $tx = $conn.BeginTransaction()
         try {
+            foreach ($tbl in @('conversation_agents','conversation_queues','conversation_divisions','conversation_flows','conversation_wrapups','conversation_versions')) {
+                _NonQuery -Conn $conn -Sql "DELETE FROM $tbl WHERE case_id = @id" -P @{ '@id' = $CaseId } | Out-Null
+            }
             _NonQuery -Conn $conn -Sql 'DELETE FROM conversations WHERE case_id = @id' -P @{ '@id' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM imports      WHERE case_id = @id' -P @{ '@id' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM core_runs    WHERE case_id = @id' -P @{ '@id' = $CaseId } | Out-Null
@@ -1935,6 +2642,9 @@ function Purge-Case {
             _NonQuery -Conn $conn -Sql 'DELETE FROM saved_views WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM report_snapshots WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM case_tags WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+            foreach ($tbl in @('conversation_agents','conversation_queues','conversation_divisions','conversation_flows','conversation_wrapups','conversation_versions')) {
+                _NonQuery -Conn $conn -Sql "DELETE FROM $tbl WHERE case_id = @cid" -P @{ '@cid' = $CaseId } | Out-Null
+            }
             _NonQuery -Conn $conn -Sql 'DELETE FROM conversations WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM imports WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
             _NonQuery -Conn $conn -Sql 'DELETE FROM core_runs WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
@@ -2169,6 +2879,12 @@ function Import-RunFolderToCase {
                 -Sql "UPDATE imports SET status = 'superseded' WHERE case_id = @cid AND run_id = @rid AND status = 'complete'" `
                 -P @{ '@cid' = $CaseId; '@rid' = $runId } | Out-Null
 
+            foreach ($tbl in @('conversation_agents','conversation_queues','conversation_divisions','conversation_flows','conversation_wrapups')) {
+                _NonQuery -Conn $conn `
+                    -Sql "DELETE FROM $tbl WHERE case_id = @cid AND run_id = @rid" `
+                    -P @{ '@cid' = $CaseId; '@rid' = $runId } | Out-Null
+            }
+
             _NonQuery -Conn $conn `
                 -Sql 'DELETE FROM conversations WHERE case_id = @cid AND run_id = @rid' `
                 -P @{ '@cid' = $CaseId; '@rid' = $runId } | Out-Null
@@ -2319,34 +3035,30 @@ function Get-ConversationCount {
     #>
     param(
         [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null,
         [string]$Direction      = '',
         [string]$MediaType      = '',
         [string]$Queue          = '',
+        [string]$ConversationId = '',
         [string]$SearchText     = '',
         [string]$DisconnectType = '',
         [string]$AgentName      = '',
         [string]$Ani            = '',
         [string]$DivisionId     = '',
         [string]$StartDateTime  = '',
-        [string]$EndDateTime    = ''
+        [string]$EndDateTime    = '',
+        [hashtable]$ColumnFilters = @{}
     )
     _RequireDb
-    $where = 'case_id = @cid'
-    $p     = @{ '@cid' = $CaseId }
-    if ($Direction)      { $where += ' AND direction       = @dir';                                       $p['@dir']    = $Direction      }
-    if ($MediaType)      { $where += ' AND media_type      = @media';                                     $p['@media']  = $MediaType      }
-    if ($Queue)          { $where += ' AND queue_name      LIKE @queue';                                  $p['@queue']  = "%$Queue%"      }
-    if ($SearchText)     { $where += ' AND (conversation_id LIKE @srch OR queue_name LIKE @srch OR agent_names LIKE @srch)'; $p['@srch'] = "%$SearchText%" }
-    if ($DisconnectType) { $where += ' AND disconnect_type = @disc';                                      $p['@disc']   = $DisconnectType }
-    if ($AgentName)      { $where += ' AND agent_names     LIKE @agent';                                  $p['@agent']  = "%$AgentName%"  }
-    if ($Ani)            { $where += ' AND ani             LIKE @ani';                                    $p['@ani']    = "%$Ani%"        }
-    if ($DivisionId)     { $where += ' AND division_ids    LIKE @divid';                                  $p['@divid']  = "%$DivisionId%" }
-    if ($StartDateTime)  { $where += ' AND conversation_start >= @startDt';                               $p['@startDt'] = $StartDateTime }
-    if ($EndDateTime)    { $where += ' AND conversation_start <= @endDt';                                 $p['@endDt']   = $EndDateTime   }
+    $filter = _GetConversationWhereClause `
+        -CaseId $CaseId -FilterState $FilterState -Direction $Direction -MediaType $MediaType `
+        -Queue $Queue -ConversationId $ConversationId -SearchText $SearchText `
+        -DisconnectType $DisconnectType -AgentName $AgentName -Ani $Ani -DivisionId $DivisionId `
+        -StartDateTime $StartDateTime -EndDateTime $EndDateTime -ColumnFilters $ColumnFilters
 
     $conn = _Open
     try {
-        return [int](_Scalar -Conn $conn -Sql "SELECT COUNT(*) FROM conversations WHERE $where" -P $p)
+        return [int](_Scalar -Conn $conn -Sql "SELECT COUNT(*) FROM conversations WHERE $($filter.Where)" -P $filter.Parameters)
     } finally { $conn.Close(); $conn.Dispose() }
 }
 
@@ -2360,9 +3072,11 @@ function Get-ConversationsPage {
         [Parameter(Mandatory)][string]$CaseId,
         [int]$PageNumber        = 1,
         [int]$PageSize          = 50,
+        [object]$FilterState = $null,
         [string]$Direction      = '',
         [string]$MediaType      = '',
         [string]$Queue          = '',
+        [string]$ConversationId = '',
         [string]$SearchText     = '',
         [string]$DisconnectType = '',
         [string]$AgentName      = '',
@@ -2371,37 +3085,188 @@ function Get-ConversationsPage {
         [string]$StartDateTime  = '',
         [string]$EndDateTime    = '',
         [string]$SortBy         = 'conversation_start',
-        [string]$SortDir        = 'DESC'
+        [string]$SortDir        = 'DESC',
+        [hashtable]$ColumnFilters = @{}
     )
     _RequireDb
 
-    # Whitelist sort column to prevent injection.
-    $allowedCols = @('conversation_id','direction','media_type','queue_name','disconnect_type',
-                     'duration_sec','has_hold','has_mos','segment_count','participant_count',
-                     'conversation_start','agent_names','ani')
-    if ($SortBy  -notin $allowedCols)    { $SortBy  = 'conversation_start' }
-    if ($SortDir -notin @('ASC','DESC')) { $SortDir = 'DESC' }
+    $normalized = _NormalizeFilterState -FilterState $FilterState -SortBy $SortBy -SortDirection $SortDir
+    $filter = _GetConversationWhereClause `
+        -CaseId $CaseId -FilterState $FilterState -Direction $Direction -MediaType $MediaType `
+        -Queue $Queue -ConversationId $ConversationId -SearchText $SearchText `
+        -DisconnectType $DisconnectType -AgentName $AgentName -Ani $Ani -DivisionId $DivisionId `
+        -StartDateTime $StartDateTime -EndDateTime $EndDateTime -ColumnFilters $ColumnFilters
+    $orderBy = _GetConversationSortClause -SortBy $(if ($SortBy) { $SortBy } else { $normalized.SortBy }) -SortDirection $(if ($SortDir) { $SortDir } else { $normalized.SortDirection })
 
-    $where = 'case_id = @cid'
-    $p     = @{ '@cid' = $CaseId }
-    if ($Direction)      { $where += ' AND direction       = @dir';                                       $p['@dir']    = $Direction      }
-    if ($MediaType)      { $where += ' AND media_type      = @media';                                     $p['@media']  = $MediaType      }
-    if ($Queue)          { $where += ' AND queue_name      LIKE @queue';                                  $p['@queue']  = "%$Queue%"      }
-    if ($SearchText)     { $where += ' AND (conversation_id LIKE @srch OR queue_name LIKE @srch OR agent_names LIKE @srch)'; $p['@srch'] = "%$SearchText%" }
-    if ($DisconnectType) { $where += ' AND disconnect_type = @disc';                                      $p['@disc']   = $DisconnectType }
-    if ($AgentName)      { $where += ' AND agent_names     LIKE @agent';                                  $p['@agent']  = "%$AgentName%"  }
-    if ($Ani)            { $where += ' AND ani             LIKE @ani';                                    $p['@ani']    = "%$Ani%"        }
-    if ($DivisionId)     { $where += ' AND division_ids    LIKE @divid';                                  $p['@divid']  = "%$DivisionId%" }
-    if ($StartDateTime)  { $where += ' AND conversation_start >= @startDt';                               $p['@startDt'] = $StartDateTime }
-    if ($EndDateTime)    { $where += ' AND conversation_start <= @endDt';                                 $p['@endDt']   = $EndDateTime   }
-
+    $p = $filter.Parameters
     $p['@limit']  = $PageSize
     $p['@offset'] = ($PageNumber - 1) * $PageSize
 
-    $sql  = "SELECT * FROM conversations WHERE $where ORDER BY $SortBy $SortDir LIMIT @limit OFFSET @offset"
+    $sql  = "SELECT * FROM conversations WHERE $($filter.Where) ORDER BY $orderBy LIMIT @limit OFFSET @offset"
     $conn = _Open
     try {
         $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows | ForEach-Object { [pscustomobject]$_ })
+}
+
+function Get-ConversationPopulationRows {
+    <#
+    .SYNOPSIS
+        Returns the full filtered SQL-backed population for reports/exports.
+        This intentionally ignores UI page number so report totals are page-independent.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null,
+        [int]$Limit = 0
+    )
+    _RequireDb
+    $f = _NormalizeFilterState -FilterState $FilterState
+    $filter = _GetConversationWhereClause -CaseId $CaseId -FilterState $f
+    $orderBy = _GetConversationSortClause -SortBy $f.SortBy -SortDirection $f.SortDirection
+    $sql = "SELECT * FROM conversations WHERE $($filter.Where) ORDER BY $orderBy"
+    $p = $filter.Parameters
+    if ($Limit -gt 0) {
+        $sql += ' LIMIT @limit'
+        $p['@limit'] = $Limit
+    }
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows | ForEach-Object { [pscustomobject]$_ })
+}
+
+function Get-ConversationPopulationSummary {
+    <#
+    .SYNOPSIS
+        Returns aggregate summary metrics for the full filtered population.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null
+    )
+    _RequireDb
+    $filter = _GetConversationWhereClause -CaseId $CaseId -FilterState $FilterState
+    $conn = _Open
+    try {
+        $row = _Query -Conn $conn -Sql @"
+SELECT
+    COUNT(*) AS total_conversations,
+    COALESCE(SUM(duration_sec), 0) AS total_duration_sec,
+    COALESCE(AVG(duration_sec), 0) AS avg_duration_sec,
+    COALESCE(SUM(transfer_count), 0) AS total_transfers,
+    COALESCE(AVG(transfer_count), 0) AS avg_transfers,
+    COALESCE(SUM(hold_count), 0) AS total_holds,
+    COALESCE(SUM(hold_duration_sec), 0) AS total_hold_duration_sec,
+    COALESCE(AVG(hold_duration_sec), 0) AS avg_hold_duration_sec,
+    MIN(mos_min) AS mos_min,
+    MAX(mos_max) AS mos_max,
+    AVG(mos_avg) AS mos_avg,
+    COALESCE(AVG(risk_score), 0) AS avg_risk_score,
+    COALESCE(MAX(risk_score), 0) AS max_risk_score,
+    COALESCE(SUM(customer_disconnect), 0) AS customer_disconnects,
+    COALESCE(SUM(agent_disconnect), 0) AS agent_disconnects,
+    COALESCE(SUM(acd_disconnect), 0) AS acd_disconnects,
+    MIN(conversation_start) AS first_conversation_start,
+    MAX(conversation_start) AS last_conversation_start
+FROM conversations
+WHERE $($filter.Where)
+"@ -P $filter.Parameters
+    } finally { $conn.Close(); $conn.Dispose() }
+    if ($row.Count -eq 0) { return $null }
+    $summary = [pscustomobject]$row[0]
+    $summary | Add-Member -NotePropertyName 'filter_state' -NotePropertyValue $filter.FilterState -Force
+    return $summary
+}
+
+function Get-ConversationFacetCounts {
+    <#
+    .SYNOPSIS
+        Returns common facet counts for the full filtered population.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null,
+        [int]$Top = 20
+    )
+    _RequireDb
+    if ($Top -lt 1) { $Top = 20 }
+    $filter = _GetConversationWhereClause -CaseId $CaseId -FilterState $FilterState
+    $conn = _Open
+    try {
+        $facets = [ordered]@{}
+        foreach ($facet in @(
+            @{ Name = 'direction'; Column = 'direction' },
+            @{ Name = 'media_type'; Column = 'media_type' },
+            @{ Name = 'queue'; Column = 'queue_name' },
+            @{ Name = 'disconnect_type'; Column = 'disconnect_type' },
+            @{ Name = 'wrapup_code'; Column = 'wrapup_code' },
+            @{ Name = 'primary_queue'; Column = 'primary_queue' },
+            @{ Name = 'final_queue'; Column = 'final_queue' },
+            @{ Name = 'conversation_signature'; Column = 'conversation_signature' }
+        )) {
+            $sql = "SELECT $($facet.Column) AS value, COUNT(*) AS count FROM conversations WHERE $($filter.Where) AND $($facet.Column) <> '' GROUP BY $($facet.Column) ORDER BY count DESC, value ASC LIMIT @top"
+            $p = @{}
+            foreach ($kv in $filter.Parameters.GetEnumerator()) { $p[$kv.Key] = $kv.Value }
+            $p['@top'] = $Top
+            $facets[$facet.Name] = @(_Query -Conn $conn -Sql $sql -P $p | ForEach-Object { [pscustomobject]$_ })
+        }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return [pscustomobject]$facets
+}
+
+function Get-RepresentativeConversations {
+    <#
+    .SYNOPSIS
+        Returns representative/high-signal examples from the filtered population.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null,
+        [int]$Top = 10
+    )
+    _RequireDb
+    if ($Top -lt 1) { $Top = 10 }
+    $filter = _GetConversationWhereClause -CaseId $CaseId -FilterState $FilterState
+    $p = $filter.Parameters
+    $p['@top'] = $Top
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @"
+SELECT *,
+       (risk_score + (transfer_count * 5) + CASE WHEN hold_duration_sec > 300 THEN 10 ELSE 0 END) AS representative_score
+FROM conversations
+WHERE $($filter.Where)
+ORDER BY representative_score DESC, duration_sec DESC, conversation_start DESC
+LIMIT @top
+"@ -P $p
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows | ForEach-Object { [pscustomobject]$_ })
+}
+
+function Get-AnomalyRiskCohorts {
+    <#
+    .SYNOPSIS
+        Returns cohort counts for common risk/anomaly conditions.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [object]$FilterState = $null
+    )
+    _RequireDb
+    $filter = _GetConversationWhereClause -CaseId $CaseId -FilterState $FilterState
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @"
+SELECT 'high_risk' AS cohort, COUNT(*) AS count FROM conversations WHERE $($filter.Where) AND risk_score >= 60
+UNION ALL SELECT 'multi_transfer', COUNT(*) FROM conversations WHERE $($filter.Where) AND transfer_count >= 2
+UNION ALL SELECT 'long_hold', COUNT(*) FROM conversations WHERE $($filter.Where) AND hold_duration_sec >= 300
+UNION ALL SELECT 'low_mos', COUNT(*) FROM conversations WHERE $($filter.Where) AND mos_min IS NOT NULL AND mos_min < 3.5
+UNION ALL SELECT 'customer_disconnect', COUNT(*) FROM conversations WHERE $($filter.Where) AND customer_disconnect = 1
+UNION ALL SELECT 'acd_disconnect', COUNT(*) FROM conversations WHERE $($filter.Where) AND acd_disconnect = 1
+"@ -P $filter.Parameters
     } finally { $conn.Close(); $conn.Dispose() }
     return @($rows | ForEach-Object { [pscustomobject]$_ })
 }
@@ -2424,6 +3289,25 @@ function Get-ConversationById {
     } finally { $conn.Close(); $conn.Dispose() }
     if ($rows.Count -eq 0) { return $null }
     return [pscustomobject]$rows[0]
+}
+
+function Get-ConversationVersions {
+    <#
+    .SYNOPSIS
+        Returns preserved historical versions for a conversation.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CaseId,
+        [Parameter(Mandatory)][string]$ConversationId
+    )
+    _RequireDb
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn `
+            -Sql 'SELECT * FROM conversation_versions WHERE case_id = @cid AND conversation_id = @cvid ORDER BY imported_utc DESC' `
+            -P @{ '@cid' = $CaseId; '@cvid' = $ConversationId }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows | ForEach-Object { [pscustomobject]$_ })
 }
 
 # ── Public: Reference Data (Session 13) ──────────────────────────────────────
@@ -4943,7 +5827,9 @@ Export-ModuleMember -Function `
     Close-Case, Mark-CasePurgeReady, Archive-Case, Purge-Case, `
     Register-CoreRun, Get-CoreRuns, `
     New-Import, Complete-Import, Fail-Import, Get-Imports, Import-RunFolderToCase, `
-    Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationById, `
+    Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationPopulationRows, `
+    Get-ConversationPopulationSummary, Get-ConversationFacetCounts, Get-RepresentativeConversations, `
+    Get-AnomalyRiskCohorts, Get-ConversationById, Get-ConversationVersions, `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `
     Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `

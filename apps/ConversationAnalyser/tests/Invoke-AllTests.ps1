@@ -203,6 +203,24 @@ ArchCheck 'ARCH-22B' 'App.UI.ps1 can generate impact reports from filtered index
     $uiPs -match 'New-ImpactReport'
 }
 
+ArchCheck 'ARCH-22C' 'DB-mode reports use full filtered population helpers, not the current page buffer' {
+    $uiPs -match 'Get-ConversationPopulationRows' -and
+    $uiPs -match 'New-PopulationReport' -and
+    $uiPs -match 'exact_filter_state'
+}
+
+ArchCheck 'ARCH-22D' 'App.Database.psm1 exposes canonical SQL filter and analytics helpers' {
+    $database -match 'function _GetConversationWhereClause' -and
+    $database -match 'function Get-ConversationPopulationSummary' -and
+    $database -match 'function Get-RepresentativeConversations'
+}
+
+ArchCheck 'ARCH-22E' 'Case store preserves raw payloads and lineage versions' {
+    $database -match 'raw_json' -and
+    $database -match 'payload_hash' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS conversation_versions'
+}
+
 # ── Architecture: auth containment ────────────────────────────────────────────
 Write-Host "`n--- Auth containment (Genesys.Auth – sibling Core repo) ---" -ForegroundColor DarkCyan
 

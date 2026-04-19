@@ -573,6 +573,7 @@ function _GetCurrentViewSnapshot {
     $range = _GetQueryBoundaryDateTimes
     return [ordered]@{
         captured_utc      = [datetime]::UtcNow.ToString('o')
+        canonical_filter  = (_GetCanonicalFilterState)
         run_folder        = $script:State.CurrentRunFolder
         search_text       = $script:TxtSearch.Text.Trim()
         grid_direction    = $script:State.FilterDirection
@@ -587,6 +588,130 @@ function _GetCurrentViewSnapshot {
         end_date_utc      = if ($null -ne $range.End)   { $range.End.ToUniversalTime().ToString('o')   } else { '' }
         page_size         = $script:State.PageSize
     }
+}
+
+function _GetCanonicalFilterState {
+    $range = _GetQueryBoundaryDateTimes
+    $sortBy = if ($script:State.SortColumn -and $script:_DbColMap.ContainsKey($script:State.SortColumn)) {
+        $script:_DbColMap[$script:State.SortColumn]
+    } elseif ($script:State.SortColumn) {
+        $script:State.SortColumn
+    } else {
+        'conversation_start'
+    }
+    $sortDir = if ($script:State.SortAscending) { 'ASC' } else { 'DESC' }
+    $columns = @{}
+    foreach ($k in @($script:State.ColumnFilters.Keys)) {
+        $v = [string]$script:State.ColumnFilters[$k]
+        if (-not [string]::IsNullOrWhiteSpace($v)) { $columns[$k] = $v }
+    }
+    $extractDirection = if ($script:CmbDirection.SelectedItem -and $script:CmbDirection.SelectedItem.Content -ne '(all)') { [string]$script:CmbDirection.SelectedItem.Content } else { '' }
+    $extractMedia = if ($script:CmbMediaType.SelectedItem -and $script:CmbMediaType.SelectedItem.Content -ne '(all)') { [string]$script:CmbMediaType.SelectedItem.Content } else { '' }
+    return [pscustomobject][ordered]@{
+        StartDateTimeUtc = if ($null -ne $range.Start) { $range.Start.ToUniversalTime().ToString('o') } else { '' }
+        EndDateTimeUtc   = if ($null -ne $range.End)   { $range.End.ToUniversalTime().ToString('o')   } else { '' }
+        Direction        = if ($script:State.FilterDirection) { [string]$script:State.FilterDirection } else { $extractDirection }
+        MediaType        = if ($script:State.FilterMedia) { [string]$script:State.FilterMedia } else { $extractMedia }
+        QueueText        = [string]$script:TxtQueue.Text.Trim()
+        ConversationId   = [string]$script:TxtConversationId.Text.Trim()
+        SearchText       = [string]$script:State.SearchText
+        DisconnectType   = [string]$script:State.FilterDisconnect
+        AgentName        = [string]$script:State.FilterAgent
+        Ani              = ''
+        DivisionId       = [string]$script:TxtFilterDivisionId.Text.Trim()
+        ColumnFilters    = $columns
+        SortBy           = $sortBy
+        SortDirection    = $sortDir
+    }
+}
+
+function _SelectComboContent {
+    param($Combo, [string]$Content, [string]$DefaultContent = '')
+    if ($null -eq $Combo) { return }
+    $target = if ($Content) { $Content } else { $DefaultContent }
+    foreach ($item in @($Combo.Items)) {
+        $itemText = if ($item.PSObject.Properties['Content']) { [string]$item.Content } else { [string]$item }
+        if ($itemText -eq $target) {
+            $Combo.SelectedItem = $item
+            return
+        }
+    }
+    if ($Combo.Items.Count -gt 0 -and -not $Content) { $Combo.SelectedIndex = 0 }
+}
+
+function _SetDateTimeFilterControls {
+    param(
+        [string]$ValueUtc,
+        $DatePicker,
+        $TimeBox
+    )
+    if ($null -eq $DatePicker -or $null -eq $TimeBox) { return }
+    if ([string]::IsNullOrWhiteSpace($ValueUtc)) {
+        $DatePicker.SelectedDate = $null
+        $TimeBox.Text = ''
+        return
+    }
+    try {
+        $dt = ([datetime]::Parse($ValueUtc)).ToLocalTime()
+        $DatePicker.SelectedDate = $dt.Date
+        $TimeBox.Text = $dt.ToString('HH:mm:ss')
+    } catch { }
+}
+
+function _ApplyCanonicalFilterStateToUi {
+    param([Parameter(Mandatory)][object]$FilterState)
+
+    $get = {
+        param([string]$Name)
+        if ($FilterState -is [hashtable] -and $FilterState.ContainsKey($Name)) { return $FilterState[$Name] }
+        $prop = $FilterState.PSObject.Properties[$Name]
+        if ($null -ne $prop) { return $prop.Value }
+        return ''
+    }
+
+    _SetDateTimeFilterControls -ValueUtc ([string](& $get 'StartDateTimeUtc')) -DatePicker $script:DtpStartDate -TimeBox $script:TxtStartTime
+    _SetDateTimeFilterControls -ValueUtc ([string](& $get 'EndDateTimeUtc')) -DatePicker $script:DtpEndDate -TimeBox $script:TxtEndTime
+
+    $script:State.FilterDirection  = [string](& $get 'Direction')
+    $script:State.FilterMedia      = [string](& $get 'MediaType')
+    $script:State.FilterDisconnect = [string](& $get 'DisconnectType')
+    $script:State.FilterAgent      = [string](& $get 'AgentName')
+    $script:State.SearchText       = [string](& $get 'SearchText')
+
+    _SelectComboContent -Combo $script:CmbFilterDirection -Content $script:State.FilterDirection -DefaultContent 'All directions'
+    _SelectComboContent -Combo $script:CmbFilterMedia -Content $script:State.FilterMedia -DefaultContent 'All media'
+    _SelectComboContent -Combo $script:CmbFilterDisconnect -Content $script:State.FilterDisconnect -DefaultContent 'All disconnects'
+    _SelectComboContent -Combo $script:CmbDirection -Content $script:State.FilterDirection -DefaultContent '(all)'
+    _SelectComboContent -Combo $script:CmbMediaType -Content $script:State.FilterMedia -DefaultContent '(all)'
+
+    if ($null -ne $script:TxtQueue)            { $script:TxtQueue.Text = [string](& $get 'QueueText') }
+    if ($null -ne $script:TxtConversationId)   { $script:TxtConversationId.Text = [string](& $get 'ConversationId') }
+    if ($null -ne $script:TxtSearch)           { $script:TxtSearch.Text = $script:State.SearchText }
+    if ($null -ne $script:TxtFilterAgent)      { $script:TxtFilterAgent.Text = $script:State.FilterAgent }
+    if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = [string](& $get 'DivisionId') }
+
+    $script:State.ColumnFilters = @{}
+    $cols = & $get 'ColumnFilters'
+    if ($null -ne $cols) {
+        if ($cols -is [hashtable]) {
+            foreach ($k in @($cols.Keys)) { if ($cols[$k]) { $script:State.ColumnFilters[$k] = [string]$cols[$k] } }
+        } else {
+            foreach ($p in $cols.PSObject.Properties) { if ($p.Value) { $script:State.ColumnFilters[$p.Name] = [string]$p.Value } }
+        }
+    }
+
+    $sortBy = [string](& $get 'SortBy')
+    $script:State.SortColumn = ''
+    foreach ($k in @($script:_DbColMap.Keys)) {
+        if ($script:_DbColMap[$k] -eq $sortBy) { $script:State.SortColumn = $k; break }
+    }
+    if (-not $script:State.SortColumn) { $script:State.SortColumn = $sortBy }
+    $script:State.SortAscending = ([string](& $get 'SortDirection')).ToUpperInvariant() -eq 'ASC'
+    $script:State.CurrentPage = 1
+    $script:State.CurrentImpactReport = $null
+
+    _ApplyFiltersAndRefresh
+    _SetStatus 'Saved view filter restored'
 }
 
 function _GetCurrentImpactReportTitle {
@@ -619,7 +744,35 @@ function _GenerateImpactReport {
     }
 
     try {
-        $report = New-ImpactReport -FilteredIndex $current -ReportTitle (_GetCurrentImpactReportTitle)
+        if ($script:State.DataSource -eq 'database' -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId) -and (Test-DatabaseInitialized)) {
+            $filterState = _GetCanonicalFilterState
+            $rows = @(Get-ConversationPopulationRows -CaseId $script:State.ActiveCaseId -FilterState $filterState)
+            $summary = Get-ConversationPopulationSummary -CaseId $script:State.ActiveCaseId -FilterState $filterState
+            $facets = Get-ConversationFacetCounts -CaseId $script:State.ActiveCaseId -FilterState $filterState
+            $representatives = @(Get-RepresentativeConversations -CaseId $script:State.ActiveCaseId -FilterState $filterState -Top 10)
+            $cohorts = @(Get-AnomalyRiskCohorts -CaseId $script:State.ActiveCaseId -FilterState $filterState)
+            $provenance = [pscustomobject][ordered]@{
+                CaseId     = $script:State.ActiveCaseId
+                CaseName   = $script:State.ActiveCaseName
+                DataSource = 'database'
+                PageAtGeneration = $script:State.CurrentPage
+                PageSize   = $script:State.PageSize
+            }
+            $report = New-PopulationReport `
+                -Rows $rows `
+                -FilterState $filterState `
+                -Summary $summary `
+                -Facets $facets `
+                -Representatives $representatives `
+                -Cohorts $cohorts `
+                -Provenance $provenance `
+                -ReportTitle (_GetCurrentImpactReportTitle)
+        } else {
+            $filterState = _GetCanonicalFilterState
+            $report = New-ImpactReport -FilteredIndex $current -ReportTitle (_GetCurrentImpactReportTitle)
+            $report | Add-Member -NotePropertyName 'ExactFilterState' -NotePropertyValue $filterState -Force
+            $report | Add-Member -NotePropertyName 'ReportType' -NotePropertyValue 'Population' -Force
+        }
         $script:State.CurrentImpactReport = $report
         _Dispatch {
             $script:TxtDrillSummary.Text = $report | ConvertTo-Json -Depth 8
@@ -648,7 +801,12 @@ function _SaveImpactReportSnapshot {
 
     try {
         $snapshotName = "{0} [{1}]" -f $script:State.CurrentImpactReport.ReportTitle, (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-        New-ReportSnapshot -CaseId $case.case_id -Name $snapshotName -Format 'json' -Content $script:State.CurrentImpactReport | Out-Null
+        $snapshotContent = [pscustomobject][ordered]@{
+            snapshot_type = 'report'
+            exact_filter_state = (_GetCanonicalFilterState)
+            report = $script:State.CurrentImpactReport
+        }
+        New-ReportSnapshot -CaseId $case.case_id -Name $snapshotName -Format 'json' -Content $snapshotContent | Out-Null
         _SetStatus "Saved impact report snapshot to case '$($case.name)'"
         [System.Windows.MessageBox]::Show("Saved impact report snapshot to case '$($case.name)'.", 'Impact Report')
     } catch {
@@ -929,6 +1087,7 @@ function _ShowCaseDialog {
             $lstViews.Items.Add([pscustomobject]@{
                 ViewId   = $view.view_id
                 Display  = "$($view.name)  [$($view.created_utc)]"
+                FilterJson = $view.filters_json
             }) | Out-Null
         }
 
@@ -1046,6 +1205,25 @@ function _ShowCaseDialog {
         if ($null -eq $selCase -or $null -eq $selView) { return }
         Remove-SavedView -CaseId $selCase.CaseId -ViewId $selView.ViewId
         _RenderSelectedCaseLocal
+    })
+
+    $lstViews.Add_MouseDoubleClick({
+        $selView = $lstViews.SelectedItem
+        if ($null -eq $selView -or [string]::IsNullOrWhiteSpace([string]$selView.FilterJson)) { return }
+        try {
+            $viewDef = $selView.FilterJson | ConvertFrom-Json
+            $filter = $null
+            if ($viewDef.PSObject.Properties['canonical_filter']) {
+                $filter = $viewDef.canonical_filter
+            } else {
+                $filter = $viewDef
+            }
+            _ApplyCanonicalFilterStateToUi -FilterState $filter
+            $dialog.DialogResult = $true
+            $dialog.Close()
+        } catch {
+            [System.Windows.MessageBox]::Show("Failed to restore saved view: $_", 'Saved View')
+        }
     })
 
     $btnCloseCase.Add_Click({
@@ -2674,37 +2852,12 @@ function _RefreshGridFromDb {
         return
     }
 
-    $dir    = $script:State.FilterDirection
-    $media  = $script:State.FilterMedia
-    $disc   = $script:State.FilterDisconnect
-    $agent  = $script:State.FilterAgent
-    $srch   = $script:State.SearchText
-    $divId  = $script:TxtFilterDivisionId.Text.Trim()
-    # Conversation ID entered in SHAPE SIGNAL acts as a SearchText override when no
-    # explicit grid search is active (DB SearchText already does LIKE on conversation_id).
-    $convId = $script:TxtConversationId.Text.Trim()
-    if ($convId -and -not $srch) { $srch = $convId }
-
-    # Resolve date/time range – silently skip if pickers are unset or invalid
-    $startDt = ''
-    $endDt   = ''
-    try {
-        $range = _GetQueryBoundaryDateTimes
-        if ($null -ne $range.Start) { $startDt = $range.Start.ToUniversalTime().ToString('o') }
-        if ($null -ne $range.End)   { $endDt   = $range.End.ToUniversalTime().ToString('o')   }
-    } catch { }
+    $filterState = _GetCanonicalFilterState
 
     try {
         $count = Get-ConversationCount `
             -CaseId         $caseId `
-            -Direction      $dir `
-            -MediaType      $media `
-            -SearchText     $srch `
-            -DisconnectType $disc `
-            -AgentName      $agent `
-            -DivisionId     $divId `
-            -StartDateTime  $startDt `
-            -EndDateTime    $endDt
+            -FilterState    $filterState
 
         $script:State.DbConversationCount = $count
         $script:State.TotalPages = [math]::Max(1, [math]::Ceiling($count / $script:State.PageSize))
@@ -2722,31 +2875,11 @@ function _RefreshGridFromDb {
             -CaseId         $caseId `
             -PageNumber     $script:State.CurrentPage `
             -PageSize       $script:State.PageSize `
-            -Direction      $dir `
-            -MediaType      $media `
-            -SearchText     $srch `
-            -DisconnectType $disc `
-            -AgentName      $agent `
-            -DivisionId     $divId `
-            -StartDateTime  $startDt `
-            -EndDateTime    $endDt `
+            -FilterState    $filterState `
             -SortBy         $sortBy `
             -SortDir        $sortDir)
 
         $displayRows = @($rows | ForEach-Object { Get-DbConversationDisplayRow -DbRow $_ })
-
-        # Apply per-column text filters in memory (post-fetch)
-        if ($script:State.ColumnFilters.Count -gt 0) {
-            foreach ($bindPath in @($script:State.ColumnFilters.Keys)) {
-                $val = $script:State.ColumnFilters[$bindPath]
-                if (-not $val) { continue }
-                $lo = $val.ToLowerInvariant()
-                $displayRows = @($displayRows | Where-Object {
-                    $propVal = $_.PSObject.Properties[$bindPath]
-                    $null -ne $propVal -and [string]$propVal.Value -like "*$lo*"
-                })
-            }
-        }
         $page  = $script:State.CurrentPage
         $pages = $script:State.TotalPages
 
@@ -2924,29 +3057,39 @@ function _LoadDrilldown {
     _SetStatus "Loading drilldown: $ConversationId …"
 
     $record = $null
+    $rawJsonText = $null
 
-    # ── DB path: reconstruct record from participants_json stored in the case ──
+    # ── DB path: prefer canonical raw_json stored in the case store. Reconstruct
+    # only as a compatibility fallback for older stores.
     if ($script:State.DataSource -eq 'database' -and
         -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
         try {
             $dbRow = Get-ConversationById -CaseId $script:State.ActiveCaseId `
                                           -ConversationId $ConversationId
             if ($null -ne $dbRow) {
-                $ptjsonProp = $dbRow.PSObject.Properties['participants_json']
-                $ptjson     = if ($null -ne $ptjsonProp) { $ptjsonProp.Value } else { $null }
-                if (-not [string]::IsNullOrWhiteSpace($ptjson)) {
-                    $participants = $ptjson | ConvertFrom-Json
-                    $record = [pscustomobject]@{
-                        conversationId    = $ConversationId
-                        conversationStart = if ($dbRow.PSObject.Properties['conversation_start']) { $dbRow.conversation_start } else { '' }
-                        conversationEnd   = if ($dbRow.PSObject.Properties['conversation_end'])   { $dbRow.conversation_end   } else { '' }
-                        participants      = $participants
-                    }
-                    $atjsonProp = $dbRow.PSObject.Properties['attributes_json']
-                    $atjson     = if ($null -ne $atjsonProp) { $atjsonProp.Value } else { $null }
-                    if (-not [string]::IsNullOrWhiteSpace($atjson)) {
-                        $record | Add-Member -NotePropertyName 'attributes' `
-                                             -NotePropertyValue ($atjson | ConvertFrom-Json) -Force
+                $rawProp = $dbRow.PSObject.Properties['raw_json']
+                $rawJsonText = if ($null -ne $rawProp) { [string]$rawProp.Value } else { $null }
+                if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
+                    $record = $rawJsonText | ConvertFrom-Json
+                } else {
+                    $ptjsonProp = $dbRow.PSObject.Properties['participants_json']
+                    $ptjson     = if ($null -ne $ptjsonProp) { $ptjsonProp.Value } else { $null }
+                    if (-not [string]::IsNullOrWhiteSpace($ptjson)) {
+                        $participants = $ptjson | ConvertFrom-Json
+                        $record = [pscustomobject]@{
+                            conversationId    = $ConversationId
+                            conversationStart = if ($dbRow.PSObject.Properties['conversation_start']) { $dbRow.conversation_start } else { '' }
+                            conversationEnd   = if ($dbRow.PSObject.Properties['conversation_end'])   { $dbRow.conversation_end   } else { '' }
+                            participants      = $participants
+                            reconstructionNotice = 'Compatibility fallback: canonical raw_json was not available for this imported row.'
+                        }
+                        $atjsonProp = $dbRow.PSObject.Properties['attributes_json']
+                        $atjson     = if ($null -ne $atjsonProp) { $atjsonProp.Value } else { $null }
+                        if (-not [string]::IsNullOrWhiteSpace($atjson)) {
+                            $record | Add-Member -NotePropertyName 'attributes' `
+                                                 -NotePropertyValue ($atjson | ConvertFrom-Json) -Force
+                        }
+                        $rawJsonText = $record | ConvertTo-Json -Depth 20
                     }
                 }
             }
@@ -3045,7 +3188,11 @@ function _LoadDrilldown {
         $script:TxtMosQuality.Text = if ($mosSb.Length -eq 0) { '(no MOS metrics)' } else { $mosSb.ToString() }
 
         # ── Raw JSON tab ──
-        $script:TxtRawJson.Text = $record | ConvertTo-Json -Depth 20
+        $script:TxtRawJson.Text = if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
+            $rawJsonText
+        } else {
+            $record | ConvertTo-Json -Depth 20
+        }
     }
     _SetStatus "Drilldown loaded: $ConversationId"
 }
@@ -3054,6 +3201,7 @@ function _LoadDrilldown {
 
 function _GetDatasetParameters {
     $params = @{}
+    $filterState = _GetCanonicalFilterState
     $range  = _GetQueryBoundaryDateTimes
 
     if ($null -ne $range.Start) {
@@ -3075,16 +3223,16 @@ function _GetDatasetParameters {
         $params['MediaType'] = $selMedia.Content
     }
 
-    $q = $script:TxtQueue.Text.Trim()
+    $q = $filterState.QueueText
     if ($q) { $params['Queue'] = $q }
 
-    $convId = $script:TxtConversationId.Text.Trim()
+    $convId = $filterState.ConversationId
     if ($convId) { $params['ConversationId'] = $convId }
 
     $userId = $script:TxtFilterUserId.Text.Trim()
     if ($userId) { $params['UserId'] = $userId }
 
-    $divId = $script:TxtFilterDivisionId.Text.Trim()
+    $divId = $filterState.DivisionId
     if ($divId) { $params['DivisionId'] = $divId }
 
     if ($script:ChkExternalTagExists.IsChecked -eq $true) {

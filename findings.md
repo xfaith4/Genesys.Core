@@ -21,3 +21,12 @@
 - The UI polling path could discover a completed older run while the new run was still executing, then keep that folder for display because completion only recovered `.runFolder` when `CurrentRunFolder` was null. Completed runs now override with the returned run context folder.
 - The full conversation-details run uses the async analytics job path. Async state comparison was case-sensitive and the dataset-specific profile ignored the longer catalog-style polling window; both were hardened to reduce false timeouts before result retrieval.
 - Local artifact search found no real run folders under `/mnt/c/Users/benfu/AppData/Local/GenesysConversationAnalysis`; only `config.json` and `cases.sqlite` were present, so the no-display symptom could not be reproduced from existing run artifacts.
+
+## Product-Purpose Reorientation Findings
+
+- Existing planning files are from reporting sessions; this work extends them for the investigation-workbench reorientation.
+- `App.Reporting.psm1` currently builds `New-ImpactReport` from an object array named `FilteredIndex`, which is appropriate for index mode but not sufficient for DB mode full-population reporting.
+- `_GenerateImpactReport` in `App.UI.ps1` currently calls `New-ImpactReport -FilteredIndex @($script:State.CurrentIndex)`, so DB-mode reports can be page/buffer dependent rather than full filtered SQL result dependent.
+- `_SaveImpactReportSnapshot` saves only the report content; it does not explicitly wrap the exact canonical filter state used for generation.
+- DB grid path currently calls `Get-ConversationsPage` and then applies `ColumnFilters` locally in UI after fetching the page. This can make count/page count/visible rows disagree.
+- DB drilldown currently reconstructs primary detail from `participants_json`; there is no separate canonical raw conversation payload column or lineage/version table visible in the current schema search.

@@ -578,6 +578,69 @@ Check 'WRAP-04' 'App.UI.ps1 wires Contact Reasons pull, render, and selection ha
     $uiContent -match 'DgWrapupCodes\.Add_SelectionChanged'
 }
 
+# ── INVESTIGATION WORKBENCH TRUST FOUNDATIONS (WB) ────────────────────────────
+
+Write-Host "`n=== INVESTIGATION WORKBENCH TRUST FOUNDATIONS ===" -ForegroundColor Cyan
+
+Check 'WB-01' 'App.Database.psm1 defines schema v10 raw payload, lineage, bridge tables, and derived columns' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $required = @(
+        'raw_json','payload_hash','conversation_versions',
+        'conversation_agents','conversation_queues','conversation_divisions',
+        'conversation_flows','conversation_wrapups',
+        'transfer_count','hold_duration_sec','mos_min','risk_score',
+        'conversation_signature','anomaly_flags'
+    )
+    $allPresent = $true
+    foreach ($term in $required) {
+        if ($dbContent -notmatch [regex]::Escape($term)) { $allPresent = $false; break }
+    }
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 10 -and $allPresent
+}
+
+Check 'WB-02' 'Database module exposes analytics-oriented filtered population helpers' {
+    $required = @(
+        'Get-ConversationPopulationRows',
+        'Get-ConversationPopulationSummary',
+        'Get-ConversationFacetCounts',
+        'Get-RepresentativeConversations',
+        'Get-AnomalyRiskCohorts',
+        'Get-ConversationVersions'
+    )
+    $allPresent = $true
+    foreach ($fn in $required) {
+        if ($dbContent -notmatch $fn) { $allPresent = $false; break }
+    }
+    $allPresent
+}
+
+Check 'WB-03' 'DB count/page queries use one canonical SQL filter helper including column filters' {
+    $dbContent -match 'function _GetConversationWhereClause' -and
+    $dbContent -match 'ColumnFilters' -and
+    $dbContent -match 'Get-ConversationCount[\s\S]+_GetConversationWhereClause' -and
+    $dbContent -match 'Get-ConversationsPage[\s\S]+_GetConversationWhereClause'
+}
+
+Check 'WB-04' 'DB-mode UI report generation uses full filtered SQL population and exact filter state' {
+    $uiContent -match 'function _GetCanonicalFilterState' -and
+    $uiContent -match 'Get-ConversationPopulationRows' -and
+    $uiContent -match 'New-PopulationReport' -and
+    $uiContent -match 'exact_filter_state'
+}
+
+Check 'WB-05' 'DB-mode drilldown prefers canonical raw_json over reconstructed participants JSON' {
+    $uiContent -match 'raw_json' -and
+    $uiContent -match 'Compatibility fallback: canonical raw_json was not available' -and
+    $uiContent -match 'TxtRawJson\.Text'
+}
+
+Check 'WB-06' 'Reporting module defines explicit population report and conversation dossier report types' {
+    $reportingContent -match 'function New-PopulationReport' -and
+    $reportingContent -match "ReportType\s*=\s*'Population'" -and
+    $reportingContent -match 'function New-ConversationDossier' -and
+    $reportingContent -match "ReportType\s*=\s*'ConversationDossier'"
+}
+
 # ── SUMMARY ────────────────────────────────────────────────────────────────────
 
 Write-Host "`n============================================" -ForegroundColor Cyan

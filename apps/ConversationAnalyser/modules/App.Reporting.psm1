@@ -138,4 +138,103 @@ function New-ImpactReport {
     }
 }
 
-Export-ModuleMember -Function New-ImpactReport
+function New-PopulationReport {
+    <#
+    .SYNOPSIS
+        Generates a defensible full-population report from a SQL-filtered
+        conversation population, including exact filter state and provenance.
+    #>
+    param(
+        [Parameter(Mandatory)][object[]]$Rows,
+        [Parameter(Mandatory)][object]$FilterState,
+        [object]$Summary = $null,
+        [object]$Facets = $null,
+        [object[]]$Representatives = @(),
+        [object[]]$Cohorts = @(),
+        [object]$Provenance = $null,
+        [string]$ReportTitle = 'Conversation Population Report'
+    )
+
+    $rows = @($Rows)
+    $impact = New-ImpactReport -FilteredIndex $rows -ReportTitle $ReportTitle
+
+    $topQueues = @()
+    if ($Facets -and $Facets.PSObject.Properties['queue']) {
+        $topQueues = @($Facets.queue)
+    } else {
+        $topQueues = @($rows |
+            Where-Object { $_.PSObject.Properties['queue_name'] -and $_.queue_name } |
+            Group-Object queue_name |
+            Sort-Object @{Expression='Count';Descending=$true}, Name |
+            Select-Object -First 20 |
+            ForEach-Object { [pscustomobject]@{ value = $_.Name; count = $_.Count } })
+    }
+
+    $topSignatures = @()
+    if ($Facets -and $Facets.PSObject.Properties['conversation_signature']) {
+        $topSignatures = @($Facets.conversation_signature)
+    } else {
+        $topSignatures = @($rows |
+            Where-Object { $_.PSObject.Properties['conversation_signature'] -and $_.conversation_signature } |
+            Group-Object conversation_signature |
+            Sort-Object @{Expression='Count';Descending=$true}, Name |
+            Select-Object -First 20 |
+            ForEach-Object { [pscustomobject]@{ value = $_.Name; count = $_.Count } })
+    }
+
+    return [pscustomobject][ordered]@{
+        ReportType          = 'Population'
+        ReportTitle         = $ReportTitle
+        GeneratedAt         = [datetime]::UtcNow.ToString('o')
+        ExactFilterState    = $FilterState
+        Provenance          = $Provenance
+        TotalConversations  = $impact.TotalConversations
+        TimeWindow          = $impact.TimeWindow
+        Summary             = $Summary
+        Facets              = $Facets
+        Cohorts             = @($Cohorts)
+        RepresentativeConversations = @($Representatives | ForEach-Object {
+            [pscustomobject]@{
+                conversation_id = if ($_.PSObject.Properties['conversation_id']) { $_.conversation_id } else { '' }
+                conversation_start = if ($_.PSObject.Properties['conversation_start']) { $_.conversation_start } else { '' }
+                direction = if ($_.PSObject.Properties['direction']) { $_.direction } else { '' }
+                media_type = if ($_.PSObject.Properties['media_type']) { $_.media_type } else { '' }
+                queue_name = if ($_.PSObject.Properties['queue_name']) { $_.queue_name } else { '' }
+                duration_sec = if ($_.PSObject.Properties['duration_sec']) { $_.duration_sec } else { 0 }
+                transfer_count = if ($_.PSObject.Properties['transfer_count']) { $_.transfer_count } else { 0 }
+                hold_duration_sec = if ($_.PSObject.Properties['hold_duration_sec']) { $_.hold_duration_sec } else { 0 }
+                risk_score = if ($_.PSObject.Properties['risk_score']) { $_.risk_score } else { 0 }
+                anomaly_flags = if ($_.PSObject.Properties['anomaly_flags']) { $_.anomaly_flags } else { '' }
+            }
+        })
+        TopQueues           = @($topQueues)
+        TopConversationSignatures = @($topSignatures)
+        DirectionBreakdown  = $impact.DirectionBreakdown
+        MediaTypeBreakdown  = $impact.MediaTypeBreakdown
+        LegacyImpactRollup  = $impact
+    }
+}
+
+function New-ConversationDossier {
+    <#
+    .SYNOPSIS
+        Generates a single-conversation dossier with canonical raw payload and derived detail.
+    #>
+    param(
+        [Parameter(Mandatory)][object]$ConversationRow,
+        [object[]]$Versions = @(),
+        [string]$ReportTitle = 'Conversation Dossier'
+    )
+
+    return [pscustomobject][ordered]@{
+        ReportType = 'ConversationDossier'
+        ReportTitle = $ReportTitle
+        GeneratedAt = [datetime]::UtcNow.ToString('o')
+        ConversationId = if ($ConversationRow.PSObject.Properties['conversation_id']) { $ConversationRow.conversation_id } else { '' }
+        Derived = $ConversationRow
+        CanonicalRawJson = if ($ConversationRow.PSObject.Properties['raw_json']) { $ConversationRow.raw_json } else { $null }
+        Versions = @($Versions)
+    }
+}
+
+Export-ModuleMember -Function New-ImpactReport, New-PopulationReport, New-ConversationDossier

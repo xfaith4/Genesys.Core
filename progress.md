@@ -35,3 +35,19 @@
 - Added smoke coverage for Windows-style persisted config paths and unit coverage for lower-case async terminal states.
 - Verified current config now resolves OutputRoot to `/mnt/c/Users/benfu/AppData/Local/GenesysConversationAnalysis/runs` and the Core/catalog/schema paths to the repo paths.
 - Verified parser checks, `Invoke-AllTests.ps1` (196 PASS, 0 FAIL, 1 SKIP), `Invoke-Pester tests/unit/AsyncJob.Engine.Tests.ps1` (3 PASS), and scoped `git diff --check`.
+
+## 2026-04-19
+
+- Started product-purpose reorientation work for ConversationAnalyser as a Core-backed investigation workbench.
+- Restored existing planning context and extended `task_plan.md` with a new P0/P1 foundation phase.
+- Initial inspection found DB-mode impact reports still generated from the UI current index/page-shaped buffer, snapshots lacking explicit filter-state wrapping, DB column filters applied page-locally, and DB drilldown relying on reconstructed participant JSON rather than canonical raw payload storage.
+
+- Implemented first v10 workbench foundation pass in `App.Database.psm1`: canonical SQL filter helper, raw payload/hash fields, conversation lineage, bridge-table DDL, derived analytic columns, SQL-backed column filters, population/facet/representative/cohort helpers.
+- Updated UI/reporting path so DB-mode impact generation is a full filtered-population report with exact filter state instead of the current page buffer, and DB drilldown prefers canonical raw JSON.
+
+- Added smoke/static coverage for page-independent DB reports, SQL-backed column filters, raw JSON drilldown storage, lineage preservation, saved-view filter restoration, and analytics helper responsiveness.
+- Updated ConversationAnalyser README to describe the workbench purpose, Core boundary, canonical filters, lineage, and explicit report types.
+
+- Final verification after saved-view restore and line-ending cleanup: `Invoke-AllTests.ps1` passed 222 PASS / 0 FAIL / 1 SKIP; DB runtime smoke remains skipped because native `e_sqlite3` is absent in this WSL environment. `git diff --check` is clean on touched files.
+
+- Completed the product-purpose reorientation foundation phase in `task_plan.md`. Saved-view restore is now wired by double-clicking a saved view in Case Manager, applying its canonical filter state and refreshing the grid from that exact scope.

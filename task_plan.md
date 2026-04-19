@@ -18,6 +18,17 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Session 17 roadmap phase | complete | Implemented IVR and Flow Containment report using the established CoreAdapter/Database/XAML/UI/test/doc pattern. |
 | Conversation display investigation | complete | Traced API run completion through output folder discovery, config path resolution, async job polling, indexing, and grid display. |
 | Conversation display fix | complete | Patched path resolution, run-folder selection, and async terminal-state handling; parser/tests/diff checks passed. |
+| Product-purpose reorientation P0/P1 foundation | complete | Implemented canonical filter state, full-filtered-set DB reports, SQL-backed column filtering, canonical raw JSON drilldown, lineage, derived analysis columns, bridge tables, analytics helpers, tests, saved-view restore, and README updates. |
+
+## Current Task Scope
+
+User goal: move ConversationAnalyser from a page-row viewer toward a Core-backed investigation workbench with trustworthy full-population analysis, faithful drilldown, provenance, and analytical schema support.
+
+Execution strategy:
+1. P0 correctness first: canonical filter object, DB report/page independence, SQL-backed column filters, raw JSON drilldown, import lineage.
+2. P1 database foundation next: derived columns, many-to-many bridge tables, analytics query helpers for summaries/facets/representatives.
+3. P2 UI/report/documentation where feasible in this turn: scope bar/population summary/representative path and README purpose update.
+4. Preserve the Core boundary: no direct Genesys REST outside `App.CoreAdapter.psm1`.
 
 ## Constraints
 

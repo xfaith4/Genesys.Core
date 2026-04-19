@@ -95,6 +95,18 @@ $script:LblFlowContainment           = _Ctrl 'LblFlowContainment'
 $script:LblFlowFailures              = _Ctrl 'LblFlowFailures'
 $script:LblFlowLowContainment        = _Ctrl 'LblFlowLowContainment'
 
+# Contact Reasons tab
+$script:BtnPullWrapupReport          = _Ctrl 'BtnPullWrapupReport'
+$script:DgWrapupCodes                = _Ctrl 'DgWrapupCodes'
+$script:DgWrapupByQueue              = _Ctrl 'DgWrapupByQueue'
+$script:DgWrapupByHour               = _Ctrl 'DgWrapupByHour'
+$script:DgWrapupInsights             = _Ctrl 'DgWrapupInsights'
+$script:DgWrapupCrossRef             = _Ctrl 'DgWrapupCrossRef'
+$script:LblWrapupCodes               = _Ctrl 'LblWrapupCodes'
+$script:LblWrapupConnected           = _Ctrl 'LblWrapupConnected'
+$script:LblWrapupQueues              = _Ctrl 'LblWrapupQueues'
+$script:LblWrapupTopReason           = _Ctrl 'LblWrapupTopReason'
+
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
 $script:BtnSearch              = _Ctrl 'BtnSearch'
@@ -183,6 +195,10 @@ $script:State = @{
     FlowContainmentRunspace = $null
     FlowContainmentTimer    = $null
     FlowContainmentCaseId   = ''       # case targeted by in-progress flow-containment pull
+    WrapupJob               = $null    # PSDataCollection for wrapup distribution background pull
+    WrapupRunspace          = $null
+    WrapupTimer             = $null
+    WrapupCaseId            = ''       # case targeted by in-progress wrapup pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -364,6 +380,7 @@ function _RefreshActiveCaseStatus {
             $script:BtnRefreshRefData.IsEnabled = $false
             _ClearTransferGrid
             _ClearFlowContainmentGrid
+            _ClearWrapupGrid
         }
         return
     }
@@ -379,6 +396,7 @@ function _RefreshActiveCaseStatus {
             $script:BtnRefreshRefData.IsEnabled = $true
             _ClearTransferGrid
             _ClearFlowContainmentGrid
+            _ClearWrapupGrid
         }
         return
     }
@@ -398,6 +416,7 @@ function _RefreshActiveCaseStatus {
         _RenderAgentPerfGrid
         _RenderTransferGrid
         _RenderFlowContainmentGrid
+        _RenderWrapupGrid
     }
 }
 
@@ -2274,6 +2293,328 @@ function _RenderSelectedFlowDetail {
     if ($null -ne $script:DgFlowQueues) { $script:DgFlowQueues.ItemsSource = $queueRows }
 }
 
+function _ClearWrapupGrid {
+    if ($null -ne $script:DgWrapupCodes)    { $script:DgWrapupCodes.ItemsSource    = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgWrapupByQueue)  { $script:DgWrapupByQueue.ItemsSource  = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgWrapupByHour)   { $script:DgWrapupByHour.ItemsSource   = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgWrapupInsights) { $script:DgWrapupInsights.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgWrapupCrossRef) { $script:DgWrapupCrossRef.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:LblWrapupCodes)     { $script:LblWrapupCodes.Text     = '-' }
+    if ($null -ne $script:LblWrapupConnected) { $script:LblWrapupConnected.Text = '-' }
+    if ($null -ne $script:LblWrapupQueues)    { $script:LblWrapupQueues.Text    = '-' }
+    if ($null -ne $script:LblWrapupTopReason) { $script:LblWrapupTopReason.Text = '-' }
+}
+
+function _StartWrapupDistributionReportJob {
+    <#
+        Pulls hourly wrapup-code distribution data in a background runspace,
+        imports it into the case store, and refreshes the Contact Reasons tab.
+    #>
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Contact Reasons')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Contact Reasons')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling wrapup distribution data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Contact Reasons')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling wrapup distribution data.', 'Contact Reasons')
+        return
+    }
+
+    $startDt = $range.Start.ToUniversalTime().ToString('o')
+    $endDt   = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+    $caseName    = $case.name
+
+    _SetStatus 'Pulling wrapup distribution report...'
+    if ($null -ne $script:BtnPullWrapupReport) {
+        $script:BtnPullWrapupReport.IsEnabled = $false
+    }
+    $script:State.WrapupCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
+
+    [void]$ps.AddScript({
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt)
+        Set-StrictMode -Version Latest
+
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-WrapupDistributionReport -StartDateTime $StartDt -EndDateTime $EndDt -Headers $Headers -BaseUri $BaseUri)
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.WrapupJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId; CaseName = $caseName }
+    $script:State.WrapupRunspace = $rs
+
+    $timer          = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.WrapupTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.WrapupJob
+        if ($null -eq $job) { $script:State.WrapupTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.WrapupTimer.Stop()
+        $script:State.WrapupTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                         catch {}
+            try { $script:State.WrapupRunspace.Close() }       catch {}
+            try { $script:State.WrapupRunspace.Dispose() }     catch {}
+            $script:State.WrapupJob      = $null
+            $script:State.WrapupRunspace = $null
+            $script:State.WrapupCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Wrapup distribution report pull failed'
+            _Dispatch { if ($null -ne $script:BtnPullWrapupReport) { $script:BtnPullWrapupReport.IsEnabled = $true } }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Contact Reasons')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-WrapupDistributionReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary     = "Loaded $($importStats.RecordCount) wrapup rows and $($importStats.HourRecordCount) hourly rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' - WARNING: one or more wrapup datasets failed.' }
+                _SetStatus $summary
+                _RenderWrapupGrid
+                [System.Windows.MessageBox]::Show($summary, 'Contact Reasons Report')
+            } catch {
+                _SetStatus 'Wrapup distribution report import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Contact Reasons')
+            }
+        } else {
+            _SetStatus 'Wrapup distribution report pull completed (no data returned)'
+        }
+
+        _Dispatch { if ($null -ne $script:BtnPullWrapupReport) { $script:BtnPullWrapupReport.IsEnabled = $true } }
+    })
+
+    $timer.Start()
+}
+
+function _GetWrapupHeatBrush {
+    param([int]$Value, [int]$Max)
+    if ($Value -le 0 -or $Max -le 0) { return '#0F161B' }
+    $ratio = $Value / [double]$Max
+    if ($ratio -lt 0.25) { return '#173238' }
+    if ($ratio -lt 0.50) { return '#1E5361' }
+    if ($ratio -lt 0.75) { return '#2B7A78' }
+    return '#D6A33D'
+}
+
+function _RenderWrapupGrid {
+    <#
+        Reads contact reason rows for the active case, updates summary KPIs,
+        renders the hourly heat-map table, and refreshes selected-code detail.
+    #>
+    if (-not (Test-DatabaseInitialized)) { _ClearWrapupGrid; return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { _ClearWrapupGrid; return }
+
+    try {
+        $rows     = @(Get-WrapupCodeRows -CaseId $caseId)
+        $summary  = Get-WrapupSummary -CaseId $caseId
+        $hourRows = @(Get-WrapupByHourRows -CaseId $caseId -TopCodes 10)
+        $insights = @(Get-WrapupConcentrationInsights -CaseId $caseId -Top 5)
+        $crossRef = @(Get-WrapupHandleTimeCrossRef -CaseId $caseId -TopCodes 10)
+    } catch {
+        _SetStatus "Wrapup report read failed: $_"
+        return
+    }
+
+    $previousCodeId = ''
+    if ($null -ne $script:DgWrapupCodes -and $null -ne $script:DgWrapupCodes.SelectedItem) {
+        $previousCodeId = [string]$script:DgWrapupCodes.SelectedItem.WrapupCodeId
+    }
+
+    $displayRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($r in $rows) {
+        $displayRows.Add([pscustomobject]@{
+            WrapupCodeId    = [string]($r.wrapup_code_id)
+            WrapupCodeName  = [string]($r.wrapup_code_name)
+            NConnected      = [int]   ($r.n_connected)
+            QueueCount      = [int]   ($r.queue_count)
+            PctOfOrgTotal   = [string]("{0:F1}" -f [double]($r.pct_of_org_total))
+        })
+    }
+
+    if ($null -ne $script:DgWrapupCodes) {
+        $script:DgWrapupCodes.ItemsSource = $displayRows
+        if ($displayRows.Count -gt 0) {
+            $target = $displayRows[0]
+            if ($previousCodeId) {
+                foreach ($row in $displayRows) {
+                    if ($row.WrapupCodeId -eq $previousCodeId) { $target = $row; break }
+                }
+            }
+            $script:DgWrapupCodes.SelectedItem = $target
+            try { $script:DgWrapupCodes.ScrollIntoView($target) } catch {}
+        }
+    }
+
+    if ($null -ne $script:LblWrapupCodes)     { $script:LblWrapupCodes.Text     = [string]($summary.TotalCodes) }
+    if ($null -ne $script:LblWrapupConnected) { $script:LblWrapupConnected.Text = [string]($summary.TotalConnected) }
+    if ($null -ne $script:LblWrapupQueues)    { $script:LblWrapupQueues.Text    = [string]($summary.TotalQueues) }
+    if ($null -ne $script:LblWrapupTopReason) {
+        $script:LblWrapupTopReason.Text = if ($summary.TopReasonName) {
+            "$($summary.TopReasonName) ($($summary.TopReasonCount))"
+        } else { '-' }
+    }
+
+    $byCode = @{}
+    $maxHourValue = 0
+    foreach ($h in $hourRows) {
+        $codeId = [string]($h.wrapup_code_id)
+        if (-not $byCode.ContainsKey($codeId)) {
+            $entry = [ordered]@{
+                WrapupCodeId   = $codeId
+                WrapupCodeName = [string]($h.wrapup_code_name)
+                Total          = 0
+            }
+            for ($i = 0; $i -lt 24; $i++) {
+                $entry[('Hour{0:D2}' -f $i)] = 0
+                $entry[('Hour{0:D2}Brush' -f $i)] = '#0F161B'
+            }
+            $byCode[$codeId] = $entry
+        }
+        $hour = [int]($h.hour_of_day)
+        if ($hour -lt 0 -or $hour -gt 23) { continue }
+        $n = [int]($h.n_connected)
+        $byCode[$codeId][('Hour{0:D2}' -f $hour)] = $n
+        $byCode[$codeId]['Total'] += $n
+        if ($n -gt $maxHourValue) { $maxHourValue = $n }
+    }
+
+    $hourDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($entry in @($byCode.Values | Sort-Object @{ Expression = { $_['Total'] }; Descending = $true }, WrapupCodeName)) {
+        for ($i = 0; $i -lt 24; $i++) {
+            $hourName = 'Hour{0:D2}' -f $i
+            $entry["$($hourName)Brush"] = _GetWrapupHeatBrush -Value ([int]$entry[$hourName]) -Max $maxHourValue
+        }
+        $hourDisplay.Add([pscustomobject]$entry)
+    }
+    if ($null -ne $script:DgWrapupByHour) { $script:DgWrapupByHour.ItemsSource = $hourDisplay }
+
+    $insightRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($i in $insights) {
+        $insightRows.Add([pscustomobject]@{
+            WrapupCodeName     = [string]($i.WrapupCodeName)
+            TopQueueName       = [string]($i.TopQueueName)
+            ConcentrationIndex = [string]("{0:F2}" -f [double]($i.ConcentrationIndex))
+            NConnectedTotal    = [int]   ($i.NConnectedTotal)
+        })
+    }
+    if ($null -ne $script:DgWrapupInsights) { $script:DgWrapupInsights.ItemsSource = $insightRows }
+
+    $crossRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($c in $crossRef) {
+        $crossRows.Add([pscustomobject]@{
+            WrapupCodeName     = [string]($c.WrapupCodeName)
+            ConversationCount  = [int]   ($c.ConversationCount)
+            MedianHandleSec    = [string]("{0:F1}" -f [double]($c.MedianHandleSec))
+            MedianSegmentCount = [string]("{0:F1}" -f [double]($c.MedianSegmentCount))
+        })
+    }
+    if ($null -ne $script:DgWrapupCrossRef) { $script:DgWrapupCrossRef.ItemsSource = $crossRows }
+
+    _RenderSelectedWrapupDetail
+}
+
+function _RenderSelectedWrapupDetail {
+    if (-not (Test-DatabaseInitialized)) {
+        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) {
+        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+    if ($null -eq $script:DgWrapupCodes -or $null -eq $script:DgWrapupCodes.SelectedItem) {
+        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+
+    $wrapupCodeId = [string]$script:DgWrapupCodes.SelectedItem.WrapupCodeId
+    if ([string]::IsNullOrWhiteSpace($wrapupCodeId)) {
+        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+        return
+    }
+
+    try {
+        $queues = @(Get-WrapupByQueueRows -CaseId $caseId -WrapupCodeId $wrapupCodeId)
+    } catch {
+        _SetStatus "Wrapup queue detail read failed: $_"
+        return
+    }
+
+    $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($q in $queues) {
+        $queueRows.Add([pscustomobject]@{
+            QueueName       = [string]($q.queue_name)
+            NConnected      = [int]   ($q.n_connected)
+            PctOfQueueTotal = [string]("{0:F1}" -f [double]($q.pct_of_queue_total))
+            PctOfOrgTotal   = [string]("{0:F1}" -f [double]($q.pct_of_org_total))
+        })
+    }
+    if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
+}
+
 function _ImportCurrentRunToCase {
     if (-not (Test-DatabaseInitialized)) {
         _SetStatus 'Case store offline'
@@ -3648,6 +3989,14 @@ if ($null -ne $script:CmbFlowType) {
 
 if ($null -ne $script:DgFlowPerf) {
     $script:DgFlowPerf.Add_SelectionChanged({ _RenderSelectedFlowDetail })
+}
+
+if ($null -ne $script:BtnPullWrapupReport) {
+    $script:BtnPullWrapupReport.Add_Click({ _StartWrapupDistributionReportJob })
+}
+
+if ($null -ne $script:DgWrapupCodes) {
+    $script:DgWrapupCodes.Add_SelectionChanged({ _RenderSelectedWrapupDetail })
 }
 
 $script:BtnRun.Add_Click({

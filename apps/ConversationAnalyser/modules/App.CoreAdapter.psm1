@@ -635,10 +635,82 @@ function Get-FlowContainmentReport {
     }
 }
 
+function Get-WrapupDistributionReport {
+    <#
+    .SYNOPSIS
+        Session 18 — pulls the wrapup distribution aggregate dataset and the
+        wrapup code reference dataset for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.wrapup.distribution
+          - routing.get.all.wrapup.codes
+
+        The aggregate call uses StartDateTime / EndDateTime as the interval
+        DatasetParameters override. Results are written under
+        OutputRoot\report-wrapup-<timestamp>\.
+
+        Returns a hashtable with keys:
+          WrapupAggFolder   — run folder for wrapup distribution aggregate metrics
+          WrapupCodesFolder — run folder for wrapup code definitions
+          PartialFailure    — $true if any dataset call failed
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-wrapup-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.wrapup.distribution',
+        'routing.get.all.wrapup.codes'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $params = if ($key -eq 'analytics.query.conversation.aggregates.wrapup.distribution') {
+                @{
+                    Interval = $interval
+                    Body = @{
+                        interval    = $interval
+                        granularity = 'PT1H'
+                        groupBy     = @('queueId', 'wrapUpCode')
+                        metrics     = @('nConnected', 'tHandle')
+                        filter      = @{ type = 'and'; predicates = @() }
+                    }
+                }
+            } else { $null }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-WrapupDistributionReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        WrapupAggFolder   = $folderMap['analytics.query.conversation.aggregates.wrapup.distribution']
+        WrapupCodesFolder = $folderMap['routing.get.all.wrapup.codes']
+        PartialFailure    = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
     Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
-    Get-TransferReport, Get-FlowContainmentReport
+    Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport

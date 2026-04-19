@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 8
+$script:SchemaVersion = 9
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -1101,6 +1101,43 @@ CREATE TABLE IF NOT EXISTS report_flow_milestone_distribution (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_perf_contain    ON report_flow_perf(containment_rate_pct)'          | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_milestone_case  ON report_flow_milestone_distribution(case_id)'     | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_flow_milestone_flow  ON report_flow_milestone_distribution(flow_id)'     | Out-Null
+
+    # Schema v9 — Wrapup Code Distribution report tables (Session 18)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_wrapup_distribution (
+    row_id                  TEXT    PRIMARY KEY,
+    case_id                 TEXT    NOT NULL REFERENCES cases(case_id),
+    queue_id                TEXT    NOT NULL DEFAULT '',
+    queue_name              TEXT    NOT NULL DEFAULT '',
+    wrapup_code_id          TEXT    NOT NULL DEFAULT '',
+    wrapup_code_name        TEXT    NOT NULL DEFAULT '',
+    n_connected             INTEGER NOT NULL DEFAULT 0,
+    pct_of_queue_total      REAL    NOT NULL DEFAULT 0,
+    pct_of_org_total        REAL    NOT NULL DEFAULT 0,
+    imported_utc            TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_wrapup_by_hour (
+    row_id                  TEXT    PRIMARY KEY,
+    case_id                 TEXT    NOT NULL REFERENCES cases(case_id),
+    hour_of_day             INTEGER NOT NULL DEFAULT 0,
+    wrapup_code_id          TEXT    NOT NULL DEFAULT '',
+    wrapup_code_name        TEXT    NOT NULL DEFAULT '',
+    n_connected             INTEGER NOT NULL DEFAULT 0,
+    imported_utc            TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    # v9 indexes
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_dist_case     ON report_wrapup_distribution(case_id)'       | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_dist_code     ON report_wrapup_distribution(wrapup_code_id)'| Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_dist_queue    ON report_wrapup_distribution(queue_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_dist_nconn    ON report_wrapup_distribution(n_connected)'   | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_hour_case     ON report_wrapup_by_hour(case_id)'             | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_hour_code     ON report_wrapup_by_hour(wrapup_code_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_wrapup_hour_h        ON report_wrapup_by_hour(hour_of_day)'         | Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -4368,6 +4405,532 @@ WHERE case_id = @cid
     return $rows
 }
 
+function Import-WrapupDistributionReport {
+    <#
+    .SYNOPSIS
+        Session 18 — imports wrapup distribution aggregate data into the local
+        case store. Writes per-queue-per-code distribution and a per-hour
+        rollup for contact reason heat-maps.
+    .DESCRIPTION
+        Reads JSONL outputs from:
+          - analytics.query.conversation.aggregates.wrapup.distribution
+          - routing.get.all.wrapup.codes
+
+        Aggregate rows are grouped by (queueId, wrapUpCode) with `nConnected`.
+        Hourly rollups are derived from each result's per-interval `data[]`
+        buckets (aggregate `granularity` of PT1H or PT1D — if buckets are
+        day-sized the hour is 0 for every row and the heat-map degenerates to
+        a single column, which is still meaningful).
+
+        pct_of_queue_total and pct_of_org_total are computed locally from the
+        aggregated counts. Wrapup code names are resolved from the routing
+        wrapup code reference dataset (and the per-case ref_wrapup_codes
+        snapshot as a fallback).
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    $now   = [datetime]::UtcNow.ToString('o')
+    $stats = @{ RecordCount = 0; HourRecordCount = 0; SkippedCount = 0 }
+
+    function _ReadWrapupJsonl ([string]$RunFolder) {
+        if ([string]::IsNullOrWhiteSpace($RunFolder) -or
+            -not [System.IO.Directory]::Exists($RunFolder)) {
+            return @()
+        }
+        $dataDir = [System.IO.Path]::Combine($RunFolder, 'data')
+        if (-not [System.IO.Directory]::Exists($dataDir)) { return @() }
+        $records = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+            foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                $t = $line.Trim()
+                if ($t) {
+                    try { $records.Add(($t | ConvertFrom-Json)) } catch {
+                        Write-Warning "Import-WrapupDistributionReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+        return $records.ToArray()
+    }
+
+    $aggFolder   = if ($FolderMap.ContainsKey('WrapupAggFolder'))   { $FolderMap['WrapupAggFolder']   } else { $null }
+    $codesFolder = if ($FolderMap.ContainsKey('WrapupCodesFolder')) { $FolderMap['WrapupCodesFolder'] } else { $null }
+
+    $conn = _Open
+    try {
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_wrapup_distribution WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_wrapup_by_hour     WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+
+        $queueMap = @{}
+        foreach ($q in (_Query -Conn $conn -Sql 'SELECT queue_id, name FROM ref_queues WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $qid = [string]$q.queue_id
+            if ($qid) { $queueMap[$qid] = [string]$q.name }
+        }
+
+        $codeMap = @{}
+        foreach ($c in (_Query -Conn $conn -Sql 'SELECT code_id, name FROM ref_wrapup_codes WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $cid = [string]$c.code_id
+            if ($cid) { $codeMap[$cid] = [string]$c.name }
+        }
+        foreach ($c in (_ReadWrapupJsonl $codesFolder)) {
+            $cid = [string](_ObjVal $c @('id','codeId') '')
+            if ($cid) { $codeMap[$cid] = [string](_ObjVal $c @('name') '') }
+        }
+
+        # Aggregations:
+        #   byPair[queueId|codeId] → @{ QueueId; CodeId; N }
+        #   byQueue[queueId]       → total n for the queue
+        #   byCode[codeId]         → total n for the code across queues
+        #   byHour[hour|codeId]    → @{ Hour; CodeId; N }
+        $byPair  = @{}
+        $byQueue = @{}
+        $byCode  = @{}
+        $byHour  = @{}
+        $orgTotal = 0
+
+        foreach ($r in (_ReadWrapupJsonl $aggFolder)) {
+            if ($null -eq $r) { $stats.SkippedCount++; continue }
+            $group = if ($r.PSObject.Properties['group']) { $r.group } else { $null }
+            $queueId = [string](_ObjVal $group @('queueId') '')
+            $codeId  = [string](_ObjVal $group @('wrapUpCode','wrapupCode') '')
+            if (-not $codeId) { $stats.SkippedCount++; continue }
+
+            $pairKey = "$queueId|$codeId"
+            if (-not $byPair.ContainsKey($pairKey)) {
+                $byPair[$pairKey] = @{ QueueId = $queueId; CodeId = $codeId; N = 0 }
+            }
+            if (-not $byQueue.ContainsKey($queueId)) { $byQueue[$queueId] = 0 }
+            if (-not $byCode.ContainsKey($codeId))   { $byCode[$codeId]   = 0 }
+
+            if (-not $r.PSObject.Properties['data']) { continue }
+            foreach ($d in @($r.data)) {
+                $intervalStr = [string](_ObjVal $d @('interval') '')
+                $hour = 0
+                if ($intervalStr) {
+                    $slash = $intervalStr.IndexOf('/')
+                    $startPart = if ($slash -gt 0) { $intervalStr.Substring(0, $slash) } else { $intervalStr }
+                    try {
+                        $dt = [datetime]::Parse($startPart, [System.Globalization.CultureInfo]::InvariantCulture,
+                                                [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+                        $hour = $dt.Hour
+                    } catch { $hour = 0 }
+                }
+
+                if (-not $d.PSObject.Properties['metrics']) { continue }
+                foreach ($m in @($d.metrics)) {
+                    $metric = [string](_ObjVal $m @('metric') '')
+                    if ($metric -ne 'nConnected') { continue }
+                    $count = 0
+                    if ($m.PSObject.Properties['stats'] -and $null -ne $m.stats -and
+                        $m.stats.PSObject.Properties['count']) {
+                        $count = [int]$m.stats.count
+                    }
+                    if ($count -le 0) { continue }
+
+                    $byPair[$pairKey].N += $count
+                    $byQueue[$queueId]  += $count
+                    $byCode[$codeId]    += $count
+                    $orgTotal           += $count
+
+                    $hourKey = "$hour|$codeId"
+                    if (-not $byHour.ContainsKey($hourKey)) {
+                        $byHour[$hourKey] = @{ Hour = $hour; CodeId = $codeId; N = 0 }
+                    }
+                    $byHour[$hourKey].N += $count
+                }
+            }
+        }
+
+        foreach ($pair in $byPair.Values) {
+            $qid   = [string]$pair.QueueId
+            $cid   = [string]$pair.CodeId
+            $n     = [int]$pair.N
+            if ($n -le 0) { continue }
+
+            $qName = if ($qid -and $queueMap.ContainsKey($qid)) { $queueMap[$qid] }
+                     elseif ($qid) { "$qid (unresolved)" }
+                     else { '(no queue)' }
+            $cName = if ($cid -and $codeMap.ContainsKey($cid)) { $codeMap[$cid] }
+                     elseif ($cid) { "$cid (unresolved)" }
+                     else { '(no code)' }
+
+            $queueTotal = if ($qid -and $byQueue.ContainsKey($qid)) { [int]$byQueue[$qid] } else { 0 }
+            $pctQueue   = if ($queueTotal -gt 0) { [Math]::Round(($n / [double]$queueTotal) * 100.0, 1) } else { 0.0 }
+            $pctOrg     = if ($orgTotal   -gt 0) { [Math]::Round(($n / [double]$orgTotal)   * 100.0, 1) } else { 0.0 }
+
+            $rowKey = "$CaseId|wrapup|$qid|$cid"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_wrapup_distribution(
+    row_id, case_id, queue_id, queue_name, wrapup_code_id, wrapup_code_name,
+    n_connected, pct_of_queue_total, pct_of_org_total, imported_utc)
+VALUES(
+    @rid, @cid, @qid, @qname, @wid, @wname,
+    @n, @pq, @po, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    queue_name=excluded.queue_name,
+    wrapup_code_name=excluded.wrapup_code_name,
+    n_connected=excluded.n_connected,
+    pct_of_queue_total=excluded.pct_of_queue_total,
+    pct_of_org_total=excluded.pct_of_org_total,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowKey; '@cid' = $CaseId
+                '@qid' = $qid; '@qname' = $qName
+                '@wid' = $cid; '@wname' = $cName
+                '@n'   = $n; '@pq' = [double]$pctQueue; '@po' = [double]$pctOrg
+                '@ts'  = $now
+            } | Out-Null
+            $stats.RecordCount++
+        }
+
+        foreach ($hr in $byHour.Values) {
+            $hour = [int]$hr.Hour
+            $cid  = [string]$hr.CodeId
+            $n    = [int]$hr.N
+            if ($n -le 0) { continue }
+
+            $cName = if ($cid -and $codeMap.ContainsKey($cid)) { $codeMap[$cid] }
+                     elseif ($cid) { "$cid (unresolved)" }
+                     else { '(no code)' }
+            $rowKey = "$CaseId|wrapuph|$hour|$cid"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_wrapup_by_hour(
+    row_id, case_id, hour_of_day, wrapup_code_id, wrapup_code_name,
+    n_connected, imported_utc)
+VALUES(
+    @rid, @cid, @h, @wid, @wname, @n, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    wrapup_code_name=excluded.wrapup_code_name,
+    n_connected=excluded.n_connected,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowKey; '@cid' = $CaseId; '@h' = $hour
+                '@wid' = $cid;    '@wname' = $cName
+                '@n'   = $n;      '@ts' = $now
+            } | Out-Null
+            $stats.HourRecordCount++
+        }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return $stats
+}
+
+function Get-WrapupCodeRows {
+    <#
+    .SYNOPSIS
+        Org-wide ranked list of wrapup codes (aggregated across queues).
+    #>
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT wrapup_code_id,
+       MAX(wrapup_code_name) AS wrapup_code_name,
+       SUM(n_connected)      AS n_connected,
+       ROUND(SUM(pct_of_org_total), 1) AS pct_of_org_total,
+       COUNT(DISTINCT queue_id) AS queue_count
+FROM report_wrapup_distribution
+WHERE case_id = @cid
+GROUP BY wrapup_code_id
+ORDER BY SUM(n_connected) DESC, MAX(wrapup_code_name) ASC
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-WrapupByQueueRows {
+    <#
+    .SYNOPSIS
+        Per-queue breakdown for a single wrapup code (ordered by n_connected).
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [Parameter(Mandatory)][string] $WrapupCodeId
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT queue_id, queue_name, n_connected, pct_of_queue_total, pct_of_org_total
+FROM report_wrapup_distribution
+WHERE case_id = @cid AND wrapup_code_id = @wid
+ORDER BY n_connected DESC, queue_name ASC
+'@ -P @{ '@cid' = $CaseId; '@wid' = $WrapupCodeId }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-WrapupByHourRows {
+    <#
+    .SYNOPSIS
+        Heat-map rows for the top-N wrapup codes × hours 0..23.
+        Returns one row per (wrapup_code_id, hour_of_day) with n_connected.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [int] $TopCodes = 10
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @"
+SELECT h.wrapup_code_id, h.wrapup_code_name, h.hour_of_day, h.n_connected
+FROM report_wrapup_by_hour h
+WHERE h.case_id = @cid
+  AND h.wrapup_code_id IN (
+        SELECT wrapup_code_id
+        FROM report_wrapup_distribution
+        WHERE case_id = @cid
+        GROUP BY wrapup_code_id
+        ORDER BY SUM(n_connected) DESC
+        LIMIT @top
+  )
+ORDER BY h.wrapup_code_name ASC, h.hour_of_day ASC
+"@ -P @{ '@cid' = $CaseId; '@top' = $TopCodes }
+    } finally { $conn.Close(); $conn.Dispose() }
+    return @($rows)
+}
+
+function Get-WrapupSummary {
+    <#
+    .SYNOPSIS
+        Header KPIs for the Contact Reasons tab.
+    #>
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT
+    COUNT(DISTINCT wrapup_code_id) AS total_codes,
+    COUNT(DISTINCT queue_id)       AS total_queues,
+    COALESCE(SUM(n_connected), 0)  AS total_connected
+FROM report_wrapup_distribution
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+
+        $topRows = _Query -Conn $conn -Sql @'
+SELECT wrapup_code_id, MAX(wrapup_code_name) AS wrapup_code_name,
+       SUM(n_connected) AS n_connected
+FROM report_wrapup_distribution
+WHERE case_id = @cid
+GROUP BY wrapup_code_id
+ORDER BY SUM(n_connected) DESC
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $r = if ($rows.Count -gt 0) { $rows[0] } else { $null }
+    $top = if ($topRows.Count -gt 0) { $topRows[0] } else { $null }
+    return [pscustomobject]@{
+        TotalCodes     = if ($null -ne $r)   { [int](_RowVal $r   'total_codes'     0) } else { 0 }
+        TotalQueues    = if ($null -ne $r)   { [int](_RowVal $r   'total_queues'    0) } else { 0 }
+        TotalConnected = if ($null -ne $r)   { [int](_RowVal $r   'total_connected' 0) } else { 0 }
+        TopReasonName  = if ($null -ne $top) { [string](_RowVal $top 'wrapup_code_name' '') } else { '' }
+        TopReasonCount = if ($null -ne $top) { [int]   (_RowVal $top 'n_connected'      0) } else { 0 }
+    }
+}
+
+function Get-WrapupConcentrationInsights {
+    <#
+    .SYNOPSIS
+        Top N wrapup codes by concentration index. Index is the ratio of the
+        top queue's share of the code to the average queue's share (1 / queueCount).
+        High ratio = code is heavily concentrated in one queue.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [int] $Top = 5
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT wrapup_code_id, wrapup_code_name, queue_id, queue_name, n_connected
+FROM report_wrapup_distribution
+WHERE case_id = @cid
+ORDER BY wrapup_code_id ASC, n_connected DESC
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $byCode = @{}
+    foreach ($r in $rows) {
+        $cid = [string]$r.wrapup_code_id
+        if (-not $byCode.ContainsKey($cid)) {
+            $byCode[$cid] = [System.Collections.Generic.List[object]]::new()
+        }
+        $byCode[$cid].Add($r)
+    }
+
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($cid in $byCode.Keys) {
+        $list = $byCode[$cid]
+        if ($list.Count -eq 0) { continue }
+        $total = 0
+        foreach ($r in $list) { $total += [int]$r.n_connected }
+        if ($total -le 0) { continue }
+        $top = $list[0]
+        $topN = [int]$top.n_connected
+        $topShare = $topN / [double]$total
+        $avgShare = 1.0 / [double]$list.Count
+        $index = if ($avgShare -gt 0) { $topShare / $avgShare } else { 0.0 }
+        $out.Add([pscustomobject]@{
+            WrapupCodeId       = $cid
+            WrapupCodeName     = [string]$top.wrapup_code_name
+            NConnectedTotal    = $total
+            TopQueueName       = [string]$top.queue_name
+            TopQueueN          = $topN
+            QueueCount         = $list.Count
+            ConcentrationIndex = [Math]::Round($index, 2)
+        })
+    }
+
+    $sorted = @($out | Where-Object { $_.QueueCount -gt 1 -and $_.NConnectedTotal -ge 5 } | Sort-Object -Property ConcentrationIndex, NConnectedTotal -Descending)
+    if ($sorted.Count -gt $Top) {
+        return @($sorted[0..($Top - 1)])
+    }
+    return $sorted
+}
+
+function Get-WrapupHandleTimeCrossRef {
+    <#
+    .SYNOPSIS
+        For the top-N wrapup codes, compute the median handle time and median
+        segment count of conversations in the case store that carry that code.
+        Reads wrapup code ids from participants_json (participant.wrapup.code).
+    .OUTPUTS
+        WrapupCodeId, WrapupCodeName, ConversationCount, MedianHandleSec, MedianSegmentCount
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [int] $TopCodes = 10
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $topRows = _Query -Conn $conn -Sql @'
+SELECT wrapup_code_id, MAX(wrapup_code_name) AS wrapup_code_name
+FROM report_wrapup_distribution
+WHERE case_id = @cid
+GROUP BY wrapup_code_id
+ORDER BY SUM(n_connected) DESC
+LIMIT @top
+'@ -P @{ '@cid' = $CaseId; '@top' = $TopCodes }
+
+        $topIds    = @{}
+        $nameByCid = @{}
+        foreach ($r in $topRows) {
+            $cid = [string]$r.wrapup_code_id
+            if (-not $cid) { continue }
+            $topIds[$cid] = $true
+            $nameByCid[$cid] = [string]$r.wrapup_code_name
+        }
+        if ($topIds.Count -eq 0) { return @() }
+
+        $codeMap = @{}
+        foreach ($c in (_Query -Conn $conn -Sql 'SELECT code_id, name FROM ref_wrapup_codes WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $cid = [string]$c.code_id
+            if ($cid) { $codeMap[$cid] = [string]$c.name }
+        }
+
+        $convRows = _Query -Conn $conn -Sql @'
+SELECT duration_sec, segment_count, participants_json
+FROM conversations
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $buckets = @{}
+    foreach ($cid in $topIds.Keys) {
+        $buckets[$cid] = @{ Durations = [System.Collections.Generic.List[double]]::new(); Segments = [System.Collections.Generic.List[int]]::new() }
+    }
+
+    foreach ($cr in $convRows) {
+        $partJson = _RowVal $cr 'participants_json' $null
+        if ($null -eq $partJson -or [string]::IsNullOrWhiteSpace([string]$partJson)) { continue }
+        try { $participants = @($partJson | ConvertFrom-Json) } catch { continue }
+
+        $codesThisConv = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($p in $participants) {
+            $cid = ''
+            if ($p.PSObject.Properties['wrapup'] -and $null -ne $p.wrapup) {
+                $cid = [string](_ObjVal $p.wrapup @('code','codeId') '')
+                if (-not $cid) { $cid = [string](_ObjVal $p.wrapup @('name') '') }
+            }
+            if (-not $cid -and $p.PSObject.Properties['sessions']) {
+                foreach ($s in @($p.sessions)) {
+                    if (-not $s.PSObject.Properties['segments']) { continue }
+                    foreach ($seg in @($s.segments)) {
+                        if ($seg.PSObject.Properties['wrapUpCode']) {
+                            $cid = [string]$seg.wrapUpCode
+                            if ($cid) { break }
+                        }
+                    }
+                    if ($cid) { break }
+                }
+            }
+            if ($cid -and $topIds.ContainsKey($cid)) {
+                $codesThisConv.Add($cid) | Out-Null
+            }
+        }
+
+        if ($codesThisConv.Count -eq 0) { continue }
+        $dur  = [double](_RowVal $cr 'duration_sec'  0)
+        $segs = [int]   (_RowVal $cr 'segment_count' 0)
+        foreach ($cid in $codesThisConv) {
+            $buckets[$cid].Durations.Add($dur)  | Out-Null
+            $buckets[$cid].Segments.Add($segs)  | Out-Null
+        }
+    }
+
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($cid in $topIds.Keys) {
+        $b = $buckets[$cid]
+        $count = $b.Durations.Count
+        $medDur = 0.0
+        $medSeg = 0.0
+        if ($count -gt 0) {
+            $sortedDur = @($b.Durations | Sort-Object)
+            $sortedSeg = @($b.Segments  | Sort-Object)
+            $mid = [int]([Math]::Floor($count / 2))
+            if ($count % 2 -eq 1) {
+                $medDur = [double]$sortedDur[$mid]
+                $medSeg = [double]$sortedSeg[$mid]
+            } else {
+                $medDur = ([double]$sortedDur[$mid - 1] + [double]$sortedDur[$mid]) / 2.0
+                $medSeg = ([double]$sortedSeg[$mid - 1] + [double]$sortedSeg[$mid]) / 2.0
+            }
+        }
+
+        $codeName = if ($nameByCid.ContainsKey($cid)) { $nameByCid[$cid] }
+                    elseif ($codeMap.ContainsKey($cid)) { $codeMap[$cid] }
+                    else { "$cid (unresolved)" }
+
+        $out.Add([pscustomobject]@{
+            WrapupCodeId       = $cid
+            WrapupCodeName     = $codeName
+            ConversationCount  = $count
+            MedianHandleSec    = [Math]::Round($medDur, 1)
+            MedianSegmentCount = [Math]::Round($medSeg, 1)
+        })
+    }
+
+    return @($out | Sort-Object -Property ConversationCount -Descending)
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, New-DefaultCaseIfEmpty, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -4386,4 +4949,7 @@ Export-ModuleMember -Function `
     Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `
     Import-TransferReport, Get-TransferFlowRows, Get-TransferChainRows, Get-TransferSummary, `
     Import-FlowContainmentReport, Get-FlowPerfRows, Get-FlowMilestoneRows, `
-    Get-FlowContainmentSummary, Get-FlowQueueRouteRows
+    Get-FlowContainmentSummary, Get-FlowQueueRouteRows, `
+    Import-WrapupDistributionReport, Get-WrapupCodeRows, Get-WrapupByQueueRows, `
+    Get-WrapupByHourRows, Get-WrapupSummary, Get-WrapupConcentrationInsights, `
+    Get-WrapupHandleTimeCrossRef

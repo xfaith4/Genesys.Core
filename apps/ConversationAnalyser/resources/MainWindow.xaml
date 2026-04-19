@@ -1700,6 +1700,194 @@
                                 </Grid>
                             </TabItem>
 
+                            <TabItem Header="Contact Reasons" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="CONTACT REASONS"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Wrapup code distribution across queues, time-of-day heat-map, concentration insights, and handle-time cross-reference."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <Button x:Name="BtnPullWrapupReport" Grid.Column="1"
+                                                    Content="Pull Report"
+                                                    Style="{StaticResource BtnAccent}" Height="30"
+                                                    ToolTip="Fetches wrapup code aggregates and enriches with routing/get/all/wrapup/codes naming."/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="CODES" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblWrapupCodes" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="CONNECTED" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblWrapupConnected" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="QUEUES" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblWrapupQueues" Text="—"
+                                                           Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="TOP REASON" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblWrapupTopReason" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="0.8*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="10"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Grid.Column="0" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgWrapupCodes" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Wrapup Code" Binding="{Binding WrapupCodeName}" Width="*" SortMemberPath="WrapupCodeName"/>
+                                                    <DataGridTextColumn Header="Connected" Binding="{Binding NConnected}" Width="90" SortMemberPath="NConnected"/>
+                                                    <DataGridTextColumn Header="Queues" Binding="{Binding QueueCount}" Width="70" SortMemberPath="QueueCount"/>
+                                                    <DataGridTextColumn Header="% Org" Binding="{Binding PctOfOrgTotal}" Width="75" SortMemberPath="PctOfOrgTotal"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="0" Grid.Row="2"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgWrapupByHour" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Wrapup Code" Binding="{Binding WrapupCodeName}" Width="170" SortMemberPath="WrapupCodeName"/>
+                                                    <DataGridTemplateColumn Header="00" Width="36" SortMemberPath="Hour00"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour00Brush}" Padding="2"><TextBlock Text="{Binding Hour00}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="01" Width="36" SortMemberPath="Hour01"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour01Brush}" Padding="2"><TextBlock Text="{Binding Hour01}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="02" Width="36" SortMemberPath="Hour02"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour02Brush}" Padding="2"><TextBlock Text="{Binding Hour02}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="03" Width="36" SortMemberPath="Hour03"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour03Brush}" Padding="2"><TextBlock Text="{Binding Hour03}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="04" Width="36" SortMemberPath="Hour04"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour04Brush}" Padding="2"><TextBlock Text="{Binding Hour04}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="05" Width="36" SortMemberPath="Hour05"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour05Brush}" Padding="2"><TextBlock Text="{Binding Hour05}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="06" Width="36" SortMemberPath="Hour06"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour06Brush}" Padding="2"><TextBlock Text="{Binding Hour06}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="07" Width="36" SortMemberPath="Hour07"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour07Brush}" Padding="2"><TextBlock Text="{Binding Hour07}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="08" Width="36" SortMemberPath="Hour08"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour08Brush}" Padding="2"><TextBlock Text="{Binding Hour08}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="09" Width="36" SortMemberPath="Hour09"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour09Brush}" Padding="2"><TextBlock Text="{Binding Hour09}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="10" Width="36" SortMemberPath="Hour10"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour10Brush}" Padding="2"><TextBlock Text="{Binding Hour10}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="11" Width="36" SortMemberPath="Hour11"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour11Brush}" Padding="2"><TextBlock Text="{Binding Hour11}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="12" Width="36" SortMemberPath="Hour12"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour12Brush}" Padding="2"><TextBlock Text="{Binding Hour12}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="13" Width="36" SortMemberPath="Hour13"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour13Brush}" Padding="2"><TextBlock Text="{Binding Hour13}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="14" Width="36" SortMemberPath="Hour14"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour14Brush}" Padding="2"><TextBlock Text="{Binding Hour14}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="15" Width="36" SortMemberPath="Hour15"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour15Brush}" Padding="2"><TextBlock Text="{Binding Hour15}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="16" Width="36" SortMemberPath="Hour16"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour16Brush}" Padding="2"><TextBlock Text="{Binding Hour16}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="17" Width="36" SortMemberPath="Hour17"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour17Brush}" Padding="2"><TextBlock Text="{Binding Hour17}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="18" Width="36" SortMemberPath="Hour18"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour18Brush}" Padding="2"><TextBlock Text="{Binding Hour18}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="19" Width="36" SortMemberPath="Hour19"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour19Brush}" Padding="2"><TextBlock Text="{Binding Hour19}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="20" Width="36" SortMemberPath="Hour20"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour20Brush}" Padding="2"><TextBlock Text="{Binding Hour20}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="21" Width="36" SortMemberPath="Hour21"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour21Brush}" Padding="2"><TextBlock Text="{Binding Hour21}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="22" Width="36" SortMemberPath="Hour22"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour22Brush}" Padding="2"><TextBlock Text="{Binding Hour22}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="23" Width="36" SortMemberPath="Hour23"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding Hour23Brush}" Padding="2"><TextBlock Text="{Binding Hour23}" Foreground="{StaticResource BrushText}" HorizontalAlignment="Center"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgWrapupByQueue" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Queue" Binding="{Binding QueueName}" Width="*" SortMemberPath="QueueName"/>
+                                                    <DataGridTextColumn Header="Connected" Binding="{Binding NConnected}" Width="90" SortMemberPath="NConnected"/>
+                                                    <DataGridTextColumn Header="% Queue" Binding="{Binding PctOfQueueTotal}" Width="80" SortMemberPath="PctOfQueueTotal"/>
+                                                    <DataGridTextColumn Header="% Org" Binding="{Binding PctOfOrgTotal}" Width="75" SortMemberPath="PctOfOrgTotal"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Grid Grid.Column="2" Grid.Row="2">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="8"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+                                            <Border Grid.Row="0"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="2">
+                                                <DataGrid x:Name="DgWrapupInsights" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Wrapup Code" Binding="{Binding WrapupCodeName}" Width="*" SortMemberPath="WrapupCodeName"/>
+                                                        <DataGridTextColumn Header="Top Queue" Binding="{Binding TopQueueName}" Width="140" SortMemberPath="TopQueueName"/>
+                                                        <DataGridTextColumn Header="Concentration" Binding="{Binding ConcentrationIndex}" Width="95" SortMemberPath="ConcentrationIndex"/>
+                                                        <DataGridTextColumn Header="Total" Binding="{Binding NConnectedTotal}" Width="60" SortMemberPath="NConnectedTotal"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                            <Border Grid.Row="2"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="2">
+                                                <DataGrid x:Name="DgWrapupCrossRef" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Wrapup Code" Binding="{Binding WrapupCodeName}" Width="*" SortMemberPath="WrapupCodeName"/>
+                                                        <DataGridTextColumn Header="Convs" Binding="{Binding ConversationCount}" Width="65" SortMemberPath="ConversationCount"/>
+                                                        <DataGridTextColumn Header="Med Handle (s)" Binding="{Binding MedianHandleSec}" Width="110" SortMemberPath="MedianHandleSec"/>
+                                                        <DataGridTextColumn Header="Med Segs" Binding="{Binding MedianSegmentCount}" Width="80" SortMemberPath="MedianSegmentCount"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+
                             <TabItem Header="Run Console" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>

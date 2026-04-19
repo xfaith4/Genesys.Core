@@ -530,9 +530,21 @@ Documentation: define containment rate precisely (self-service completions / ent
 
 ---
 
-## Session 18: Wrapup Code Distribution and Contact Reason Intelligence
+## Session 18: Wrapup Code Distribution and Contact Reason Intelligence — **COMPLETE**
 
 Scope: decode why customers are calling by turning wrapup code distributions into ranked contact reason reports, then cross-reference them with queue, agent, and time-of-day dimensions to find where volume concentrates and what's driving repeat contacts.
+
+Delivered:
+
+> `Get-WrapupDistributionReport` pulls hourly conversation aggregate rows grouped by `queueId` and
+> `wrapUpCode`, plus wrapup-code reference data, through `App.CoreAdapter.psm1` and `Invoke-Dataset`.
+> Schema v9 adds `report_wrapup_distribution` and `report_wrapup_by_hour`; `Import-WrapupDistributionReport`
+> computes per-queue and org-wide percentages, top contact reasons, hourly heat-map rows, concentration
+> insights, and handle-time cross-reference data from the local case store.
+> "Contact Reasons" `TabItem` added to `MainWindow.xaml` with Pull Report, summary KPIs, ranked wrapup-code
+> grid, selected-code queue breakdown, by-hour panel, concentration insight grid, and median handle-time grid.
+> `_StartWrapupDistributionReportJob`, `_RenderWrapupGrid`, and `_RenderSelectedWrapupDetail`
+> added to `App.UI.ps1`; compliance and architecture tests now cover Session 18 controls, schema, and handlers.
 
 Task: add `Get-WrapupDistributionReport` to `App.CoreAdapter.psm1`. It calls `Invoke-Dataset` for `analytics.query.conversation.aggregates.wrapup.distribution` and `routing.get.all.wrapup.codes` for the case time window. Results land in `report-wrapup-<timestamp>`.
 

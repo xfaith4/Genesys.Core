@@ -419,7 +419,12 @@ $requiredControls = @(
     'BtnPullFlowContainmentReport','CmbFlowType',
     'DgFlowPerf','DgFlowMilestones','DgFlowQueues',
     'LblFlowTotal','LblFlowEntries','LblFlowContainment',
-    'LblFlowFailures','LblFlowLowContainment'
+    'LblFlowFailures','LblFlowLowContainment',
+    'BtnPullWrapupReport',
+    'DgWrapupCodes','DgWrapupByQueue','DgWrapupByHour',
+    'DgWrapupInsights','DgWrapupCrossRef',
+    'LblWrapupCodes','LblWrapupConnected','LblWrapupQueues',
+    'LblWrapupTopReason'
 )
 
 foreach ($ctrl in $requiredControls) {
@@ -535,6 +540,42 @@ Check 'FLOW-04' 'App.UI.ps1 wires Flow & IVR pull, render, and selection handler
     $uiContent -match 'function _RenderSelectedFlowDetail' -and
     $uiContent -match 'BtnPullFlowContainmentReport\.Add_Click' -and
     $uiContent -match 'DgFlowPerf\.Add_SelectionChanged'
+}
+
+# ── WRAPUP / CONTACT REASONS REPORTING (WRAP) ─────────────────────────────────
+
+Write-Host "`n=== WRAPUP / CONTACT REASONS REPORTING ===" -ForegroundColor Cyan
+
+Check 'WRAP-01' 'App.CoreAdapter.psm1 exposes Get-WrapupDistributionReport dataset pulls' {
+    $adapterContent -match 'function Get-WrapupDistributionReport' -and
+    $adapterContent -match 'analytics\.query\.conversation\.aggregates\.wrapup\.distribution' -and
+    $adapterContent -match 'routing\.get\.all\.wrapup\.codes'
+}
+
+Check 'WRAP-02' 'App.Database.psm1 defines schema v9 wrapup tables' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 9 -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_wrapup_distribution' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_wrapup_by_hour'
+}
+
+Check 'WRAP-03' 'App.Database.psm1 exports wrapup import and accessors' {
+    $required = @('Import-WrapupDistributionReport','Get-WrapupCodeRows','Get-WrapupByQueueRows',
+                  'Get-WrapupByHourRows','Get-WrapupSummary','Get-WrapupConcentrationInsights',
+                  'Get-WrapupHandleTimeCrossRef')
+    $allPresent = $true
+    foreach ($fn in $required) {
+        if ($dbContent -notmatch $fn) { $allPresent = $false; break }
+    }
+    $allPresent
+}
+
+Check 'WRAP-04' 'App.UI.ps1 wires Contact Reasons pull, render, and selection handlers' {
+    $uiContent -match 'function _StartWrapupDistributionReportJob' -and
+    $uiContent -match 'function _RenderWrapupGrid' -and
+    $uiContent -match 'function _RenderSelectedWrapupDetail' -and
+    $uiContent -match 'BtnPullWrapupReport\.Add_Click' -and
+    $uiContent -match 'DgWrapupCodes\.Add_SelectionChanged'
 }
 
 # ── SUMMARY ────────────────────────────────────────────────────────────────────

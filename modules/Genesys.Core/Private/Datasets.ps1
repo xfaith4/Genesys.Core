@@ -488,6 +488,14 @@ function Invoke-SimpleCollectionDataset {
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
     $initialUri = Resolve-EndpointInitialUri -BaseUri $BaseUri -Endpoint $endpoint -DatasetParameters $DatasetParameters
+    $initialBody = $null
+    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')) {
+        $bodyValue = $DatasetParameters['Body']
+        $initialBody = if ($bodyValue -is [string]) { $bodyValue } else { $bodyValue | ConvertTo-Json -Depth 100 }
+    }
+    elseif ($endpoint.PSObject.Properties.Name -contains 'defaultBody' -and $null -ne $endpoint.defaultBody) {
+        $initialBody = if ($endpoint.defaultBody -is [string]) { $endpoint.defaultBody } else { $endpoint.defaultBody | ConvertTo-Json -Depth 100 }
+    }
 
     $response = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
         key = $endpoint.key
@@ -497,7 +505,7 @@ function Invoke-SimpleCollectionDataset {
         paging = $endpoint.paging
         retry = $endpoint.retry
         transaction = $endpoint.transaction
-    }) -InitialUri $initialUri -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    }) -InitialUri $initialUri -InitialBody $initialBody -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($response.Items | ForEach-Object { & $Normalizer $_ })
     $sanitizedRecords = if ($NoRedact) {

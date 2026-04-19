@@ -340,6 +340,40 @@ ArchCheck 'ARCH-45' 'Flow & IVR tab controls and handlers are wired' {
     $uiPs -match 'function _RenderSelectedFlowDetail'
 }
 
+Write-Host "`n--- Contact Reasons reporting ---" -ForegroundColor DarkCyan
+
+ArchCheck 'ARCH-46' 'CoreAdapter exposes wrapup distribution pull without UI direct dataset access' {
+    $adapter -match 'function Get-WrapupDistributionReport' -and
+    $adapter -match 'analytics\.query\.conversation\.aggregates\.wrapup\.distribution' -and
+    $adapter -match 'routing\.get\.all\.wrapup\.codes' -and
+    $uiPs -notmatch 'Invoke-Dataset'
+}
+
+ArchCheck 'ARCH-47' 'Database owns wrapup schema, import, accessors, and insight helpers' {
+    $schemaMatch = [regex]::Match($database, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 9 -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_wrapup_distribution' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_wrapup_by_hour' -and
+    $database -match 'function Import-WrapupDistributionReport' -and
+    $database -match 'function Get-WrapupCodeRows' -and
+    $database -match 'function Get-WrapupByQueueRows' -and
+    $database -match 'function Get-WrapupByHourRows' -and
+    $database -match 'function Get-WrapupConcentrationInsights' -and
+    $database -match 'function Get-WrapupHandleTimeCrossRef'
+}
+
+ArchCheck 'ARCH-48' 'Contact Reasons tab controls and handlers are wired' {
+    $xaml -match 'BtnPullWrapupReport' -and
+    $xaml -match 'DgWrapupCodes' -and
+    $xaml -match 'DgWrapupByQueue' -and
+    $xaml -match 'DgWrapupByHour' -and
+    $xaml -match 'DgWrapupInsights' -and
+    $xaml -match 'DgWrapupCrossRef' -and
+    $uiPs -match 'function _StartWrapupDistributionReportJob' -and
+    $uiPs -match 'function _RenderWrapupGrid' -and
+    $uiPs -match 'function _RenderSelectedWrapupDetail'
+}
+
 # ── Architecture: config & strict mode ────────────────────────────────────────
 Write-Host "`n--- Config and strict mode ---" -ForegroundColor DarkCyan
 

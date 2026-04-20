@@ -340,4 +340,3 @@ For issues or questions:
 - Review [.agents/AGENTS.md](.agents/AGENTS.md) for architectural guidelines
 - Check existing tests for usage examples
 - Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json`
-

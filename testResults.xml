@@ -1,14 +1,31 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="1" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-19" time="16:13:37">
-  <environment machine-name="computer" user="user" cwd="/mnt/g/development/20_staging/genesyscloud/genesys.core" platform="Linux" os-version="5.15.146.1-microsoft-standard-WSL2" clr-version="10.0.5" user-domain="" nunit-version="2.5.8.0" />
-  <culture-info current-culture="" current-uiculture="" />
-  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="3.484" asserts="0" description="Pester">
+<test-results xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="nunit_schema_2.5.xsd" name="Pester" total="10" errors="0" failures="0" not-run="0" inconclusive="0" ignored="0" skipped="0" invalid="0" date="2026-04-19" time="17:31:30">
+  <environment user="xfaith" machine-name="THESHIRE" nunit-version="2.5.8.0" clr-version="10.0.5" user-domain="THESHIRE" cwd="G:\Development\20_Staging\GenesysCloud\Genesys.Core" platform="Microsoft Windows 11 Pro|C:\WINDOWS|\Device\Harddisk4\Partition3" os-version="10.0.26200" />
+  <culture-info current-culture="en-US" current-uiculture="en-US" />
+  <test-suite type="TestFixture" name="Pester" executed="True" result="Success" success="True" time="9.5976" asserts="0" description="Pester">
     <results>
-      <test-suite type="TestFixture" name="/mnt/g/development/20_staging/genesyscloud/genesys.core/tests/unit/SwaggerCoverage.Tests.ps1" executed="True" result="Success" success="True" time="3.484" asserts="0" description="/mnt/g/development/20_staging/genesyscloud/genesys.core/tests/unit/SwaggerCoverage.Tests.ps1">
+      <test-suite type="TestFixture" name="G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\unit\AdditionalDatasets.Tests.ps1" executed="True" result="Success" success="True" time="3.973" asserts="0" description="G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\unit\AdditionalDatasets.Tests.ps1">
         <results>
-          <test-suite type="TestFixture" name="Swagger coverage" executed="True" result="Success" success="True" time="3.0944" asserts="0" description="Swagger coverage">
+          <test-suite type="TestFixture" name="Additional dataset implementations" executed="True" result="Success" success="True" time="2.9643" asserts="0" description="Additional dataset implementations">
             <results>
-              <test-case description="covers all swagger operationIds in catalog endpoints when swagger is available" name="Swagger coverage.covers all swagger operationIds in catalog endpoints when swagger is available" time="3.0632" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="registers users and routing-queues datasets" name="Additional dataset implementations.registers users and routing-queues datasets" time="0.2122" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="runs users dataset with nextUri paging and normalized output" name="Additional dataset implementations.runs users dataset with nextUri paging and normalized output" time="1.2359" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="runs routing-queues dataset and normalizes records" name="Additional dataset implementations.runs routing-queues dataset and normalizes records" time="0.6209" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="runs catalog-defined dataset that is not explicitly registered" name="Additional dataset implementations.runs catalog-defined dataset that is not explicitly registered" time="0.1342" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="applies endpoint defaultQueryParams to route and query values for generic datasets" name="Additional dataset implementations.applies endpoint defaultQueryParams to route and query values for generic datasets" time="0.1317" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="applies DatasetParameters.Query overrides for generic datasets" name="Additional dataset implementations.applies DatasetParameters.Query overrides for generic datasets" time="0.1312" asserts="0" success="True" result="Success" executed="True" />
+            </results>
+          </test-suite>
+        </results>
+      </test-suite>
+      <test-suite type="TestFixture" name="G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\unit\AuditLogs.Dataset.Tests.ps1" executed="True" result="Success" success="True" time="5.6246" asserts="0" description="G:\Development\20_Staging\GenesysCloud\Genesys.Core\tests\unit\AuditLogs.Dataset.Tests.ps1">
+        <results>
+          <test-suite type="TestFixture" name="Audit logs dataset" executed="True" result="Success" success="True" time="5.5566" asserts="0" description="Audit logs dataset">
+            <results>
+              <test-case description="runs submit-&gt;poll-&gt;results flow and writes audit outputs" name="Audit logs dataset.runs submit-&gt;poll-&gt;results flow and writes audit outputs" time="3.2649" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="supports dataset parameter overrides for interval, service names, and actions" name="Audit logs dataset.supports dataset parameter overrides for interval, service names, and actions" time="0.8385" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="fails when transaction reaches FAILED terminal state" name="Audit logs dataset.fails when transaction reaches FAILED terminal state" time="0.6558" asserts="0" success="True" result="Success" executed="True" />
+              <test-case description="fails when transaction reaches CANCELLED terminal state" name="Audit logs dataset.fails when transaction reaches CANCELLED terminal state" time="0.6722" asserts="0" success="True" result="Success" executed="True" />
             </results>
           </test-suite>
         </results>

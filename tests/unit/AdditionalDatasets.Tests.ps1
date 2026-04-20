@@ -20,7 +20,7 @@ Describe 'Additional dataset implementations' {
             if ($request.Uri -like 'https://api.test.local/api/v2/users*pageNumber=1*') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
-                        [pscustomobject]@{ id='u1'; name='User One'; email='u1@example.com'; state='active'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='AVAILABLE' } }; routingStatus=[pscustomobject]@{ status='IDLE' } }
+                        [pscustomobject]@{ id='u1'; name='user-record-1'; email='redacted-user-1'; state='active'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='AVAILABLE' } }; routingStatus=[pscustomobject]@{ status='IDLE' } }
                     )
                     nextUri = 'https://api.test.local/api/v2/users?pageNumber=2'
                 } }
@@ -28,7 +28,7 @@ Describe 'Additional dataset implementations' {
             if ($request.Uri -eq 'https://api.test.local/api/v2/users?pageNumber=2') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
-                        [pscustomobject]@{ id='u2'; name='User Two'; email='u2@example.com'; state='inactive'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='OFFLINE' } }; routingStatus=[pscustomobject]@{ status='NOT_RESPONDING' } }
+                        [pscustomobject]@{ id='u2'; name='user-record-2'; email='redacted-user-2'; state='inactive'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='OFFLINE' } }; routingStatus=[pscustomobject]@{ status='NOT_RESPONDING' } }
                     )
                     nextUri = $null
                 } }
@@ -125,7 +125,7 @@ Describe 'Additional dataset implementations' {
             if ($request.Uri -eq 'https://api.test.local/api/v2/users') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
-                        [pscustomobject]@{ id = 'd1'; name = 'Dynamic User' }
+                        [pscustomobject]@{ id = 'd1'; name = 'dynamic-user-record' }
                     )
                     nextUri = $null
                 } }

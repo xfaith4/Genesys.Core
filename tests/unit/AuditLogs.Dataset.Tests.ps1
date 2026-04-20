@@ -34,7 +34,7 @@ Describe 'Audit logs dataset' {
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123/results') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     results = @(
-                        [pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing'; userEmail = 'agent1@example.com'; authorization = 'Bearer secret-token-1' },
+                        [pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing'; userEmail = 'redacted-user-1'; authorization = 'Bearer synthetic-token-1' },
                         [pscustomobject]@{ id = '2'; action = 'update'; serviceName = 'platform'; context = [pscustomobject]@{ apiKey = 'abc123'; nestedToken = 'value' } }
                     )
                     nextUri = 'https://api.test.local/api/v2/audits/query/tx-123/results?pageNumber=2'

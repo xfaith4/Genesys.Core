@@ -426,14 +426,12 @@ function Resolve-Catalog {
     [CmdletBinding()]
     param(
         [string]$CatalogPath,
+        # Retained for backward compatibility after the mirror-catalog retirement.
+        # The canonical catalog is now required; this switch is a no-op and may be removed in a future major version.
         [switch]$StrictCatalog,
         [string]$SchemaPath
     )
 
-    # Prefer module-relative discovery over working-directory discovery so that
-    # callers don't need to be in the repo root.  $script:GcModuleRoot is set in
-    # Genesys.Core.psm1 during module bootstrap and points to modules/Genesys.Core/.
-    # Two levels up from there is the repo root where catalog/ lives.
     $searchBase = if ($null -ne $script:GcModuleRoot) {
         [System.IO.Path]::GetFullPath((Join-Path -Path $script:GcModuleRoot -ChildPath '../..'))
     } else {
@@ -441,13 +439,6 @@ function Resolve-Catalog {
     }
 
     $canonicalCandidate = Join-Path -Path $searchBase -ChildPath 'catalog/genesys.catalog.json'
-    $legacyCandidates = @(
-        (Join-Path -Path $searchBase -ChildPath 'genesys-core.catalog.json'),
-        (Join-Path -Path $searchBase -ChildPath 'catalog/genesys-core.catalog.json')
-    )
-
-    $canonicalExists = Test-Path -Path $canonicalCandidate
-    $existingLegacyCandidates = @($legacyCandidates | Where-Object { Test-Path -Path $_ })
 
     if ($PSBoundParameters.ContainsKey('CatalogPath') -and [string]::IsNullOrWhiteSpace([string]$CatalogPath) -eq $false) {
         if (-not (Test-Path -Path $CatalogPath)) {
@@ -456,26 +447,14 @@ function Resolve-Catalog {
 
         $selectedPath = (Resolve-Path -Path $CatalogPath).Path
     }
-    elseif ($canonicalExists) {
+    elseif (Test-Path -Path $canonicalCandidate) {
         $selectedPath = (Resolve-Path -Path $canonicalCandidate).Path
     }
-    elseif ($existingLegacyCandidates.Count -gt 0) {
-        $selectedPath = (Resolve-Path -Path $existingLegacyCandidates[0]).Path
-    }
     else {
-        $checked = @($canonicalCandidate) + $legacyCandidates
-        throw "Catalog file not found. Checked: $($checked -join ', ')."
+        throw "Catalog file not found. Expected canonical catalog at: $canonicalCandidate"
     }
 
     $warnings = [System.Collections.Generic.List[string]]::new()
-
-    if (-not $PSBoundParameters.ContainsKey('CatalogPath') -and -not $canonicalExists -and $existingLegacyCandidates.Count -gt 0) {
-        $message = "Canonical catalog 'catalog/genesys.catalog.json' was not found. Falling back to deprecated path '$selectedPath'."
-        $warnings.Add($message) | Out-Null
-        if ($StrictCatalog) {
-            throw "$($message) Re-run without -StrictCatalog to proceed."
-        }
-    }
 
     $catalogRaw = Get-Content -Path $selectedPath -Raw
     $catalogObject = $catalogRaw | ConvertFrom-Json -Depth 100

@@ -19,8 +19,47 @@ Build a catalog-driven Genesys Cloud Core that executes governed datasets via Gi
 - **In progress**
   - Catalog mirror retirement and full cutover to `catalog/genesys.catalog.json`.
   - End-user workflow auth ergonomics for production-ready automation.
+  - Live validation of Phase 4 endpoint itemsPath / paging choices.
 - **Recently hardened**
   - Expanded payload redaction to scrub embedded bearer/basic tokens, JWT-like values, and tokenized query fragments in string fields.
+
+## Recommended Next Steps / Focus Adjustments
+
+The capability base is broad. The remaining work must be sequenced so what blocks production is obvious and what is an incremental improvement is clearly separated. Execute in this priority order:
+
+1. **Production confidence / release-blocking hardening** — close gaps that make broad external automation defensible.
+2. **Endpoint correctness and orchestration completion** — validate Phase 4 endpoints against live API behavior and wrap any required async chains behind stable dataset contracts.
+3. **Operational visibility expansion** — add remaining planned Ops-layer telemetry only after the release blockers are closed.
+4. **Analytical / reporting enrichment** — complete remaining reporting sessions on top of the stable Core contract.
+
+This is an execution refinement of the existing roadmap, not a new strategy. Work should flow through the lanes below, top-down.
+
+### Lane A — Release Blocking
+
+These items must be completed before the Core is called broadly production-ready. Controlled external invocation is already supported; broad production automation is not.
+
+- [ ] Workflow auth wiring and examples (GitHub Actions secrets contract, token bootstrap step, end-to-end example workflow distinct from the CI mock run).
+- [ ] Mirror-catalog consolidation / canonical cutover (remove the deprecated `genesys-core.catalog.json` stub, retire the legacy fallback in `Resolve-Catalog`, update tests and agent/app docs to reference only `catalog/genesys.catalog.json`).
+- [ ] Redaction/profile hardening (profile-driven allow/deny field tuning; explicit coverage for any endpoint returning free-text or payload strings new in Phase 4).
+- [ ] Live validation of each remaining Phase 4 endpoint against Genesys Cloud (confirm `itemsPath`, paging strategy/profile, and retry behavior; update catalog entries where live behavior differs from the initial wiring).
+- [ ] Resolve OAuth usage async orchestration behind curated handler(s) if the submit → results chain requires it in production (decision + implementation or explicit deferral note).
+- [ ] Formal production-readiness gate definition (single checklist of verifiable exit criteria for "broad automation" in `docs/READINESS_REVIEW.md`).
+
+### Lane B — Operational Expansion
+
+Extend Core visibility once Lane A is closed. Keep this lane small and grounded.
+
+- [ ] Idea 5 — Edge Alarms & Event Feed (catalog endpoint `telephony.get.edge.logs`, `Get-GenesysEdgeEvent` Ops cmdlet, NOC feed contract).
+- [ ] Any Ops-layer endpoint/cmdlet hardening identified during Lane A live validation (itemsPath corrections, paging profile swaps, async chain wrapping).
+- [ ] Follow-on visibility improvements that naturally extend existing Phase 5 ideas — only when they are clearly valuable and do not grow cross-module complexity.
+
+### Lane C — Analytical / Reporting Enrichment
+
+ConversationAnalyser and related reporting remain consumers of Core artifacts.
+
+- [ ] Session 19 — Quality and Voice-of-Customer Overlay (joins survey/evaluation/sentiment data on top of existing Core datasets).
+- [ ] Session 20 — Temporal Trend and Comparative Reporting (period-over-period comparisons on Core aggregate outputs).
+- [ ] Reporting-contract cleanup so reporting features remain consumers of Core artifacts under `out/<datasetKey>/<runId>/` rather than reimplementing extraction logic.
 
 ## Phase 0 — Bootstrap (Complete)
 
@@ -86,20 +125,35 @@ Delivered in this phase increment:
 
 Remaining implementation tasks:
 
-- Validate each Phase 4 endpoint against live API behavior to confirm `itemsPath` and paging strategy choices.
-- Add curated handler(s) for OAuth usage submit/results orchestration if async transaction chaining is required in production.
+- Validate each Phase 4 endpoint against live API behavior to confirm `itemsPath` and paging strategy choices (tracked in `docs/PHASE4_LIVE_VALIDATION.md`).
+- Add curated handler(s) for OAuth usage submit/results orchestration if async transaction chaining is required in production (decision captured in `docs/PHASE4_LIVE_VALIDATION.md` §OAuth usage orchestration).
 - ✅ Added `pageCountPath` support to `Invoke-PagingPageNumber` so the `pageNumber_default` catalog profile terminates correctly when the API returns a `pageCount` field.
 - ✅ Added mock-based paging termination tests for `pageNumber_default` (via `pageCount`) and `nextUri_default` (via null `nextUri`) catalog profile selections.
 
+### Phase 4 exit criteria
+
+Phase 4 is closed when all of the following hold:
+
+- Every listed endpoint has been validated against live Genesys Cloud API behavior.
+- `itemsPath` and paging strategy/profile have been confirmed (or corrected) in the canonical catalog for every listed endpoint.
+- Async submit/status/results chains are wrapped behind stable dataset behavior wherever live validation shows the caller would otherwise need to orchestrate the chain themselves.
+- Tests have been added or updated to reflect validated behavior (mock-based at minimum; live-backed where an integration harness is available).
+- No wrapper UI needs bespoke runtime logic for any Phase 4 endpoint — `Invoke-Dataset` returns a deterministic run artifact for each.
+
 ## External client readiness
 
-The repository is ready for controlled external invocation of module command `Invoke-Dataset` when callers provide valid auth headers and consume output artifacts from `out/<datasetKey>/<runId>/`.
+The repository currently supports **controlled external invocation** of `Invoke-Dataset` when callers provide valid auth headers (or `GENESYS_BEARER_TOKEN`) and consume deterministic run artifacts from `out/<datasetKey>/<runId>/`. This is appropriate for engineer-driven runs, gated pilots, and supervised integration work.
 
-Before broad production automation, complete:
+**Broad production automation is not yet recommended.** It is gated on completion of the Lane A items above — specifically:
 
-- workflow auth wiring and examples
-- mirror-catalog consolidation
-- redaction/profile hardening
+- workflow auth wiring and examples committed and verified against the real API
+- mirror-catalog consolidation completed (no legacy fallback in the runtime)
+- redaction/profile hardening for Phase 4 payload shapes
+- live validation of remaining Phase 4 endpoints
+- OAuth usage orchestration resolved (handler or explicit deferral)
+- production-readiness gate checklist signed off
+
+The formal checklist and sign-off criteria live in `docs/READINESS_REVIEW.md`.
 
 ## Phase 5 — Visibility Dashboard Core  (In Progress)
 
@@ -413,3 +467,12 @@ that implement it, and the backing catalog key(s).
 | 18      | Wrapup Code Distribution             | ✅ Delivered     |
 | 19      | Quality and Voice-of-Customer Overlay| 🔲 Planned       |
 | 20      | Temporal Trend and Comparative       | 🔲 Planned       |
+
+### Phase 5 exit criteria
+
+Phase 5 is closed when all of the following hold:
+
+- Remaining planned operational dashboard work (e.g. Idea 5 — Edge Alarms & Event Feed) is either completed or consciously deferred with an explicit owner and reason.
+- All reporting outputs consume Core artifacts/contracts (`out/<datasetKey>/<runId>/`) rather than bypassing Core with bespoke extraction logic.
+- Every delivered Ops cmdlet has a clear, stable command contract (inputs, parameters, output shape) and is documented as the canonical entrypoint for its dashboard idea.
+- Remaining reporting sessions (19, 20) are either completed or moved to a dedicated reporting phase with owners and sequencing recorded.

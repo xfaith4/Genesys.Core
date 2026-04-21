@@ -1,7 +1,4 @@
-This template will be the entry way for building new genesys cloud applications based on business need.  Each application is to utilize the Genesys.Core module\repo as it's backbone
-
-
-
+# This template will be the entry way for building new genesys cloud applications based on business need.  Each application is to utilize the Genesys.Core module\repo as it's backbone
 
 # ROLE
 

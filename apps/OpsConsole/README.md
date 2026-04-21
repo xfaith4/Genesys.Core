@@ -10,7 +10,7 @@ and requires **no server, no build step, and no direct Genesys API access**.
 
 1. Run the PowerShell export commands below to generate JSON files.
 2. Open `index.html` in Chrome, Edge, Firefox, or Safari.
-3. Click **📊 Demo Data** to preview all dashboards instantly with sample data, or drag-and-drop
+3. Click ** Demo Data** to preview all dashboards instantly with sample data, or drag-and-drop
    your JSON files onto the appropriate tab's load zone.
 
 ---
@@ -28,6 +28,7 @@ Invoke-GenesysOperationsReport -OutputPath "ops-report.json"
 ```
 
 Shows:
+
 - KPI strip: avg abandon rate, avg SLA 30 s %, edges online, trunks active, active alert count, WebRTC error count
 - Service level status donut chart
 - WebRTC disconnects by error code bar chart
@@ -46,6 +47,7 @@ Get-GenesysQueueHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "queue-he
 ```
 
 Shows:
+
 - KPI strip: total queues, green/amber/red counts, average SLA
 - SLA 30-second % bar chart (colour-coded green/amber/red per threshold)
 - Searchable, filterable table with waiting, interacting, on-queue agents
@@ -62,6 +64,7 @@ Get-GenesysAbandonRateDashboard | ConvertTo-Json -Depth 5 | Set-Content "abandon
 ```
 
 Shows:
+
 - KPI strip: total offered, total abandoned, avg abandon rate, queues above 10 %
 - Horizontal bar chart sorted highest → lowest (red >10 %, amber 5–10 %, green <5 %)
 - Detail table with offered, abandoned, rate, avg abandon time, real-time waiting
@@ -77,6 +80,7 @@ Get-GenesysAgentQualitySnapshot | ConvertTo-Json -Depth 5 | Set-Content "agent-q
 ```
 
 Shows:
+
 - KPI strip: total agents, total conversations, avg handle/talk/ACW
 - Top-12 handle time vs ACW grouped bar chart
 - Sortable, searchable leaderboard table with rank badges
@@ -92,6 +96,7 @@ Get-GenesysEdgeHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "edge-heal
 ```
 
 Shows:
+
 - KPI strip: edges online/offline, trunks active/inactive, snapshot time
 - Edge status donut chart (online vs offline)
 - Trunk status donut chart (active vs inactive)
@@ -115,6 +120,7 @@ Get-GenesysChangeAuditFeed -EntityType FLOW | ConvertTo-Json -Depth 5 | Set-Cont
 ```
 
 Shows:
+
 - KPI strip: total events, high/medium/low risk counts
 - Searchable, filterable table with timestamp, risk badge, entity type, action, actor, summary
 - Risk filter chips (All / High / Medium / Low)

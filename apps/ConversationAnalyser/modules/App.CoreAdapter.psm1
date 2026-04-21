@@ -707,10 +707,137 @@ function Get-WrapupDistributionReport {
     }
 }
 
+function Get-QualityOverlayReport {
+    <#
+    .SYNOPSIS
+        Session 19 — pulls quality evaluations, surveys, and optional speech
+        analytics topic overlays for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - quality.get.evaluations.query
+          - quality.get.surveys
+          - speechandtextanalytics.get.topics
+          - analytics.post.transcripts.aggregates.query
+
+        The evaluation endpoint is driven by per-agent query fan-out because the
+        underlying API requires an identity filter in addition to the time
+        window. Surveys are pulled as a flat collection and filtered to the case
+        window during import. Transcript aggregates are grouped by
+        (conversationId, topicId) so low-score conversations can be correlated
+        locally without passing raw conversation IDs back into Core aggregate
+        filters.
+
+        Returns a hashtable with keys:
+          EvaluationsFolder       — root folder containing one or more evaluation runs
+          SurveysFolder           — root folder containing survey results
+          TopicsFolder            — root folder containing topic definitions
+          TranscriptAggFolder     — root folder containing transcript aggregate results
+          PartialFailure          — $true if any dataset call failed
+          EvaluationQueryCount    — number of agent-targeted evaluation pulls attempted
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [string[]] $AgentUserIds = @(),
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-quality-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $folderMap = @{
+        'quality.get.evaluations.query'              = [System.IO.Path]::Combine($repRoot, 'quality.get.evaluations.query')
+        'quality.get.surveys'                        = [System.IO.Path]::Combine($repRoot, 'quality.get.surveys')
+        'speechandtextanalytics.get.topics'          = [System.IO.Path]::Combine($repRoot, 'speechandtextanalytics.get.topics')
+        'analytics.post.transcripts.aggregates.query' = [System.IO.Path]::Combine($repRoot, 'analytics.post.transcripts.aggregates.query')
+    }
+
+    foreach ($path in $folderMap.Values) {
+        [System.IO.Directory]::CreateDirectory($path) | Out-Null
+    }
+
+    $partialFailure = $false
+    $attemptedEvaluationQueries = 0
+    $uniqueAgentIds = @($AgentUserIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique)
+
+    if ($uniqueAgentIds.Count -gt 0) {
+        foreach ($agentUserId in $uniqueAgentIds) {
+            try {
+                $attemptedEvaluationQueries++
+                Invoke-CoreDatasetRun -Dataset 'quality.get.evaluations.query' -OutputRoot $folderMap['quality.get.evaluations.query'] -DatasetParameters @{
+                    Query = @{
+                        agentUserId = $agentUserId
+                        startTime   = $StartDateTime
+                        endTime     = $EndDateTime
+                        pageSize    = 100
+                        pageNumber  = 1
+                    }
+                } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            } catch {
+                $partialFailure = $true
+                Write-Warning "Get-QualityOverlayReport: evaluation query for agent '$agentUserId' failed — $($_.Exception.Message)"
+            }
+        }
+    }
+
+    try {
+        Invoke-CoreDatasetRun -Dataset 'quality.get.surveys' -OutputRoot $folderMap['quality.get.surveys'] -DatasetParameters @{
+            Query = @{
+                pageSize   = 100
+                pageNumber = 1
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'quality.get.surveys' failed — $($_.Exception.Message)"
+    }
+
+    try {
+        Invoke-CoreDatasetRun -Dataset 'speechandtextanalytics.get.topics' -OutputRoot $folderMap['speechandtextanalytics.get.topics'] -DatasetParameters @{
+            Query = @{
+                pageSize = 500
+                state    = 'latest'
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'speechandtextanalytics.get.topics' failed — $($_.Exception.Message)"
+    }
+
+    try {
+        $interval = "$StartDateTime/$EndDateTime"
+        Invoke-CoreDatasetRun -Dataset 'analytics.post.transcripts.aggregates.query' -OutputRoot $folderMap['analytics.post.transcripts.aggregates.query'] -DatasetParameters @{
+            Body = @{
+                interval    = $interval
+                groupBy     = @('conversationId', 'topicId')
+                metrics     = @('nTopicCommunications', 'nSpeechTextAnalyzedConversations')
+                filter      = @{ type = 'and'; predicates = @() }
+                granularity = 'PT24H'
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'analytics.post.transcripts.aggregates.query' failed — $($_.Exception.Message)"
+    }
+
+    return @{
+        EvaluationsFolder    = $folderMap['quality.get.evaluations.query']
+        SurveysFolder        = $folderMap['quality.get.surveys']
+        TopicsFolder         = $folderMap['speechandtextanalytics.get.topics']
+        TranscriptAggFolder  = $folderMap['analytics.post.transcripts.aggregates.query']
+        PartialFailure       = $partialFailure
+        EvaluationQueryCount = $attemptedEvaluationQueries
+    }
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
     Start-PreviewRun, Start-FullRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
     Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
-    Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport
+    Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport, `
+    Get-QualityOverlayReport

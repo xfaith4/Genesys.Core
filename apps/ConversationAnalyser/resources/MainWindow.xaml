@@ -1888,6 +1888,186 @@
                                 </Grid>
                             </TabItem>
 
+                            <TabItem Header="Quality" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="QUALITY &amp; VOICE OF CUSTOMER"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Evaluation score distributions, survey outcomes, low-score drillthrough, and speech topic overlays for the active case window."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <Button x:Name="BtnPullQualityReport" Grid.Column="1"
+                                                    Content="Pull Report"
+                                                    Style="{StaticResource BtnAccent}" Height="30"
+                                                    ToolTip="Fetches quality evaluations, surveys, and optional transcript topic aggregates for the current case window."/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="EVALUATIONS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQualityEvaluations" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="SURVEYS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQualitySurveys" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="AVG EVAL %" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQualityAvgScore" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="AVG CSAT" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQualityAvgCsat" Text="—"
+                                                           Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="LOW-SCORE CONVS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblQualityLowConvs" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.1*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="0.9*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="10"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Grid.Column="0" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgQualityAgentScores" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Agent" Binding="{Binding AgentName}" Width="*" SortMemberPath="AgentName"/>
+                                                    <DataGridTextColumn Header="Evals" Binding="{Binding EvaluationCount}" Width="60" SortMemberPath="EvaluationCount"/>
+                                                    <DataGridTextColumn Header="Min" Binding="{Binding MinScore}" Width="55" SortMemberPath="MinScore"/>
+                                                    <DataGridTextColumn Header="P25" Binding="{Binding P25Score}" Width="55" SortMemberPath="P25Score"/>
+                                                    <DataGridTextColumn Header="Median" Binding="{Binding MedianScore}" Width="65" SortMemberPath="MedianScore"/>
+                                                    <DataGridTextColumn Header="P75" Binding="{Binding P75Score}" Width="55" SortMemberPath="P75Score"/>
+                                                    <DataGridTextColumn Header="Max" Binding="{Binding MaxScore}" Width="55" SortMemberPath="MaxScore"/>
+                                                    <DataGridTextColumn Header="Avg" Binding="{Binding AvgScore}" Width="55" SortMemberPath="AvgScore"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="0" Grid.Row="2"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgLowScoreConversations" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Conversation" Binding="{Binding ConversationId}" Width="180" SortMemberPath="ConversationId"/>
+                                                    <DataGridTextColumn Header="Queue" Binding="{Binding QueueName}" Width="135" SortMemberPath="QueueName"/>
+                                                    <DataGridTextColumn Header="Agent" Binding="{Binding AgentName}" Width="120" SortMemberPath="AgentName"/>
+                                                    <DataGridTextColumn Header="Eval %" Binding="{Binding EvaluationScore}" Width="60" SortMemberPath="EvaluationScore"/>
+                                                    <DataGridTextColumn Header="NPS" Binding="{Binding NpsScore}" Width="45" SortMemberPath="NpsScore"/>
+                                                    <DataGridTextColumn Header="CSAT" Binding="{Binding CsatScore}" Width="55" SortMemberPath="CsatScore"/>
+                                                    <DataGridTextColumn Header="Issues" Binding="{Binding Issues}" Width="*" SortMemberPath="Issues"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgQualityQueues" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Queue" Binding="{Binding QueueName}" Width="*" SortMemberPath="QueueName"/>
+                                                    <DataGridTextColumn Header="Surveys" Binding="{Binding SurveyCount}" Width="60" SortMemberPath="SurveyCount"/>
+                                                    <DataGridTextColumn Header="Avg NPS" Binding="{Binding AvgNps}" Width="70" SortMemberPath="AvgNps"/>
+                                                    <DataGridTextColumn Header="Med NPS" Binding="{Binding MedianNps}" Width="70" SortMemberPath="MedianNps"/>
+                                                    <DataGridTextColumn Header="Avg CSAT" Binding="{Binding AvgCsat}" Width="75" SortMemberPath="AvgCsat"/>
+                                                    <DataGridTextColumn Header="Detractors" Binding="{Binding DetractorCount}" Width="78" SortMemberPath="DetractorCount"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Grid Grid.Column="2" Grid.Row="2">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="0.55*"/>
+                                                <RowDefinition Height="8"/>
+                                                <RowDefinition Height="0.45*"/>
+                                            </Grid.RowDefinitions>
+                                            <Border Grid.Row="0"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="4">
+                                                <TextBox x:Name="TxtQualityCorrelation"
+                                                         Style="{StaticResource TxtBase}"
+                                                         IsReadOnly="True"
+                                                         TextWrapping="Wrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         FontFamily="Consolas"
+                                                         FontSize="12"
+                                                         Margin="2"/>
+                                            </Border>
+                                            <Border Grid.Row="2"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="2">
+                                                <DataGrid x:Name="DgLowScoreTopics" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Topic" Binding="{Binding TopicName}" Width="*" SortMemberPath="TopicName"/>
+                                                        <DataGridTextColumn Header="Hits" Binding="{Binding TopicHits}" Width="55" SortMemberPath="TopicHits"/>
+                                                        <DataGridTextColumn Header="Convs" Binding="{Binding ConversationCount}" Width="55" SortMemberPath="ConversationCount"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+
                             <TabItem Header="Run Console" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>

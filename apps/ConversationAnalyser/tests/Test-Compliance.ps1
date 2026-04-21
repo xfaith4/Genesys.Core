@@ -578,6 +578,52 @@ Check 'WRAP-04' 'App.UI.ps1 wires Contact Reasons pull, render, and selection ha
     $uiContent -match 'DgWrapupCodes\.Add_SelectionChanged'
 }
 
+# ── QUALITY / VOICE OF CUSTOMER REPORTING (QUAL) ─────────────────────────────
+
+Write-Host "`n=== QUALITY / VOICE OF CUSTOMER REPORTING ===" -ForegroundColor Cyan
+
+Check 'QUAL-01' 'App.CoreAdapter.psm1 exposes Get-QualityOverlayReport dataset pulls' {
+    $adapterContent -match 'function Get-QualityOverlayReport' -and
+    $adapterContent -match 'quality\.get\.evaluations\.query' -and
+    $adapterContent -match 'quality\.get\.surveys' -and
+    $adapterContent -match 'analytics\.post\.transcripts\.aggregates\.query' -and
+    $adapterContent -match 'speechandtextanalytics\.get\.topics'
+}
+
+Check 'QUAL-02' 'App.Database.psm1 defines schema v11 quality tables' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 11 -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_evaluations' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_surveys' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_quality_topics'
+}
+
+Check 'QUAL-03' 'App.Database.psm1 exports quality import and accessors' {
+    $required = @(
+        'Get-CaseAgentUserIds',
+        'Import-QualityOverlayReport',
+        'Get-QualitySummary',
+        'Get-QualityAgentScoreRows',
+        'Get-QualitySurveyQueueRows',
+        'Get-LowScoreConversationRows',
+        'Get-QualityCorrelationSummary',
+        'Get-LowScoreTopicRows'
+    )
+    $allPresent = $true
+    foreach ($fn in $required) {
+        if ($dbContent -notmatch $fn) { $allPresent = $false; break }
+    }
+    $allPresent
+}
+
+Check 'QUAL-04' 'App.UI.ps1 wires Quality pull, render, and low-score drillthrough handlers' {
+    $uiContent -match 'function _StartQualityOverlayReportJob' -and
+    $uiContent -match 'function _RenderQualityGrid' -and
+    $uiContent -match 'function _OpenLowScoreConversation' -and
+    $uiContent -match 'BtnPullQualityReport\.Add_Click' -and
+    $uiContent -match 'DgLowScoreConversations\.Add_SelectionChanged'
+}
+
 # ── INVESTIGATION WORKBENCH TRUST FOUNDATIONS (WB) ────────────────────────────
 
 Write-Host "`n=== INVESTIGATION WORKBENCH TRUST FOUNDATIONS ===" -ForegroundColor Cyan

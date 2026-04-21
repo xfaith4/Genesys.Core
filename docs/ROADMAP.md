@@ -57,7 +57,7 @@ Extend Core visibility once Lane A is closed. Keep this lane small and grounded.
 
 ConversationAnalyser and related reporting remain consumers of Core artifacts.
 
-- [ ] Session 19 — Quality and Voice-of-Customer Overlay (joins survey/evaluation/sentiment data on top of existing Core datasets).
+- [x] Session 19 — Quality and Voice-of-Customer Overlay (joins survey/evaluation/sentiment data on top of existing Core datasets).
 - [ ] Session 20 — Temporal Trend and Comparative Reporting (period-over-period comparisons on Core aggregate outputs).
 - [ ] Reporting-contract cleanup so reporting features remain consumers of Core artifacts under `out/<datasetKey>/<runId>/` rather than reimplementing extraction logic.
 
@@ -465,7 +465,7 @@ that implement it, and the backing catalog key(s).
 | 16      | Transfer and Escalation Chain Intel  | ✅ Delivered     |
 | 17      | IVR and Flow Containment Report      | ✅ Delivered     |
 | 18      | Wrapup Code Distribution             | ✅ Delivered     |
-| 19      | Quality and Voice-of-Customer Overlay| 🔲 Planned       |
+| 19      | Quality and Voice-of-Customer Overlay| ✅ Delivered     |
 | 20      | Temporal Trend and Comparative       | 🔲 Planned       |
 
 ### Phase 5 exit criteria

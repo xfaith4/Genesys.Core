@@ -107,6 +107,19 @@ $script:LblWrapupConnected           = _Ctrl 'LblWrapupConnected'
 $script:LblWrapupQueues              = _Ctrl 'LblWrapupQueues'
 $script:LblWrapupTopReason           = _Ctrl 'LblWrapupTopReason'
 
+# Quality tab
+$script:BtnPullQualityReport         = _Ctrl 'BtnPullQualityReport'
+$script:DgQualityAgentScores         = _Ctrl 'DgQualityAgentScores'
+$script:DgQualityQueues              = _Ctrl 'DgQualityQueues'
+$script:DgLowScoreConversations      = _Ctrl 'DgLowScoreConversations'
+$script:DgLowScoreTopics             = _Ctrl 'DgLowScoreTopics'
+$script:LblQualityEvaluations        = _Ctrl 'LblQualityEvaluations'
+$script:LblQualitySurveys            = _Ctrl 'LblQualitySurveys'
+$script:LblQualityAvgScore           = _Ctrl 'LblQualityAvgScore'
+$script:LblQualityAvgCsat            = _Ctrl 'LblQualityAvgCsat'
+$script:LblQualityLowConvs           = _Ctrl 'LblQualityLowConvs'
+$script:TxtQualityCorrelation        = _Ctrl 'TxtQualityCorrelation'
+
 # Conversations tab
 $script:TxtSearch              = _Ctrl 'TxtSearch'
 $script:BtnSearch              = _Ctrl 'BtnSearch'
@@ -199,6 +212,10 @@ $script:State = @{
     WrapupRunspace          = $null
     WrapupTimer             = $null
     WrapupCaseId            = ''       # case targeted by in-progress wrapup pull
+    QualityJob              = $null    # PSDataCollection for quality overlay background pull
+    QualityRunspace         = $null
+    QualityTimer            = $null
+    QualityCaseId           = ''       # case targeted by in-progress quality pull
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -381,6 +398,7 @@ function _RefreshActiveCaseStatus {
             _ClearTransferGrid
             _ClearFlowContainmentGrid
             _ClearWrapupGrid
+            _ClearQualityGrid
         }
         return
     }
@@ -397,6 +415,7 @@ function _RefreshActiveCaseStatus {
             _ClearTransferGrid
             _ClearFlowContainmentGrid
             _ClearWrapupGrid
+            _ClearQualityGrid
         }
         return
     }
@@ -417,6 +436,7 @@ function _RefreshActiveCaseStatus {
         _RenderTransferGrid
         _RenderFlowContainmentGrid
         _RenderWrapupGrid
+        _RenderQualityGrid
     }
 }
 
@@ -2793,6 +2813,261 @@ function _RenderSelectedWrapupDetail {
     if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
 }
 
+function _ClearQualityGrid {
+    if ($null -ne $script:DgQualityAgentScores)    { $script:DgQualityAgentScores.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgQualityQueues)         { $script:DgQualityQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgLowScoreConversations) { $script:DgLowScoreConversations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgLowScoreTopics)        { $script:DgLowScoreTopics.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:LblQualityEvaluations)   { $script:LblQualityEvaluations.Text = '-' }
+    if ($null -ne $script:LblQualitySurveys)       { $script:LblQualitySurveys.Text = '-' }
+    if ($null -ne $script:LblQualityAvgScore)      { $script:LblQualityAvgScore.Text = '-' }
+    if ($null -ne $script:LblQualityAvgCsat)       { $script:LblQualityAvgCsat.Text = '-' }
+    if ($null -ne $script:LblQualityLowConvs)      { $script:LblQualityLowConvs.Text = '-' }
+    if ($null -ne $script:TxtQualityCorrelation)   { $script:TxtQualityCorrelation.Text = '' }
+}
+
+function _StartQualityOverlayReportJob {
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Quality')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Quality')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling quality data.', 'Not Connected')
+        return
+    }
+
+    $range = $null
+    try { $range = _GetQueryBoundaryDateTimes } catch {
+        [System.Windows.MessageBox]::Show("Invalid date range: $_", 'Quality')
+        return
+    }
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        [System.Windows.MessageBox]::Show('Set a start and end date/time before pulling quality data.', 'Quality')
+        return
+    }
+
+    $agentUserIds = @(Get-CaseAgentUserIds -CaseId $case.case_id)
+    $startDt = $range.Start.ToUniversalTime().ToString('o')
+    $endDt   = $range.End.ToUniversalTime().ToString('o')
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath    }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath     }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+
+    _SetStatus 'Pulling quality overlay report...'
+    if ($null -ne $script:BtnPullQualityReport) {
+        $script:BtnPullQualityReport.IsEnabled = $false
+    }
+    $script:State.QualityCaseId = $case.case_id
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
+
+    [void]$ps.AddScript({
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $StartDt, $EndDt, $AgentUserIds)
+        Set-StrictMode -Version Latest
+
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-QualityOverlayReport -StartDateTime $StartDt -EndDateTime $EndDt -AgentUserIds $AgentUserIds -Headers $Headers -BaseUri $BaseUri)
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($startDt)
+    [void]$ps.AddArgument($endDt)
+    [void]$ps.AddArgument($agentUserIds)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.QualityJob      = @{ Ps = $ps; Async = $asyncResult; CaseId = $case.case_id; StartDt = $startDt; EndDt = $endDt }
+    $script:State.QualityRunspace = $rs
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.QualityTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.QualityJob
+        if ($null -eq $job) { $script:State.QualityTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.QualityTimer.Stop()
+        $script:State.QualityTimer = $null
+
+        $folderMap  = $null
+        $endFailure = $null
+        try {
+            $results   = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                         catch {}
+            try { $script:State.QualityRunspace.Close() }    catch {}
+            try { $script:State.QualityRunspace.Dispose() }  catch {}
+            $script:State.QualityJob      = $null
+            $script:State.QualityRunspace = $null
+            $script:State.QualityCaseId   = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Quality overlay report pull failed'
+            _Dispatch { if ($null -ne $script:BtnPullQualityReport) { $script:BtnPullQualityReport.IsEnabled = $true } }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Quality')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-QualityOverlayReport -CaseId $job.CaseId -FolderMap $folderMap -StartDateTime $job.StartDt -EndDateTime $job.EndDt
+                $summary = "Loaded $($importStats.EvaluationCount) evaluations, $($importStats.SurveyCount) surveys, and $($importStats.TopicCount) topic rows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' - WARNING: one or more quality datasets failed.' }
+                _SetStatus $summary
+                _RenderQualityGrid
+                [System.Windows.MessageBox]::Show($summary, 'Quality Report')
+            } catch {
+                _SetStatus 'Quality overlay report import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Quality')
+            }
+        } else {
+            _SetStatus 'Quality overlay report pull completed (no data returned)'
+        }
+
+        _Dispatch { if ($null -ne $script:BtnPullQualityReport) { $script:BtnPullQualityReport.IsEnabled = $true } }
+    })
+
+    $timer.Start()
+}
+
+function _RenderQualityGrid {
+    if (-not (Test-DatabaseInitialized)) { _ClearQualityGrid; return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { _ClearQualityGrid; return }
+
+    try {
+        $summary      = Get-QualitySummary -CaseId $caseId
+        $agentRows    = @(Get-QualityAgentScoreRows -CaseId $caseId)
+        $queueRows    = @(Get-QualitySurveyQueueRows -CaseId $caseId)
+        $lowRows      = @(Get-LowScoreConversationRows -CaseId $caseId)
+        $corr         = Get-QualityCorrelationSummary -CaseId $caseId
+        $topicRows    = @(Get-LowScoreTopicRows -CaseId $caseId -Top 5)
+    } catch {
+        _SetStatus "Quality report read failed: $_"
+        return
+    }
+
+    if ($null -ne $script:LblQualityEvaluations) { $script:LblQualityEvaluations.Text = [string]($summary.EvaluationCount) }
+    if ($null -ne $script:LblQualitySurveys)     { $script:LblQualitySurveys.Text     = [string]($summary.SurveyCount) }
+    if ($null -ne $script:LblQualityAvgScore) {
+        $script:LblQualityAvgScore.Text = if ($null -ne $summary.AvgEvaluationScore) { [string]("{0:F1}" -f [double]$summary.AvgEvaluationScore) } else { '-' }
+    }
+    if ($null -ne $script:LblQualityAvgCsat) {
+        $script:LblQualityAvgCsat.Text = if ($null -ne $summary.AvgCsat) { [string]("{0:F2}" -f [double]$summary.AvgCsat) } else { '-' }
+    }
+    if ($null -ne $script:LblQualityLowConvs) { $script:LblQualityLowConvs.Text = [string]($summary.LowConversationCount) }
+
+    $corrLines = @()
+    $corrLines += "Paired conversations: $($corr.ConversationCount)"
+    $corrLines += "Handle time / score r: $(if ($null -ne $corr.HandleScoreCorrelation) { '{0:F3}' -f [double]$corr.HandleScoreCorrelation } else { '-' })"
+    $corrLines += "Wrapup / score r: $(if ($null -ne $corr.WrapupScoreCorrelation) { '{0:F3}' -f [double]$corr.WrapupScoreCorrelation } else { '-' })"
+    $corrLines += $corr.WrapupOrdinalNote
+    if ($null -ne $script:TxtQualityCorrelation) { $script:TxtQualityCorrelation.Text = ($corrLines -join "`r`n") }
+
+    $agentDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in $agentRows) {
+        $agentDisplay.Add([pscustomobject]@{
+            AgentName        = [string]$row.AgentName
+            EvaluationCount  = [int]   $row.EvaluationCount
+            MinScore         = [string]("{0:F1}" -f [double]$row.MinScore)
+            P25Score         = [string]("{0:F1}" -f [double]$row.P25Score)
+            MedianScore      = [string]("{0:F1}" -f [double]$row.MedianScore)
+            P75Score         = [string]("{0:F1}" -f [double]$row.P75Score)
+            MaxScore         = [string]("{0:F1}" -f [double]$row.MaxScore)
+            AvgScore         = [string]("{0:F1}" -f [double]$row.AvgScore)
+        })
+    }
+    if ($null -ne $script:DgQualityAgentScores) { $script:DgQualityAgentScores.ItemsSource = $agentDisplay }
+
+    $queueDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in $queueRows) {
+        $queueDisplay.Add([pscustomobject]@{
+            QueueName       = [string]$row.QueueName
+            SurveyCount     = [int]   $row.SurveyCount
+            AvgNps          = if ($null -ne $row.AvgNps) { [string]("{0:F1}" -f [double]$row.AvgNps) } else { '-' }
+            MedianNps       = if ($null -ne $row.MedianNps) { [string]("{0:F1}" -f [double]$row.MedianNps) } else { '-' }
+            AvgCsat         = if ($null -ne $row.AvgCsat) { [string]("{0:F2}" -f [double]$row.AvgCsat) } else { '-' }
+            MedianCsat      = if ($null -ne $row.MedianCsat) { [string]("{0:F2}" -f [double]$row.MedianCsat) } else { '-' }
+            DetractorCount  = [int]   $row.DetractorCount
+        })
+    }
+    if ($null -ne $script:DgQualityQueues) { $script:DgQualityQueues.ItemsSource = $queueDisplay }
+
+    $lowDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in $lowRows) {
+        $lowDisplay.Add([pscustomobject]@{
+            ConversationId  = [string]$row.ConversationId
+            QueueName       = [string]$row.QueueName
+            AgentName       = [string]$row.AgentName
+            EvaluationScore = if ($null -ne $row.EvaluationScore) { [string]("{0:F1}" -f [double]$row.EvaluationScore) } else { '-' }
+            NpsScore        = if ($null -ne $row.NpsScore) { [string]$row.NpsScore } else { '-' }
+            CsatScore       = if ($null -ne $row.CsatScore) { [string]("{0:F2}" -f [double]$row.CsatScore) } else { '-' }
+            Issues          = [string]$row.Issues
+            CompletedAt     = [string]$row.CompletedAt
+        })
+    }
+    if ($null -ne $script:DgLowScoreConversations) { $script:DgLowScoreConversations.ItemsSource = $lowDisplay }
+
+    $topicDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in $topicRows) {
+        $topicDisplay.Add([pscustomobject]@{
+            TopicName         = [string]$row.TopicName
+            TopicHits         = [int]   $row.TopicHits
+            ConversationCount = [int]   $row.ConversationCount
+        })
+    }
+    if ($null -ne $script:DgLowScoreTopics) { $script:DgLowScoreTopics.ItemsSource = $topicDisplay }
+}
+
+function _OpenLowScoreConversation {
+    if ($null -eq $script:DgLowScoreConversations -or $null -eq $script:DgLowScoreConversations.SelectedItem) { return }
+    $convId = [string]$script:DgLowScoreConversations.SelectedItem.ConversationId
+    if ([string]::IsNullOrWhiteSpace($convId)) { return }
+    _Dispatch {
+        if ($null -ne $script:TabWorkspace) {
+            $script:TabWorkspace.SelectedIndex = 0
+        }
+        if ($null -ne $script:TabDrilldownWorkspace) {
+            $script:TabDrilldownWorkspace.SelectedIndex = 1
+        }
+    }
+    _LoadDrilldown -ConversationId $convId
+}
+
 function _ImportCurrentRunToCase {
     if (-not (Test-DatabaseInitialized)) {
         _SetStatus 'Case store offline'
@@ -4145,6 +4420,14 @@ if ($null -ne $script:BtnPullWrapupReport) {
 
 if ($null -ne $script:DgWrapupCodes) {
     $script:DgWrapupCodes.Add_SelectionChanged({ _RenderSelectedWrapupDetail })
+}
+
+if ($null -ne $script:BtnPullQualityReport) {
+    $script:BtnPullQualityReport.Add_Click({ _StartQualityOverlayReportJob })
+}
+
+if ($null -ne $script:DgLowScoreConversations) {
+    $script:DgLowScoreConversations.Add_SelectionChanged({ _OpenLowScoreConversation })
 }
 
 $script:BtnRun.Add_Click({

@@ -61,3 +61,12 @@
 - Ran full `apps/ConversationAnalyser/tests/Invoke-AllTests.ps1`: 228 PASS / 0 FAIL / 1 SKIP. The new Core-generated fixture tests pass; DB runtime still skips in WSL due missing native `e_sqlite3`.
 
 - Cleaned importer doc line endings, reran parser checks for touched PowerShell files, and reran scoped `git diff --check`; both passed. Marked Core contract fixture hardening complete in `task_plan.md`.
+
+## 2026-04-21
+
+- Implemented Session 19 quality overlay in ConversationAnalyser.
+- Added `Get-QualityOverlayReport` to the Core adapter with case-agent evaluation fan-out, survey pull, topic definitions, and transcript topic aggregates.
+- Bumped the case-store schema to v11 with `report_evaluations`, `report_surveys`, and `report_quality_topics`.
+- Added quality import/accessor helpers for KPI summary, per-agent score distribution, per-queue survey distribution, low-score conversation drillthrough, topic overlays, and correlation summaries.
+- Added the new "Quality" tab and UI handlers for background pull, local rendering, and low-score conversation drillthrough.
+- Updated compliance/architecture tests and reran `apps/ConversationAnalyser/tests/Invoke-AllTests.ps1`: 234 PASS / 0 FAIL / 1 SKIP. DB runtime still skips in WSL because native `e_sqlite3` is absent.

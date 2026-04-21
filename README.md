@@ -174,7 +174,7 @@ The WPF GUI provides an OAuth auth flow, dataset selection from the catalog, run
 | `-Headers` | No* | Hashtable with `Authorization` bearer token |
 | `-WhatIf` | No | Dry run; validates catalog and prints plan without calling the API |
 | `-DatasetParameters` | No | Dataset runtime overrides (intervals, query overrides, dataset-specific knobs) |
-| `-StrictCatalog` | No | Fail if root and mirror catalogs diverge |
+| `-StrictCatalog` | No | Retained as a backward-compatible no-op after mirror-catalog retirement |
 
 \* Required for live API runs.
 
@@ -182,10 +182,10 @@ The WPF GUI provides an OAuth auth flow, dataset selection from the catalog, run
 
 `Resolve-Catalog` loads catalogs in this order:
 
-1. `./catalog/genesys.catalog.json` ← **canonical**
-2. Fallback: deprecated shim files (temporary deprecation window)
+1. Explicit `-CatalogPath` when supplied.
+2. `./catalog/genesys.catalog.json` ← **canonical**
 
-If canonical is missing and a deprecated path is used, a warning is emitted. Use `-StrictCatalog` to fail instead.
+The legacy `genesys-core.catalog.json` mirror has been retired. If no catalog is found at the canonical path (and no explicit `-CatalogPath` is given) `Resolve-Catalog` throws.
 
 ---
 

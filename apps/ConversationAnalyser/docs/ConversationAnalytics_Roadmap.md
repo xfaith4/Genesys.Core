@@ -566,6 +566,18 @@ Documentation: define the concentration index formula and note that wrapup codes
 
 Scope: link quality evaluation scores and post-call survey results to the conversation, agent, and queue dimensions already in the case store, creating a unified quality picture that connects operational data (handle time, transfer rate) with outcome data (evaluation score, CSAT).
 
+Delivered:
+
+> `Get-QualityOverlayReport` pulls quality evaluations, customer surveys, topic definitions, and transcript topic
+> aggregates through `App.CoreAdapter.psm1` and `Invoke-Dataset`.
+> Schema v11 adds `report_evaluations`, `report_surveys`, and `report_quality_topics`; `Import-QualityOverlayReport`
+> normalizes evaluation scores to 0–100, filters records to the active case window, extracts survey verbatims, and
+> stores transcript topic overlays for local joins.
+> "Quality" `TabItem` added to `MainWindow.xaml` with Pull Report, KPI summary bar, agent score distribution grid,
+> queue survey distribution grid, low-score conversation drillthrough grid, correlation panel, and low-score topic grid.
+> `_StartQualityOverlayReportJob`, `_RenderQualityGrid`, and `_OpenLowScoreConversation` added to `App.UI.ps1`;
+> low-score conversations open the existing drilldown view.
+
 Task: add `Get-QualityOverlayReport` to `App.CoreAdapter.psm1`. It calls `Invoke-Dataset` for `quality.get.evaluations.query` and `quality.get.surveys` using the case time window. Results land in `report-quality-<timestamp>`.
 
 Task: add `Import-QualityOverlayReport` to `App.Database.psm1`. Write `report_evaluations`: `evaluation_id`, `conversation_id`, `evaluator_user_id`, `evaluator_name`, `evaluated_user_id`, `agent_name`, `queue_id`, `queue_name`, `form_name`, `score_pct`, `calibrated`, `completed_at`. Write `report_surveys`: `survey_id`, `conversation_id`, `agent_user_id`, `agent_name`, `queue_id`, `queue_name`, `nps_score`, `csat_score`, `completed_at`, `verbatim_text`.

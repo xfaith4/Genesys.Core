@@ -14,14 +14,14 @@ Set-StrictMode -Version Latest
 #   2. SQLITE_DLL environment variable
 #   3. .\lib\System.Data.SQLite.dll  (repo-relative default)
 #
-# Schema version: 10
+# Schema version: 11
 # Conversation detail is stored as canonical raw JSON plus flattened and
 # normalized analytical dimensions. App.Database.psm1 owns all SQLite access.
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 10
+$script:SchemaVersion = 11
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -207,6 +207,92 @@ function _GetDurationSeconds {
     $e = _TryParseDateUtc $End
     if ($null -eq $s -or $null -eq $e -or $e -lt $s) { return 0 }
     return [int][Math]::Round(($e - $s).TotalSeconds)
+}
+
+function _TryParseDouble {
+    param([object]$Value)
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return $null }
+    $out = 0.0
+    if ([double]::TryParse([string]$Value, [System.Globalization.NumberStyles]::Float,
+                           [System.Globalization.CultureInfo]::InvariantCulture, [ref]$out)) {
+        return $out
+    }
+    return $null
+}
+
+function _GetPercentile {
+    param(
+        [double[]]$SortedValues,
+        [ValidateRange(0.0, 1.0)]
+        [double]$Percentile
+    )
+    if ($null -eq $SortedValues -or $SortedValues.Count -eq 0) { return $null }
+    if ($SortedValues.Count -eq 1) { return [double]$SortedValues[0] }
+
+    $position = ($SortedValues.Count - 1) * $Percentile
+    $lower = [int][Math]::Floor($position)
+    $upper = [int][Math]::Ceiling($position)
+    if ($lower -eq $upper) { return [double]$SortedValues[$lower] }
+
+    $weight = $position - $lower
+    return ([double]$SortedValues[$lower] * (1.0 - $weight)) + ([double]$SortedValues[$upper] * $weight)
+}
+
+function _GetMedian {
+    param([double[]]$SortedValues)
+    return _GetPercentile -SortedValues $SortedValues -Percentile 0.5
+}
+
+function _GetPearsonCorrelation {
+    param(
+        [double[]]$Xs,
+        [double[]]$Ys
+    )
+    if ($null -eq $Xs -or $null -eq $Ys -or $Xs.Count -ne $Ys.Count -or $Xs.Count -lt 2) { return $null }
+
+    $count = [double]$Xs.Count
+    $sumX = 0.0; $sumY = 0.0
+    foreach ($v in $Xs) { $sumX += [double]$v }
+    foreach ($v in $Ys) { $sumY += [double]$v }
+    $meanX = $sumX / $count
+    $meanY = $sumY / $count
+
+    $num = 0.0; $denX = 0.0; $denY = 0.0
+    for ($i = 0; $i -lt $Xs.Count; $i++) {
+        $dx = [double]$Xs[$i] - $meanX
+        $dy = [double]$Ys[$i] - $meanY
+        $num  += $dx * $dy
+        $denX += $dx * $dx
+        $denY += $dy * $dy
+    }
+
+    if ($denX -le 0 -or $denY -le 0) { return $null }
+    return ($num / [Math]::Sqrt($denX * $denY))
+}
+
+function _ReadJsonlRecordsRecursively {
+    param(
+        [string]$Folder,
+        [string]$WarningPrefix = 'ReadJsonl'
+    )
+    if ([string]::IsNullOrWhiteSpace($Folder) -or -not [System.IO.Directory]::Exists($Folder)) {
+        return @()
+    }
+
+    $records = [System.Collections.Generic.List[object]]::new()
+    foreach ($file in [System.IO.Directory]::GetFiles($Folder, '*.jsonl', [System.IO.SearchOption]::AllDirectories)) {
+        foreach ($line in [System.IO.File]::ReadAllLines($file)) {
+            $trimmed = $line.Trim()
+            if (-not $trimmed) { continue }
+            try {
+                $records.Add(($trimmed | ConvertFrom-Json))
+            } catch {
+                Write-Warning "${WarningPrefix}: skipping malformed JSONL line in $file — $($_.Exception.Message)"
+            }
+        }
+    }
+
+    return $records.ToArray()
 }
 
 function _AddDistinctString {
@@ -1980,6 +2066,69 @@ CREATE TABLE IF NOT EXISTS conversation_wrapups (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_flows_case_flow ON conversation_flows(case_id, flow_id)' | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_conv_wrapups_case_code ON conversation_wrapups(case_id, wrapup_code)' | Out-Null
 
+    # Schema v11 — Quality and Voice-of-Customer overlay (Session 19)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_evaluations (
+    row_id              TEXT    PRIMARY KEY,
+    case_id             TEXT    NOT NULL REFERENCES cases(case_id),
+    evaluation_id       TEXT    NOT NULL DEFAULT '',
+    conversation_id     TEXT    NOT NULL DEFAULT '',
+    evaluator_user_id   TEXT    NOT NULL DEFAULT '',
+    evaluator_name      TEXT    NOT NULL DEFAULT '',
+    evaluated_user_id   TEXT    NOT NULL DEFAULT '',
+    agent_name          TEXT    NOT NULL DEFAULT '',
+    queue_id            TEXT    NOT NULL DEFAULT '',
+    queue_name          TEXT    NOT NULL DEFAULT '',
+    form_name           TEXT    NOT NULL DEFAULT '',
+    score_pct           REAL,
+    calibrated          INTEGER NOT NULL DEFAULT 0,
+    completed_at        TEXT    NOT NULL DEFAULT '',
+    imported_utc        TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_surveys (
+    row_id              TEXT    PRIMARY KEY,
+    case_id             TEXT    NOT NULL REFERENCES cases(case_id),
+    survey_id           TEXT    NOT NULL DEFAULT '',
+    conversation_id     TEXT    NOT NULL DEFAULT '',
+    agent_user_id       TEXT    NOT NULL DEFAULT '',
+    agent_name          TEXT    NOT NULL DEFAULT '',
+    queue_id            TEXT    NOT NULL DEFAULT '',
+    queue_name          TEXT    NOT NULL DEFAULT '',
+    nps_score           INTEGER,
+    csat_score          REAL,
+    completed_at        TEXT    NOT NULL DEFAULT '',
+    verbatim_text       TEXT    NOT NULL DEFAULT '',
+    imported_utc        TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_quality_topics (
+    row_id                      TEXT    PRIMARY KEY,
+    case_id                     TEXT    NOT NULL REFERENCES cases(case_id),
+    conversation_id             TEXT    NOT NULL DEFAULT '',
+    topic_id                    TEXT    NOT NULL DEFAULT '',
+    topic_name                  TEXT    NOT NULL DEFAULT '',
+    n_topic_communications      INTEGER NOT NULL DEFAULT 0,
+    n_analyzed_conversations    INTEGER NOT NULL DEFAULT 0,
+    imported_utc                TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_eval_case            ON report_evaluations(case_id)'          | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_eval_conversation    ON report_evaluations(conversation_id)'  | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_eval_agent           ON report_evaluations(evaluated_user_id)'| Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_eval_score           ON report_evaluations(score_pct)'        | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_survey_case          ON report_surveys(case_id)'              | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_survey_conversation  ON report_surveys(conversation_id)'      | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_survey_queue         ON report_surveys(queue_id)'             | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_case   ON report_quality_topics(case_id)'       | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_conv   ON report_quality_topics(conversation_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_topic  ON report_quality_topics(topic_id)'      | Out-Null
+
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
     if ($count -eq 0) {
@@ -3460,6 +3609,28 @@ function Get-ConversationVersions {
             -P @{ '@cid' = $CaseId; '@cvid' = $ConversationId }
     } finally { $conn.Close(); $conn.Dispose() }
     return @($rows | ForEach-Object { [pscustomobject]$_ })
+}
+
+function Get-CaseAgentUserIds {
+    <#
+    .SYNOPSIS
+        Returns distinct agent user IDs observed in the case store.
+    #>
+    param([Parameter(Mandatory)][string]$CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT DISTINCT user_id
+FROM conversation_agents
+WHERE case_id = @cid
+  AND user_id <> ''
+ORDER BY user_id ASC
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return @($rows | ForEach-Object { [string](_RowVal $_ 'user_id' '') } | Where-Object { $_ })
 }
 
 # ── Public: Reference Data (Session 13) ──────────────────────────────────────
@@ -5967,6 +6138,692 @@ WHERE case_id = @cid
     return @($out | Sort-Object -Property ConversationCount -Descending)
 }
 
+function Import-QualityOverlayReport {
+    <#
+    .SYNOPSIS
+        Session 19 — imports quality evaluations, surveys, and optional
+        transcript topic overlays into the local case store.
+    #>
+    param(
+        [Parameter(Mandatory)][string]    $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap,
+        [string] $StartDateTime = '',
+        [string] $EndDateTime = ''
+    )
+    _RequireDb
+
+    $now      = [datetime]::UtcNow.ToString('o')
+    $startUtc = _TryParseDateUtc $StartDateTime
+    $endUtc   = _TryParseDateUtc $EndDateTime
+    $stats    = @{ EvaluationCount = 0; SurveyCount = 0; TopicCount = 0; SkippedCount = 0 }
+
+    function _InWindow([object]$Value) {
+        $dt = _TryParseDateUtc $Value
+        if ($null -eq $dt) { return $true }
+        if ($null -ne $startUtc -and $dt -lt $startUtc) { return $false }
+        if ($null -ne $endUtc -and $dt -gt $endUtc) { return $false }
+        return $true
+    }
+
+    function _ResolveName([string]$Id, [string]$Name, [hashtable]$Map, [string]$EmptyFallback) {
+        if ($Name) { return $Name }
+        if ($Id -and $Map.ContainsKey($Id)) { return [string]$Map[$Id] }
+        if ($Id) { return "$Id (unresolved)" }
+        return $EmptyFallback
+    }
+
+    function _NormalizeEvaluationScorePct([object]$Answers, [object]$Evaluation) {
+        $totalScore = _TryParseDouble (_ObjVal $Answers @('totalScore') (_ObjVal $Evaluation @('totalScore','totalCriticalScore') $null))
+        if ($null -eq $totalScore) { return $null }
+
+        $maxScore = _TryParseDouble (_ObjVal $Answers @('maxTotalScore') $null)
+        if ($null -eq $maxScore -or $maxScore -le 0) {
+            $groupScores = @(_ObjVal $Answers @('questionGroupScores') @())
+            if ($groupScores.Count -gt 0) {
+                $sumMax = 0.0
+                foreach ($group in $groupScores) {
+                    $groupMax = _TryParseDouble (_ObjVal $group @('maxTotalScore') 0)
+                    if ($null -ne $groupMax) { $sumMax += $groupMax }
+                }
+                if ($sumMax -gt 0) { $maxScore = $sumMax }
+            }
+        }
+
+        if ($null -ne $maxScore -and $maxScore -gt 0) {
+            return [Math]::Round(($totalScore / $maxScore) * 100.0, 1)
+        }
+        if ($totalScore -le 1.0) { return [Math]::Round($totalScore * 100.0, 1) }
+        if ($totalScore -le 100.0) { return [Math]::Round($totalScore, 1) }
+        return 100.0
+    }
+
+    function _ExtractSurveyCsat([object]$Survey) {
+        $answers = _ObjVal $Survey @('answers') $null
+        $direct = _TryParseDouble (_ObjVal $answers @('totalScore') (_ObjVal $Survey @('csatScore','totalScore') $null))
+        if ($null -ne $direct) { return [Math]::Round($direct, 2) }
+
+        $questionScores = New-Object System.Collections.Generic.List[double]
+        foreach ($group in @(_ObjVal $answers @('questionGroupScores') @())) {
+            foreach ($question in @(_ObjVal $group @('questionScores') @())) {
+                $score = _TryParseDouble (_ObjVal $question @('score') $null)
+                if ($null -ne $score) { $questionScores.Add($score) | Out-Null }
+            }
+        }
+        if ($questionScores.Count -eq 0) { return $null }
+
+        $total = 0.0
+        foreach ($v in $questionScores) { $total += $v }
+        return [Math]::Round(($total / [double]$questionScores.Count), 2)
+    }
+
+    function _ExtractSurveyVerbatim([object]$Survey) {
+        $answers = _ObjVal $Survey @('answers') $null
+        $texts = New-Object System.Collections.Generic.List[string]
+        foreach ($group in @(_ObjVal $answers @('questionGroupScores') @())) {
+            foreach ($question in @(_ObjVal $group @('questionScores') @())) {
+                foreach ($candidate in @(
+                    [string](_ObjVal $question @('freeTextAnswer') ''),
+                    [string](_ObjVal $question @('npsTextAnswer') '')
+                )) {
+                    if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not ($texts -contains $candidate)) {
+                        $texts.Add($candidate) | Out-Null
+                    }
+                }
+            }
+        }
+        return ($texts.ToArray() -join ' | ')
+    }
+
+    $evalFolder       = if ($FolderMap.ContainsKey('EvaluationsFolder'))   { $FolderMap['EvaluationsFolder'] }   else { $null }
+    $surveyFolder     = if ($FolderMap.ContainsKey('SurveysFolder'))       { $FolderMap['SurveysFolder'] }       else { $null }
+    $topicsFolder     = if ($FolderMap.ContainsKey('TopicsFolder'))        { $FolderMap['TopicsFolder'] }        else { $null }
+    $transcriptFolder = if ($FolderMap.ContainsKey('TranscriptAggFolder')) { $FolderMap['TranscriptAggFolder'] } else { $null }
+
+    $conn = _Open
+    try {
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_evaluations   WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_surveys       WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+        _NonQuery -Conn $conn -Sql 'DELETE FROM report_quality_topics WHERE case_id = @cid' -P @{ '@cid' = $CaseId } | Out-Null
+
+        $queueMap = @{}
+        foreach ($q in (_Query -Conn $conn -Sql 'SELECT queue_id, name FROM ref_queues WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $id = [string](_RowVal $q 'queue_id' '')
+            if ($id) { $queueMap[$id] = [string](_RowVal $q 'name' '') }
+        }
+
+        $userMap = @{}
+        foreach ($u in (_Query -Conn $conn -Sql 'SELECT user_id, name FROM ref_users WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $id = [string](_RowVal $u 'user_id' '')
+            if ($id) { $userMap[$id] = [string](_RowVal $u 'name' '') }
+        }
+        foreach ($u in (_Query -Conn $conn -Sql 'SELECT DISTINCT user_id, user_name FROM conversation_agents WHERE case_id = @cid' -P @{ '@cid' = $CaseId })) {
+            $id = [string](_RowVal $u 'user_id' '')
+            if ($id -and -not $userMap.ContainsKey($id)) {
+                $userMap[$id] = [string](_RowVal $u 'user_name' '')
+            }
+        }
+
+        $topicMap = @{}
+        foreach ($topic in (_ReadJsonlRecordsRecursively -Folder $topicsFolder -WarningPrefix 'Import-QualityOverlayReport')) {
+            $topicId = [string](_ObjVal $topic @('id','topicId') '')
+            if ($topicId) {
+                $topicMap[$topicId] = [string](_ObjVal $topic @('name') '')
+            }
+        }
+
+        foreach ($rec in (_ReadJsonlRecordsRecursively -Folder $evalFolder -WarningPrefix 'Import-QualityOverlayReport')) {
+            $evaluationId = [string](_ObjVal $rec @('id','evaluationId') '')
+            if (-not $evaluationId) { $stats.SkippedCount++; continue }
+
+            $completedAt = [string](_ObjVal $rec @('releaseDate','submittedDate','changedDate','createdDate','assignedDate') '')
+            if (-not (_InWindow $completedAt)) { continue }
+
+            $convRef      = _ObjVal $rec @('conversation') $null
+            $agentRef     = _ObjVal $rec @('agent') $null
+            $evaluatorRef = _ObjVal $rec @('evaluator') $null
+            $queueRef     = _ObjVal $rec @('queue') $null
+            $formRef      = _ObjVal $rec @('evaluationForm') $null
+            $answers      = _ObjVal $rec @('answers') $null
+
+            $conversationId = [string](_ObjVal $convRef @('id','conversationId') (_ObjVal $rec @('conversationId') ''))
+            $agentUserId    = [string](_ObjVal $agentRef @('id','userId') (_ObjVal $rec @('agentUserId') ''))
+            $agentName      = _ResolveName $agentUserId ([string](_ObjVal $agentRef @('name') (_ObjVal $rec @('agentName') ''))) $userMap '(no agent)'
+            $evaluatorUserId = [string](_ObjVal $evaluatorRef @('id','userId') (_ObjVal $rec @('evaluatorUserId') ''))
+            $evaluatorName   = _ResolveName $evaluatorUserId ([string](_ObjVal $evaluatorRef @('name') (_ObjVal $rec @('evaluatorName') ''))) $userMap '(no evaluator)'
+            $queueId         = [string](_ObjVal $queueRef @('id','queueId') (_ObjVal $rec @('queueId') ''))
+            $queueName       = _ResolveName $queueId ([string](_ObjVal $queueRef @('name') (_ObjVal $rec @('queueName') ''))) $queueMap '(no queue)'
+            $formName        = [string](_ObjVal $formRef @('name') (_ObjVal $rec @('formName','name') ''))
+            $scorePct        = _NormalizeEvaluationScorePct -Answers $answers -Evaluation $rec
+            $calibration     = if ($null -ne (_ObjVal $rec @('calibration') $null) -or $rec.PSObject.Properties['calibration']) { 1 } else { 0 }
+            $rowId           = "$CaseId|eval|$evaluationId"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_evaluations(
+    row_id, case_id, evaluation_id, conversation_id, evaluator_user_id, evaluator_name,
+    evaluated_user_id, agent_name, queue_id, queue_name, form_name, score_pct,
+    calibrated, completed_at, imported_utc)
+VALUES(
+    @rid, @cid, @eid, @cvid, @euid, @euname,
+    @auid, @aname, @qid, @qname, @fname, @score,
+    @cal, @done, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    conversation_id=excluded.conversation_id,
+    evaluator_user_id=excluded.evaluator_user_id,
+    evaluator_name=excluded.evaluator_name,
+    evaluated_user_id=excluded.evaluated_user_id,
+    agent_name=excluded.agent_name,
+    queue_id=excluded.queue_id,
+    queue_name=excluded.queue_name,
+    form_name=excluded.form_name,
+    score_pct=excluded.score_pct,
+    calibrated=excluded.calibrated,
+    completed_at=excluded.completed_at,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowId; '@cid' = $CaseId; '@eid' = $evaluationId
+                '@cvid' = $conversationId; '@euid' = $evaluatorUserId; '@euname' = $evaluatorName
+                '@auid' = $agentUserId; '@aname' = $agentName
+                '@qid' = $queueId; '@qname' = $queueName; '@fname' = $formName
+                '@score' = $scorePct; '@cal' = $calibration
+                '@done' = $completedAt; '@ts' = $now
+            } | Out-Null
+            $stats.EvaluationCount++
+        }
+
+        foreach ($rec in (_ReadJsonlRecordsRecursively -Folder $surveyFolder -WarningPrefix 'Import-QualityOverlayReport')) {
+            $surveyId = [string](_ObjVal $rec @('id','surveyId') '')
+            if (-not $surveyId) { $stats.SkippedCount++; continue }
+
+            $completedAt = [string](_ObjVal $rec @('completedDate','completedAt') '')
+            if (-not (_InWindow $completedAt)) { continue }
+
+            $convRef      = _ObjVal $rec @('conversation') $null
+            $agentRef     = _ObjVal $rec @('agent') $null
+            $queueRef     = _ObjVal $rec @('queue') $null
+            $conversationId = [string](_ObjVal $convRef @('id','conversationId') (_ObjVal $rec @('conversationId') ''))
+            $agentUserId    = [string](_ObjVal $agentRef @('id','userId') (_ObjVal $rec @('agentUserId') ''))
+            $agentName      = _ResolveName $agentUserId ([string](_ObjVal $agentRef @('name') (_ObjVal $rec @('agentName') ''))) $userMap '(no agent)'
+            $queueId        = [string](_ObjVal $queueRef @('id','queueId') (_ObjVal $rec @('queueId') ''))
+            $queueName      = _ResolveName $queueId ([string](_ObjVal $queueRef @('name') (_ObjVal $rec @('queueName') ''))) $queueMap '(no queue)'
+            $answers        = _ObjVal $rec @('answers') $null
+            $npsScoreRaw    = _ObjVal $answers @('npsScore') (_ObjVal $rec @('npsScore') $null)
+            $npsScore       = if ($null -ne $npsScoreRaw -and "$npsScoreRaw" -ne '') { [int]$npsScoreRaw } else { $null }
+            $csatScore      = _ExtractSurveyCsat -Survey $rec
+            $verbatimText   = _ExtractSurveyVerbatim -Survey $rec
+            $rowId          = "$CaseId|survey|$surveyId"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_surveys(
+    row_id, case_id, survey_id, conversation_id, agent_user_id, agent_name,
+    queue_id, queue_name, nps_score, csat_score, completed_at, verbatim_text, imported_utc)
+VALUES(
+    @rid, @cid, @sid, @cvid, @auid, @aname,
+    @qid, @qname, @nps, @csat, @done, @verb, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    conversation_id=excluded.conversation_id,
+    agent_user_id=excluded.agent_user_id,
+    agent_name=excluded.agent_name,
+    queue_id=excluded.queue_id,
+    queue_name=excluded.queue_name,
+    nps_score=excluded.nps_score,
+    csat_score=excluded.csat_score,
+    completed_at=excluded.completed_at,
+    verbatim_text=excluded.verbatim_text,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowId; '@cid' = $CaseId; '@sid' = $surveyId
+                '@cvid' = $conversationId; '@auid' = $agentUserId; '@aname' = $agentName
+                '@qid' = $queueId; '@qname' = $queueName
+                '@nps' = $npsScore; '@csat' = $csatScore
+                '@done' = $completedAt; '@verb' = $verbatimText; '@ts' = $now
+            } | Out-Null
+            $stats.SurveyCount++
+        }
+
+        $topicAgg = @{}
+        foreach ($rec in (_ReadJsonlRecordsRecursively -Folder $transcriptFolder -WarningPrefix 'Import-QualityOverlayReport')) {
+            $group = _ObjVal $rec @('group') $null
+            $conversationId = [string](_ObjVal $group @('conversationId') '')
+            $topicId        = [string](_ObjVal $group @('topicId') '')
+            if (-not $conversationId -or -not $topicId) { continue }
+
+            $topicKey = "$conversationId|$topicId"
+            if (-not $topicAgg.ContainsKey($topicKey)) {
+                $topicAgg[$topicKey] = @{
+                    ConversationId = $conversationId
+                    TopicId        = $topicId
+                    TopicCount     = 0
+                    AnalyzedCount  = 0
+                }
+            }
+
+            foreach ($bucket in @(_ObjVal $rec @('data') @())) {
+                foreach ($metric in @(_ObjVal $bucket @('metrics') @())) {
+                    $metricName = [string](_ObjVal $metric @('metric') '')
+                    $statsObj   = _ObjVal $metric @('stats') $null
+                    $value = _TryParseDouble (_ObjVal $statsObj @('sum','count','max','min') (_ObjVal $metric @('value') 0))
+                    if ($null -eq $value) { $value = 0 }
+
+                    switch ($metricName) {
+                        'nTopicCommunications' {
+                            $topicAgg[$topicKey].TopicCount += [int][Math]::Round($value)
+                        }
+                        'nSpeechTextAnalyzedConversations' {
+                            $topicAgg[$topicKey].AnalyzedCount += [int][Math]::Round($value)
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($entry in $topicAgg.Values) {
+            if ($entry.TopicCount -le 0 -and $entry.AnalyzedCount -le 0) { continue }
+            $topicName = if ($topicMap.ContainsKey($entry.TopicId)) { [string]$topicMap[$entry.TopicId] } else { "$($entry.TopicId) (unresolved)" }
+            $rowId = "$CaseId|topic|$($entry.ConversationId)|$($entry.TopicId)"
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_quality_topics(
+    row_id, case_id, conversation_id, topic_id, topic_name,
+    n_topic_communications, n_analyzed_conversations, imported_utc)
+VALUES(
+    @rid, @cid, @cvid, @tid, @tname,
+    @ncomm, @nan, @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    topic_name=excluded.topic_name,
+    n_topic_communications=excluded.n_topic_communications,
+    n_analyzed_conversations=excluded.n_analyzed_conversations,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                '@rid' = $rowId; '@cid' = $CaseId; '@cvid' = $entry.ConversationId
+                '@tid' = $entry.TopicId; '@tname' = $topicName
+                '@ncomm' = [int]$entry.TopicCount; '@nan' = [int]$entry.AnalyzedCount
+                '@ts' = $now
+            } | Out-Null
+            $stats.TopicCount++
+        }
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+
+    return $stats
+}
+
+function Get-QualitySummary {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $evalRows = _Query -Conn $conn -Sql @'
+SELECT COUNT(*) AS n_eval, AVG(score_pct) AS avg_score
+FROM report_evaluations
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+
+        $surveyRows = _Query -Conn $conn -Sql @'
+SELECT COUNT(*) AS n_survey, AVG(csat_score) AS avg_csat
+FROM report_surveys
+WHERE case_id = @cid
+'@ -P @{ '@cid' = $CaseId }
+
+        $lowRows = _Query -Conn $conn -Sql @'
+SELECT COUNT(DISTINCT conversation_id) AS n_low
+FROM (
+    SELECT conversation_id
+    FROM report_evaluations
+    WHERE case_id = @cid AND score_pct IS NOT NULL AND score_pct < 70
+    UNION
+    SELECT conversation_id
+    FROM report_surveys
+    WHERE case_id = @cid AND nps_score BETWEEN 0 AND 6
+)
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $e = if ($evalRows.Count -gt 0) { $evalRows[0] } else { $null }
+    $s = if ($surveyRows.Count -gt 0) { $surveyRows[0] } else { $null }
+    $l = if ($lowRows.Count -gt 0) { $lowRows[0] } else { $null }
+    return [pscustomobject]@{
+        EvaluationCount    = if ($null -ne $e) { [int](_RowVal $e 'n_eval' 0) } else { 0 }
+        SurveyCount        = if ($null -ne $s) { [int](_RowVal $s 'n_survey' 0) } else { 0 }
+        AvgEvaluationScore = if ($null -ne $e -and $null -ne (_RowVal $e 'avg_score' $null)) { [Math]::Round([double](_RowVal $e 'avg_score' 0), 1) } else { $null }
+        AvgCsat            = if ($null -ne $s -and $null -ne (_RowVal $s 'avg_csat' $null)) { [Math]::Round([double](_RowVal $s 'avg_csat' 0), 2) } else { $null }
+        LowConversationCount = if ($null -ne $l) { [int](_RowVal $l 'n_low' 0) } else { 0 }
+    }
+}
+
+function Get-QualityAgentScoreRows {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT evaluated_user_id, agent_name, score_pct
+FROM report_evaluations
+WHERE case_id = @cid
+  AND score_pct IS NOT NULL
+ORDER BY agent_name ASC, completed_at ASC
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $byAgent = @{}
+    foreach ($row in $rows) {
+        $agentId = [string](_RowVal $row 'evaluated_user_id' '')
+        $agentName = [string](_RowVal $row 'agent_name' '')
+        $key = if ($agentId) { $agentId } else { $agentName }
+        if (-not $key) { $key = '__unknown__' }
+        if (-not $byAgent.ContainsKey($key)) {
+            $byAgent[$key] = @{
+                AgentUserId = $agentId
+                AgentName   = if ($agentName) { $agentName } else { '(unresolved agent)' }
+                Scores      = [System.Collections.Generic.List[double]]::new()
+            }
+        }
+        $score = _TryParseDouble (_RowVal $row 'score_pct' $null)
+        if ($null -ne $score) { $byAgent[$key].Scores.Add($score) | Out-Null }
+    }
+
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($bucket in $byAgent.Values) {
+        if ($bucket.Scores.Count -eq 0) { continue }
+        $sorted = [double[]]@($bucket.Scores | Sort-Object)
+        $avg = 0.0
+        foreach ($s in $sorted) { $avg += $s }
+        $avg = $avg / [double]$sorted.Count
+        $out.Add([pscustomobject]@{
+            AgentUserId = $bucket.AgentUserId
+            AgentName   = $bucket.AgentName
+            EvaluationCount = $sorted.Count
+            MinScore    = [Math]::Round($sorted[0], 1)
+            P25Score    = [Math]::Round((_GetPercentile -SortedValues $sorted -Percentile 0.25), 1)
+            MedianScore = [Math]::Round((_GetMedian -SortedValues $sorted), 1)
+            P75Score    = [Math]::Round((_GetPercentile -SortedValues $sorted -Percentile 0.75), 1)
+            MaxScore    = [Math]::Round($sorted[$sorted.Count - 1], 1)
+            AvgScore    = [Math]::Round($avg, 1)
+        })
+    }
+
+    return @($out | Sort-Object -Property AvgScore, EvaluationCount)
+}
+
+function Get-QualitySurveyQueueRows {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT queue_id, queue_name, nps_score, csat_score
+FROM report_surveys
+WHERE case_id = @cid
+ORDER BY queue_name ASC, completed_at ASC
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $byQueue = @{}
+    foreach ($row in $rows) {
+        $queueId = [string](_RowVal $row 'queue_id' '')
+        $queueName = [string](_RowVal $row 'queue_name' '')
+        $key = if ($queueId) { $queueId } else { $queueName }
+        if (-not $key) { $key = '__unknown__' }
+        if (-not $byQueue.ContainsKey($key)) {
+            $byQueue[$key] = @{
+                QueueId   = $queueId
+                QueueName = if ($queueName) { $queueName } else { '(no queue)' }
+                NpsScores = [System.Collections.Generic.List[double]]::new()
+                CsatScores = [System.Collections.Generic.List[double]]::new()
+                SurveyCount = 0
+                Detractors = 0
+            }
+        }
+        $byQueue[$key].SurveyCount++
+        $nps = _TryParseDouble (_RowVal $row 'nps_score' $null)
+        if ($null -ne $nps) {
+            $byQueue[$key].NpsScores.Add($nps) | Out-Null
+            if ($nps -ge 0 -and $nps -le 6) { $byQueue[$key].Detractors++ }
+        }
+        $csat = _TryParseDouble (_RowVal $row 'csat_score' $null)
+        if ($null -ne $csat) { $byQueue[$key].CsatScores.Add($csat) | Out-Null }
+    }
+
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($bucket in $byQueue.Values) {
+        $avgNps = $null
+        $medNps = $null
+        if ($bucket.NpsScores.Count -gt 0) {
+            $sortedNps = [double[]]@($bucket.NpsScores | Sort-Object)
+            $tmp = 0.0; foreach ($n in $sortedNps) { $tmp += $n }
+            $avgNps = [Math]::Round(($tmp / [double]$sortedNps.Count), 1)
+            $medNps = [Math]::Round((_GetMedian -SortedValues $sortedNps), 1)
+        }
+
+        $avgCsat = $null
+        $medCsat = $null
+        if ($bucket.CsatScores.Count -gt 0) {
+            $sortedCsat = [double[]]@($bucket.CsatScores | Sort-Object)
+            $tmp = 0.0; foreach ($c in $sortedCsat) { $tmp += $c }
+            $avgCsat = [Math]::Round(($tmp / [double]$sortedCsat.Count), 2)
+            $medCsat = [Math]::Round((_GetMedian -SortedValues $sortedCsat), 2)
+        }
+
+        $out.Add([pscustomobject]@{
+            QueueId      = $bucket.QueueId
+            QueueName    = $bucket.QueueName
+            SurveyCount  = $bucket.SurveyCount
+            AvgNps       = $avgNps
+            MedianNps    = $medNps
+            AvgCsat      = $avgCsat
+            MedianCsat   = $medCsat
+            DetractorCount = $bucket.Detractors
+        })
+    }
+
+    return @($out | Sort-Object -Property SurveyCount, QueueName -Descending)
+}
+
+function Get-LowScoreConversationRows {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $evalRows = _Query -Conn $conn -Sql @'
+SELECT conversation_id, agent_name, queue_name, score_pct, completed_at
+FROM report_evaluations
+WHERE case_id = @cid
+  AND score_pct IS NOT NULL
+  AND score_pct < 70
+'@ -P @{ '@cid' = $CaseId }
+
+        $surveyRows = _Query -Conn $conn -Sql @'
+SELECT conversation_id, agent_name, queue_name, nps_score, csat_score, completed_at
+FROM report_surveys
+WHERE case_id = @cid
+  AND nps_score BETWEEN 0 AND 6
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $byConversation = @{}
+    foreach ($row in $evalRows) {
+        $conversationId = [string](_RowVal $row 'conversation_id' '')
+        if (-not $conversationId) { continue }
+        if (-not $byConversation.ContainsKey($conversationId)) {
+            $byConversation[$conversationId] = [ordered]@{
+                ConversationId   = $conversationId
+                AgentName        = [string](_RowVal $row 'agent_name' '')
+                QueueName        = [string](_RowVal $row 'queue_name' '')
+                EvaluationScore  = $null
+                NpsScore         = $null
+                CsatScore        = $null
+                IssueFlags       = [System.Collections.Generic.List[string]]::new()
+                LastCompletedAt  = [string](_RowVal $row 'completed_at' '')
+            }
+        }
+        $score = _TryParseDouble (_RowVal $row 'score_pct' $null)
+        if ($null -ne $score) {
+            if ($null -eq $byConversation[$conversationId].EvaluationScore -or $score -lt $byConversation[$conversationId].EvaluationScore) {
+                $byConversation[$conversationId].EvaluationScore = [Math]::Round($score, 1)
+            }
+        }
+        if (-not ($byConversation[$conversationId].IssueFlags -contains 'Low evaluation')) {
+            $byConversation[$conversationId].IssueFlags.Add('Low evaluation') | Out-Null
+        }
+    }
+
+    foreach ($row in $surveyRows) {
+        $conversationId = [string](_RowVal $row 'conversation_id' '')
+        if (-not $conversationId) { continue }
+        if (-not $byConversation.ContainsKey($conversationId)) {
+            $byConversation[$conversationId] = [ordered]@{
+                ConversationId   = $conversationId
+                AgentName        = [string](_RowVal $row 'agent_name' '')
+                QueueName        = [string](_RowVal $row 'queue_name' '')
+                EvaluationScore  = $null
+                NpsScore         = $null
+                CsatScore        = $null
+                IssueFlags       = [System.Collections.Generic.List[string]]::new()
+                LastCompletedAt  = [string](_RowVal $row 'completed_at' '')
+            }
+        }
+        $nps = _TryParseDouble (_RowVal $row 'nps_score' $null)
+        if ($null -ne $nps) { $byConversation[$conversationId].NpsScore = [int]$nps }
+        $csat = _TryParseDouble (_RowVal $row 'csat_score' $null)
+        if ($null -ne $csat) { $byConversation[$conversationId].CsatScore = [Math]::Round($csat, 2) }
+        if (-not ($byConversation[$conversationId].IssueFlags -contains 'NPS detractor')) {
+            $byConversation[$conversationId].IssueFlags.Add('NPS detractor') | Out-Null
+        }
+    }
+
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($entry in $byConversation.Values) {
+        $out.Add([pscustomobject]@{
+            ConversationId  = $entry.ConversationId
+            AgentName       = $entry.AgentName
+            QueueName       = $entry.QueueName
+            EvaluationScore = $entry.EvaluationScore
+            NpsScore        = $entry.NpsScore
+            CsatScore       = $entry.CsatScore
+            Issues          = ($entry.IssueFlags.ToArray() -join '; ')
+            CompletedAt     = $entry.LastCompletedAt
+        })
+    }
+
+    return @($out | Sort-Object @{ Expression = { if ($null -ne $_.EvaluationScore) { $_.EvaluationScore } else { 999 } } }, @{ Expression = { if ($null -ne $_.NpsScore) { $_.NpsScore } else { 999 } } }, QueueName)
+}
+
+function Get-QualityCorrelationSummary {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT e.conversation_id,
+       AVG(e.score_pct) AS avg_score_pct,
+       MAX(c.duration_sec) AS duration_sec,
+       MAX(CASE
+            WHEN c.wrapup_name <> '' THEN c.wrapup_name
+            WHEN c.wrapup_code <> '' THEN c.wrapup_code
+            ELSE ''
+       END) AS wrapup_value
+FROM report_evaluations e
+JOIN conversations c
+  ON c.case_id = e.case_id
+ AND c.conversation_id = e.conversation_id
+WHERE e.case_id = @cid
+  AND e.score_pct IS NOT NULL
+GROUP BY e.conversation_id
+'@ -P @{ '@cid' = $CaseId }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    $handleX = New-Object System.Collections.Generic.List[double]
+    $scoreY  = New-Object System.Collections.Generic.List[double]
+    $wrapPairs = New-Object System.Collections.Generic.List[object]
+    foreach ($row in $rows) {
+        $score = _TryParseDouble (_RowVal $row 'avg_score_pct' $null)
+        if ($null -eq $score) { continue }
+
+        $duration = _TryParseDouble (_RowVal $row 'duration_sec' $null)
+        if ($null -ne $duration) {
+            $handleX.Add($duration) | Out-Null
+            $scoreY.Add($score) | Out-Null
+        }
+
+        $wrapup = [string](_RowVal $row 'wrapup_value' '')
+        if ($wrapup) {
+            $wrapPairs.Add([pscustomobject]@{ Wrapup = $wrapup; Score = $score }) | Out-Null
+        }
+    }
+
+    $wrapMap = @{}
+    $ordinal = 1
+    foreach ($wrapup in @($wrapPairs | Select-Object -ExpandProperty Wrapup -Unique | Sort-Object)) {
+        $wrapMap[$wrapup] = $ordinal
+        $ordinal++
+    }
+
+    $wrapX = New-Object System.Collections.Generic.List[double]
+    $wrapY = New-Object System.Collections.Generic.List[double]
+    foreach ($pair in $wrapPairs) {
+        if ($wrapMap.ContainsKey($pair.Wrapup)) {
+            $wrapX.Add([double]$wrapMap[$pair.Wrapup]) | Out-Null
+            $wrapY.Add([double]$pair.Score) | Out-Null
+        }
+    }
+
+    $handleR = _GetPearsonCorrelation -Xs ([double[]]$handleX.ToArray()) -Ys ([double[]]$scoreY.ToArray())
+    $wrapR   = _GetPearsonCorrelation -Xs ([double[]]$wrapX.ToArray())   -Ys ([double[]]$wrapY.ToArray())
+    return [pscustomobject]@{
+        ConversationCount       = $rows.Count
+        HandleScoreCorrelation  = if ($null -ne $handleR) { [Math]::Round($handleR, 3) } else { $null }
+        WrapupScoreCorrelation  = if ($null -ne $wrapR)   { [Math]::Round($wrapR, 3) } else { $null }
+        WrapupOrdinalNote       = 'Wrapup correlation uses a stable alphabetical ordinal encoding of wrapup values.'
+    }
+}
+
+function Get-LowScoreTopicRows {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [int] $Top = 5
+    )
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql @'
+SELECT t.topic_id,
+       t.topic_name,
+       SUM(t.n_topic_communications) AS n_topic_communications,
+       COUNT(DISTINCT t.conversation_id) AS conversation_count
+FROM report_quality_topics t
+WHERE t.case_id = @cid
+  AND t.conversation_id IN (
+        SELECT conversation_id
+        FROM report_evaluations
+        WHERE case_id = @cid AND score_pct IS NOT NULL AND score_pct < 70
+        UNION
+        SELECT conversation_id
+        FROM report_surveys
+        WHERE case_id = @cid AND nps_score BETWEEN 0 AND 6
+  )
+GROUP BY t.topic_id, t.topic_name
+ORDER BY SUM(t.n_topic_communications) DESC, COUNT(DISTINCT t.conversation_id) DESC, t.topic_name ASC
+LIMIT @top
+'@ -P @{ '@cid' = $CaseId; '@top' = $Top }
+    } finally { $conn.Close(); $conn.Dispose() }
+
+    return @($rows | ForEach-Object {
+        [pscustomobject]@{
+            TopicId            = [string](_RowVal $_ 'topic_id' '')
+            TopicName          = [string](_RowVal $_ 'topic_name' '')
+            TopicHits          = [int]   (_RowVal $_ 'n_topic_communications' 0)
+            ConversationCount  = [int]   (_RowVal $_ 'conversation_count' 0)
+        }
+    })
+}
+
 Export-ModuleMember -Function `
     Initialize-Database, Test-DatabaseInitialized, New-DefaultCaseIfEmpty, `
     New-Case, Get-Case, Get-Cases, Update-CaseState, Update-CaseNotes, Remove-CaseData, `
@@ -5982,6 +6839,7 @@ Export-ModuleMember -Function `
     Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationPopulationRows, `
     Get-ConversationPopulationSummary, Get-ConversationFacetCounts, Get-RepresentativeConversations, `
     Get-AnomalyRiskCohorts, Get-ConversationById, Get-ConversationVersions, `
+    Get-CaseAgentUserIds, `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `
     Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `
@@ -5990,4 +6848,7 @@ Export-ModuleMember -Function `
     Get-FlowContainmentSummary, Get-FlowQueueRouteRows, `
     Import-WrapupDistributionReport, Get-WrapupCodeRows, Get-WrapupByQueueRows, `
     Get-WrapupByHourRows, Get-WrapupSummary, Get-WrapupConcentrationInsights, `
-    Get-WrapupHandleTimeCrossRef
+    Get-WrapupHandleTimeCrossRef, `
+    Import-QualityOverlayReport, Get-QualitySummary, Get-QualityAgentScoreRows, `
+    Get-QualitySurveyQueueRows, Get-LowScoreConversationRows, `
+    Get-QualityCorrelationSummary, Get-LowScoreTopicRows

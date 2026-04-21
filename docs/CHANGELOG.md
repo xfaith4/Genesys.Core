@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-04-21
+
+### Added
+
+- **ConversationAnalyser Session 19 — Quality and Voice-of-Customer Overlay:**
+  - `Get-QualityOverlayReport` added to `App.CoreAdapter.psm1` — pulls `quality.get.evaluations.query` (fan-out by case agent), `quality.get.surveys`, `speechandtextanalytics.get.topics`, and `analytics.post.transcripts.aggregates.query` into a `report-quality-<timestamp>` folder map.
+  - Schema bumped to **v11** with `report_evaluations`, `report_surveys`, and `report_quality_topics` plus supporting indexes.
+  - `Get-CaseAgentUserIds`, `Import-QualityOverlayReport`, `Get-QualitySummary`, `Get-QualityAgentScoreRows`, `Get-QualitySurveyQueueRows`, `Get-LowScoreConversationRows`, `Get-QualityCorrelationSummary`, and `Get-LowScoreTopicRows` added to `App.Database.psm1`.
+  - Evaluation scores normalize to a 0–100 scale from available form totals; survey import extracts NPS, CSAT-style totals, and free-text verbatim answers; transcript topic overlays stay optional and local to the case store.
+  - **"Quality" tab** added to `MainWindow.xaml`: Pull Report button, KPI summary bar, agent score distribution grid, queue survey grid, low-score conversation grid, correlation panel, and low-score topic grid.
+  - `_StartQualityOverlayReportJob`, `_RenderQualityGrid`, and `_OpenLowScoreConversation` added to `App.UI.ps1`; low-score conversations drill into the existing conversation detail workspace.
+  - Quality-specific compliance and architecture checks added to the ConversationAnalyser test runner.
+
 ## 2026-04-17
 
 ### Added
@@ -116,4 +129,3 @@
 - Ensure the canonical catalog is present:
   - `catalog/genesys.catalog.json`
 - Existing callers passing `-CatalogPath` remain supported.
-

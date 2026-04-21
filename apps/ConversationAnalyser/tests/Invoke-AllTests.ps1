@@ -398,6 +398,36 @@ ArchCheck 'ARCH-48' 'Contact Reasons tab controls and handlers are wired' {
     $uiPs -match 'function _RenderSelectedWrapupDetail'
 }
 
+Write-Host "`n--- Quality and Voice-of-Customer reporting ---" -ForegroundColor DarkCyan
+
+ArchCheck 'ARCH-49' 'CoreAdapter exposes quality overlay pulls without UI direct dataset access' {
+    $adapter -match 'function Get-QualityOverlayReport' -and
+    $adapter -match 'quality\.get\.evaluations\.query' -and
+    $adapter -match 'quality\.get\.surveys' -and
+    $adapter -match 'speechandtextanalytics\.get\.topics' -and
+    $adapter -match 'analytics\.post\.transcripts\.aggregates\.query' -and
+    $uiPs -notmatch 'Invoke-Dataset'
+}
+
+ArchCheck 'ARCH-50' 'Database and UI own quality schema, import, accessors, and drillthrough wiring' {
+    $schemaMatch = [regex]::Match($database, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 11 -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_evaluations' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_surveys' -and
+    $database -match 'function Import-QualityOverlayReport' -and
+    $database -match 'function Get-QualityAgentScoreRows' -and
+    $database -match 'function Get-QualitySurveyQueueRows' -and
+    $database -match 'function Get-LowScoreConversationRows' -and
+    $database -match 'function Get-QualityCorrelationSummary' -and
+    $database -match 'function Get-LowScoreTopicRows' -and
+    $xaml -match 'BtnPullQualityReport' -and
+    $xaml -match 'DgLowScoreConversations' -and
+    $xaml -match 'TxtQualityCorrelation' -and
+    $uiPs -match 'function _StartQualityOverlayReportJob' -and
+    $uiPs -match 'function _RenderQualityGrid' -and
+    $uiPs -match 'function _OpenLowScoreConversation'
+}
+
 # ── Architecture: config & strict mode ────────────────────────────────────────
 Write-Host "`n--- Config and strict mode ---" -ForegroundColor DarkCyan
 

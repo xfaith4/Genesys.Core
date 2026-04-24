@@ -358,14 +358,21 @@ function _Build-QuerySpec {
         throw 'Preview result limit must be a whole number.'
     }
 
+    $service = _Get-ComboText -Control $script:CmbService
+    $action = _Get-ComboText -Control $script:CmbAction
+    $entity = [string]$script:TxtEntity.Text
+    if (-not [string]::IsNullOrWhiteSpace($action) -and [string]::IsNullOrWhiteSpace($entity)) {
+        throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
+    }
+
     return [ordered]@{
         DatasetKey    = [string]$script:CmbDataset.SelectedItem
         StartUtc      = $startUtc
         EndUtc        = $endUtc
-        Service       = _Get-ComboText -Control $script:CmbService
-        Action        = _Get-ComboText -Control $script:CmbAction
+        Service       = $service
+        Action        = $action
         Actor         = [string]$script:TxtActor.Text
-        Entity        = [string]$script:TxtEntity.Text
+        Entity        = $entity
         Keyword       = [string]$script:TxtKeyword.Text
         PreviewLimit  = $previewLimit
     }

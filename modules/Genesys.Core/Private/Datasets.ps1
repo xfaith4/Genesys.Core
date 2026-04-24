@@ -82,6 +82,59 @@ function Resolve-DatasetInterval {
     return "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
 }
 
+function Resolve-SingleAuditFilterValue {
+    [CmdletBinding()]
+    param(
+        [hashtable]$DatasetParameters,
+        [Parameter(Mandatory = $true)]
+        [string]$ParameterName,
+        [Parameter(Mandatory = $true)]
+        [string]$DisplayName
+    )
+
+    if ($null -eq $DatasetParameters -or -not $DatasetParameters.ContainsKey($ParameterName)) {
+        return $null
+    }
+
+    $values = @(
+        @($DatasetParameters[$ParameterName]) |
+            ForEach-Object { [string]$_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+
+    if ($values.Count -gt 1) {
+        throw "Genesys Audit API supports only one $DisplayName filter per request. Received $($values.Count)."
+    }
+
+    if ($values.Count -eq 0) {
+        return $null
+    }
+
+    return $values[0]
+}
+
+function Add-AuditBodyFilter {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$Filters,
+        [Parameter(Mandatory = $true)]
+        [string]$Property,
+        [AllowNull()]
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return
+    }
+
+    $Filters.Add([ordered]@{
+        property = $Property
+        value = $Value
+    }) | Out-Null
+}
+
 function Get-CatalogEndpointByKey {
     [CmdletBinding()]
     param(
@@ -158,7 +211,6 @@ function Invoke-AuditLogsDataset {
     )
 
     $datasetSpec = $Catalog.datasets['audit-logs']
-    $mappingEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.get.service.mapping'
     $submitEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'audits.query.submit' -DatasetSpec $datasetSpec
     $transactionEndpoints = Resolve-AuditTransactionEndpoints -Catalog $Catalog -SubmitEndpoint $submitEndpoint
     $statusEndpoint = $transactionEndpoints.status
@@ -166,26 +218,32 @@ function Invoke-AuditLogsDataset {
 
     $runEvents = [System.Collections.Generic.List[object]]::new()
 
-    $mappingResponse = Invoke-CoreEndpoint -EndpointSpec $mappingEndpoint -InitialUri (Join-EndpointUri -BaseUri $BaseUri -Path $mappingEndpoint.path) -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
-    $serviceMappings = @($mappingResponse.Items)
-
     $body = [ordered]@{
         interval = Resolve-DatasetInterval -DatasetParameters $DatasetParameters -DefaultLookbackHours 1
-        serviceName = @()
-        action = @()
+        filters = @()
+        sort = @(
+            [ordered]@{
+                name = 'Timestamp'
+                sortOrder = 'descending'
+            }
+        )
     }
 
-    if ($serviceMappings.Count -gt 0) {
-        $body.serviceName = @($serviceMappings | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.PSObject.Properties.Name -contains 'serviceName') { $_.serviceName } } | Where-Object { $_ })
+    $serviceName = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'ServiceNames' -DisplayName 'serviceName'
+    if (-not [string]::IsNullOrWhiteSpace($serviceName)) {
+        $body.serviceName = $serviceName
     }
 
-    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('ServiceNames')) {
-        $body.serviceName = @($DatasetParameters['ServiceNames'])
+    $action = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'Actions' -DisplayName 'Action'
+    $entityType = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'EntityTypes' -DisplayName 'EntityType'
+    if (-not [string]::IsNullOrWhiteSpace($action) -and [string]::IsNullOrWhiteSpace($entityType)) {
+        throw 'Genesys Audit API requires an EntityType filter when Action is supplied.'
     }
 
-    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Actions')) {
-        $body.action = @($DatasetParameters['Actions'])
-    }
+    $filters = [System.Collections.Generic.List[object]]::new()
+    Add-AuditBodyFilter -Filters $filters -Property 'EntityType' -Value $entityType
+    Add-AuditBodyFilter -Filters $filters -Property 'Action' -Value $action
+    $body.filters = @($filters.ToArray())
 
     $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
 

@@ -88,7 +88,52 @@ Describe 'Audit logs dataset' {
 
 
 
-    It 'supports dataset parameter overrides for interval, service names, and actions' {
+    It 'submits a valid unfiltered audit query body' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-unfiltered'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedSubmitBody = $null
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing', 'platform') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                $script:capturedSubmitBody = $request.Body | ConvertFrom-Json -Depth 20
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-unfiltered' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-unfiltered') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-unfiltered/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ results = @(); nextUri = $null } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        $parameters = @{
+            StartUtc = '2026-02-20T00:00:00Z'
+            EndUtc = '2026-02-20T01:00:00Z'
+        }
+
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters $parameters -RequestInvoker $requestInvoker | Out-Null
+
+        $script:capturedSubmitBody.interval | Should -Be '2026-02-20T00:00:00.0000000Z/2026-02-20T01:00:00.0000000Z'
+        @($script:capturedSubmitBody.filters).Count | Should -Be 0
+        @($script:capturedSubmitBody.sort).Count | Should -Be 1
+        $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'serviceName'
+        $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'action'
+    }
+
+    It 'supports dataset parameter overrides for interval, service name, entity type, and action' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-parameterized'
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
 
@@ -126,16 +171,52 @@ Describe 'Audit logs dataset' {
             StartUtc = '2026-02-20T00:00:00Z'
             EndUtc = '2026-02-20T01:00:00Z'
             ServiceNames = @('routing')
+            EntityTypes = @('Queue')
             Actions = @('delete')
         }
 
         Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters $parameters -RequestInvoker $requestInvoker | Out-Null
 
         $script:capturedSubmitBody.interval | Should -Be '2026-02-20T00:00:00.0000000Z/2026-02-20T01:00:00.0000000Z'
-        @($script:capturedSubmitBody.serviceName).Count | Should -Be 1
-        ($script:capturedSubmitBody.serviceName | Select-Object -First 1) | Should -Be 'routing'
-        @($script:capturedSubmitBody.action).Count | Should -Be 1
-        ($script:capturedSubmitBody.action | Select-Object -First 1) | Should -Be 'delete'
+        $script:capturedSubmitBody.serviceName | Should -Be 'routing'
+        @($script:capturedSubmitBody.filters).Count | Should -Be 2
+        ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'EntityType' }).value | Should -Be 'Queue'
+        ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'Action' }).value | Should -Be 'delete'
+        $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'action'
+    }
+
+    It 'fails before submit when action is supplied without entity type' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-action-without-entity'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:submitAttempted = $false
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                $script:submitAttempted = $true
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-invalid' } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        {
+            Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters @{
+                StartUtc = '2026-02-20T00:00:00Z'
+                EndUtc = '2026-02-20T01:00:00Z'
+                Actions = @('delete')
+            } -RequestInvoker $requestInvoker
+        } | Should -Throw '*requires an EntityType filter*'
+
+        $script:submitAttempted | Should -BeFalse
     }
     It 'fails when transaction reaches FAILED terminal state' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'

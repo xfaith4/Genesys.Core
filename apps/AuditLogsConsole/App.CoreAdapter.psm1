@@ -204,6 +204,13 @@ function New-AuditDatasetParameters {
     $actions = _Split-FilterValues -Value $QuerySpec.Action
     if ($actions.Count -gt 0) {
         $datasetParameters.Actions = $actions
+
+        $entityTypes = _Split-FilterValues -Value $QuerySpec.Entity
+        if ($entityTypes.Count -eq 0) {
+            throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
+        }
+
+        $datasetParameters.EntityTypes = $entityTypes
     }
 
     return [pscustomobject]@{

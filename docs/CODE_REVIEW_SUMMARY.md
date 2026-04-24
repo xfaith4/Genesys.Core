@@ -1,7 +1,7 @@
 # Code Review and Hardening Summary
 
 **Date:** February 18, 2026
-**Repository:** xfaith4/Genesys.Core
+**Repository:** Genesys.Core
 **Branch:** copilot/perform-code-review-harden
 
 ## Executive Summary

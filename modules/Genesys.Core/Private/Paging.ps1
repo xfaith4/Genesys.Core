@@ -5,7 +5,9 @@ function Get-PagingItemsFromResponse {
         [Parameter(Mandatory = $true)]
         [object]$Response,
 
-        [string]$ItemsPath = '$.results'
+        [string]$ItemsPath = '$.results',
+
+        [string[]]$VisitedPaths = @()
     )
 
     if ($null -eq $Response) {
@@ -33,17 +35,30 @@ function Get-PagingItemsFromResponse {
         return @($Response)
     }
 
+    if ($normalizedPath -in $VisitedPaths) {
+        return @()
+    }
+
+    $visited = @($VisitedPaths + $normalizedPath)
+
     $target = $Response
+    $pathFound = $true
     foreach ($segment in ($normalizedPath -split '\.')) {
         if ([string]::IsNullOrWhiteSpace($segment)) {
             continue
         }
 
         if ($null -eq $target) {
-            return @()
+            $pathFound = $false
+            break
         }
 
         if ($target -is [System.Collections.IDictionary]) {
+            if (-not $target.Contains($segment)) {
+                $pathFound = $false
+                break
+            }
+
             $target = $target[$segment]
             continue
         }
@@ -51,6 +66,21 @@ function Get-PagingItemsFromResponse {
         if ($target.PSObject.Properties.Name -contains $segment) {
             $target = $target.$segment
             continue
+        }
+
+        $pathFound = $false
+        break
+    }
+
+    if (-not $pathFound) {
+        $alternatePath = switch ($normalizedPath) {
+            'results' { 'entities' }
+            'entities' { 'results' }
+            default { $null }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($alternatePath)) {
+            return Get-PagingItemsFromResponse -Response $Response -ItemsPath "`$.$alternatePath" -VisitedPaths $visited
         }
 
         return @()

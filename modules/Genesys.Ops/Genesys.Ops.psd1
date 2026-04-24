@@ -5,7 +5,7 @@
     Author            = 'IT Operations'
     CompanyName       = ''
     Description       = 'IT Operations wrapper around Genesys.Core for day-to-day Genesys Cloud administration.'
-    Copyright         = '(c) xfaith. All rights reserved.'
+    Copyright         = '(c) Genesys.Core contributors. All rights reserved.'
 
     # Runtime requirements
     PowerShellVersion = '5.1'
@@ -166,7 +166,7 @@
     PrivateData = @{
         PSData = @{
             Tags         = @('Genesys', 'GenesysCloud', 'ContactCentre', 'ITOps')
-            ProjectUri   = 'https://github.com/xfaith4/Genesys.Core'
+            ProjectUri   = 'https://github.com/your-org/Genesys.Core'
             ReleaseNotes = 'Initial release — wraps Genesys.Core datasets with IT Operations-focused cmdlets.'
         }
     }

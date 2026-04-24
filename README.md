@@ -2,7 +2,7 @@
 
 > Catalog-driven PowerShell execution engine for governed Genesys Cloud dataset collection — deterministic retry/paging, structured audit artifacts, and GitHub Actions automation.
 
-[![CI](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml)
+[![CI](https://github.com/your-org/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/Genesys.Core/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-blue)](https://github.com/PowerShell/PowerShell)
 
@@ -96,7 +96,7 @@ For engineering integration/auth patterns across PowerShell, HTML/JS, .NET, and 
 
 ```powershell
 # Clone the repo
-git clone https://github.com/xfaith4/Genesys.Core.git
+git clone https://github.com/your-org/Genesys.Core.git
 Set-Location Genesys.Core
 
 # Import the module
@@ -374,7 +374,7 @@ Pull request checklist (from [.agents/AGENTS.md](.agents/AGENTS.md)):
 
 ## Security
 
-If you discover a security vulnerability, please **do not open a public issue**. Instead, contact the maintainers privately via GitHub's [private vulnerability reporting](https://github.com/xfaith4/Genesys.Core/security/advisories/new).
+If you discover a security vulnerability, please **do not open a public issue**. Instead, contact the maintainers privately via GitHub's [private vulnerability reporting](https://github.com/your-org/Genesys.Core/security/advisories/new).
 
 The engine enforces the following data safety rules:
 
@@ -386,4 +386,4 @@ The engine enforces the following data safety rules:
 
 ## License
 
-[MIT](./LICENSE) — Copyright (c) 2026 XFaith
+[MIT](./LICENSE) — Copyright (c) 2026 Genesys.Core contributors

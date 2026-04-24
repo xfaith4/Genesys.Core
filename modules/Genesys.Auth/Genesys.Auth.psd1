@@ -34,7 +34,7 @@
 PrivateData = @{
     PSData = @{
         Tags = @('Genesys', 'GenesysCloud', 'Auth', 'OAuth')
-        ProjectUri = 'https://github.com/xfaith4/Genesys.Core'
+        ProjectUri = 'https://github.com/your-org/Genesys.Core'
     }
 }
 }

@@ -30,7 +30,7 @@
     "audit-logs": {
       "description": "Audit logs dataset using async transaction submit/poll/results flow.",
       "endpoint": "audits.query.submit",
-      "itemsPath": "$.results",
+      "itemsPath": "$.entities",
       "paging": {
         "profile": "transactionResults"
       },
@@ -873,6 +873,7 @@
     },
     "transaction": {
       "audit_query_transaction_then_results": {
+        "transactionIdPath": "$.id",
         "pollIntervalSeconds": 2.0,
         "maxPolls": 300,
         "statePath": "$.state",
@@ -1098,7 +1099,7 @@
       "path": "/api/v2/audits/query/{jobId}/results",
       "pagingProfile": "nextUri_auditResults",
       "retryProfile": "default",
-      "itemsPath": "$.results",
+      "itemsPath": "$.entities",
       "defaultQueryParams": {
         "jobId": "job-id-goes-here"
       },

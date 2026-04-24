@@ -19,7 +19,7 @@ Describe 'Audit logs dataset' {
             }
 
             if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
-                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-123' } }
+                return [pscustomobject]@{ Result = [pscustomobject]@{ id = 'tx-123' } }
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123') {
@@ -33,7 +33,7 @@ Describe 'Audit logs dataset' {
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123/results') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
-                    results = @(
+                    entities = @(
                         [pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing'; userEmail = 'redacted-user-1'; authorization = 'Bearer synthetic-token-1' },
                         [pscustomobject]@{ id = '2'; action = 'update'; serviceName = 'platform'; context = [pscustomobject]@{ apiKey = 'abc123'; nestedToken = 'value' } }
                     )
@@ -44,7 +44,7 @@ Describe 'Audit logs dataset' {
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-123/results?pageNumber=2') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
-                    results = @(
+                    entities = @(
                         [pscustomobject]@{ id = '3'; action = 'create'; serviceName = 'routing'; jwt = 'aaa.bbb.ccc' }
                     )
                     nextUri = $null
@@ -88,6 +88,42 @@ Describe 'Audit logs dataset' {
 
 
 
+    It 'still accepts legacy audit submit responses with transactionId' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-legacy-transaction-id'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-legacy' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-legacy') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-legacy/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    results = @([pscustomobject]@{ id = '1'; action = 'create'; serviceName = 'routing' })
+                    nextUri = $null
+                } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
+
+        $datasetFolder = Join-Path -Path $outputRoot -ChildPath 'audit-logs'
+        $runFolder = Get-ChildItem -Path $datasetFolder -Directory | Select-Object -First 1
+        $auditPath = Join-Path -Path $runFolder.FullName -ChildPath 'data/audit.jsonl'
+        @(Get-Content -Path $auditPath).Count | Should -Be 1
+    }
+
     It 'submits a valid unfiltered audit query body' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-unfiltered'
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
@@ -113,7 +149,7 @@ Describe 'Audit logs dataset' {
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-unfiltered/results') {
-                return [pscustomobject]@{ Result = [pscustomobject]@{ results = @(); nextUri = $null } }
+                return [pscustomobject]@{ Result = [pscustomobject]@{ entities = @(); nextUri = $null } }
             }
 
             throw "Unexpected request: $($method) $($uri)"
@@ -159,7 +195,7 @@ Describe 'Audit logs dataset' {
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-params/results') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
-                    results = @([pscustomobject]@{ id = '1'; action = 'delete'; serviceName = 'routing' })
+                    entities = @([pscustomobject]@{ id = '1'; action = 'delete'; serviceName = 'routing' })
                     nextUri = $null
                 } }
             }

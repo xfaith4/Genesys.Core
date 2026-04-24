@@ -147,6 +147,20 @@ function Submit-AsyncJob {
     }
 
     $jobIdValue = Get-AsyncValueFromResponse -Response $submitEnvelope -Path $jobIdPath
+    if ($null -eq $jobIdValue -or [string]::IsNullOrWhiteSpace([string]$jobIdValue)) {
+        foreach ($fallbackPath in @('$.id', '$.transactionId', '$.jobId')) {
+            if ($fallbackPath -eq $jobIdPath) {
+                continue
+            }
+
+            $jobIdValue = Get-AsyncValueFromResponse -Response $submitEnvelope -Path $fallbackPath
+            if ($null -ne $jobIdValue -and -not [string]::IsNullOrWhiteSpace([string]$jobIdValue)) {
+                $jobIdPath = $fallbackPath
+                break
+            }
+        }
+    }
+
     $jobId = [string]$jobIdValue
     if ([string]::IsNullOrWhiteSpace($jobId)) {
         throw "Async job submit did not return id at path '$($jobIdPath)'."

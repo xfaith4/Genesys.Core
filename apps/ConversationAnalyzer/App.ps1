@@ -206,7 +206,7 @@ if (-not [System.IO.File]::Exists($corePath)) {
     if (-not [System.IO.Directory]::Exists($siblingRoot)) {
         $bootstrapped = _InvokeCoreBootstrap `
             -SiblingRoot $siblingRoot `
-            -RepoUrl     'https://github.com/xfaith4/Genesys.Core.git' `
+            -RepoUrl     'https://github.com/your-org/Genesys.Core.git' `
             -CorePath    ([ref]$corePath) `
             -CatalogPath ([ref]$catalogPath) `
             -SchemaPath  ([ref]$schemaPath)

@@ -45,7 +45,11 @@ $xaml = @'
         <ComboBox Name="CmbRegion" Width="170" IsEditable="True" Height="26" Margin="0,0,10,0"/>
         <TextBlock Text="Bearer token" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center"/>
         <PasswordBox Name="TxtToken" Width="300" Height="26" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
-        <Button Name="BtnConnect" Content="Connect" Width="90" Height="26"/>
+        <Button Name="BtnConnect" Content="Bearer" Width="80" Height="26" Margin="0,0,14,0"/>
+        <TextBlock Text="PKCE client ID" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+        <TextBox Name="TxtPkceClientId" Width="230" Height="26" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
+        <Button Name="BtnPkceLogin" Content="Browser PKCE" Width="110" Height="26" Margin="0,0,8,0"/>
+        <Button Name="BtnCancelPkce" Content="Cancel" Width="70" Height="26" IsEnabled="False"/>
         <TextBlock Name="TxtConn" Foreground="#94A3B8" Margin="14,0,0,0" VerticalAlignment="Center" Text="Not connected."/>
       </StackPanel>
     </Border>
@@ -134,7 +138,7 @@ $reader = New-Object System.Xml.XmlNodeReader $xml
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 $controls = @{}
-foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtConn','TxtStatus',
+foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtPkceClientId','BtnPkceLogin','BtnCancelPkce','TxtConn','TxtStatus',
                'TxtCatalogCount','TxtFilter','LstDatasets',
                'TxtDatasetTitle','TxtDatasetMeta','TxtParams',
                'BtnRun','BtnCancel','BtnReset','BtnOpenRun','TxtProgress',
@@ -145,11 +149,13 @@ foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtConn','TxtStatus',
 
 foreach ($r in $settings.Ui.Regions) { [void]$controls.CmbRegion.Items.Add($r) }
 $controls.CmbRegion.Text = $settings.Ui.DefaultRegion
+$controls.TxtPkceClientId.Text = if ([string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) { [string]$settings.OAuth.PkceClientId } else { $env:GENESYS_PKCE_CLIENT_ID }
 
 $script:AllDatasets     = @(Get-CatalogDatasets)
 $script:SelectedDataset = $null
 $script:LastRunFolder   = $null
 $script:ActiveRun       = $null
+$script:ActiveAuth      = $null
 
 foreach ($d in $script:AllDatasets) {
     $display = ("[{0}] {1}" -f $d.Group, $d.Key)
@@ -176,7 +182,16 @@ function Set-Progress {
     $controls.TxtProgress.Text = $Message
 }
 
+function Set-AuthActionState {
+    $authBusy = $null -ne $script:ActiveAuth -and -not $script:ActiveAuth.AsyncResult.IsCompleted
+    $runBusy = $null -ne $script:ActiveRun
+    $controls.BtnConnect.IsEnabled = -not $authBusy -and -not $runBusy
+    $controls.BtnPkceLogin.IsEnabled = -not $authBusy -and -not $runBusy
+    $controls.BtnCancelPkce.IsEnabled = $authBusy
+}
+
 Set-Status "Catalog loaded. $($script:AllDatasets.Count) datasets. Connect a session to run." '#94A3B8'
+Set-AuthActionState
 
 $controls.TxtFilter.Add_TextChanged({
     $q = $controls.TxtFilter.Text.Trim()
@@ -242,6 +257,104 @@ $controls.BtnConnect.Add_Click({
         $controls.TxtConn.Foreground = '#F87171'
         Set-Status ("Connect failed: " + $_.Exception.Message) '#F87171'
     }
+})
+
+function Start-InterrogatorPkceLogin {
+    if ($null -ne $script:ActiveAuth -and -not $script:ActiveAuth.AsyncResult.IsCompleted) { return }
+
+    $clientId = [string]$controls.TxtPkceClientId.Text
+    if ([string]::IsNullOrWhiteSpace($clientId) -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) {
+        $clientId = $env:GENESYS_PKCE_CLIENT_ID
+    }
+    $clientId = $clientId.Trim()
+    if ([string]::IsNullOrWhiteSpace($clientId)) {
+        Set-Status 'Enter a PKCE OAuth client ID or set GENESYS_PKCE_CLIENT_ID.' '#FBBF24'
+        return
+    }
+
+    $region = $controls.CmbRegion.Text.Trim()
+    $redirectUri = if ($settings.OAuth.PkceRedirectUri) { [string]$settings.OAuth.PkceRedirectUri } else { 'http://localhost:8080/callback' }
+    $cts = [System.Threading.CancellationTokenSource]::new()
+
+    $runspace = [runspacefactory]::CreateRunspace()
+    $runspace.ApartmentState = 'STA'
+    $runspace.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::UseNewThread
+    $runspace.Open()
+
+    $ps = [powershell]::Create()
+    $ps.Runspace = $runspace
+    [void]$ps.AddScript({
+        param($AppRoot, $CoreModulePath, $AuthModulePath, $CatalogPath, $SchemaPath, $OutputRoot, $ClientId, $Region, $RedirectUri, $CancelToken)
+        Import-Module (Join-Path $AppRoot 'App.CoreAdapter.psm1') -Force -ErrorAction Stop
+        Initialize-CoreIntegration -CoreModulePath $CoreModulePath -AuthModulePath $AuthModulePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot | Out-Null
+        Connect-InterrogatorSessionPkce -ClientId $ClientId -Region $Region -RedirectUri $RedirectUri -CancellationToken $CancelToken
+    })
+    [void]$ps.AddArgument($appRoot)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($authPath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($clientId)
+    [void]$ps.AddArgument($region)
+    [void]$ps.AddArgument($redirectUri)
+    [void]$ps.AddArgument($cts.Token)
+
+    $async = $ps.BeginInvoke()
+    $script:ActiveAuth = @{
+        PsInstance  = $ps
+        Runspace    = $runspace
+        AsyncResult = $async
+        Cancel      = $cts
+        Timer       = $null
+        Region      = $region
+    }
+
+    $controls.TxtConn.Text = 'PKCE login in progress...'
+    $controls.TxtConn.Foreground = '#FBBF24'
+    Set-Status 'PKCE login started. Complete the browser sign-in.' '#FBBF24'
+    Set-AuthActionState
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(500)
+    $timer.Add_Tick({
+        $auth = $script:ActiveAuth
+        if ($null -eq $auth -or -not $auth.AsyncResult.IsCompleted) { return }
+        try { $auth.Timer.Stop() } catch {}
+
+        try {
+            $result = $auth.PsInstance.EndInvoke($auth.AsyncResult)
+            $ctx = $result | Select-Object -Last 1
+            if ($null -eq $ctx) { throw 'PKCE login completed without an auth context.' }
+
+            Connect-InterrogatorSession -AccessToken ([string]$ctx.Token) -Region ([string]$ctx.Region) | Out-Null
+            $controls.TxtConn.Text = "Connected to $($ctx.Region) via PKCE (expires $($ctx.ExpiresAt.ToString('u')))"
+            $controls.TxtConn.Foreground = '#34D399'
+            Set-Status "Connected to $($ctx.Region) via PKCE. Ready to run datasets." '#34D399'
+        }
+        catch {
+            $controls.TxtConn.Text = 'PKCE login failed'
+            $controls.TxtConn.Foreground = '#F87171'
+            Set-Status ("PKCE login failed: " + $_.Exception.Message) '#F87171'
+        }
+        finally {
+            try { $auth.PsInstance.Dispose() } catch {}
+            try { $auth.Runspace.Close(); $auth.Runspace.Dispose() } catch {}
+            try { $auth.Cancel.Dispose() } catch {}
+            $script:ActiveAuth = $null
+            Set-AuthActionState
+        }
+    })
+    $script:ActiveAuth.Timer = $timer
+    $timer.Start()
+}
+
+$controls.BtnPkceLogin.Add_Click({ Start-InterrogatorPkceLogin })
+$controls.BtnCancelPkce.Add_Click({
+    if ($null -eq $script:ActiveAuth) { return }
+    try { $script:ActiveAuth.Cancel.Cancel() } catch {}
+    Set-Status 'Cancelling PKCE login...' '#FBBF24'
+    $controls.BtnCancelPkce.IsEnabled = $false
 })
 
 function ConvertFrom-JsonToHashtable {
@@ -474,6 +587,7 @@ function Complete-Run {
     $controls.BtnRun.IsEnabled = $true
     $controls.BtnCancel.IsEnabled = $false
     $controls.BtnRun.Content = 'Run dataset'
+    Set-AuthActionState
     Set-Progress ''
 }
 
@@ -500,6 +614,7 @@ $controls.BtnRun.Add_Click({
     $controls.BtnRun.IsEnabled = $false
     $controls.BtnCancel.IsEnabled = $true
     $controls.BtnRun.Content = 'Running...'
+    Set-AuthActionState
     $controls.GridResults.ItemsSource = $null
     $controls.TxtSummary.Text = ''
     $controls.TxtRaw.Text = ''
@@ -626,6 +741,13 @@ $controls.BtnOpenRun.Add_Click({
 })
 
 $window.Add_Closing({
+    if ($null -ne $script:ActiveAuth) {
+        try { $script:ActiveAuth.Cancel.Cancel() } catch {}
+        try { $script:ActiveAuth.Timer.Stop() } catch {}
+        try { $script:ActiveAuth.PsInstance.Dispose() } catch {}
+        try { $script:ActiveAuth.Runspace.Close(); $script:ActiveAuth.Runspace.Dispose() } catch {}
+        $script:ActiveAuth = $null
+    }
     if ($null -ne $script:ActiveRun) {
         try { [void]$script:ActiveRun.PsInstance.BeginStop($null, $null) } catch {}
         try { $script:ActiveRun.Timer.Stop() } catch {}

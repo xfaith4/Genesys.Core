@@ -5,6 +5,11 @@
     SchemaRelativePath     = '..\..\catalog\schema\genesys.catalog.schema.json'
     OutputRelativePath     = '.\out'
 
+    OAuth = @{
+        PkceClientId    = ''
+        PkceRedirectUri = 'http://localhost:8080/callback'
+    }
+
     Ui = @{
         DefaultRegion = 'usw2.pure.cloud'
         Regions = @(

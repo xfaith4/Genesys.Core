@@ -12,7 +12,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="520" />
+                    <ColumnDefinition Width="820" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="Genesys Cloud Audit Logs Console" FontSize="26" FontWeight="SemiBold" Foreground="White" />
@@ -20,10 +20,16 @@
                 </StackPanel>
                 <Border Grid.Column="1" Background="#16263B" CornerRadius="10" Padding="12">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="120" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="120" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="Region" Foreground="#C6D3E1" />
@@ -34,8 +40,24 @@
                             <PasswordBox Name="PwdAccessToken" Margin="0,6,10,0" Height="28" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
+                            <TextBlock Text="PKCE Client ID" Foreground="#C6D3E1" />
+                            <TextBox Name="TxtPkceClientId" Margin="0,6,10,0" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
                             <TextBlock Text="Session" Foreground="#C6D3E1" />
-                            <Button Name="BtnConnect" Content="Connect" Margin="0,6,0,0" Height="28" />
+                            <Button Name="BtnConnect" Content="Bearer" Margin="0,6,10,0" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="Browser" Foreground="#C6D3E1" />
+                            <Button Name="BtnPkceLogin" Content="PKCE Login" Margin="0,6,0,0" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,10,0">
+                            <TextBlock Text="PKCE Redirect URI" Foreground="#C6D3E1" />
+                            <TextBox Name="TxtPkceRedirectUri" Margin="0,6,0,0" Height="28" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="4" Margin="0,8,0,0">
+                            <TextBlock Text="Cancel" Foreground="#C6D3E1" />
+                            <Button Name="BtnCancelPkce" Content="Cancel PKCE" Margin="0,6,0,0" Height="28" IsEnabled="False" />
                         </StackPanel>
                     </Grid>
                 </Border>

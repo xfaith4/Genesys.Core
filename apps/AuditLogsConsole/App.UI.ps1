@@ -62,6 +62,10 @@ function _Ctrl {
 $script:CmbRegion             = _Ctrl 'CmbRegion'
 $script:PwdAccessToken        = _Ctrl 'PwdAccessToken'
 $script:BtnConnect            = _Ctrl 'BtnConnect'
+$script:TxtPkceClientId       = _Ctrl 'TxtPkceClientId'
+$script:TxtPkceRedirectUri    = _Ctrl 'TxtPkceRedirectUri'
+$script:BtnPkceLogin          = _Ctrl 'BtnPkceLogin'
+$script:BtnCancelPkce         = _Ctrl 'BtnCancelPkce'
 $script:TxtStartupState       = _Ctrl 'TxtStartupState'
 $script:TxtAuthState          = _Ctrl 'TxtAuthState'
 $script:TxtStatusMain         = _Ctrl 'TxtStatusMain'
@@ -119,6 +123,9 @@ $script:State = [ordered]@{
     PageSize         = [int]$script:AppContext.Settings.Ui.PageSize
     CurrentViewLimit = 0
     AuthContext      = $null
+    AuthPowerShell   = $null
+    AuthHandle       = $null
+    AuthCancel       = $null
     RunPowerShell    = $null
     RunHandle        = $null
     RunStartedAtUtc  = $null
@@ -392,10 +399,14 @@ function _Set-RunActionState {
     $startupReady = [bool]$script:AppContext.StartupValidation.Ready
     $hasSession = $null -ne $script:State.AuthContext
     $isBusy = $null -ne $script:State.RunHandle -and -not $script:State.RunHandle.IsCompleted
+    $isAuthBusy = $null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted
     $hasRun = -not [string]::IsNullOrWhiteSpace([string]$script:State.CurrentRunFolder)
 
-    $script:BtnPreviewRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy
-    $script:BtnFullRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy
+    $script:BtnConnect.IsEnabled = $startupReady -and -not $isAuthBusy -and -not $isBusy
+    $script:BtnPkceLogin.IsEnabled = $startupReady -and -not $isAuthBusy -and -not $isBusy
+    $script:BtnCancelPkce.IsEnabled = $isAuthBusy
+    $script:BtnPreviewRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy -and -not $isAuthBusy
+    $script:BtnFullRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy -and -not $isAuthBusy
     $script:BtnApplyFilters.IsEnabled = $hasRun
     $script:BtnResetFilters.IsEnabled = $hasRun
     $script:BtnExportFilteredCsv.IsEnabled = $hasRun
@@ -689,7 +700,11 @@ else {
     [void]$ps.AddArgument($script:AppContext.Settings)
     [void]$ps.AddArgument($Mode)
     [void]$ps.AddArgument($querySpec)
-    [void]$ps.AddArgument(($script:PwdAccessToken.Password))
+    $runAccessToken = $script:PwdAccessToken.Password
+    if ([string]::IsNullOrWhiteSpace($runAccessToken) -and $null -ne $script:State.AuthContext -and $script:State.AuthContext.PSObject.Properties['Token']) {
+        $runAccessToken = [string]$script:State.AuthContext.Token
+    }
+    [void]$ps.AddArgument($runAccessToken)
     [void]$ps.AddArgument($script:CmbRegion.Text)
 
     $script:State.RunPowerShell = $ps
@@ -752,6 +767,115 @@ function _Poll-BackgroundRun {
     }
 }
 
+function _Get-PkceClientId {
+    $clientId = [string]$script:TxtPkceClientId.Text
+    if ([string]::IsNullOrWhiteSpace($clientId) -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) {
+        $clientId = $env:GENESYS_PKCE_CLIENT_ID
+    }
+
+    return $clientId.Trim()
+}
+
+function _Get-PkceRedirectUri {
+    $redirectUri = [string]$script:TxtPkceRedirectUri.Text
+    if ([string]::IsNullOrWhiteSpace($redirectUri)) {
+        $redirectUri = 'http://localhost:8080/callback'
+    }
+
+    return $redirectUri.Trim()
+}
+
+function _Start-PkceLogin {
+    if ($null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    $clientId = _Get-PkceClientId
+    if ([string]::IsNullOrWhiteSpace($clientId)) {
+        [System.Windows.MessageBox]::Show(
+            'Enter a PKCE OAuth client ID or set GENESYS_PKCE_CLIENT_ID.',
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+
+    $redirectUri = _Get-PkceRedirectUri
+    $region = [string]$script:CmbRegion.Text
+    $cts = [System.Threading.CancellationTokenSource]::new()
+
+    $scriptText = @'
+param($appRoot, $settings, $clientId, $region, $redirectUri, $cancelToken)
+Import-Module (Join-Path $appRoot 'App.CoreAdapter.psm1') -Force
+Initialize-CoreIntegration -CoreModulePath $settings.CoreModulePath -AuthModulePath $settings.AuthModulePath -CatalogPath $settings.CatalogPath -SchemaPath $settings.SchemaPath -OutputRoot $settings.OutputRoot -DatasetKeys $settings.DatasetKeys -PreviewConfig $settings.Preview | Out-Null
+Connect-AuditSessionPkce -ClientId $clientId -Region $region -RedirectUri $redirectUri -CancellationToken $cancelToken
+'@
+
+    $ps = [powershell]::Create()
+    [void]$ps.AddScript($scriptText)
+    [void]$ps.AddArgument($script:AppContext.Settings.AppRoot)
+    [void]$ps.AddArgument($script:AppContext.Settings)
+    [void]$ps.AddArgument($clientId)
+    [void]$ps.AddArgument($region)
+    [void]$ps.AddArgument($redirectUri)
+    [void]$ps.AddArgument($cts.Token)
+
+    $script:State.AuthPowerShell = $ps
+    $script:State.AuthCancel = $cts
+    $script:State.AuthHandle = $ps.BeginInvoke()
+
+    _SetStatus -Main 'PKCE login started. Complete the browser sign-in.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    _Set-RunActionState
+}
+
+function _Poll-PkceLogin {
+    if ($null -eq $script:State.AuthHandle) {
+        return
+    }
+
+    if (-not $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    try {
+        $result = $script:State.AuthPowerShell.EndInvoke($script:State.AuthHandle)
+        $ctx = $result | Select-Object -Last 1
+        if ($null -eq $ctx) {
+            throw 'PKCE login completed without an auth context.'
+        }
+
+        $script:State.AuthContext = $ctx
+        _Update-AuthState
+        _Refresh-FilterCatalogFromLiveSession
+        _SetStatus -Main "Connected to Genesys Cloud via PKCE ($($ctx.Region))." -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    }
+    catch {
+        [System.Windows.MessageBox]::Show(
+            $_.Exception.Message,
+            'PKCE Login Error',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Error) | Out-Null
+        _SetStatus -Main 'PKCE login failed.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    }
+    finally {
+        try { $script:State.AuthPowerShell.Dispose() } catch { }
+        try { $script:State.AuthCancel.Dispose() } catch { }
+        $script:State.AuthPowerShell = $null
+        $script:State.AuthHandle = $null
+        $script:State.AuthCancel = $null
+        _Set-RunActionState
+    }
+}
+
+function _Cancel-PkceLogin {
+    if ($null -eq $script:State.AuthHandle -or $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    try { $script:State.AuthCancel.Cancel() } catch { }
+    _SetStatus -Main 'Cancelling PKCE login...' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+}
+
 function _Try-AutoConnect {
     if (-not $script:AppContext.StartupValidation.Ready) {
         return
@@ -773,6 +897,8 @@ function _Try-AutoConnect {
 
 $script:CmbRegion.ItemsSource = $script:AppContext.Settings.Ui.Regions
 $script:CmbRegion.Text = $script:AppContext.Settings.Ui.DefaultRegion
+$script:TxtPkceClientId.Text = if ([string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) { [string]$script:AppContext.Settings.OAuth.PkceClientId } else { $env:GENESYS_PKCE_CLIENT_ID }
+$script:TxtPkceRedirectUri.Text = [string]$script:AppContext.Settings.OAuth.PkceRedirectUri
 $script:CmbDataset.ItemsSource = @($script:AppContext.Settings.DatasetKeys.Default)
 $script:CmbDataset.SelectedIndex = 0
 $script:CmbTimePreset.SelectedIndex = 0
@@ -787,7 +913,10 @@ _Try-AutoConnect
 
 $script:State.PollTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:State.PollTimer.Interval = [TimeSpan]::FromSeconds(1.5)
-$script:State.PollTimer.Add_Tick({ _Poll-BackgroundRun })
+$script:State.PollTimer.Add_Tick({
+    _Poll-PkceLogin
+    _Poll-BackgroundRun
+})
 $script:State.PollTimer.Start()
 
 $script:BtnConnect.Add_Click({
@@ -807,6 +936,8 @@ $script:BtnConnect.Add_Click({
     }
 })
 
+$script:BtnPkceLogin.Add_Click({ _Start-PkceLogin })
+$script:BtnCancelPkce.Add_Click({ _Cancel-PkceLogin })
 $script:CmbTimePreset.Add_SelectionChanged({ _Apply-TimePreset })
 $script:CmbService.Add_DropDownClosed({ _Apply-FilterCatalogToUi })
 $script:CmbService.Add_LostFocus({ _Apply-FilterCatalogToUi })

@@ -106,6 +106,28 @@ function Connect-AuditSession {
     return Connect-GenesysCloud -AccessToken $effectiveToken -Region $effectiveRegion
 }
 
+function Connect-AuditSessionPkce {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ClientId,
+        [string]$Region = 'usw2.pure.cloud',
+        [string]$RedirectUri = 'http://localhost:8085/callback',
+        [System.Threading.CancellationToken]$CancellationToken = [System.Threading.CancellationToken]::None
+    )
+
+    _RequireInitialized
+
+    $effectiveRegion = [string]$Region
+    if ($effectiveRegion -match '^https?://api\.') {
+        $effectiveRegion = $effectiveRegion -replace '^https?://api\.', ''
+    }
+    elseif ($effectiveRegion -match '^api\.') {
+        $effectiveRegion = $effectiveRegion -replace '^api\.', ''
+    }
+
+    return Connect-GenesysCloudPkce -ClientId $ClientId -Region $effectiveRegion -RedirectUri $RedirectUri -CancellationToken $CancellationToken
+}
+
 function Get-AuditSession {
     [CmdletBinding()]
     param()
@@ -512,7 +534,7 @@ function Get-RunDiagnosticsText {
 
 Export-ModuleMember -Function `
     Initialize-CoreIntegration, Get-CoreIntegrationState, Test-CoreIntegrationReady, `
-    Connect-AuditSession, Get-AuditSession, Get-AuditFilterOptions, New-AuditDatasetParameters, `
+    Connect-AuditSession, Connect-AuditSessionPkce, Get-AuditSession, Get-AuditFilterOptions, New-AuditDatasetParameters, `
     Start-AuditPreviewRun, Start-AuditFullRun, `
     Get-RecentRuns, Get-RunManifest, Get-RunSummary, Get-RunRequestMetadata, Save-RunRequestMetadata, `
     Get-RunEventTail, Get-RunStatus, Get-RunDiagnosticsText

@@ -65,6 +65,24 @@ function Connect-InterrogatorSession {
     return Connect-GenesysCloud -AccessToken $AccessToken -Region $r
 }
 
+function Connect-InterrogatorSessionPkce {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ClientId,
+        [string]$Region = 'usw2.pure.cloud',
+        [string]$RedirectUri = 'http://localhost:8085/callback',
+        [System.Threading.CancellationToken]$CancellationToken = [System.Threading.CancellationToken]::None
+    )
+
+    if (-not $script:Core.Initialized) { throw 'Core integration has not been initialized.' }
+
+    $r = $Region
+    if ($r -match '^https?://api\.') { $r = $r -replace '^https?://api\.', '' }
+    elseif ($r -match '^api\.')      { $r = $r -replace '^api\.', '' }
+
+    return Connect-GenesysCloudPkce -ClientId $ClientId -Region $r -RedirectUri $RedirectUri -CancellationToken $CancellationToken
+}
+
 function Get-InterrogatorSession {
     if (Get-Command -Name Get-GenesysAuthContext -ErrorAction SilentlyContinue) {
         return Get-GenesysAuthContext
@@ -262,6 +280,6 @@ function ConvertTo-FlatRows {
 
 Export-ModuleMember -Function `
     Initialize-CoreIntegration, `
-    Connect-InterrogatorSession, Get-InterrogatorSession, `
+    Connect-InterrogatorSession, Connect-InterrogatorSessionPkce, Get-InterrogatorSession, `
     Get-CatalogDatasets, Get-DefaultDatasetParameters, `
     Invoke-InterrogatorRun, Get-RunResults, ConvertTo-FlatRows

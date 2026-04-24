@@ -17,8 +17,13 @@ function Protect-SensitiveString {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string]$Value
     )
+
+    if ([string]::IsNullOrEmpty($Value)) {
+        return $Value
+    }
 
     $sanitized = $Value
 

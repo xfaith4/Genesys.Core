@@ -297,8 +297,15 @@ $controls.BtnRun.Add_Click({
     }
     catch {
         $msg = $_.Exception.Message
-        Set-Status ("Run failed: {0}" -f $msg) '#F87171'
-        $controls.TxtSummary.Text = $_.Exception.ToString()
+        $body = $null
+        if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($_.ErrorDetails.Message)) {
+            $body = $_.ErrorDetails.Message
+        }
+        $statusMsg = if ($body) { "Run failed: $msg | $body" } else { "Run failed: $msg" }
+        Set-Status $statusMsg '#F87171'
+        $details = "=== Exception ===`n$($_.Exception.ToString())"
+        if ($body) { $details += "`n`n=== Response body ===`n$body" }
+        $controls.TxtSummary.Text = $details
     }
     finally {
         $controls.BtnRun.IsEnabled = $true

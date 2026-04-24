@@ -708,7 +708,11 @@ function Invoke-RequestWithRetry {
     }
     catch {
         $stopwatch.Stop()
-        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $endpointKey -Method $effectiveMethod -Uri $Request.Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $_.Exception.Message
+        $errMsg = $_.Exception.Message
+        if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($_.ErrorDetails.Message)) {
+            $errMsg = "$errMsg | body: $($_.ErrorDetails.Message)"
+        }
+        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $endpointKey -Method $effectiveMethod -Uri $Request.Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $errMsg
         throw
     }
 }
@@ -932,7 +936,11 @@ function Invoke-GcRequest {
     }
     catch {
         $stopwatch.Stop()
-        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $EndpointKey -Method $Method -Uri $Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $_.Exception.Message
+        $errMsg = $_.Exception.Message
+        if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($_.ErrorDetails.Message)) {
+            $errMsg = "$errMsg | body: $($_.ErrorDetails.Message)"
+        }
+        Add-GcRequestFailedEvent -RunEvents $RunEvents -EndpointKey $EndpointKey -Method $Method -Uri $Uri -StatusCode (Get-GcHttpStatusCode -Exception $_.Exception) -DurationMs $stopwatch.ElapsedMilliseconds -ErrorMessage $errMsg
         throw
     }
 }

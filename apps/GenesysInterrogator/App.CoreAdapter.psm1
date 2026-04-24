@@ -115,7 +115,7 @@ function Get-CatalogDatasets {
         })
     }
 
-    return ,(@($list.ToArray() | Sort-Object Group, Key))
+    return @($list.ToArray() | Sort-Object Group, Key)
 }
 
 function Get-DefaultDatasetParameters {

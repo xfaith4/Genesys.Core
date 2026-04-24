@@ -33,7 +33,7 @@ $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Genesys Interrogator"
-        Height="760" Width="1320"
+        Height="820" Width="1340"
         WindowStartupLocation="CenterScreen"
         Background="#F8FAFC">
   <DockPanel>
@@ -44,7 +44,7 @@ $xaml = @'
         <TextBlock Text="Region" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center"/>
         <ComboBox Name="CmbRegion" Width="170" IsEditable="True" Height="26" Margin="0,0,10,0"/>
         <TextBlock Text="Bearer token" Foreground="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center"/>
-        <TextBox Name="TxtToken" Width="300" Height="26" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
+        <PasswordBox Name="TxtToken" Width="300" Height="26" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
         <Button Name="BtnConnect" Content="Connect" Width="90" Height="26"/>
         <TextBlock Name="TxtConn" Foreground="#94A3B8" Margin="14,0,0,0" VerticalAlignment="Center" Text="Not connected."/>
       </StackPanel>
@@ -86,13 +86,25 @@ $xaml = @'
       </GroupBox>
 
       <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,10">
-        <Button Name="BtnRun" Content="Run dataset" Width="160" Height="30" FontWeight="Bold"/>
+        <Button Name="BtnRun" Content="Run dataset" Width="140" Height="30" FontWeight="Bold"/>
+        <Button Name="BtnCancel" Content="Cancel run" Width="140" Height="30" Margin="10,0,0,0" IsEnabled="False"/>
         <Button Name="BtnReset" Content="Reset parameters" Width="160" Height="30" Margin="10,0,0,0"/>
         <Button Name="BtnOpenRun" Content="Open run folder" Width="160" Height="30" Margin="10,0,0,0" IsEnabled="False"/>
+        <TextBlock Name="TxtProgress" Foreground="#475569" Margin="16,0,0,0" VerticalAlignment="Center" Text=""/>
       </StackPanel>
 
-      <TabControl Grid.Row="4">
-        <TabItem Header="Rows">
+      <TabControl Grid.Row="4" Name="TabResults">
+        <TabItem Header="Live events" Name="TabLive">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Foreground="#64748B" Margin="6,4" Text="Newest first. Tail of events.jsonl produced by Genesys.Core during the run."/>
+            <ListBox Grid.Row="1" Name="LstEvents" FontFamily="Consolas" FontSize="12"/>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Rows" Name="TabRows">
           <DataGrid Name="GridResults"
                     AutoGenerateColumns="True"
                     IsReadOnly="True"
@@ -125,8 +137,9 @@ $controls = @{}
 foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtConn','TxtStatus',
                'TxtCatalogCount','TxtFilter','LstDatasets',
                'TxtDatasetTitle','TxtDatasetMeta','TxtParams',
-               'BtnRun','BtnReset','BtnOpenRun',
-               'GridResults','TxtSummary','TxtRaw') {
+               'BtnRun','BtnCancel','BtnReset','BtnOpenRun','TxtProgress',
+               'TabResults','TabLive','TabRows',
+               'GridResults','TxtSummary','TxtRaw','LstEvents') {
     $controls[$n] = $window.FindName($n)
 }
 
@@ -136,6 +149,7 @@ $controls.CmbRegion.Text = $settings.Ui.DefaultRegion
 $script:AllDatasets     = @(Get-CatalogDatasets)
 $script:SelectedDataset = $null
 $script:LastRunFolder   = $null
+$script:ActiveRun       = $null
 
 foreach ($d in $script:AllDatasets) {
     $display = ("[{0}] {1}" -f $d.Group, $d.Key)
@@ -155,6 +169,11 @@ function Set-Status {
     param([string]$Message, [string]$Color = '#94A3B8')
     $controls.TxtStatus.Text = $Message
     $controls.TxtStatus.Foreground = $Color
+}
+
+function Set-Progress {
+    param([string]$Message)
+    $controls.TxtProgress.Text = $Message
 }
 
 Set-Status "Catalog loaded. $($script:AllDatasets.Count) datasets. Connect a session to run." '#94A3B8'
@@ -208,7 +227,7 @@ $controls.BtnReset.Add_Click({
 
 $controls.BtnConnect.Add_Click({
     try {
-        $token = $controls.TxtToken.Text
+        $token = $controls.TxtToken.Password
         if ([string]::IsNullOrWhiteSpace($token)) { $token = $env:GENESYS_BEARER_TOKEN }
         if ([string]::IsNullOrWhiteSpace($token)) {
             throw 'Enter a bearer token or set the GENESYS_BEARER_TOKEN environment variable.'
@@ -238,7 +257,228 @@ function ConvertFrom-JsonToHashtable {
     throw 'Parameters JSON must be an object.'
 }
 
+function Add-LiveEvent {
+    param([string]$Line, [string]$Color = '#0F172A')
+    $item = New-Object System.Windows.Controls.ListBoxItem
+    $item.Content = $Line
+    $item.Foreground = $Color
+    [void]$controls.LstEvents.Items.Insert(0, $item)
+    while ($controls.LstEvents.Items.Count -gt 600) {
+        $controls.LstEvents.Items.RemoveAt($controls.LstEvents.Items.Count - 1)
+    }
+}
+
+function Format-EventForDisplay {
+    param([psobject]$Event)
+    $ts = ''
+    if ($Event.PSObject.Properties['timestampUtc']) {
+        try { $ts = ([datetime]$Event.timestampUtc).ToLocalTime().ToString('HH:mm:ss.fff') } catch { $ts = [string]$Event.timestampUtc }
+    }
+    $type = if ($Event.PSObject.Properties['eventType']) { [string]$Event.eventType } else { '' }
+    $parts = @($ts, $type)
+
+    switch -Wildcard ($type) {
+        'request.invoked' {
+            if ($Event.PSObject.Properties['method']) { $parts += [string]$Event.method }
+            if ($Event.PSObject.Properties['uri'])    { $parts += [string]$Event.uri }
+        }
+        'request.completed' {
+            if ($Event.PSObject.Properties['statusCode']) { $parts += "$($Event.statusCode)" }
+            if ($Event.PSObject.Properties['durationMs']) { $parts += "$($Event.durationMs)ms" }
+            if ($Event.PSObject.Properties['responseItemCount'] -and $null -ne $Event.responseItemCount) {
+                $parts += "items=$($Event.responseItemCount)"
+            }
+            if ($Event.PSObject.Properties['attempts'] -and $null -ne $Event.attempts) {
+                $parts += "attempts=$($Event.attempts)"
+            }
+        }
+        'request.failed' {
+            if ($Event.PSObject.Properties['statusCode']) { $parts += "$($Event.statusCode)" }
+            if ($Event.PSObject.Properties['errorMessage']) { $parts += [string]$Event.errorMessage }
+        }
+        'request.attempt.failed' {
+            if ($Event.PSObject.Properties['statusCode']) { $parts += "$($Event.statusCode)" }
+            if ($Event.PSObject.Properties['message'])    { $parts += [string]$Event.message }
+        }
+        'request.retry.scheduled' {
+            if ($Event.PSObject.Properties['retryAfterSeconds']) { $parts += "retry in $($Event.retryAfterSeconds)s" }
+        }
+        'paging.progress' {
+            if ($Event.PSObject.Properties['profile']) { $parts += "profile=$($Event.profile)" }
+            if ($Event.PSObject.Properties['page'])    { $parts += "page=$($Event.page)" }
+            if ($Event.PSObject.Properties['totalHits']) { $parts += "totalHits=$($Event.totalHits)" }
+        }
+        'paging.terminated.*' {
+            if ($Event.PSObject.Properties['page']) { $parts += "page=$($Event.page)" }
+        }
+        default {}
+    }
+
+    return ($parts -join ' | ')
+}
+
+function Get-EventColor {
+    param([string]$EventType)
+    switch -Wildcard ($EventType) {
+        'run.started'        { return '#0369A1' }
+        'run.completed'      { return '#047857' }
+        'run.failed'         { return '#B91C1C' }
+        'request.invoked'    { return '#0F172A' }
+        'request.completed'  { return '#0F172A' }
+        'request.failed'     { return '#B91C1C' }
+        'request.attempt.failed' { return '#B45309' }
+        'request.retry.scheduled' { return '#B45309' }
+        'paging.progress'    { return '#5B21B6' }
+        'paging.terminated.*' { return '#B45309' }
+        default              { return '#334155' }
+    }
+}
+
+function Read-NewEventLines {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][ref]$LinesSeen)
+
+    $newLines = New-Object System.Collections.Generic.List[string]
+    try {
+        $fs = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+        try {
+            $idx = 0
+            while (-not $sr.EndOfStream) {
+                $line = $sr.ReadLine()
+                if ($idx -ge $LinesSeen.Value -and -not [string]::IsNullOrWhiteSpace($line)) {
+                    [void]$newLines.Add($line)
+                }
+                $idx++
+            }
+            $LinesSeen.Value = $idx
+        }
+        finally {
+            $sr.Dispose(); $fs.Dispose()
+        }
+    }
+    catch [System.IO.IOException] {
+        return @()
+    }
+    return $newLines.ToArray()
+}
+
+function Find-NewestRunFolder {
+    param([string]$DatasetRoot, [datetime]$SinceUtc)
+    if (-not [System.IO.Directory]::Exists($DatasetRoot)) { return $null }
+    $latest = $null
+    foreach ($d in [System.IO.Directory]::GetDirectories($DatasetRoot)) {
+        $ct = [System.IO.Directory]::GetCreationTimeUtc($d)
+        if ($ct -lt $SinceUtc) { continue }
+        if ($null -eq $latest -or $ct -gt $latest.CreationTimeUtc) {
+            $latest = [pscustomobject]@{ Path = $d; CreationTimeUtc = $ct }
+        }
+    }
+    if ($null -eq $latest) { return $null }
+    return $latest.Path
+}
+
+function Complete-Run {
+    param([bool]$Cancelled = $false)
+
+    $run = $script:ActiveRun
+    if ($null -eq $run) { return }
+
+    if ($run.Timer) {
+        try { $run.Timer.Stop() } catch {}
+    }
+
+    $output = $null
+    $errorRecord = $null
+    try {
+        if ($run.AsyncResult.IsCompleted -or $Cancelled) {
+            $output = $run.PsInstance.EndInvoke($run.AsyncResult)
+        }
+        if ($run.PsInstance.HadErrors) {
+            $errorRecord = $run.PsInstance.Streams.Error | Select-Object -First 1
+        }
+    }
+    catch {
+        $errorRecord = $_
+    }
+    finally {
+        try { $run.PsInstance.Dispose() } catch {}
+        try { $run.Runspace.Close(); $run.Runspace.Dispose() } catch {}
+    }
+
+    $runFolder = $run.RunFolder
+    if (-not $runFolder -and $null -ne $output) {
+        try { $runFolder = [string]$output.runFolder } catch {}
+    }
+
+    if ($Cancelled) {
+        Set-Status "Run cancelled by user." '#FBBF24'
+        $controls.TxtSummary.Text = "Run was cancelled. Run folder: $runFolder"
+    }
+    elseif ($null -ne $errorRecord) {
+        $ex = $errorRecord.Exception
+        $msg = if ($ex) { $ex.Message } else { [string]$errorRecord }
+        $body = $null
+        if ($errorRecord.PSObject.Properties['ErrorDetails'] -and $null -ne $errorRecord.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($errorRecord.ErrorDetails.Message)) {
+            $body = $errorRecord.ErrorDetails.Message
+        }
+        $statusMsg = if ($body) { "Run failed: $msg | $body" } else { "Run failed: $msg" }
+        Set-Status $statusMsg '#F87171'
+        $details = "=== Error ===`n$msg"
+        if ($ex) { $details += "`n`n=== Exception ===`n$($ex.ToString())" }
+        if ($body) { $details += "`n`n=== Response body ===`n$body" }
+        if ($runFolder) { $details += "`n`n=== Run folder ===`n$runFolder" }
+        $controls.TxtSummary.Text = $details
+    }
+    else {
+        if ($runFolder) {
+            $script:LastRunFolder = $runFolder
+            $controls.BtnOpenRun.IsEnabled = $true
+            try {
+                $results = Get-RunResults -RunFolder $runFolder -MaxRows $settings.Ui.PreviewRows
+                $flat = ConvertTo-FlatRows -Rows $results.Rows
+                $controls.GridResults.ItemsSource = $flat
+
+                $summaryText  = if ($null -ne $results.Summary)  { ($results.Summary  | ConvertTo-Json -Depth 10) } else { '(no summary.json)' }
+                $manifestText = if ($null -ne $results.Manifest) { ($results.Manifest | ConvertTo-Json -Depth 10) } else { '(no manifest.json)' }
+                $controls.TxtSummary.Text = "=== summary.json ===`n$summaryText`n`n=== manifest.json ===`n$manifestText"
+
+                $sb = New-Object System.Text.StringBuilder
+                $previewCount = [Math]::Min($results.Rows.Count, 50)
+                for ($i = 0; $i -lt $previewCount; $i++) {
+                    [void]$sb.AppendLine(($results.Rows[$i] | ConvertTo-Json -Depth 10 -Compress))
+                }
+                if ($results.Rows.Count -gt $previewCount) {
+                    [void]$sb.AppendLine("...")
+                    [void]$sb.AppendLine("($($results.Rows.Count - $previewCount) more rows truncated in this view; full JSONL is in $($results.DataDir))")
+                }
+                $controls.TxtRaw.Text = $sb.ToString()
+
+                $total = $results.Rows.Count
+                if ($null -ne $results.Summary -and $results.Summary.PSObject.Properties['totals'] -and $null -ne $results.Summary.totals -and $results.Summary.totals.PSObject.Properties['totalRecords']) {
+                    $total = [int]$results.Summary.totals.totalRecords
+                }
+                Set-Status ("Completed '{0}'. Total records: {1}. Preview rows: {2}. Run folder: {3}" -f $run.DatasetKey, $total, $flat.Count, $runFolder) '#34D399'
+                $controls.TabResults.SelectedItem = $controls.TabRows
+            }
+            catch {
+                Set-Status "Run completed but results could not be loaded: $($_.Exception.Message)" '#F87171'
+                $controls.TxtSummary.Text = $_.Exception.ToString()
+            }
+        }
+        else {
+            Set-Status "Run completed but no run folder was detected." '#FBBF24'
+        }
+    }
+
+    $script:ActiveRun = $null
+    $controls.BtnRun.IsEnabled = $true
+    $controls.BtnCancel.IsEnabled = $false
+    $controls.BtnRun.Content = 'Run dataset'
+    Set-Progress ''
+}
+
 $controls.BtnRun.Add_Click({
+    if ($null -ne $script:ActiveRun) { return }
     if ($null -eq $script:SelectedDataset) {
         Set-Status 'Select a dataset first.' '#FBBF24'
         return
@@ -258,64 +498,140 @@ $controls.BtnRun.Add_Click({
     }
 
     $controls.BtnRun.IsEnabled = $false
+    $controls.BtnCancel.IsEnabled = $true
     $controls.BtnRun.Content = 'Running...'
     $controls.GridResults.ItemsSource = $null
     $controls.TxtSummary.Text = ''
     $controls.TxtRaw.Text = ''
-    Set-Status ("Running '{0}'... the UI will stay frozen until the run completes." -f $script:SelectedDataset.Key) '#FBBF24'
-    $controls.BtnRun.Dispatcher.Invoke([Action]{}, 'Background')
+    $controls.LstEvents.Items.Clear()
+    $controls.TabResults.SelectedItem = $controls.TabLive
+    Set-Status ("Started '{0}'. Waiting for Genesys.Core to open the run folder..." -f $script:SelectedDataset.Key) '#FBBF24'
+    Set-Progress "page 0"
 
-    try {
-        $runCtx = Invoke-InterrogatorRun -DatasetKey $script:SelectedDataset.Key -DatasetParameters $params
-        $script:LastRunFolder = $runCtx.runFolder
-        $controls.BtnOpenRun.IsEnabled = $true
+    $datasetKey = $script:SelectedDataset.Key
+    $startUtc   = [datetime]::UtcNow.AddSeconds(-2)
 
-        $results = Get-RunResults -RunFolder $runCtx.runFolder -MaxRows $settings.Ui.PreviewRows
-        $flat = ConvertTo-FlatRows -Rows $results.Rows
-        $controls.GridResults.ItemsSource = $flat
+    $runspace = [runspacefactory]::CreateRunspace()
+    $runspace.ApartmentState = 'STA'
+    $runspace.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::UseNewThread
+    $runspace.Open()
 
-        $summaryText  = if ($null -ne $results.Summary)  { ($results.Summary  | ConvertTo-Json -Depth 10) } else { '(no summary.json)' }
-        $manifestText = if ($null -ne $results.Manifest) { ($results.Manifest | ConvertTo-Json -Depth 10) } else { '(no manifest.json)' }
-        $controls.TxtSummary.Text = "=== summary.json ===`n$summaryText`n`n=== manifest.json ===`n$manifestText"
-
-        $sb = New-Object System.Text.StringBuilder
-        $previewCount = [Math]::Min($results.Rows.Count, 50)
-        for ($i = 0; $i -lt $previewCount; $i++) {
-            [void]$sb.AppendLine(($results.Rows[$i] | ConvertTo-Json -Depth 10 -Compress))
+    $ps = [powershell]::Create()
+    $ps.Runspace = $runspace
+    [void]$ps.AddScript({
+        param($CoreModulePath, $CatalogPath, $OutputRoot, $BaseUri, $Headers, $DatasetKey, $DatasetParameters)
+        Import-Module $CoreModulePath -Force -ErrorAction Stop
+        $invokeParams = @{
+            Dataset     = $DatasetKey
+            CatalogPath = $CatalogPath
+            OutputRoot  = $OutputRoot
+            BaseUri     = $BaseUri
+            Headers     = $Headers
+            ErrorAction = 'Stop'
         }
-        if ($results.Rows.Count -gt $previewCount) {
-            [void]$sb.AppendLine("...")
-            [void]$sb.AppendLine("($($results.Rows.Count - $previewCount) more rows truncated in this view; full JSONL is in $($results.DataDir))")
+        if ($null -ne $DatasetParameters -and $DatasetParameters.Count -gt 0) {
+            $invokeParams.DatasetParameters = $DatasetParameters
         }
-        $controls.TxtRaw.Text = $sb.ToString()
+        Invoke-Dataset @invokeParams
+    })
+    [void]$ps.AddParameter('CoreModulePath',    $corePath)
+    [void]$ps.AddParameter('CatalogPath',       $catalogPath)
+    [void]$ps.AddParameter('OutputRoot',        $outputRoot)
+    [void]$ps.AddParameter('BaseUri',           $session.BaseUri)
+    [void]$ps.AddParameter('Headers',           $session.Headers)
+    [void]$ps.AddParameter('DatasetKey',        $datasetKey)
+    [void]$ps.AddParameter('DatasetParameters', $params)
 
-        $total = $results.Rows.Count
-        if ($null -ne $results.Summary -and $results.Summary.PSObject.Properties['totals'] -and $null -ne $results.Summary.totals -and $results.Summary.totals.PSObject.Properties['totalRecords']) {
-            $total = [int]$results.Summary.totals.totalRecords
-        }
-        Set-Status ("Completed '{0}'. Total records: {1}. Preview rows: {2}. Run folder: {3}" -f $script:SelectedDataset.Key, $total, $flat.Count, $runCtx.runFolder) '#34D399'
+    $async = $ps.BeginInvoke()
+
+    $script:ActiveRun = @{
+        PsInstance   = $ps
+        Runspace     = $runspace
+        AsyncResult  = $async
+        DatasetKey   = $datasetKey
+        DatasetRoot  = [System.IO.Path]::Combine($outputRoot, $datasetKey)
+        StartUtc     = $startUtc
+        RunFolder    = $null
+        EventsSeen   = 0
+        LastPage     = 0
+        LastItems    = 0
+        Timer        = $null
     }
-    catch {
-        $msg = $_.Exception.Message
-        $body = $null
-        if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($_.ErrorDetails.Message)) {
-            $body = $_.ErrorDetails.Message
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(400)
+    $timer.Add_Tick({
+        $run = $script:ActiveRun
+        if ($null -eq $run) { return }
+
+        if ($null -eq $run.RunFolder) {
+            $found = Find-NewestRunFolder -DatasetRoot $run.DatasetRoot -SinceUtc $run.StartUtc
+            if ($found) {
+                $run.RunFolder = $found
+                Set-Status ("Run folder: {0}" -f $found) '#FBBF24'
+            }
         }
-        $statusMsg = if ($body) { "Run failed: $msg | $body" } else { "Run failed: $msg" }
-        Set-Status $statusMsg '#F87171'
-        $details = "=== Exception ===`n$($_.Exception.ToString())"
-        if ($body) { $details += "`n`n=== Response body ===`n$body" }
-        $controls.TxtSummary.Text = $details
-    }
-    finally {
-        $controls.BtnRun.IsEnabled = $true
-        $controls.BtnRun.Content = 'Run dataset'
-    }
+
+        if ($null -ne $run.RunFolder) {
+            $eventsPath = [System.IO.Path]::Combine($run.RunFolder, 'events.jsonl')
+            if ([System.IO.File]::Exists($eventsPath)) {
+                $seenRef = [ref]$run.EventsSeen
+                $newLines = Read-NewEventLines -Path $eventsPath -LinesSeen $seenRef
+                $run.EventsSeen = $seenRef.Value
+                foreach ($line in $newLines) {
+                    try {
+                        $evt = $line | ConvertFrom-Json
+                    } catch { continue }
+                    $display = Format-EventForDisplay -Event $evt
+                    $color   = Get-EventColor -EventType ([string]$evt.eventType)
+                    Add-LiveEvent -Line $display -Color $color
+
+                    if ($evt.PSObject.Properties['eventType'] -and [string]$evt.eventType -eq 'paging.progress') {
+                        if ($evt.PSObject.Properties['page']) { $run.LastPage = [int]$evt.page }
+                        $tot = ''
+                        if ($evt.PSObject.Properties['totalHits'] -and $null -ne $evt.totalHits) { $tot = " / total=$($evt.totalHits)" }
+                        Set-Progress ("page {0}{1}" -f $run.LastPage, $tot)
+                        Set-Status ("Running '{0}': page {1}{2}" -f $run.DatasetKey, $run.LastPage, $tot) '#FBBF24'
+                    }
+                    elseif ($evt.PSObject.Properties['eventType'] -and [string]$evt.eventType -eq 'request.completed') {
+                        if ($evt.PSObject.Properties['responseItemCount'] -and $null -ne $evt.responseItemCount) {
+                            $run.LastItems = [int]$evt.responseItemCount
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($run.AsyncResult.IsCompleted) {
+            Complete-Run -Cancelled:$false
+        }
+    })
+    $script:ActiveRun.Timer = $timer
+    $timer.Start()
+})
+
+$controls.BtnCancel.Add_Click({
+    $run = $script:ActiveRun
+    if ($null -eq $run) { return }
+    Set-Status "Cancelling run..." '#FBBF24'
+    $controls.BtnCancel.IsEnabled = $false
+    try { [void]$run.PsInstance.BeginStop($null, $null) } catch {}
+    Complete-Run -Cancelled:$true
 })
 
 $controls.BtnOpenRun.Add_Click({
     if ($script:LastRunFolder -and [System.IO.Directory]::Exists($script:LastRunFolder)) {
         Start-Process -FilePath 'explorer.exe' -ArgumentList $script:LastRunFolder
+    }
+})
+
+$window.Add_Closing({
+    if ($null -ne $script:ActiveRun) {
+        try { [void]$script:ActiveRun.PsInstance.BeginStop($null, $null) } catch {}
+        try { $script:ActiveRun.Timer.Stop() } catch {}
+        try { $script:ActiveRun.PsInstance.Dispose() } catch {}
+        try { $script:ActiveRun.Runspace.Close(); $script:ActiveRun.Runspace.Dispose() } catch {}
+        $script:ActiveRun = $null
     }
 })
 

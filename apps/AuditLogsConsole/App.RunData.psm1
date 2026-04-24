@@ -518,7 +518,7 @@ function Get-AuditRunSummary {
         Summary = if ([System.IO.File]::Exists($summaryPath)) { (Get-Content -Path $summaryPath -Raw | ConvertFrom-Json) } else { $null }
         Manifest = if ([System.IO.File]::Exists($manifestPath)) { (Get-Content -Path $manifestPath -Raw | ConvertFrom-Json) } else { $null }
         Request = if ([System.IO.File]::Exists($requestPath)) { (Get-Content -Path $requestPath -Raw | ConvertFrom-Json) } else { $null }
-        TotalCount = (Load-AuditIndex -RunFolder $RunFolder).Count
+        TotalCount = @(Load-AuditIndex -RunFolder $RunFolder).Count
     }
 }
 

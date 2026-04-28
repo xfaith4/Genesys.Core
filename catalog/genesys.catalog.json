@@ -57,7 +57,7 @@
       "endpoint": "routing.get.all.queues.with.details",
       "itemsPath": "$.entities",
       "paging": {
-        "profile": "nextUri"
+        "profile": "nextUri_default"
       },
       "retry": {
         "profile": "rateLimitAware"
@@ -165,9 +165,9 @@
     "users.get.bulk.user.presences.genesys.cloud": {
       "description": "Get Bulk User Presences (Genesys Cloud) (catalog-derived)",
       "endpoint": "users.get.bulk.user.presences.genesys.cloud",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -176,9 +176,9 @@
     "users.search.users.by.name.or.email": {
       "description": "Search Users by Name or Email (catalog-derived)",
       "endpoint": "users.search.users.by.name.or.email",
-      "itemsPath": "$.entities",
+      "itemsPath": "$.results",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "pageNumber_default"
       },
       "retry": {
         "profile": "default"
@@ -187,9 +187,9 @@
     "users.get.bulk.user.presences": {
       "description": "Get Bulk User Presences (catalog-derived)",
       "endpoint": "users.get.bulk.user.presences",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -209,9 +209,9 @@
     "usage.get.api.usage.organization.summary": {
       "description": "Get API Usage - Organization Summary (catalog-derived)",
       "endpoint": "usage.get.api.usage.organization.summary",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -220,9 +220,9 @@
     "usage.get.api.usage.by.client": {
       "description": "Get API Usage - By Client (catalog-derived)",
       "endpoint": "usage.get.api.usage.by.client",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -231,9 +231,9 @@
     "usage.get.api.usage.by.user": {
       "description": "Get API Usage - By User (catalog-derived)",
       "endpoint": "usage.get.api.usage.by.user",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -350,7 +350,7 @@
       }
     },
     "analytics.query.queue.observations.real.time.stats": {
-      "description": "Query Queue Observations — real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
+      "description": "Query Queue Observations \u2014 real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
       "endpoint": "analytics.query.queue.observations.real.time.stats",
       "itemsPath": "$.results",
       "paging": {
@@ -361,7 +361,7 @@
       }
     },
     "analytics.query.user.observations.real.time.status": {
-      "description": "Query User Observations — real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
+      "description": "Query User Observations \u2014 real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
       "endpoint": "analytics.query.user.observations.real.time.status",
       "itemsPath": "$.results",
       "paging": {
@@ -372,7 +372,7 @@
       }
     },
     "analytics.query.user.aggregates.performance.metrics": {
-      "description": "Query User Aggregates — agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
+      "description": "Query User Aggregates \u2014 agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
       "endpoint": "analytics.query.user.aggregates.performance.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -383,7 +383,7 @@
       }
     },
     "analytics.query.conversation.aggregates.queue.performance": {
-      "description": "Query Conversation Aggregates — queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
+      "description": "Query Conversation Aggregates \u2014 queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
       "endpoint": "analytics.query.conversation.aggregates.queue.performance",
       "itemsPath": "$.results",
       "paging": {
@@ -394,7 +394,7 @@
       }
     },
     "analytics.query.conversation.aggregates.agent.performance": {
-      "description": "Query Conversation Aggregates — per-agent handle/talk/ACW/connected metrics.",
+      "description": "Query Conversation Aggregates \u2014 per-agent handle/talk/ACW/connected metrics.",
       "endpoint": "analytics.query.conversation.aggregates.agent.performance",
       "itemsPath": "$.results",
       "paging": {
@@ -405,7 +405,7 @@
       }
     },
     "analytics.query.flow.aggregates.execution.metrics": {
-      "description": "Query Flow Aggregates — Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
+      "description": "Query Flow Aggregates \u2014 Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
       "endpoint": "analytics.query.flow.aggregates.execution.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -416,7 +416,7 @@
       }
     },
     "analytics.query.rate.limit.aggregates": {
-      "description": "Query Rate Limit Aggregates — API rate-limit hits and over-limit events: nError, nOverLimit.",
+      "description": "Query Rate Limit Aggregates \u2014 API rate-limit hits and over-limit events: nError, nOverLimit.",
       "endpoint": "analytics.query.rate.limit.aggregates",
       "itemsPath": "$.results",
       "paging": {
@@ -427,7 +427,7 @@
       }
     },
     "analytics.query.user.details.activity.report": {
-      "description": "Query User Details — agent presence and routing activity report.",
+      "description": "Query User Details \u2014 agent presence and routing activity report.",
       "endpoint": "analytics.query.user.details.activity.report",
       "itemsPath": "$.userDetails",
       "paging": {
@@ -438,7 +438,7 @@
       }
     },
     "oauth.get.clients": {
-      "description": "Get OAuth Clients — all configured OAuth client applications and their grant types.",
+      "description": "Get OAuth Clients \u2014 all configured OAuth client applications and their grant types.",
       "endpoint": "oauth.get.clients",
       "itemsPath": "$.entities",
       "paging": {
@@ -449,7 +449,7 @@
       }
     },
     "oauth.get.authorizations": {
-      "description": "Get OAuth Authorizations — active client authorization grants issued to users.",
+      "description": "Get OAuth Authorizations \u2014 active client authorization grants issued to users.",
       "endpoint": "oauth.get.authorizations",
       "itemsPath": "$.entities",
       "paging": {
@@ -460,7 +460,7 @@
       }
     },
     "outbound.get.campaigns": {
-      "description": "Get Outbound Campaigns — voice and preview dialing campaigns with status and progress.",
+      "description": "Get Outbound Campaigns \u2014 voice and preview dialing campaigns with status and progress.",
       "endpoint": "outbound.get.campaigns",
       "itemsPath": "$.entities",
       "paging": {
@@ -471,7 +471,7 @@
       }
     },
     "outbound.get.contact.lists": {
-      "description": "Get Outbound Contact Lists — contact list definitions used by dialing campaigns.",
+      "description": "Get Outbound Contact Lists \u2014 contact list definitions used by dialing campaigns.",
       "endpoint": "outbound.get.contact.lists",
       "itemsPath": "$.entities",
       "paging": {
@@ -482,7 +482,7 @@
       }
     },
     "outbound.get.messaging.campaigns": {
-      "description": "Get Outbound Messaging Campaigns — SMS and digital outbound messaging campaigns.",
+      "description": "Get Outbound Messaging Campaigns \u2014 SMS and digital outbound messaging campaigns.",
       "endpoint": "outbound.get.messaging.campaigns",
       "itemsPath": "$.entities",
       "paging": {
@@ -493,7 +493,7 @@
       }
     },
     "outbound.get.events": {
-      "description": "Get Outbound Dialer Events — campaign and contact disposition events from the dialer.",
+      "description": "Get Outbound Dialer Events \u2014 campaign and contact disposition events from the dialer.",
       "endpoint": "outbound.get.events",
       "itemsPath": "$.entities",
       "paging": {
@@ -504,7 +504,7 @@
       }
     },
     "flows.get.all.flows": {
-      "description": "Get All Architect Flows — IVR, inbound call, outbound call, bot, and in-queue flows.",
+      "description": "Get All Architect Flows \u2014 IVR, inbound call, outbound call, bot, and in-queue flows.",
       "endpoint": "flows.get.all.flows",
       "itemsPath": "$.entities",
       "paging": {
@@ -515,7 +515,7 @@
       }
     },
     "flows.get.flow.outcomes": {
-      "description": "Get Flow Outcome Definitions — configurable outcome labels used to classify flow exits.",
+      "description": "Get Flow Outcome Definitions \u2014 configurable outcome labels used to classify flow exits.",
       "endpoint": "flows.get.flow.outcomes",
       "itemsPath": "$.entities",
       "paging": {
@@ -526,7 +526,7 @@
       }
     },
     "flows.get.flow.milestones": {
-      "description": "Get Flow Milestone Definitions — named checkpoints within Architect flows for analytics tracking.",
+      "description": "Get Flow Milestone Definitions \u2014 named checkpoints within Architect flows for analytics tracking.",
       "endpoint": "flows.get.flow.milestones",
       "itemsPath": "$.entities",
       "paging": {
@@ -537,7 +537,7 @@
       }
     },
     "analytics.query.flow.observations": {
-      "description": "Query Flow Observations — real-time Architect flow execution status: oFlow, oFlowDisconnect.",
+      "description": "Query Flow Observations \u2014 real-time Architect flow execution status: oFlow, oFlowDisconnect.",
       "endpoint": "analytics.query.flow.observations",
       "itemsPath": "$.results",
       "paging": {
@@ -724,7 +724,7 @@
       }
     },
     "analytics.query.conversation.aggregates.abandon.metrics": {
-      "description": "Abandon rate aggregates — nAbandoned, tAbandoned, nOffered grouped by queue.",
+      "description": "Abandon rate aggregates \u2014 nAbandoned, tAbandoned, nOffered grouped by queue.",
       "endpoint": "analytics.query.conversation.aggregates.abandon.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -735,7 +735,7 @@
       }
     },
     "analytics.query.queue.aggregates.service.level": {
-      "description": "Service level / SLA aggregates — nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
+      "description": "Service level / SLA aggregates \u2014 nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
       "endpoint": "analytics.query.queue.aggregates.service.level",
       "itemsPath": "$.results",
       "paging": {
@@ -746,7 +746,7 @@
       }
     },
     "analytics.query.conversation.aggregates.transfer.metrics": {
-      "description": "Transfer analysis — nTransferred, nBlindTransferred, nConsultTransferred by queue.",
+      "description": "Transfer analysis \u2014 nTransferred, nBlindTransferred, nConsultTransferred by queue.",
       "endpoint": "analytics.query.conversation.aggregates.transfer.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -757,7 +757,7 @@
       }
     },
     "analytics.query.conversation.aggregates.wrapup.distribution": {
-      "description": "Wrapup code distribution — nConnected grouped by wrapUpCode and queueId.",
+      "description": "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
       "endpoint": "analytics.query.conversation.aggregates.wrapup.distribution",
       "itemsPath": "$.results",
       "paging": {
@@ -768,7 +768,7 @@
       }
     },
     "analytics.query.conversation.aggregates.digital.channels": {
-      "description": "Digital channel volume trends — nOffered, nConnected, nAbandoned by mediaType.",
+      "description": "Digital channel volume trends \u2014 nOffered, nConnected, nAbandoned by mediaType.",
       "endpoint": "analytics.query.conversation.aggregates.digital.channels",
       "itemsPath": "$.results",
       "paging": {
@@ -779,7 +779,7 @@
       }
     },
     "analytics.query.user.aggregates.login.activity": {
-      "description": "Agent login activity — tOnQueueTime, tOffQueueTime, tIdleTime grouped by userId.",
+      "description": "Agent login activity \u2014 tOnQueueTime, tOffQueueTime, tIdleTime grouped by userId.",
       "endpoint": "analytics.query.user.aggregates.login.activity",
       "itemsPath": "$.results",
       "paging": {
@@ -904,6 +904,18 @@
         "jobLabel": "Analytics conversation details job",
         "statusEndpointRef": "analytics.get.conversation.details.job.status",
         "resultsEndpointRef": "analytics.get.conversation.details.job.results"
+      },
+      "usage_query": {
+        "transactionIdPath": "$.executionId",
+        "pollIntervalSeconds": 5.0,
+        "maxPolls": 120,
+        "statePath": "$.queryStatus",
+        "terminalStates": [
+          "Complete",
+          "Failed"
+        ],
+        "statusEndpointRef": "getUsageQueryExecutionIdResults",
+        "resultsEndpointRef": "getUsageQueryExecutionIdResults"
       }
     },
     "redaction": {
@@ -931,7 +943,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Transcript Aggregates — Speech & Text Analytics metrics by queue/user",
+        "Query Transcript Aggregates \u2014 Speech & Text Analytics metrics by queue/user",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"queueId\",\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nSpeechTextAnalyzedConversations\",\n    \"oSentimentScore\",\n    \"tAgentSpeech\",\n    \"tCustomerSpeech\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -996,7 +1008,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Aggregates — Agent Performance Metrics grouped by userId",
+        "Query Conversation Aggregates \u2014 Agent Performance Metrics grouped by userId",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"nOffered\",\n    \"tAnswered\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      },\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -1040,22 +1052,20 @@
     },
     "audits.get.audit.query.results": {
       "method": "GET",
-      "path": "/api/v2/audits/query",
+      "path": "/api/v2/audits/query/{transactionId}/results",
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
       "defaultQueryParams": {
-        "pageSize": "25",
-        "pageNumber": "1",
-        "sortBy": "timestamp",
-        "sortOrder": "descending",
-        "facetName": "",
-        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
+        "pageSize": "25"
       },
       "notes": [
         "Get Audit Query Results",
         "group: Audits"
-      ]
+      ],
+      "defaultRouteValues": {
+        "transactionId": "transaction-id-goes-here"
+      }
     },
     "organization.get.organization.details": {
       "method": "GET",
@@ -1075,7 +1085,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Flow Observations — Real-Time Architect Flow Status",
+        "Query Flow Observations \u2014 Real-Time Architect Flow Status",
         "group: Analytics",
         "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oFlow\"\n  ]\n}"
       ]
@@ -1096,13 +1106,11 @@
     },
     "audit_query_transaction_then_results.results": {
       "method": "GET",
-      "path": "/api/v2/audits/query/{jobId}/results",
+      "path": "/api/v2/audits/query/{transactionId}/results",
       "pagingProfile": "nextUri_auditResults",
       "retryProfile": "default",
       "itemsPath": "$.entities",
-      "defaultQueryParams": {
-        "jobId": "job-id-goes-here"
-      },
+      "defaultQueryParams": {},
       "notes": [
         "Auto-generated results endpoint for transaction 'audit_query_transaction_then_results'."
       ]
@@ -1193,31 +1201,30 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Abandon rate metrics — tAbandon, tShortAbandon, nOffered grouped by queue",
+        "Abandon rate metrics \u2014 tAbandon, tShortAbandon, nOffered grouped by queue",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"tAbandon\",\n    \"tShortAbandon\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
     },
     "usage.get.api.usage.by.client": {
-      "method": "GET",
-      "path": "/api/v2/usage/query/clients",
-      "pagingProfile": "nextUri_default",
+      "method": "POST",
+      "path": "/api/v2/usage/query",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
-      "defaultQueryParams": {
-        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
-      },
+      "itemsPath": "$",
       "notes": [
         "Get API Usage - By Client",
-        "group: Usage"
-      ]
+        "group: Usage",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"Day\",\n  \"metrics\": [\n    \"Requests\",\n    \"Status200\",\n    \"Status400\",\n    \"Status429\",\n    \"Status500\"\n  ],\n  \"groupBy\": [\n    \"OAuthClientId\"\n  ]\n}"
+      ],
+      "transactionProfile": "usage_query"
     },
     "analytics.query.conversation.aggregates.agent.performance": {
       "method": "POST",
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Query Conversation Aggregates - Agent Performance",
         "group: Analytics",
@@ -1329,7 +1336,7 @@
       "path": "/api/v2/analytics/queues/observations/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Query Queue Observations - Real-Time Stats",
         "group: Analytics",
@@ -1432,25 +1439,24 @@
       ]
     },
     "usage.get.api.usage.organization.summary": {
-      "method": "GET",
-      "path": "/api/v2/usage/query/organization",
-      "pagingProfile": "nextUri_default",
+      "method": "POST",
+      "path": "/api/v2/usage/query",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
-      "defaultQueryParams": {
-        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z"
-      },
+      "itemsPath": "$",
       "notes": [
         "Get API Usage - Organization Summary",
-        "group: Usage"
-      ]
+        "group: Usage",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"Day\",\n  \"metrics\": [\n    \"Requests\",\n    \"Status200\",\n    \"Status400\",\n    \"Status429\",\n    \"Status500\"\n  ],\n  \"groupBy\": [\n    \"OrganizationId\"\n  ]\n}"
+      ],
+      "transactionProfile": "usage_query"
     },
     "users.get.bulk.user.presences.genesys.cloud": {
       "method": "GET",
       "path": "/api/v2/users/presences/purecloud/bulk",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "id": "user-id-1,user-id-2,user-id-3"
       },
@@ -1483,7 +1489,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Transfer analysis metrics — nTransferred, nBlindTransferred, nConsultTransferred.",
+        "Transfer analysis metrics \u2014 nTransferred, nBlindTransferred, nConsultTransferred.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nTransferred\", \"nBlindTransferred\", \"nConsultTransferred\", \"nConnected\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -1508,7 +1514,7 @@
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Query Conversation Aggregates - Queue Performance",
         "group: Analytics",
@@ -1533,13 +1539,11 @@
     },
     "audit_query_transaction_then_results.status": {
       "method": "GET",
-      "path": "/api/v2/audits/query/{jobId}",
+      "path": "/api/v2/audits/query/{transactionId}",
       "pagingProfile": "none",
       "retryProfile": "default",
       "itemsPath": "$",
-      "defaultQueryParams": {
-        "jobId": "job-id-goes-here"
-      },
+      "defaultQueryParams": {},
       "notes": [
         "Auto-generated status endpoint for transaction 'audit_query_transaction_then_results'."
       ]
@@ -1588,7 +1592,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query User Observations — Real-Time Queue Membership Status",
+        "Query User Observations \u2014 Real-Time Queue Membership Status",
         "group: Analytics",
         "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"userId\",\n        \"value\": \"user-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oActiveQueues\",\n    \"oMemberQueues\"\n  ]\n}"
       ]
@@ -1643,7 +1647,7 @@
       "path": "/api/v2/analytics/flows/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Query Flow Aggregates - Execution Metrics",
         "group: Analytics",
@@ -1653,9 +1657,9 @@
     "users.get.bulk.user.presences": {
       "method": "GET",
       "path": "/api/v2/users/presences/purecloud/bulk",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "id": "user-id-1,user-id-2,user-id-3"
       },
@@ -1693,7 +1697,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Agent routing status time — tAgentRoutingStatus, tSystemPresence, tOrganizationPresence grouped by userId",
+        "Agent routing status time \u2014 tAgentRoutingStatus, tSystemPresence, tOrganizationPresence grouped by userId",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"tAgentRoutingStatus\",\n    \"tSystemPresence\",\n    \"tOrganizationPresence\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
@@ -1751,9 +1755,8 @@
       "defaultQueryParams": {
         "pageSize": "100",
         "pageNumber": "1",
-        "sortBy": "name",
-        "active": "true",
-        "divisionId": ""
+        "divisionId": "",
+        "sortOrder": "asc"
       },
       "notes": [
         "Get All Queues with Details",
@@ -1799,7 +1802,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Activity — Real-Time in-flight conversation metrics",
+        "Query Conversation Activity \u2014 Real-Time in-flight conversation metrics",
         "group: Analytics",
         "defaultBody:\n{\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    {\n      \"metric\": \"oInteracting\"\n    },\n    {\n      \"metric\": \"oWaiting\"\n    },\n    {\n      \"metric\": \"oAlerting\"\n    },\n    {\n      \"metric\": \"oLongestWaiting\"\n    }\n  ]\n}"
       ]
@@ -1836,7 +1839,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Wrapup code distribution — nConnected grouped by wrapUpCode and queueId.",
+        "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1D\",\n  \"groupBy\": [\"queueId\", \"wrapUpCode\"],\n  \"metrics\": [\"nConnected\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -1879,19 +1882,17 @@
       ]
     },
     "usage.get.api.usage.by.user": {
-      "method": "GET",
-      "path": "/api/v2/usage/query/users",
-      "pagingProfile": "nextUri_default",
+      "method": "POST",
+      "path": "/api/v2/usage/query",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
-      "defaultQueryParams": {
-        "interval": "2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z",
-        "pageSize": "100"
-      },
+      "itemsPath": "$",
       "notes": [
         "Get API Usage - By User",
-        "group: Usage"
-      ]
+        "group: Usage",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"Day\",\n  \"metrics\": [\n    \"Requests\",\n    \"Status200\",\n    \"Status400\",\n    \"Status429\",\n    \"Status500\"\n  ],\n  \"groupBy\": [\n    \"UserId\"\n  ]\n}"
+      ],
+      "transactionProfile": "usage_query"
     },
     "audits.query.status": {
       "method": "GET",
@@ -1908,7 +1909,7 @@
       "path": "/api/v2/analytics/conversations/details",
       "pagingProfile": "nextUri_default",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$.conversations",
       "defaultQueryParams": {
         "id": "conversation-id-1,conversation-id-2,conversation-id-3"
       },
@@ -1938,7 +1939,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Service level / SLA metrics — oServiceLevel, oServiceTarget, nOverSla grouped by queue",
+        "Service level / SLA metrics \u2014 oServiceLevel, oServiceTarget, nOverSla grouped by queue",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"nOverSla\",\n    \"oServiceLevel\",\n    \"oServiceTarget\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
@@ -1961,7 +1962,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Digital channel volume trends — nConnected, nOffered grouped by mediaType.",
+        "Digital channel volume trends \u2014 nConnected, nOffered grouped by mediaType.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"mediaType\", \"queueId\"],\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nAbandoned\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -1999,7 +2000,7 @@
       "path": "/api/v2/analytics/users/details/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.userDetails",
       "notes": [
         "Query User Details - Activity Report",
         "group: Analytics",
@@ -2075,14 +2076,12 @@
     "users.search.users.by.name.or.email": {
       "method": "GET",
       "path": "/api/v2/users/search",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$.results",
       "defaultQueryParams": {
-        "pageSize": "25",
-        "pageNumber": "1",
-        "query": "john",
-        "expand": "presence,routingStatus"
+        "expand": "presence,routingStatus",
+        "q64": ""
       },
       "notes": [
         "Search Users by Name or Email",
@@ -23364,7 +23363,7 @@
         "Quality"
       ],
       "summary": "Search evaluations based along specified criteria",
-      "description": "Search Rules:\n1. Time Range\n   - Time Range: Max 3 months (required)\n2. Question Group Level Query: Use at least one field containing 'questionGroup' in name + exactly one questionGroupId\n3. Question Level Query: Use at least one field containing 'question' in name + exactly one questionId\n4. Mixed Queries: questionId alone is sufficient\n5. Search Logic:\n   - Multiple criteria: AND operation\n   - Multiple values per criterion: OR operation\n   EXAMPLE: (agentId₁ OR agentId₂) AND (evaluatorId₁ OR evaluatorId₂)\n5. Aggregations:\n   - Omit or set pageSize = 0\n   - Choose: multiple aggregations OR single aggregation with multiple sub-aggregations\n   - To aggregate against question fields, one must query by either a questionId OR a single top level TERM questionId aggregation AND query by a single formID or questionGroupId, or list of questionIds\n   - To aggregate against question group fields, one must query either a questionId/questionGroupId OR a single top level TERM questionGroupId aggregation AND query by a single formID or list of questionGroupIds\n"
+      "description": "Search Rules:\n1. Time Range\n   - Time Range: Max 3 months (required)\n2. Question Group Level Query: Use at least one field containing 'questionGroup' in name + exactly one questionGroupId\n3. Question Level Query: Use at least one field containing 'question' in name + exactly one questionId\n4. Mixed Queries: questionId alone is sufficient\n5. Search Logic:\n   - Multiple criteria: AND operation\n   - Multiple values per criterion: OR operation\n   EXAMPLE: (agentId\u2081 OR agentId\u2082) AND (evaluatorId\u2081 OR evaluatorId\u2082)\n5. Aggregations:\n   - Omit or set pageSize = 0\n   - Choose: multiple aggregations OR single aggregation with multiple sub-aggregations\n   - To aggregate against question fields, one must query by either a questionId OR a single top level TERM questionId aggregation AND query by a single formID or questionGroupId, or list of questionIds\n   - To aggregate against question group fields, one must query either a questionId/questionGroupId OR a single top level TERM questionGroupId aggregation AND query by a single formID or list of questionGroupIds\n"
     },
     "getQualityEvaluatorsActivity": {
       "method": "GET",
@@ -25022,7 +25021,7 @@
       "tags": [
         "Routing"
       ],
-      "summary": "Retrieve a single benefit assessments job."
+      "summary": "Retrieve a single benefit assessments\u00a0job."
     },
     "getRoutingAssessmentsJobs": {
       "method": "GET",
@@ -35075,7 +35074,7 @@
       "tags": [
         "Workforce Management"
       ],
-      "summary": "Get alternative shifts settings from the current logged in agent’s business unit"
+      "summary": "Get alternative shifts settings from the current logged in agent\u2019s business unit"
     },
     "postWorkforcemanagementAgentschedulesMine": {
       "method": "POST",

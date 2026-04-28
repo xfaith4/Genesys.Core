@@ -926,14 +926,14 @@
   "endpoints": {
     "analytics.query.conversation.transcripts": {
       "method": "POST",
-      "path": "/api/v2/analytics/conversations/transcripts/query",
+      "path": "/api/v2/analytics/transcripts/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Transcripts",
+        "Query Transcript Aggregates — Speech & Text Analytics metrics by queue/user",
         "group: Analytics",
-        "defaultBody:\n{\n  \"conversationFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"conversationId\",\n          \"value\": \"conversation-id-goes-here\"\n        }\n      ]\n    }\n  ],\n  \"order\": \"asc\",\n  \"orderBy\": \"conversationStart\"\n}"
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"queueId\",\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nSpeechTextAnalyzedConversations\",\n    \"oSentimentScore\",\n    \"tAgentSpeech\",\n    \"tCustomerSpeech\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
     },
     "users.get.user.s.queue.memberships": {
@@ -991,12 +991,12 @@
     },
     "analytics.query.user.aggregates.performance.metrics": {
       "method": "POST",
-      "path": "/api/v2/analytics/users/aggregates/query",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
-        "Query User Aggregates - Performance Metrics",
+        "Query Conversation Aggregates — Agent Performance Metrics grouped by userId",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"nOffered\",\n    \"tAnswered\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      },\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -1077,7 +1077,7 @@
       "notes": [
         "Query Flow Observations — Real-Time Architect Flow Status",
         "group: Analytics",
-        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"flowType\",\n        \"value\": \"inboundcall\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oFlow\",\n    \"oFlowDisconnect\"\n  ]\n}"
+        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oFlow\"\n  ]\n}"
       ]
     },
     "routing.get.queue.members": {
@@ -1140,11 +1140,11 @@
       "path": "/api/v2/audits/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.entities",
       "notes": [
         "Query Audit Logs - User Actions",
         "group: Audits",
-        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"filters\": [\n    {\n      \"property\": \"userId\",\n      \"value\": \"user-id-goes-here\"\n    }\n  ],\n  \"sort\": [\n    {\n      \"name\": \"timestamp\",\n      \"sortOrder\": \"DESC\"\n    }\n  ]\n}"
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"filters\": [\n    {\n      \"property\": \"UserId\",\n      \"value\": \"user-id-goes-here\"\n    }\n  ],\n  \"sort\": [\n    {\n      \"name\": \"Timestamp\",\n      \"sortOrder\": \"descending\"\n    }\n  ]\n}"
       ]
     },
     "oauth.get.client.usage.query.results": {
@@ -1193,9 +1193,9 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Abandon rate metrics — nAbandoned, tAbandoned, nOffered grouped by queue.",
+        "Abandon rate metrics — tAbandon, tShortAbandon, nOffered grouped by queue",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nAbandoned\", \"tAbandoned\", \"nOffered\", \"nConnected\", \"tAbandon\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"tAbandon\",\n    \"tShortAbandon\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
     },
     "usage.get.api.usage.by.client": {
@@ -1586,11 +1586,11 @@
       "path": "/api/v2/analytics/users/observations/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
-        "Query User Observations - Real-Time Status",
+        "Query User Observations — Real-Time Queue Membership Status",
         "group: Analytics",
-        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"userId\",\n        \"value\": \"user-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oUserPresence\",\n    \"oUserRoutingStatus\"\n  ]\n}"
+        "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"userId\",\n        \"value\": \"user-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oActiveQueues\",\n    \"oMemberQueues\"\n  ]\n}"
       ]
     },
     "outbound.get.events": {
@@ -1634,7 +1634,7 @@
       "notes": [
         "Audit Logs - Submit Query (Transaction)",
         "group: Audits",
-        "defaultBody:\n{\n  \"interval\": \"2026-02-16T00:00:00.000Z/2026-02-16T23:59:59.999Z\",\n  \"filters\": [],\n  \"sort\": [\n    {\n      \"name\": \"timestamp\",\n      \"sortOrder\": \"DESC\"\n    }\n  ]\n}"
+        "defaultBody:\n{\n  \"interval\": \"2026-02-16T00:00:00.000Z/2026-02-16T23:59:59.999Z\",\n  \"filters\": [],\n  \"sort\": [\n    {\n      \"name\": \"Timestamp\",\n      \"sortOrder\": \"descending\"\n    }\n  ]\n}"
       ],
       "transactionProfile": "audit_query_transaction_then_results"
     },
@@ -1693,9 +1693,9 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Agent login/logout activity — tOnQueueTime, tNotRespondingTime, tOffQueueTime grouped by userId.",
+        "Agent routing status time — tAgentRoutingStatus, tSystemPresence, tOrganizationPresence grouped by userId",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"userId\"],\n  \"metrics\": [\"tOnQueueTime\", \"tOffQueueTime\", \"tNotRespondingTime\", \"tIdleTime\", \"nConnected\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"tAgentRoutingStatus\",\n    \"tSystemPresence\",\n    \"tOrganizationPresence\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
     },
     "users.get.user.routing.status": {
@@ -1797,11 +1797,11 @@
       "path": "/api/v2/analytics/conversations/activity/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Activity",
+        "Query Conversation Activity — Real-Time in-flight conversation metrics",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2025-12-08T00:00:00.000Z/2025-12-08T23:59:59.999Z\",\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"nOutbound\"\n  ]\n}"
+        "defaultBody:\n{\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    {\n      \"metric\": \"oInteracting\"\n    },\n    {\n      \"metric\": \"oWaiting\"\n    },\n    {\n      \"metric\": \"oAlerting\"\n    },\n    {\n      \"metric\": \"oLongestWaiting\"\n    }\n  ]\n}"
       ]
     },
     "alerting.get.rules": {
@@ -1938,9 +1938,9 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Service level / SLA metrics — nAnsweredIn20, nOffered, tServiceLevel grouped by queue.",
+        "Service level / SLA metrics — oServiceLevel, oServiceTarget, nOverSla grouped by queue",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nOffered\", \"nAnsweredIn20\", \"nAnsweredIn30\", \"nAnsweredIn60\", \"tServiceLevel\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+        "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"nOverSla\",\n    \"oServiceLevel\",\n    \"oServiceTarget\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
     },
     "oauth.post.client.usage.query": {
@@ -2117,11 +2117,11 @@
       "path": "/api/v2/analytics/ratelimits/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Query Rate Limit Aggregates",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nError\",\n    \"nOverLimit\"\n  ]\n}"
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\",\n    \"limitName\"\n  ],\n  \"metrics\": [\n    \"oRateLimitRecorded\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
     },
     "presence.get.organization.presence.definitions": {
@@ -2239,7 +2239,7 @@
       "notes": [
         "Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ],\n  \"segmentDetailFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"interact\"\n        },\n        {\n          \"dimension\": \"segmentType\",\n          \"value\": \"system\"\n        }\n      ]\n    }\n  ]\n}"
+        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
       ]
     },
     "outbound.get.campaigns": {

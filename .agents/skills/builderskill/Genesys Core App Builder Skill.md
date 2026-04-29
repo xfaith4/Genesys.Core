@@ -51,8 +51,8 @@ description: Builds, enhances, fixes, traces, validates, and packages PowerShell
 ## Required Inputs (must be captured / confirmed)
 
 * Core module path: `.\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1`
-* Catalog path: `.\Genesys.Core\catalog\genesys-core.catalog.json`
-* Schema path:  `.\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json`
+* Catalog path: `.\Genesys.Core\catalog\genesys.catalog.json`
+* Schema path:  `.\Genesys.Core\catalog\schema\genesys.catalog.schema.json`
 * App goal statement (business objective)
 * Output requirements (tables/charts/exports/drilldowns)
 * Persona (Ops engineer / analyst / supervisor)

@@ -67,9 +67,9 @@ Invoke-Pester -Path ./tests/unit/Retry.Tests.ps1
    - Checks paging and retry profile consistency
 
 2. **Catalog Resolution** (`tests/unit/CatalogResolution.Tests.ps1`)
-   - Tests precedence between root and legacy catalog locations
-   - Validates strict mode behavior
-   - Tests catalog conflict detection
+   - Tests canonical catalog resolution (canonical-only; legacy mirror is retired)
+   - Validates that `-StrictCatalog` is accepted as a backward-compatible no-op
+   - Tests that a missing catalog throws rather than silently falling back
 
 3. **Paging Strategies** (`tests/unit/Paging.Tests.ps1`)
    - NextUri pagination

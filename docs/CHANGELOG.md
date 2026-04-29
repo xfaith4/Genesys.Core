@@ -1,6 +1,27 @@
 # Changelog
 
-## 2026-04-21
+## 2026-04-29
+
+### Changed
+
+- **Mirror-catalog consolidation / canonical catalog cutover (Release 1.0 Track A):**
+  - `catalog/genesys.catalog.json` is now the single canonical catalog for Genesys.Core,
+    Genesys.Ops, scripts, tests, docs, and examples. The deprecated
+    `genesys-core.catalog.json` stub and its legacy auto-discovery fallback in
+    `Resolve-Catalog` have been retired. If no catalog is found at the canonical path
+    (and no explicit `-CatalogPath` is given) `Resolve-Catalog` throws.
+  - `-StrictCatalog` is retained on `Resolve-Catalog`, `Assert-Catalog`, `Invoke-Dataset`,
+    `Get-AuditServiceMapping`, and bridge/smoke scripts as a backward-compatible no-op;
+    it may be removed in a future major version.
+  - Updated `catalog/schema/genesys.catalog.schema.json` `$id` to match the canonical
+    file name (`genesys.catalog.schema.json`).
+  - Updated `.agents/AGENTS.md`, builder skill, and `apps/App_Builder_Template.md` to
+    reference `catalog/genesys.catalog.json` and `catalog/schema/genesys.catalog.schema.json`.
+  - Updated `TESTING.md` catalog-resolution test-category description to reflect
+    canonical-only behavior.
+  - Marked mirror-catalog consolidation done in `docs/ROADMAP.md`.
+
+
 
 ### Added
 

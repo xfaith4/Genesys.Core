@@ -21,6 +21,50 @@
     canonical-only behavior.
   - Marked mirror-catalog consolidation done in `docs/ROADMAP.md`.
 
+- **Track A — Workflow auth wiring (Release 1.0):**
+  - Added `.github/workflows/dataset.on-demand.yml` — a live-credential on-demand workflow
+    that authenticates via the OAuth 2.0 client-credentials grant (`GENESYS_CLIENT_ID`,
+    `GENESYS_CLIENT_SECRET`, `GENESYS_REGION` repository secrets), runs any catalog dataset
+    via `Invoke-Dataset`, and uploads the run artifact. Distinct from the CI mock run.
+  - Workflow validates that all required secrets are present before attempting authentication
+    and emits a clear error message listing missing secrets.
+
+- **Track A — Redaction baseline coverage (Release 1.0):**
+  - Five named redaction profiles added to `catalog/genesys.catalog.json`
+    (`profiles.redaction`): `agent-investigation-users`, `agent-investigation-division`,
+    `agent-investigation-presences`, `agent-investigation-activity`, and
+    `agent-investigation-conversations`.
+  - All seven Agent Investigation datasets now carry `redactionProfile` and
+    `validationStatus: "unvalidated"` fields in the catalog:
+    `users`, `users.division.analysis.get.users.with.division.info`,
+    `routing.get.all.routing.skills`, `routing-queues`,
+    `users.get.bulk.user.presences`, `analytics.query.user.details.activity.report`,
+    and `analytics-conversation-details-query`.
+  - `Protect-RecordData` in `Genesys.Core/Private/Redaction.ps1` extended with an optional
+    `-Profile` parameter (hashtable with `removeFields`). Profile-driven removal takes
+    precedence over the heuristic field-name check; existing callers that pass no profile
+    are unaffected.
+  - `Resolve-DatasetRedactionProfile` helper added to `Redaction.ps1` — looks up a
+    dataset's named profile from `catalog.profiles.redaction` and returns it as a
+    hashtable.
+  - All three `Protect-RecordData` call sites in `Datasets.ps1` (`Invoke-AuditLogsDataset`,
+    `Invoke-SimpleCollectionDataset`, `Invoke-AnalyticsConversationDetailsDataset`) now
+    resolve and pass the catalog redaction profile.
+  - Profile-driven redaction tests and `Resolve-DatasetRedactionProfile` tests added to
+    `tests/unit/Security.Redaction.Tests.ps1`.
+
+- **Track A — Formal production-readiness gate (Release 1.0):**
+  - `docs/READINESS_REVIEW.md` rewritten as a verifiable per-criterion checklist
+    (nine categories, 30+ criteria) covering auth, dataset execution, paging, retry,
+    redaction, artifact contract, workflow/CI, live validation, and the Track B gate.
+    Each criterion carries a status (✅ / ⚠️ / ❌ / 🔒) and a "verifiable by" action
+    for reviewers. The previous narrative review is archived at the bottom of the file.
+
+- **Track A — OAuth async orchestration decision (Release 1.0):**
+  - Explicit deferral recorded in `ROADMAP.md`: the `oauth.post.client.usage.query` /
+    `oauth.get.client.usage.query.results` two-step is adequately served by sequencing
+    the existing generic catalog dataset pair; no curated handler is needed for 1.0.
+
 
 
 ### Added

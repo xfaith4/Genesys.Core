@@ -251,7 +251,8 @@ function Invoke-AuditLogsDataset {
     $sanitizedRecords = if ($NoRedact) {
         $records
     } else {
-        @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+        $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey 'audit-logs'
+        @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redactionProfile })
     }
 
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'audit.jsonl'
@@ -569,7 +570,8 @@ function Invoke-SimpleCollectionDataset {
     $sanitizedRecords = if ($NoRedact) {
         $records
     } else {
-        @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+        $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey $DatasetKey
+        @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redactionProfile })
     }
 
     $summary = [ordered]@{
@@ -780,7 +782,8 @@ function Invoke-AnalyticsConversationDetailsDataset {
     $sanitizedRecords = if ($NoRedact) {
         $records
     } else {
-        @($records | ForEach-Object { Protect-RecordData -InputObject $_ })
+        $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey 'analytics-conversation-details'
+        @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redactionProfile })
     }
 
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'analytics-conversation-details.jsonl'

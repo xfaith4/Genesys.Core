@@ -30,6 +30,17 @@ the engineering teams that automate against them.
       from any working directory and on first import.
 - [x] Session 19 — Quality and Voice-of-Customer overlay (joins
       survey/evaluation/sentiment data on top of existing Core datasets).
+- [x] Track A — Workflow auth wiring: `dataset.on-demand.yml` with
+      `GENESYS_CLIENT_ID` / `GENESYS_CLIENT_SECRET` / `GENESYS_REGION` secrets
+      contract, token bootstrap step, and end-to-end dataset execution.
+- [x] Track A — Redaction baseline coverage: five named redaction profiles added
+      to `catalog/genesys.catalog.json`; `Protect-RecordData` extended with
+      profile-driven `removeFields` support; all seven Agent Investigation
+      datasets carry a `redactionProfile` reference.
+- [x] Track A — Formal production-readiness gate: `READINESS_REVIEW.md`
+      rewritten as a verifiable per-criterion checklist covering auth, paging,
+      retry, redaction, artifact contract, workflow/CI, live validation, and
+      the Track B gate.
 
 ---
 
@@ -81,18 +92,25 @@ in a single dataset.
       `genesys-core.catalog.json` stub, retire the legacy fallback in
       `Resolve-Catalog`, update tests and agent/app docs to reference only
       `catalog/genesys.catalog.json`).
-- [ ] Workflow auth wiring and examples (GitHub Actions secrets contract,
+- [x] Workflow auth wiring and examples (GitHub Actions secrets contract,
       token bootstrap step, end-to-end example workflow distinct from the CI
-      mock run).
-- [ ] Resolve OAuth usage async orchestration behind curated handler(s) if the
-      submit → results chain requires it in production (decision +
-      implementation or explicit deferral note).
-- [ ] Redaction baseline coverage for the Agent Investigation dataset set
+      mock run). See `.github/workflows/dataset.on-demand.yml`.
+- [x] Resolve OAuth usage async orchestration behind curated handler(s) if the
+      submit → results chain requires it in production. **Decision: deferred.**
+      The `oauth.post.client.usage.query` / `oauth.get.client.usage.query.results`
+      two-step pattern is adequately served by the existing generic catalog
+      dataset pair — operators sequence them in Genesys.Ops. No curated handler
+      is needed for 1.0; the submit → results gap is bridged by the `usage_query`
+      transaction profile already defined in the catalog. Revisit if a composed
+      investigation step requires it in-process.
+- [x] Redaction baseline coverage for the Agent Investigation dataset set
       (allow/deny rules verified for `users`, division-info, skills,
       `routing-queues`, bulk presences, user activity report, and
-      `analytics-conversation-details-query`). Full profile-by-dataset
-      redaction sweep moves to 1.1 with the Conversation flagship.
-- [ ] Formal production-readiness gate definition (single checklist of
+      `analytics-conversation-details-query`). Named redaction profiles added
+      to `catalog/genesys.catalog.json`; `Protect-RecordData` extended with
+      profile-driven `removeFields` support; all three dataset execution paths
+      now resolve and pass the catalog profile.
+- [x] Formal production-readiness gate definition (single checklist of
       verifiable exit criteria for "broad automation" in
       [READINESS_REVIEW.md](READINESS_REVIEW.md)).
 - [ ] Any Ops-layer endpoint/cmdlet hardening identified during live

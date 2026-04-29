@@ -59,14 +59,14 @@ jobs:
       - name: Validate secrets are configured
         shell: pwsh
         env:
-          CLIENT_ID:     ${{ secrets.GENESYS_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
-          REGION:        ${{ secrets.GENESYS_REGION }}
+          GENESYS_CLIENT_ID:     ${{ secrets.GENESYS_CLIENT_ID }}
+          GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+          GENESYS_REGION:        ${{ secrets.GENESYS_REGION }}
         run: |
           $missing = @()
-          if ([string]::IsNullOrWhiteSpace($env:CLIENT_ID))     { $missing += 'GENESYS_CLIENT_ID' }
-          if ([string]::IsNullOrWhiteSpace($env:CLIENT_SECRET)) { $missing += 'GENESYS_CLIENT_SECRET' }
-          if ([string]::IsNullOrWhiteSpace($env:REGION))        { $missing += 'GENESYS_REGION' }
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_CLIENT_ID))     { $missing += 'GENESYS_CLIENT_ID' }
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_CLIENT_SECRET)) { $missing += 'GENESYS_CLIENT_SECRET' }
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_REGION))        { $missing += 'GENESYS_REGION' }
 
           if ($missing.Count -gt 0) {
             Write-Error @"

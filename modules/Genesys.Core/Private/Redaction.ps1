@@ -56,7 +56,7 @@ function Resolve-DatasetRedactionProfile {
     $profileObj = $namedProp.Value
     $result = @{}
     foreach ($prop in $profileObj.PSObject.Properties) {
-        $result[$prop.Name] = @($prop.Value)
+        $result[$prop.Name] = $prop.Value
     }
     return $result
 }

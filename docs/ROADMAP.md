@@ -1,478 +1,308 @@
-# Genesys Core — Roadmap
+# Genesys.Core - Product & Engineering Roadmap
 
-## Vision
+> Status: Active
+>
+> Last updated: 2026-04-29
 
-Build a catalog-driven Genesys Cloud Core that executes governed datasets via GitHub Actions and produces deterministic, auditable artifacts. UIs consume Core artifacts and must not reimplement Core pagination/retry/runtime logic.
+## 1. Product Intent
 
-## Status snapshot (2026-02-22)
+Genesys.Core is a catalog-driven PowerShell execution engine for governed,
+reproducible data collection from the Genesys Cloud REST API. It produces
+deterministic run artifacts (`manifest.json`, `events.jsonl`, `summary.json`,
+`data/*.jsonl`) suitable for compliance review, CI automation, and downstream
+analysis.
 
-- **Implemented now**
-  - Catalog + schema validation and profile resolution.
-  - Runtime dataset dispatcher (`Invoke-Dataset`) with deterministic output contract.
-  - Retry engine with bounded jitter and 429 handling (`Retry-After` + message parsing).
-  - Paging strategy plugins: `none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `transactionResults`.
-  - Generic async job engine (`Submit-AsyncJob`, `Get-AsyncJobStatus`, `Get-AsyncJobResults`, `Invoke-AsyncJob`).
-  - Curated dataset handlers: `audit-logs`, `analytics-conversation-details`, `users`, `routing-queues`.
-  - Generic catalog-driven dataset execution for additional dataset keys.
-  - Test coverage for catalog validation, retry, paging, async flows, redaction, run contract, and standalone bootstrap.
-  - CI + audit-specific scheduled/on-demand workflow scaffolding.
-- **In progress**
-  - Catalog mirror retirement and full cutover to `catalog/genesys.catalog.json`.
-  - End-user workflow auth ergonomics for production-ready automation.
-  - Live validation of Phase 4 endpoint itemsPath / paging choices.
-- **Recently hardened**
-  - Expanded payload redaction to scrub embedded bearer/basic tokens, JWT-like values, and tokenized query fragments in string fields.
+The next product step is **investigation composition**: combining the
+existing per-dataset queries into joined, subject-centred records — for example,
+matching an agent's identity, division, location, skills, and queue
+assignments to the conversations on which they were alerted or engaged.
+The raw datasets exist; the composition layer does not.
 
-## Recommended Next Steps / Focus Adjustments
-
-The capability base is broad. The remaining work must be sequenced so what blocks production is obvious and what is an incremental improvement is clearly separated. Execute in this priority order:
-
-1. **Production confidence / release-blocking hardening** — close gaps that make broad external automation defensible.
-2. **Endpoint correctness and orchestration completion** — validate Phase 4 endpoints against live API behavior and wrap any required async chains behind stable dataset contracts.
-3. **Operational visibility expansion** — add remaining planned Ops-layer telemetry only after the release blockers are closed.
-4. **Analytical / reporting enrichment** — complete remaining reporting sessions on top of the stable Core contract.
-
-This is an execution refinement of the existing roadmap, not a new strategy. Work should flow through the lanes below, top-down.
-
-### Lane A — Release Blocking
-
-These items must be completed before the Core is called broadly production-ready. Controlled external invocation is already supported; broad production automation is not.
-
-- [ ] Workflow auth wiring and examples (GitHub Actions secrets contract, token bootstrap step, end-to-end example workflow distinct from the CI mock run).
-- [ ] Mirror-catalog consolidation / canonical cutover (remove the deprecated `genesys-core.catalog.json` stub, retire the legacy fallback in `Resolve-Catalog`, update tests and agent/app docs to reference only `catalog/genesys.catalog.json`).
-- [ ] Redaction/profile hardening (profile-driven allow/deny field tuning; explicit coverage for any endpoint returning free-text or payload strings new in Phase 4).
-- [ ] Live validation of each remaining Phase 4 endpoint against Genesys Cloud (confirm `itemsPath`, paging strategy/profile, and retry behavior; update catalog entries where live behavior differs from the initial wiring).
-- [ ] Resolve OAuth usage async orchestration behind curated handler(s) if the submit → results chain requires it in production (decision + implementation or explicit deferral note).
-- [ ] Formal production-readiness gate definition (single checklist of verifiable exit criteria for "broad automation" in `docs/READINESS_REVIEW.md`).
-
-### Lane B — Operational Expansion
-
-Extend Core visibility once Lane A is closed. Keep this lane small and grounded.
-
-- [ ] Idea 5 — Edge Alarms & Event Feed (catalog endpoint `telephony.get.edge.logs`, `Get-GenesysEdgeEvent` Ops cmdlet, NOC feed contract).
-- [ ] Any Ops-layer endpoint/cmdlet hardening identified during Lane A live validation (itemsPath corrections, paging profile swaps, async chain wrapping).
-- [ ] Follow-on visibility improvements that naturally extend existing Phase 5 ideas — only when they are clearly valuable and do not grow cross-module complexity.
-
-### Lane C — Analytical / Reporting Enrichment
-
-ConversationAnalyser and related reporting remain consumers of Core artifacts.
-
-- [x] Session 19 — Quality and Voice-of-Customer Overlay (joins survey/evaluation/sentiment data on top of existing Core datasets).
-- [ ] Session 20 — Temporal Trend and Comparative Reporting (period-over-period comparisons on Core aggregate outputs).
-- [ ] Reporting-contract cleanup so reporting features remain consumers of Core artifacts under `out/<datasetKey>/<runId>/` rather than reimplementing extraction logic.
-
-## Phase 0 — Bootstrap (Complete)
-
-### Delivered
-
-- Catalog placeholder at `catalog/genesys.catalog.json`
-- Draft schema at `catalog/schema/genesys.catalog.schema.json`
-- PowerShell module scaffold under `modules/Genesys.Core/`
-- Pester scaffolding under `tests/`
-- CI workflow to run Pester on pull requests
-- Scheduled/on-demand audit logs workflows that write deterministic output files under `out/<datasetKey>/<runId>/...`
-
-## Phase 1 — Core Runtime Foundations (Complete)
-
-- Request/retry runtime with deterministic 429 behavior and bounded jitter.
-- Pluggable paging strategies (`none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `transactionResults`).
-- Structured run events for retries, paging progress, and async state transitions.
-- Request event redaction for sensitive headers and token-like query parameters.
-
-## Phase 2 — Core Datasets (Complete)
-
-- Implemented curated datasets:
-  - `audit-logs`
-  - `analytics-conversation-details`
-  - `users`
-  - `routing-queues`
-- Generic catalog-backed execution is available for additional dataset keys defined in the catalog.
-
-### Completed hardening
-
-- Added runtime dataset parameter overrides (`-DatasetParameters`) for curated interval controls and generic endpoint query overrides.
-- Added tests validating parameterized audit interval/action/service filters and generic query override behavior.
-- Expanded redaction hardening to cover embedded token patterns in payload strings.
-
-### Future enhancements
-
-- Expand curated handlers where domain-specific normalization or orchestration is required.
-- Continue redaction policy evolution (profile-driven controls and allow/deny field tuning).
-
-## Phase 3 — Catalog and Delivery Hardening (Complete)
-
-- Day-to-day runtime and tests now target canonical `catalog/genesys.catalog.json` usage.
-- Improved onboarding ergonomics with script-level invocation support for `-BaseUri`, `-Headers`, and `-DatasetParameters`.
-- Hardened auth/runtime usage guidance to favor deterministic, redacted outputs.
-
-## Phase 4 — Endpoint Expansion Backlog (In Progress)
-
-Tracked endpoint additions for roadmap delivery:
-
-1. `GET /api/v2/authorization/roles`
-2. `GET /api/v2/conversations/{conversationId}/recordings`
-3. `GET /api/v2/oauth/clients`
-4. `POST /api/v2/oauth/clients/{clientId}/usage/query`
-5. `GET /api/v2/oauth/clients/{clientId}/usage/query/results/{executionId}`
-6. `GET /api/v2/speechandtextanalytics/topics`
-7. `POST /api/v2/analytics/transcripts/aggregates/query`
-8. `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturl`
-
-Delivered in this phase increment:
-
-- Added catalog endpoint and dataset definitions for all tracked Phase 4 endpoints.
-- Added Phase 4 Pester coverage to assert dataset/endpoint wiring and profile resolution.
-
-Remaining implementation tasks:
-
-- Validate each Phase 4 endpoint against live API behavior to confirm `itemsPath` and paging strategy choices (tracked in `docs/PHASE4_LIVE_VALIDATION.md`).
-- Add curated handler(s) for OAuth usage submit/results orchestration if async transaction chaining is required in production (decision captured in `docs/PHASE4_LIVE_VALIDATION.md` §OAuth usage orchestration).
-- ✅ Added `pageCountPath` support to `Invoke-PagingPageNumber` so the `pageNumber_default` catalog profile terminates correctly when the API returns a `pageCount` field.
-- ✅ Added mock-based paging termination tests for `pageNumber_default` (via `pageCount`) and `nextUri_default` (via null `nextUri`) catalog profile selections.
-
-### Phase 4 exit criteria
-
-Phase 4 is closed when all of the following hold:
-
-- Every listed endpoint has been validated against live Genesys Cloud API behavior.
-- `itemsPath` and paging strategy/profile have been confirmed (or corrected) in the canonical catalog for every listed endpoint.
-- Async submit/status/results chains are wrapped behind stable dataset behavior wherever live validation shows the caller would otherwise need to orchestrate the chain themselves.
-- Tests have been added or updated to reflect validated behavior (mock-based at minimum; live-backed where an integration harness is available).
-- No wrapper UI needs bespoke runtime logic for any Phase 4 endpoint — `Invoke-Dataset` returns a deterministic run artifact for each.
-
-## External client readiness
-
-The repository currently supports **controlled external invocation** of `Invoke-Dataset` when callers provide valid auth headers (or `GENESYS_BEARER_TOKEN`) and consume deterministic run artifacts from `out/<datasetKey>/<runId>/`. This is appropriate for engineer-driven runs, gated pilots, and supervised integration work.
-
-**Broad production automation is not yet recommended.** It is gated on completion of the Lane A items above — specifically:
-
-- workflow auth wiring and examples committed and verified against the real API
-- mirror-catalog consolidation completed (no legacy fallback in the runtime)
-- redaction/profile hardening for Phase 4 payload shapes
-- live validation of remaining Phase 4 endpoints
-- OAuth usage orchestration resolved (handler or explicit deferral)
-- production-readiness gate checklist signed off
-
-The formal checklist and sign-off criteria live in `docs/READINESS_REVIEW.md`.
-
-## Phase 5 — Visibility Dashboard Core  (In Progress)
-
-### Vision
-
-Expand Genesys.Core into a fine-tuned set of targeted API endpoints and Ops-layer
-functions that allow wrapper UI applications to build monitoring and analytics
-dashboards **without** having to worry about which APIs tie to which services,
-pagination, timeouts, or retry logic.
-
-### 30 New Dashboard Ideas
-
-The following 30 ideas map directly to new catalog endpoints, datasets, and
-`Genesys.Ops` functions.  Each idea has a one-line summary, the Ops cmdlet(s)
-that implement it, and the backing catalog key(s).
+Audience: contact-centre operators, platform admins, compliance reviewers, and
+the engineering teams that automate against them.
 
 ---
 
-#### Idea 1 — Edge Health Monitor
+## 2. Recently Completed
 
-**Goal:** Real-time visibility into Edge appliance registration and online status across all sites.
-**Cmdlet:** `Get-GenesysEdge`
-**Catalog endpoint:** `telephony.get.edges`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 2 — Trunk Capacity Dashboard
-
-**Goal:** Monitor SIP trunk utilisation and headroom to prevent capacity-related call failures.
-**Cmdlets:** `Get-GenesysTrunk`, `Get-GenesysTrunkMetrics`
-**Catalog endpoints:** `telephony.get.trunks`, `telephony.get.trunk.metrics.summary`
-**Status:** ✅ Delivered
+- [x] Critical hardening (2026-03-30): catalog-path resolution, schema-path
+      computation, and Genesys.Ops module-init ordering. Queries now succeed
+      from any working directory and on first import.
+- [x] Session 19 — Quality and Voice-of-Customer overlay (joins
+      survey/evaluation/sentiment data on top of existing Core datasets).
 
 ---
 
-#### Idea 3 — Edge + Trunk Infrastructure Snapshot
+## 3. Release Roadmap
 
-**Goal:** Single at-a-glance widget combining edge online state and trunk health — feeds alerting pipelines.
-**Cmdlet:** `Get-GenesysEdgeHealthSnapshot`
-**Backing cmdlets:** `Get-GenesysEdge`, `Get-GenesysTrunk`
-**Status:** ✅ Delivered
+The composition pivot is preserved across the 1.x series. To keep each release
+shippable, only **one flagship investigation** lands per release. Agent
+Investigation is the first flagship and proves the composition model end-to-end;
+Conversation and Queue investigations follow once the model is in production.
 
----
-
-#### Idea 4 — Station Status Inventory
-
-**Goal:** Understand how many softphones/hardphones are active, ringing, or idle at any moment.
-**Cmdlet:** `Get-GenesysStation`
-**Catalog endpoint:** `stations.get.stations`
-**Status:** ✅ Delivered
+| Release | Theme |
+| --- | --- |
+| 1.0 | Trust foundation + Agent Investigation |
+| 1.1 | Conversation Investigation + redaction hardening |
+| 1.2 | Queue Investigation + reporting-contract cleanup |
+| 1.3 | Visibility extensions, edge alarms, temporal trends |
 
 ---
 
-#### Idea 5 — Edge Alarms & Event Feed *(Future)*
+## Release 1.0 — Trust foundation + Agent Investigation
 
-**Goal:** Surface Edge system events and error logs in real-time for NOC dashboards.
-**Catalog endpoint:** `GET /api/v2/telephony/providers/edges/{edgeId}/logs` *(to be added)*
-**Status:** 🔲 Planned
+**Goal:** Establish a trustworthy data layer (Track A) and prove the
+investigation composition model with a single flagship: Agent Investigation
+(Track B). Plumbing alone does not mark this release complete; the release
+ships when an operator can run `Get-GenesysAgentInvestigation` end-to-end
+against verified datasets and the joined output is deterministic.
 
----
+### Product outcomes
 
-#### Idea 6 — Queue Abandon Rate Dashboard
+- Operators can run any catalog dataset against live Genesys Cloud and trust
+  the output (paging, retry, redaction verified per endpoint).
+- Operators can run **Agent Investigation** end-to-end and receive a joined
+  record set covering identity, division, location, skills, queue
+  memberships, conversations the agent touched, and presence/login activity
+  in the chosen window — all under the standard run-artifact contract.
+- The product intent in section 1 is reflected in `README.md`, training
+  material, and onboarding — investigations are described as a first-class
+  capability, not an appendix.
 
-**Goal:** Per-queue abandon rate (%) with real-time waiting counts — the #1 contact centre KPI.
-**Cmdlets:** `Get-GenesysQueueAbandonRate`, `Get-GenesysAbandonRateDashboard`
-**Catalog endpoint:** `analytics.query.conversation.aggregates.abandon.metrics`
-**Status:** ✅ Delivered
+### Track A — Trust (preconditions)
 
----
+These items gate Track B. Joining unverified data amplifies any silent error
+in a single dataset.
 
-#### Idea 7 — Queue Service Level (SLA) Compliance
+- [ ] Live validation of each remaining Phase 4 endpoint against Genesys Cloud
+      (confirm `itemsPath`, paging strategy/profile, retry behaviour; update
+      catalog entries where live behaviour differs from initial wiring).
+- [ ] Mirror-catalog consolidation / canonical cutover (remove the deprecated
+      `genesys-core.catalog.json` stub, retire the legacy fallback in
+      `Resolve-Catalog`, update tests and agent/app docs to reference only
+      `catalog/genesys.catalog.json`).
+- [ ] Workflow auth wiring and examples (GitHub Actions secrets contract,
+      token bootstrap step, end-to-end example workflow distinct from the CI
+      mock run).
+- [ ] Resolve OAuth usage async orchestration behind curated handler(s) if the
+      submit → results chain requires it in production (decision +
+      implementation or explicit deferral note).
+- [ ] Redaction baseline coverage for the Agent Investigation dataset set
+      (allow/deny rules verified for `users`, division-info, skills,
+      `routing-queues`, bulk presences, user activity report, and
+      `analytics-conversation-details-query`). Full profile-by-dataset
+      redaction sweep moves to 1.1 with the Conversation flagship.
+- [ ] Formal production-readiness gate definition (single checklist of
+      verifiable exit criteria for "broad automation" in
+      [READINESS_REVIEW.md](READINESS_REVIEW.md)).
+- [ ] Any Ops-layer endpoint/cmdlet hardening identified during live
+      validation (itemsPath corrections, paging profile swaps, async chain
+      wrapping).
 
-**Goal:** Track % of contacts answered within 20/30/60 seconds per queue — compare against SLA targets.
-**Cmdlet:** `Get-GenesysQueueServiceLevel`
-**Catalog endpoint:** `analytics.query.queue.aggregates.service.level`
-**Status:** ✅ Delivered
+### Track B — Composition (the value step)
 
----
+Design contract: [INVESTIGATIONS.md](INVESTIGATIONS.md). Track B reuses the
+existing dataset run-artifact contract — investigations are not a new file
+format, they are datasets that join other datasets. No new module, no new
+artifact format, no broad abstraction layer.
 
-#### Idea 8 — Multi-Queue Health Snapshot
+- [ ] **Investigation composer contract.** A single private helper
+      (`Invoke-Investigation`) in `Genesys.Ops` that takes a subject + window,
+      runs N registered datasets via existing `Genesys.Core` plumbing, joins
+      on declared keys, and emits the standard artifact set under
+      `out/<investigationKey>/<runId>/`. No new abstractions beyond the join
+      helper.
+- [ ] **Investigation Manifest Contract.** The investigation's `manifest.json`
+      records a fixed shape so downstream tooling (CI, audit, reporting) can
+      consume any investigation uniformly. Required fields:
+      `investigationKey`, `subjectType`, `subjectId`, `window` (`since`,
+      `until`), `datasetsInvoked` (array of `{ datasetKey, runId,
+      validationStatus, recordCount }`), `joinPlan` (array of
+      `{ stepName, leftSource, rightSource, joinKind }`), `redactionProfile`
+      (per-dataset profile name + composer-level overrides), and
+      `outputArtifacts` (`manifestPath`, `eventsPath`, `summaryPath`,
+      `dataPaths`). See
+      [INVESTIGATIONS.md § Manifest contract](INVESTIGATIONS.md#manifest-contract).
+- [ ] **Flagship investigation — Agent.**
+      `Get-GenesysAgentInvestigation -UserId <x> -Since <window>` →
+      identity + division + location + skills + queue memberships +
+      conversations the agent touched + presence/login activity in the
+      window. Emits the standard artifact set with the manifest above.
+- [ ] **Integration test contract for investigations.** Feed Agent
+      Investigation a known subject ID against a fixture and assert (a) the
+      manifest shape, (b) the `summary.json` join shape, and (c)
+      determinism — two consecutive runs over the same fixture produce
+      byte-equivalent `summary.json` and `data/*.jsonl` (timestamps and
+      `runId` excluded). Mirrors how dataset tests work today.
+- [ ] **Docs as first-class capability.** Update `README.md`, `ONBOARDING.md`,
+      and training material to describe investigations alongside datasets.
+      Cross-link `INVESTIGATIONS.md`. No "manages repositories" boilerplate
+      anywhere.
 
-**Goal:** Colour-coded (GREEN/AMBER/RED) queue health combining real-time observations + SLA data.
-**Cmdlet:** `Get-GenesysQueueHealthSnapshot`
-**Backing cmdlets:** `Get-GenesysQueueObservation`, `Get-GenesysQueueServiceLevel`
-**Status:** ✅ Delivered
+### Dependencies and ordering
 
----
+- Agent Investigation depends on these Track A datasets having passed live
+  validation: `users`, division-info, skills, `routing-queues`, bulk
+  presences, user activity report, `analytics-conversation-details-query`.
+  The flagship cannot be marked done until each of these reports a green
+  validation status in its catalog entry.
+- Mirror-catalog consolidation should land before Agent Investigation
+  references catalog keys, to avoid a double rename when the deprecated stub
+  is removed.
+- Redaction baseline coverage (Track A) is the floor; per-dataset profile
+  hardening rides with the Conversation flagship in 1.1.
 
-#### Idea 9 — Transfer Analysis (Blind vs Consult)
+### Acceptance criteria
 
-**Goal:** Identify queues with high blind transfer rates — signals training gaps or routing issues.
-**Cmdlet:** `Get-GenesysTransferAnalysis`
-**Catalog endpoint:** `analytics.query.conversation.aggregates.transfer.metrics`
-**Status:** ✅ Delivered
+Release 1.0 is complete when **all** of the following hold:
 
----
+- [ ] All Track A items are implemented and the readiness checklist in
+      `READINESS_REVIEW.md` reports green.
+- [ ] `Get-GenesysAgentInvestigation -UserId <known-id> -Since 7d` runs
+      end-to-end against live Genesys Cloud and exits 0.
+- [ ] Every dataset Agent Investigation invokes has `validationStatus =
+      'live-validated'` recorded in its catalog entry as of release tag.
+- [ ] Fixture-driven integration test for Agent Investigation passes,
+      asserting manifest shape, join shape, and determinism (see
+      [§ Acceptance tests for Agent Investigation](#acceptance-tests-for-agent-investigation)
+      below).
+- [ ] Agent Investigation produces the full standard artifact set
+      (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`) under
+      `out/agent-investigation/<runId>/`, and `manifest.json` conforms to the
+      Investigation Manifest Contract.
+- [ ] `README.md` and `ONBOARDING.md` describe investigations as first-class;
+      `INVESTIGATIONS.md` is cross-linked from both.
+- [ ] No placeholder stubs or TODO comments remain in modified code.
 
-#### Idea 10 — Wrapup Code Distribution
+### Acceptance tests for Agent Investigation
 
-**Goal:** Understand outcome/disposition patterns per queue — drives process and compliance review.
-**Cmdlet:** `Get-GenesysWrapupDistribution`
-**Catalog endpoint:** `analytics.query.conversation.aggregates.wrapup.distribution`
-**Status:** ✅ Delivered
+These are the integration tests that gate release. They live under
+`tests/integration/` alongside existing dataset integration tests.
 
----
+1. **Happy path, full window.** Given a known agent ID and a 7-day window
+   against the recorded fixture, the run produces:
+   - exit code 0
+   - `manifest.json` containing every required field listed in the
+     Manifest Contract, with `datasetsInvoked.length == 7`
+   - `summary.json` with sections `agent`, `division`, `skills`, `queues`,
+     `presence`, `activity`, `conversations` and an inner-join row count
+     ≥ 1 for the seed identity step
+   - one JSONL per step under `data/`, line counts matching
+     `datasetsInvoked[i].recordCount`
+2. **Determinism.** Two consecutive runs over the same fixture produce
+   byte-equivalent `summary.json` and byte-equivalent `data/*.jsonl`, after
+   stripping `runId` and ISO-8601 timestamps.
+3. **Missing optional step.** With a fixture where the user has no
+   conversations in the window, the run still exits 0; `summary.json`
+   contains an empty `conversations` array; `manifest.json` records
+   `recordCount: 0` for that step. Required vs. optional step semantics are
+   honoured — no missing step is silently swallowed.
+4. **Required step failure aborts.** With a fixture that returns 4xx for the
+   identity dataset, the run exits non-zero and `events.jsonl` records the
+   failure with the dataset's `runId`. No `summary.json` is written.
+5. **Redaction.** Authorization headers and any token-shaped query params do
+   not appear in `events.jsonl`; PII fields covered by the redaction baseline
+   for each invoked dataset do not appear in `summary.json` or `data/*.jsonl`.
+6. **Manifest validity.** `manifest.json` validates against the
+   Investigation Manifest schema (added under
+   `catalog/schema/investigation.manifest.schema.json`).
+7. **Subject-by-name resolution boundary.** When the cmdlet is called with
+   `-UserName 'Jane Doe'`, the wrapper resolves to a `UserId` before invoking
+   `Invoke-Investigation`; the composer never sees the name. Asserted by
+   inspecting the manifest's `subjectId` field.
 
-#### Idea 11 — Digital Channel Volume Trending
+### Out of scope (deferred to 1.1+)
 
-**Goal:** Compare voice vs chat vs email vs messaging volumes over time — informs channel strategy.
-**Cmdlet:** `Get-GenesysDigitalChannelVolume`
-**Catalog endpoint:** `analytics.query.conversation.aggregates.digital.channels`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 12 — CSAT / NPS Survey Trending
-
-**Goal:** Track post-call survey scores (NPS, CSAT) by queue and agent over time.
-**Cmdlet:** `Get-GenesysSurvey`
-**Catalog endpoint:** `quality.get.surveys`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 13 — Quality Evaluation Scores
-
-**Goal:** Supervisor-scored evaluation trends per agent — coaching priority identification.
-**Cmdlet:** `Get-GenesysEvaluation`
-**Catalog endpoint:** `quality.get.evaluations.query`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 14 — Sentiment Trending
-
-**Goal:** Speech analytics sentiment scores trending by queue/agent — early warning for customer frustration.
-**Cmdlet:** `Get-GenesysSentimentTrend`
-**Backing dataset:** `analytics-conversation-details` (sentimentScore field)
-**Status:** ✅ Delivered
-
----
-
-#### Idea 15 — Agent Quality Snapshot
-
-**Goal:** Per-agent KPI leaderboard: handle time, ACW, talk time — ready for coaching or reporting.
-**Cmdlet:** `Get-GenesysAgentQualitySnapshot`
-**Backing cmdlet:** `Get-GenesysAgentPerformance`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 16 — Alerting Rules Inventory
-
-**Goal:** Audit which KPI thresholds are monitored, which rules are disabled, and which are in alarm.
-**Cmdlet:** `Get-GenesysAlertingRule`
-**Catalog endpoint:** `alerting.get.rules`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 17 — Active Platform Alerts Feed
-
-**Goal:** Real-time feed of active threshold breaches — feeds NOC/ops ChatOps bots.
-**Cmdlet:** `Get-GenesysAlert`
-**Catalog endpoint:** `alerting.get.alerts`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 18 — Agent Login & Occupancy Analysis
-
-**Goal:** Track on-queue vs off-queue vs idle time per agent — staffing adherence proxy.
-**Cmdlet:** `Get-GenesysAgentLoginActivity`
-**Catalog endpoint:** `analytics.query.user.aggregates.login.activity`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 19 — ACW Anomaly Detection
-
-**Goal:** Flag agents whose after-call work time is statistically far above the organisation average.
-**Cmdlet:** `Get-GenesysAgentAcwAnomaly`
-**Backing cmdlet:** `Get-GenesysAgentPerformance`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 20 — Long Handle Time Investigation
-
-**Goal:** Identify conversations exceeding a handle-time threshold — supervisor escalation queue.
-**Cmdlet:** `Get-GenesysLongHandleConversation`
-**Backing dataset:** `analytics-conversation-details`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 21 — Repeat Caller / FCR Proxy
-
-**Goal:** Detect customers contacting more than once in a window — proxy for First Contact Resolution failure.
-**Cmdlet:** `Get-GenesysRepeatCaller`
-**Backing dataset:** `analytics-conversation-details`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 22 — WebRTC Disconnect Heatmap
-
-**Goal:** Hourly trend of WebRTC error codes (ICE, STUN, TURN, RTP) — isolates network/firewall issues.
-**Cmdlet:** `Get-GenesysWebRtcDisconnectSummary`
-**Backing cmdlet:** `Get-GenesysAgentVoiceQuality`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 23 — Conversation Latency Trending
-
-**Goal:** Track hourly avg handle, talk, ACW, and speed-of-answer per queue — detect latency spikes.
-**Cmdlet:** `Get-GenesysConversationLatencyTrend`
-**Backing cmdlet:** `Get-GenesysQueuePerformance`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 24 — WFM Management Unit Visibility
-
-**Goal:** Understand workforce management unit structure — supports scheduling and adherence dashboards.
-**Cmdlet:** `Get-GenesysWorkforceManagementUnit`
-**Catalog endpoint:** `workforce.get.management.units`
-**Status:** ✅ Delivered
-
----
-
-#### Idea 25 — Journey Action Map Inventory
-
-**Goal:** Track active predictive engagement triggers (web chat offers, callbacks) — digital CX visibility.
-**Cmdlet:** `Get-GenesysJourneyActionMap`
-**Catalog endpoint:** `journey.get.action.maps`
-**Status:** ✅ Delivered
+- Conversation Investigation (moved to 1.1).
+- Queue Investigation (moved to 1.2).
+- Profile-by-dataset redaction sweep beyond the Agent baseline (moved to 1.1
+  with the Conversation flagship, where free-text content makes it
+  load-bearing).
+- Reporting-contract cleanup of `Get-GenesysQueueHealthSnapshot` and
+  `Invoke-GenesysOperationsReport` (moved to 1.2 with the Queue flagship,
+  whose join logic overlaps).
+- Edge Alarms & Event Feed (Idea 5), Session 20 temporal trends (1.3).
+- Any composition that introduces a new artifact format, a new module, or a
+  cross-module reference beyond Genesys.Ops → Genesys.Core. Investigations
+  must live within the existing three-module structure.
 
 ---
 
-#### Idea 26 — Enhanced Operations Report
+## Release 1.1 — Conversation Investigation + redaction hardening
 
-**Goal:** Single composite report covering abandon rates, SLA, edge health, alerts, and WebRTC issues.
-**Cmdlet:** `Invoke-GenesysOperationsReport`
-**Backing cmdlets:** All new KPI cmdlets above
-**Status:** ✅ Delivered
+**Goal:** Add the second flagship and harden redaction for the free-text
+content it surfaces.
 
----
-
-#### Idea 27 — Peak Hour Load Analysis
-
-**Goal:** Identify staffing gaps vs offered volume by 15-minute interval — feeds WFM scheduling.
-**Cmdlet:** `Get-GenesysPeakHourLoad`
-**Backing cmdlet:** `Get-GenesysConversationLatencyTrend`
-**Status:** ✅ Delivered — ranks top-N peak intervals by volume or handle time (PT1H granularity; PT15M requires direct catalog body override via DatasetParameters)
-
----
-
-#### Idea 28 — Configuration Change Audit Feed
-
-**Goal:** Near-real-time feed of admin changes (queue, flow, user) via audit logs — change governance.
-**Cmdlet:** `Get-GenesysChangeAuditFeed`
-**Backing cmdlet:** `Get-GenesysAuditEvent`
-**Status:** ✅ Delivered — wraps audit events with risk classification (HIGH/MEDIUM/LOW) and a human-readable Summary field; notification push layer remains a future integration
+- [ ] **Flagship investigation — Conversation.**
+      `Get-GenesysConversationInvestigation -ConversationId <x>` →
+      conversation detail + every agent involved (with their division/skills/
+      queues at time of contact, current-state attribution acceptable for
+      1.1) + recordings/evaluations/sentiment when present.
+- [ ] **Profile-by-dataset redaction sweep.** Explicit allow/deny rules for
+      every endpoint that returns free-text or payload strings, applied at
+      both dataset and composer levels. Conversation Investigation must
+      inherit dataset-level redaction without bypass.
+- [ ] **Acceptance tests for Conversation Investigation** mirroring the Agent
+      pattern: happy path, determinism, missing recordings/evaluations,
+      required-step failure, redaction (with explicit checks on transcript
+      and evaluation comment fields), manifest validity.
+- [ ] Live validation of any Conversation-only datasets not covered in 1.0
+      (`analytics-conversation-details`, recordings, evaluations).
 
 ---
 
-#### Idea 29 — Outbound Campaign Performance Dashboard
+## Release 1.2 — Queue Investigation + reporting-contract cleanup
 
-**Goal:** Dial rate, contact rate, abandon rate, pacing mode for outbound campaigns.
-**Cmdlet:** `Get-GenesysOutboundCampaignPerformance`
-**Backing cmdlets:** `Get-GenesysOutboundCampaign`, `Get-GenesysOutboundEvent`
-**Status:** ✅ Delivered — per-campaign KPI snapshot (ConnectRate, NoAnswerRate, disposition breakdown); analytics aggregates for dialer metrics remain a future enhancement
+**Goal:** Add the third flagship and reconcile pre-existing ad-hoc composers
+with the composition contract.
+
+- [ ] **Flagship investigation — Queue.**
+      `Get-GenesysQueueInvestigation -QueueId <x> -Since <window>` →
+      queue config + members + observations + SLA + abandons + agents
+      currently or recently active on the queue.
+- [ ] **Reporting-contract cleanup.** Re-implement
+      `Get-GenesysQueueHealthSnapshot` on top of `Invoke-Investigation` where
+      its join logic overlaps Queue Investigation, or explicitly leave it in
+      place with a one-line note in source pointing to
+      `Get-GenesysQueueInvestigation`. Same disposition decision for
+      `Invoke-GenesysOperationsReport`.
+- [ ] **Acceptance tests for Queue Investigation** mirroring the Agent and
+      Conversation patterns.
+- [ ] Live validation of any Queue-only datasets not covered in 1.0/1.1
+      (queue members, queue observations, queue performance, abandon
+      aggregates, user observations).
 
 ---
 
-#### Idea 30 — Flow Outcome KPI Correlation
+## Release 1.3 — Visibility extensions (tentative)
 
-**Goal:** Correlate IVR flow outcomes with CSAT scores and handle time — identify self-service drop-off.
-**Cmdlet:** `Get-GenesysFlowOutcomeKpiCorrelation`
-**Backing cmdlets:** `Get-GenesysFlowAggregate`, `Get-GenesysFlow`, `Get-GenesysSurvey`, `Get-GenesysQueuePerformance`
-**Status:** ✅ Delivered — per-flow SelfServeRate, FailureRate, org-wide AvgSurveyScore, AvgHandleSec; per-conversation join for full correlation requires additional dataset work
+**Goal:** Add deferred visibility features once the composition layer is
+established and proven across all three flagships.
+
+- [ ] Idea 5 — Edge Alarms & Event Feed (catalog endpoint
+      `telephony.get.edge.logs`, `Get-GenesysEdgeEvent` Ops cmdlet, NOC feed
+      contract).
+- [ ] Session 20 — Temporal Trend and Comparative Reporting
+      (period-over-period comparisons on Core aggregate outputs and on
+      investigation outputs).
+- [ ] Additional flagship investigations identified during 1.0–1.2
+      (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
+      names a concrete use case.
 
 ---
 
-### Phase 5 Summary
+## 4. Definition of Done
 
-| Category                        | Ideas | New Catalog Endpoints | New Ops Cmdlets |
-|---------------------------------|-------|-----------------------|-----------------|
-| Edge / Telephony Telemetry      | 1–5   | 4                     | 5               |
-| Queue KPIs                      | 6–11  | 5                     | 5               |
-| Quality & CSAT                  | 12–15 | 2                     | 3               |
-| Alerting                        | 16–17 | 2                     | 2               |
-| Agent Insights                  | 18–21 | 1                     | 4               |
-| WebRTC & Latency                | 22–23 | —                     | 2               |
-| WFM & Journey                   | 24–25 | 2                     | 2               |
-| Composite Snapshots             | 26–30 | —                     | 8               |
-| **Total**                       | **30**| **16**                | **31**          |
+A release is not complete unless:
 
-### ConversationAnalyser Reporting Sessions (Session 13–20+)
-
-| Session | Feature                              | Status           |
-|---------|--------------------------------------|------------------|
-| 13      | Reference Data Foundation            | ✅ Delivered     |
-| 14      | Queue Performance Aggregate Report   | ✅ Delivered     |
-| 15      | Agent Performance Report             | ✅ Delivered     |
-| 16      | Transfer and Escalation Chain Intel  | ✅ Delivered     |
-| 17      | IVR and Flow Containment Report      | ✅ Delivered     |
-| 18      | Wrapup Code Distribution             | ✅ Delivered     |
-| 19      | Quality and Voice-of-Customer Overlay| ✅ Delivered     |
-| 20      | Temporal Trend and Comparative       | 🔲 Planned       |
-
-### Phase 5 exit criteria
-
-Phase 5 is closed when all of the following hold:
-
-- Remaining planned operational dashboard work (e.g. Idea 5 — Edge Alarms & Event Feed) is either completed or consciously deferred with an explicit owner and reason.
-- All reporting outputs consume Core artifacts/contracts (`out/<datasetKey>/<runId>/`) rather than bypassing Core with bespoke extraction logic.
-- Every delivered Ops cmdlet has a clear, stable command contract (inputs, parameters, output shape) and is documented as the canonical entrypoint for its dashboard idea.
-- Remaining reporting sessions (19, 20) are either completed or moved to a dedicated reporting phase with owners and sequencing recorded.
+- All checklist items for that release are implemented or explicitly deferred
+  with a written rationale in this file.
+- UI elements are connected to real behaviour rather than placeholders.
+- Affected docs (`README.md`, `ONBOARDING.md`, `INVESTIGATIONS.md`,
+  `READINESS_REVIEW.md`, training material) are updated where workflow or
+  product behaviour changed.
+- Logging and error handling are sufficient to diagnose failures without
+  reaching for source code.
+- New cross-module references have been justified in the relevant design doc;
+  by default, prefer fewer abstractions, fewer files, and fewer cross-module
+  calls.

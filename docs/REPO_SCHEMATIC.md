@@ -41,6 +41,7 @@ Genesys.Core/
 │   ├── ONBOARDING.md
 │   ├── ENGINEER_INTEGRATIONS_AUTH.md
 │   ├── ROADMAP.md
+│   ├── INVESTIGATIONS.md                 # Investigation composer design (Release 1.0 Track B)
 │   ├── CHANGELOG.md
 │   ├── READINESS_REVIEW.md
 │   ├── REPO_SCHEMATIC.md

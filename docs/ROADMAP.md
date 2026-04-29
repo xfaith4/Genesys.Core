@@ -77,7 +77,7 @@ in a single dataset.
 - [ ] Live validation of each remaining Phase 4 endpoint against Genesys Cloud
       (confirm `itemsPath`, paging strategy/profile, retry behaviour; update
       catalog entries where live behaviour differs from initial wiring).
-- [ ] Mirror-catalog consolidation / canonical cutover (remove the deprecated
+- [x] Mirror-catalog consolidation / canonical cutover (remove the deprecated
       `genesys-core.catalog.json` stub, retire the legacy fallback in
       `Resolve-Catalog`, update tests and agent/app docs to reference only
       `catalog/genesys.catalog.json`).
@@ -146,9 +146,8 @@ artifact format, no broad abstraction layer.
   presences, user activity report, `analytics-conversation-details-query`.
   The flagship cannot be marked done until each of these reports a green
   validation status in its catalog entry.
-- Mirror-catalog consolidation should land before Agent Investigation
-  references catalog keys, to avoid a double rename when the deprecated stub
-  is removed.
+- Mirror-catalog consolidation has landed; Agent Investigation may reference
+  catalog keys without risk of a double rename.
 - Redaction baseline coverage (Track A) is the floor; per-dataset profile
   hardening rides with the Conversation flagship in 1.1.
 

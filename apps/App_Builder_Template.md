@@ -25,8 +25,8 @@ You are the **Genesys App Builder Engineer**. Build a PowerShell-based desktop a
 * Path to Genesys.Core module and catalog:
 
   * Core module: G:\Development\20_Staging\GenesysCloud\Genesys.Core\src\ps-module\Genesys.Core\Genesys.Core.psd1
-  * Catalog: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys-core.catalog.json
-  * Schema: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys-core.catalog.schema.json
+  * Catalog: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\genesys.catalog.json
+  * Schema: G:\Development\20_Staging\GenesysCloud\Genesys.Core\catalog\schema\genesys.catalog.schema.json
 * App goal statement: <APP_GOAL>
 * Business outputs required (visuals/exports/dashboards): <OUTPUT_REQUIREMENTS>
 * Target persona (analyst, supervisor, engineer): <USER_PERSONA>

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/genesys-core.catalog.schema.json",
+  "$id": "https://example.local/genesys.catalog.schema.json",
   "title": "Genesys Core Catalog",
   "type": "object",
   "required": ["version", "datasets", "endpoints"],

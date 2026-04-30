@@ -218,16 +218,16 @@ function New-AuditDatasetParameters {
         EndUtc   = $endUtc.ToString('o')
     }
 
-    $serviceNames = _Split-FilterValues -Value $QuerySpec.Service
+    $serviceNames = @(_Split-FilterValues -Value $QuerySpec.Service)
     if ($serviceNames.Count -gt 0) {
         $datasetParameters.ServiceNames = $serviceNames
     }
 
-    $actions = _Split-FilterValues -Value $QuerySpec.Action
+    $actions = @(_Split-FilterValues -Value $QuerySpec.Action)
     if ($actions.Count -gt 0) {
         $datasetParameters.Actions = $actions
 
-        $entityTypes = _Split-FilterValues -Value $QuerySpec.Entity
+        $entityTypes = @(_Split-FilterValues -Value $QuerySpec.Entity)
         if ($entityTypes.Count -eq 0) {
             throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
         }

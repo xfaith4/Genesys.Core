@@ -3204,7 +3204,7 @@ function _LoadRunAndRefreshGrid {
     if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = '' }
 
     # Load or build index (may take a moment for large runs)
-    $allIdx = Load-RunIndex -RunFolder $RunFolder
+    $allIdx = @(Load-RunIndex -RunFolder $RunFolder)
     $script:State.CurrentPage = 1
     _ApplyFiltersAndRefresh -AllIndex $allIdx
     _SetStatus "Loaded $($allIdx.Count) records from $([System.IO.Path]::GetFileName($RunFolder))"
@@ -3222,7 +3222,7 @@ function _ApplyFiltersAndRefresh {
 
     if ($null -eq $AllIndex) {
         if ($null -eq $script:State.CurrentRunFolder) { return }
-        $AllIndex = Load-RunIndex -RunFolder $script:State.CurrentRunFolder
+        $AllIndex = @(Load-RunIndex -RunFolder $script:State.CurrentRunFolder)
     }
 
     $dir    = $script:State.FilterDirection
@@ -3232,7 +3232,7 @@ function _ApplyFiltersAndRefresh {
     $userId = $script:TxtFilterUserId.Text.Trim()
     $divId  = $script:TxtFilterDivisionId.Text.Trim()
 
-    $filtered = $AllIndex | Where-Object {
+    $filtered = @($AllIndex | Where-Object {
         $ok = $true
         if ($dir    -and $_.direction -ne $dir)   { $ok = $false }
         if ($media  -and $_.mediaType -ne $media) { $ok = $false }
@@ -3245,7 +3245,7 @@ function _ApplyFiltersAndRefresh {
         if ($userId -and -not (@($_.userIds)     -contains $userId)) { $ok = $false }
         if ($divId  -and -not (@($_.divisionIds) -contains $divId))  { $ok = $false }
         $ok
-    }
+    })
 
     # Apply per-column text filters (post-query LIKE on index properties)
     if ($script:State.ColumnFilters.Count -gt 0) {
@@ -3254,10 +3254,10 @@ function _ApplyFiltersAndRefresh {
             if (-not $val) { continue }
             $idxProp = if ($script:_IndexPropMap.ContainsKey($bindPath)) { $script:_IndexPropMap[$bindPath] } else { $bindPath }
             $lo = $val.ToLowerInvariant()
-            $filtered = $filtered | Where-Object {
+            $filtered = @($filtered | Where-Object {
                 $propVal = $_.PSObject.Properties[$idxProp]
                 $null -ne $propVal -and [string]$propVal.Value -like "*$lo*"
-            }
+            })
         }
     }
 
@@ -3290,7 +3290,7 @@ function _RenderCurrentPage {
         return
     }
 
-    $idx      = $script:State.CurrentIndex
+    $idx      = @($script:State.CurrentIndex)
     $page     = $script:State.CurrentPage
     $pageSize = $script:State.PageSize
     $total    = $idx.Count
@@ -3307,8 +3307,8 @@ function _RenderCurrentPage {
         return
     }
 
-    $pageEntries = $idx[$startIdx..$endIdx]
-    $displayRows = $pageEntries | ForEach-Object { Get-ConversationDisplayRow -IndexEntry $_ }
+    $pageEntries = @($idx[$startIdx..$endIdx])
+    $displayRows = @($pageEntries | ForEach-Object { Get-ConversationDisplayRow -IndexEntry $_ })
 
     _Dispatch {
         $script:DgConversations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($displayRows)
@@ -4297,15 +4297,15 @@ function _ExportPageCsv {
     $dlg.FileName   = "page_$($script:State.CurrentPage).csv"
     if (-not $dlg.ShowDialog()) { return }
 
-    $idx      = $script:State.CurrentIndex
+    $idx      = @($script:State.CurrentIndex)
     $page     = $script:State.CurrentPage
     $pageSize = $script:State.PageSize
     $startIdx = ($page - 1) * $pageSize
     $endIdx   = [math]::Min($startIdx + $pageSize - 1, $idx.Count - 1)
     if ($startIdx -gt $endIdx) { return }
 
-    $entries  = $idx[$startIdx..$endIdx]
-    $records  = Get-IndexedPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $entries
+    $entries  = @($idx[$startIdx..$endIdx])
+    $records  = @(Get-IndexedPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $entries)
     Export-PageToCsv -Records $records -OutputPath $dlg.FileName
     _SetStatus "Exported page to $($dlg.FileName)"
 }

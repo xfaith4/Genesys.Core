@@ -157,6 +157,9 @@
 
         # Idea 30 — Flow Outcome KPI Correlation
         'Get-GenesysFlowOutcomeKpiCorrelation'
+
+        # Investigations (Release 1.0 Track B)
+        'Get-GenesysAgentInvestigation'
     )
 
     CmdletsToExport   = @()

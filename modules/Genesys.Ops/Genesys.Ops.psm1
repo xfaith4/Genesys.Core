@@ -4062,3 +4062,575 @@ function Invoke-GenesysOperationsReport {
 }
 
 #endregion
+
+# ---------------------------------------------------------------------------
+#region Investigations (Release 1.0 Track B)
+# ---------------------------------------------------------------------------
+
+$script:GcOpsComposerVersion = '1.0.0'
+
+function ConvertTo-IsoUtcTimestamp {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object] $Value
+    )
+
+    if ($Value -is [DateTime]) {
+        return ([DateTime]$Value).ToUniversalTime().ToString('o')
+    }
+
+    $parsed = [DateTime]::Parse([string]$Value)
+    return $parsed.ToUniversalTime().ToString('o')
+}
+
+function Resolve-DatasetValidationStatus {
+    [CmdletBinding()]
+    param(
+        [string] $DatasetKey,
+        [object] $Catalog
+    )
+
+    if (-not $Catalog) { return 'unvalidated' }
+
+    $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
+    if (-not $datasetsProp) { return 'unvalidated' }
+
+    $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
+    if (-not $dataset) { return 'unvalidated' }
+
+    $statusProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'validationStatus' } | Select-Object -First 1
+    if ($statusProp -and $statusProp.Value) { return [string]$statusProp.Value }
+    return 'unvalidated'
+}
+
+function Resolve-DatasetRedactionProfileName {
+    [CmdletBinding()]
+    param(
+        [string] $DatasetKey,
+        [object] $Catalog
+    )
+
+    if (-not $Catalog) { return $null }
+    $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
+    if (-not $datasetsProp) { return $null }
+    $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
+    if (-not $dataset) { return $null }
+    $rpProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'redactionProfile' } | Select-Object -First 1
+    if ($rpProp -and $rpProp.Value) { return [string]$rpProp.Value }
+    return $null
+}
+
+function Get-OpsCatalog {
+    [CmdletBinding()]
+    param()
+
+    $catalogPath = $script:GC.CatalogPath
+    if (-not $catalogPath) {
+        $candidate = Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'
+        if (Test-Path $candidate) { $catalogPath = (Resolve-Path $candidate).Path }
+    }
+    if (-not $catalogPath -or -not (Test-Path $catalogPath)) { return $null }
+    return (Get-Content -Path $catalogPath -Raw | ConvertFrom-Json)
+}
+
+function Sort-RecordsForDeterminism {
+    [CmdletBinding()]
+    param(
+        [object[]] $Records,
+        [string] $SortKey
+    )
+
+    if (-not $Records -or $Records.Count -eq 0) { return @() }
+    if (-not $SortKey) { $SortKey = 'id' }
+
+    $keyed = foreach ($r in $Records) {
+        $value = $null
+        $cursor = $r
+        foreach ($segment in $SortKey -split '\.') {
+            if ($null -eq $cursor) { break }
+            $prop = $cursor.PSObject.Properties | Where-Object { $_.Name -eq $segment } | Select-Object -First 1
+            if (-not $prop) { $cursor = $null; break }
+            $cursor = $prop.Value
+        }
+        $value = if ($null -ne $cursor) { [string]$cursor } else { '' }
+        [pscustomobject]@{ key = $value; record = $r }
+    }
+
+    $sorted = $keyed | Sort-Object -Property key -Stable
+    return @($sorted | ForEach-Object { $_.record })
+}
+
+function Invoke-Investigation {
+    <#
+    .SYNOPSIS
+        Internal composer — runs a sequence of catalog datasets and emits the
+        standard investigation run-artifact set.
+    .DESCRIPTION
+        Implements the Investigation Manifest Contract defined in
+        docs/INVESTIGATIONS.md. Designed to be called by a public flagship
+        cmdlet (e.g. Get-GenesysAgentInvestigation) which has already resolved
+        any name-based subject input to a stable identifier.
+
+        For tests, pass -DatasetInvoker to inject synthetic step records and
+        bypass live API calls. The injected scriptblock receives the step
+        descriptor and returns a hashtable with keys: records, runId, status,
+        errorMessage.
+    .PARAMETER DatasetInvoker
+        Optional scriptblock that overrides the default Invoke-GenesysDataset
+        path. Receives ($Step, $Subject, $Window) and must return:
+            @{ records = @(...); runId = '<id>'; status = 'ok'|'failed'|'skipped'; errorMessage = $null|<text> }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidatePattern('^[a-z][a-z0-9-]*$')]
+        [string] $InvestigationKey,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('agent', 'conversation', 'queue')]
+        [string] $SubjectType,
+
+        [Parameter(Mandatory)]
+        [hashtable] $Subject,
+
+        [hashtable] $Window,
+
+        [Parameter(Mandatory)]
+        [object[]] $Steps,
+
+        [string] $OutputRoot = 'out',
+
+        [string] $RunId,
+
+        [scriptblock] $DatasetInvoker
+    )
+
+    if (-not $RunId) { $RunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') }
+
+    $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
+        [System.IO.Path]::GetFullPath($OutputRoot)
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location).Path -ChildPath $OutputRoot))
+    }
+
+    $runFolder    = Join-Path $resolvedOutputRoot (Join-Path $InvestigationKey $RunId)
+    $dataFolder   = Join-Path $runFolder 'data'
+    $manifestPath = Join-Path $runFolder 'manifest.json'
+    $eventsPath   = Join-Path $runFolder 'events.jsonl'
+    $summaryPath  = Join-Path $runFolder 'summary.json'
+
+    New-Item -Path $dataFolder -ItemType Directory -Force | Out-Null
+
+    $catalog = Get-OpsCatalog
+    $startedAt = [DateTime]::UtcNow
+    $startedAtIso = $startedAt.ToString('o')
+
+    $writeEvent = {
+        param($type, $payload)
+        $entry = [ordered]@{
+            timestampUtc     = [DateTime]::UtcNow.ToString('o')
+            investigationKey = $InvestigationKey
+            runId            = $RunId
+            eventType        = $type
+            payload          = $payload
+        }
+        Add-Content -Path $eventsPath -Value ($entry | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
+    }
+
+    & $writeEvent 'investigation.started' @{
+        subjectType = $SubjectType
+        subjectId   = $Subject.SubjectId
+        window      = $Window
+        stepCount   = $Steps.Count
+    }
+
+    $summarySections = [ordered]@{}
+    $datasetsInvoked = New-Object System.Collections.Generic.List[object]
+    $joinPlan        = New-Object System.Collections.Generic.List[object]
+    $dataPaths       = [ordered]@{}
+    $datasetProfiles = [ordered]@{}
+    $aborted         = $false
+    $abortReason     = $null
+
+    foreach ($step in $Steps) {
+        $stepName    = [string]$step.Name
+        $datasetKey  = [string]$step.DatasetKey
+        $emitAs      = if ($step.ContainsKey('EmitAs') -and $step.EmitAs) { [string]$step.EmitAs } else { $stepName }
+        $required    = if ($step.ContainsKey('Required')) { [bool]$step.Required } else { $true }
+        $joinKind    = if ($step.ContainsKey('JoinKind') -and $step.JoinKind) { [string]$step.JoinKind } else { 'Inner' }
+        $sortKey     = if ($step.ContainsKey('SortKey') -and $step.SortKey) { [string]$step.SortKey } else { 'id' }
+        $joinOn      = if ($step.ContainsKey('JoinOn')) { $step.JoinOn } else { $null }
+
+        $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
+
+        $joinPlan.Add([ordered]@{
+            stepName   = $stepName
+            leftSource = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
+            leftKey    = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
+            rightKey   = if ($joinOn -and $joinOn.ContainsKey('Right')) { $joinOn.Right } else { $null }
+            joinKind   = $joinKind
+        }) | Out-Null
+
+        & $writeEvent 'step.started' @{
+            stepName   = $stepName
+            datasetKey = $datasetKey
+            required   = $required
+        }
+
+        $stepResult = $null
+        try {
+            if ($DatasetInvoker) {
+                $stepResult = & $DatasetInvoker $step $Subject $Window
+            } else {
+                $invokeArgs = @{ Dataset = $datasetKey }
+                if ($step.ContainsKey('Parameters') -and $step.Parameters) {
+                    $invokeArgs['DatasetParameters'] = $step.Parameters
+                }
+                $records = Invoke-GenesysDataset @invokeArgs
+                $stepResult = @{
+                    records      = @($records)
+                    runId        = $null
+                    status       = 'ok'
+                    errorMessage = $null
+                }
+            }
+        } catch {
+            $stepResult = @{
+                records      = @()
+                runId        = $null
+                status       = 'failed'
+                errorMessage = $_.Exception.Message
+            }
+        }
+
+        $records = if ($stepResult -and $stepResult.records) { @($stepResult.records) } else { @() }
+
+        if ($step.ContainsKey('SubjectFilter') -and $step.SubjectFilter -and $stepResult.status -eq 'ok') {
+            $filter = [scriptblock]$step.SubjectFilter
+            $records = @($records | Where-Object { & $filter $_ $Subject })
+        }
+
+        $records = Sort-RecordsForDeterminism -Records $records -SortKey $sortKey
+
+        $stepDataPath = Join-Path $dataFolder ("$stepName.jsonl")
+        if ($records.Count -gt 0) {
+            $records | ForEach-Object {
+                Add-Content -Path $stepDataPath -Value ($_ | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
+            }
+        } else {
+            New-Item -Path $stepDataPath -ItemType File -Force | Out-Null
+        }
+        $dataPaths[$stepName] = $stepDataPath
+
+        $summarySections[$emitAs] = $records
+
+        $datasetsInvoked.Add([ordered]@{
+            stepName         = $stepName
+            datasetKey       = $datasetKey
+            runId            = $stepResult.runId
+            validationStatus = (Resolve-DatasetValidationStatus -DatasetKey $datasetKey -Catalog $catalog)
+            recordCount      = $records.Count
+            required         = $required
+            status           = $stepResult.status
+            errorMessage     = $stepResult.errorMessage
+        }) | Out-Null
+
+        if ($stepResult.status -eq 'failed') {
+            & $writeEvent 'step.failed' @{
+                stepName     = $stepName
+                datasetKey   = $datasetKey
+                errorMessage = $stepResult.errorMessage
+            }
+            if ($required) {
+                $aborted = $true
+                $abortReason = "Required step '$stepName' (dataset '$datasetKey') failed: $($stepResult.errorMessage)"
+                break
+            }
+        } else {
+            & $writeEvent 'step.finished' @{
+                stepName    = $stepName
+                datasetKey  = $datasetKey
+                recordCount = $records.Count
+            }
+        }
+    }
+
+    $finishedAt = [DateTime]::UtcNow
+    $finishedAtIso = $finishedAt.ToString('o')
+
+    $sinceIso = $null
+    $untilIso = $null
+    if ($Window -and $Window.ContainsKey('Since') -and $null -ne $Window.Since) {
+        $sinceIso = ConvertTo-IsoUtcTimestamp $Window.Since
+    }
+    if ($Window -and $Window.ContainsKey('Until') -and $null -ne $Window.Until) {
+        $untilIso = ConvertTo-IsoUtcTimestamp $Window.Until
+    }
+
+    $windowObj = [ordered]@{ since = $sinceIso; until = $untilIso }
+    $redactionObj = [ordered]@{ datasets = $datasetProfiles; composerOverrides = @() }
+    $artifactsObj = [ordered]@{
+        manifestPath = $manifestPath
+        eventsPath   = $eventsPath
+        summaryPath  = $summaryPath
+        dataPaths    = $dataPaths
+    }
+
+    $datasetsInvokedArray = $datasetsInvoked.ToArray()
+    $joinPlanArray = $joinPlan.ToArray()
+    $subjectIdString = [string]$Subject['SubjectId']
+
+    $manifest = [ordered]@{}
+    $manifest['investigationKey'] = $InvestigationKey
+    $manifest['runId']            = $RunId
+    $manifest['subjectType']      = $SubjectType
+    $manifest['subjectId']        = $subjectIdString
+    $manifest['window']           = $windowObj
+    $manifest['datasetsInvoked']  = $datasetsInvokedArray
+    $manifest['joinPlan']         = $joinPlanArray
+    $manifest['redactionProfile'] = $redactionObj
+    $manifest['outputArtifacts']  = $artifactsObj
+    $manifest['startedAt']        = $startedAtIso
+    $manifest['finishedAt']       = $finishedAtIso
+    $manifest['composerVersion']  = $script:GcOpsComposerVersion
+
+    Set-Content -Path $manifestPath -Value ($manifest | ConvertTo-Json -Depth 100) -Encoding utf8
+
+    # Schema validation — fail the run on shape violation.
+    $schemaPath = Join-Path $PSScriptRoot '../../catalog/schema/investigation.manifest.schema.json'
+    if (Test-Path $schemaPath) {
+        $schemaRaw = Get-Content -Path $schemaPath -Raw
+        $manifestRaw = Get-Content -Path $manifestPath -Raw
+        try {
+            $valid = $manifestRaw | Test-Json -Schema $schemaRaw -ErrorAction Stop
+        } catch {
+            $valid = $false
+            & $writeEvent 'manifest.schema.invalid' @{ message = $_.Exception.Message }
+        }
+        if (-not $valid) {
+            throw "Investigation manifest failed schema validation: $manifestPath"
+        }
+    }
+
+    if ($aborted) {
+        & $writeEvent 'investigation.failed' @{ reason = $abortReason }
+        throw $abortReason
+    }
+
+    # Custom serializer — every summary section is an array, even when it has 0 or 1 records.
+    # ConvertTo-Json unwraps single-element arrays in PS5.1, so build the JSON manually.
+    $sectionParts = foreach ($entry in $summarySections.GetEnumerator()) {
+        $arr = @($entry.Value)
+        if ($arr.Count -eq 0) {
+            $body = '[]'
+        } elseif ($arr.Count -eq 1) {
+            $body = '[' + ($arr[0] | ConvertTo-Json -Depth 100 -Compress) + ']'
+        } else {
+            $body = $arr | ConvertTo-Json -Depth 100 -Compress
+        }
+        '"' + $entry.Key + '":' + $body
+    }
+    $summaryJson = '{' + ($sectionParts -join ',') + '}'
+    Set-Content -Path $summaryPath -Value $summaryJson -Encoding utf8
+
+    $totalRecords = 0
+    foreach ($entry in $datasetsInvoked) { $totalRecords += [int]$entry['recordCount'] }
+    & $writeEvent 'investigation.finished' @{ recordCount = $totalRecords }
+
+    return [pscustomobject]@{
+        InvestigationKey = $InvestigationKey
+        RunId            = $RunId
+        RunFolder        = $runFolder
+        ManifestPath     = $manifestPath
+        EventsPath       = $eventsPath
+        SummaryPath      = $summaryPath
+        DataFolder       = $dataFolder
+        Sections         = $summarySections
+    }
+}
+
+function Get-GenesysAgentInvestigationStepDefinition {
+    <#
+    .SYNOPSIS
+        Returns the ordered step descriptors for the Agent Investigation flagship.
+    .DESCRIPTION
+        Centralised so the public cmdlet and integration tests share the same
+        contract.  Designed for the investigation composer — each step is a
+        hashtable consumed by Invoke-Investigation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $UserId,
+
+        [datetime] $Since,
+
+        [datetime] $Until
+    )
+
+    $idMatchesUser  = { param($r, $s) ($r.PSObject.Properties['id']     -and $r.id     -eq $s.UserId) }
+    $userIdMatches  = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s.UserId) }
+    $userMembership = { param($r, $s)
+        if ($r.PSObject.Properties['memberCount'] -and $r.PSObject.Properties['members']) {
+            return ($r.members | Where-Object { $_.id -eq $s.UserId }).Count -gt 0
+        }
+        $true
+    }
+    $participantMatchesUser = { param($r, $s)
+        if (-not $r.PSObject.Properties['participants']) { return $false }
+        return ($r.participants | Where-Object { $_.userId -eq $s.UserId }).Count -gt 0
+    }
+
+    @(
+        @{
+            Name          = 'identity'
+            DatasetKey    = 'users'
+            SubjectFilter = $idMatchesUser
+            EmitAs        = 'agent'
+            Required      = $true
+            JoinKind      = 'Seed'
+            JoinOn        = @{ Left = $null; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'division'
+            DatasetKey    = 'users.division.analysis.get.users.with.division.info'
+            SubjectFilter = $idMatchesUser
+            EmitAs        = 'division'
+            Required      = $true
+            JoinKind      = 'Inner'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'skills'
+            DatasetKey    = 'routing.get.all.routing.skills'
+            EmitAs        = 'skills'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'queues'
+            DatasetKey    = 'routing-queues'
+            SubjectFilter = $userMembership
+            EmitAs        = 'queues'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'members.id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'presence'
+            DatasetKey    = 'users.get.bulk.user.presences'
+            SubjectFilter = $userIdMatches
+            EmitAs        = 'presence'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+            SortKey       = 'userId'
+        }
+        @{
+            Name          = 'activity'
+            DatasetKey    = 'analytics.query.user.details.activity.report'
+            SubjectFilter = $userIdMatches
+            EmitAs        = 'activity'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+            SortKey       = 'userId'
+        }
+        @{
+            Name          = 'conversations'
+            DatasetKey    = 'analytics-conversation-details-query'
+            SubjectFilter = $participantMatchesUser
+            EmitAs        = 'conversations'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'participants.userId' }
+            SortKey       = 'conversationId'
+        }
+    )
+}
+
+function Get-GenesysAgentInvestigation {
+    <#
+    .SYNOPSIS
+        Run the Agent Investigation flagship — joins identity, division, skills,
+        queue memberships, presence, activity, and conversations for one agent.
+    .DESCRIPTION
+        Composes seven catalog datasets via Invoke-Investigation and emits the
+        standard run-artifact set under out/agent-investigation/<runId>/.
+
+        Resolves -UserName to a UserId before invoking the composer. Use
+        -DatasetInvoker (a scriptblock returning fixture data) to drive
+        determinism / integration tests without touching the live API.
+    .PARAMETER UserId
+        Resolved Genesys user GUID. Required if -UserName is not supplied.
+    .PARAMETER UserName
+        Display-name fragment passed to Find-GenesysUser. The first match is
+        used; ambiguous matches throw.
+    .PARAMETER Since
+        Inclusive start of the investigation window. Defaults to 7 days ago.
+    .PARAMETER Until
+        Exclusive end of the investigation window. Defaults to now.
+    .PARAMETER OutputRoot
+        Root for the run-artifact tree. Defaults to 'out'.
+    .PARAMETER RunId
+        Override the auto-generated run identifier. Use only for deterministic
+        tests; do not set in production.
+    .PARAMETER DatasetInvoker
+        Test seam — see Invoke-Investigation. When supplied, no live API calls
+        are made and Connect-GenesysCloud is not required.
+    .EXAMPLE
+        Get-GenesysAgentInvestigation -UserId 'a1b2c3...' -Since (Get-Date).AddDays(-7)
+    .EXAMPLE
+        Get-GenesysAgentInvestigation -UserName 'Jane Doe'
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
+    param(
+        [Parameter(ParameterSetName = 'ById', Mandatory)]
+        [string] $UserId,
+
+        [Parameter(ParameterSetName = 'ByName', Mandatory)]
+        [string] $UserName,
+
+        [datetime] $Since,
+        [datetime] $Until,
+        [string]   $OutputRoot = 'out',
+        [string]   $RunId,
+        [scriptblock] $DatasetInvoker
+    )
+
+    if (-not $Until) { $Until = Get-Date }
+    if (-not $Since) { $Since = $Until.AddDays(-7) }
+
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+        $matches = @(Find-GenesysUser -Query $UserName)
+        if ($matches.Count -eq 0) { throw "No Genesys user matched '$UserName'." }
+        if ($matches.Count -gt 1) {
+            $names = ($matches | ForEach-Object { "$($_.name) <$($_.email)>" }) -join '; '
+            throw "Ambiguous user name '$UserName' — $($matches.Count) matches: $names"
+        }
+        $UserId = $matches[0].id
+    }
+
+    if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+    $steps = Get-GenesysAgentInvestigationStepDefinition -UserId $UserId -Since $Since -Until $Until
+
+    Invoke-Investigation `
+        -InvestigationKey 'agent-investigation' `
+        -SubjectType      'agent' `
+        -Subject          @{ SubjectId = $UserId; UserId = $UserId } `
+        -Window           @{ Since = $Since; Until = $Until } `
+        -Steps            $steps `
+        -OutputRoot       $OutputRoot `
+        -RunId            $RunId `
+        -DatasetInvoker   $DatasetInvoker
+}
+
+#endregion

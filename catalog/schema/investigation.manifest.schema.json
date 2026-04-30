@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://genesys.core/schema/investigation.manifest.schema.json",
+  "title": "Genesys.Core Investigation Manifest",
+  "description": "Manifest contract emitted by Invoke-Investigation. Settled in Release 1.0 so downstream tooling can consume any investigation uniformly without dispatching on investigationKey.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "investigationKey",
+    "runId",
+    "subjectType",
+    "subjectId",
+    "window",
+    "datasetsInvoked",
+    "joinPlan",
+    "redactionProfile",
+    "outputArtifacts",
+    "startedAt",
+    "finishedAt",
+    "composerVersion"
+  ],
+  "properties": {
+    "investigationKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Stable key, matches the output directory name (agent-investigation, conversation-investigation, queue-investigation)."
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique per-run identifier; same value as the directory segment."
+    },
+    "subjectType": {
+      "type": "string",
+      "enum": ["agent", "conversation", "queue"]
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Resolved subject identifier (GUID). Name-based inputs are resolved by the Ops cmdlet wrapper before reaching the composer."
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["since", "until"],
+      "properties": {
+        "since": {
+          "anyOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        },
+        "until": {
+          "anyOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "datasetsInvoked": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stepName",
+          "datasetKey",
+          "runId",
+          "validationStatus",
+          "recordCount",
+          "required",
+          "status",
+          "errorMessage"
+        ],
+        "properties": {
+          "stepName": { "type": "string", "minLength": 1 },
+          "datasetKey": { "type": "string", "minLength": 1 },
+          "runId": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          "validationStatus": {
+            "type": "string",
+            "enum": ["live-validated", "fixture", "unvalidated"]
+          },
+          "recordCount": { "type": "integer", "minimum": 0 },
+          "required": { "type": "boolean" },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "failed", "skipped"]
+          },
+          "errorMessage": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    },
+    "joinPlan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stepName", "leftSource", "leftKey", "rightKey", "joinKind"],
+        "properties": {
+          "stepName": { "type": "string", "minLength": 1 },
+          "leftSource": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          "leftKey": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          "rightKey": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          "joinKind": {
+            "type": "string",
+            "enum": ["Seed", "Inner", "Left"]
+          }
+        }
+      }
+    },
+    "redactionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["datasets", "composerOverrides"],
+      "properties": {
+        "datasets": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "composerOverrides": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestPath", "eventsPath", "summaryPath", "dataPaths"],
+      "properties": {
+        "manifestPath": { "type": "string", "minLength": 1 },
+        "eventsPath": { "type": "string", "minLength": 1 },
+        "summaryPath": { "type": "string", "minLength": 1 },
+        "dataPaths": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "composerVersion": { "type": "string", "minLength": 1 }
+  }
+}

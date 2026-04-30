@@ -563,8 +563,8 @@ function _FindInProgressRunFolder {
     }
 
     $threshold = $null
-    if ($StartedAfterUtc.HasValue) {
-        $threshold = $StartedAfterUtc.Value.AddMinutes(-2)
+    if ($null -ne $StartedAfterUtc) {
+        $threshold = ([datetime]$StartedAfterUtc).ToUniversalTime().AddMinutes(-2)
     }
 
     $candidates = [System.Collections.Generic.List[string]]::new()

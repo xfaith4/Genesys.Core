@@ -781,9 +781,14 @@ function Test-CoreRunArtifactContract {
                     $dataRecordCount++
                     try {
                         $record = $line | ConvertFrom-Json
-                        $convId = [string](_ObjVal $record @('conversationId') '')
+                        $idCommand = Get-Command Get-ConversationIdFromRecord -ErrorAction SilentlyContinue
+                        $convId = if ($null -ne $idCommand) {
+                            [string](& $idCommand -Record $record)
+                        } else {
+                            [string](_ObjVal $record @('conversationId') '')
+                        }
                         if ([string]::IsNullOrWhiteSpace($convId)) {
-                            $errors.Add("Missing required conversationId at ${rel}:${lineNo}") | Out-Null
+                            $errors.Add("Missing required conversation id at ${rel}:${lineNo}") | Out-Null
                         }
                     } catch {
                         $errors.Add("Invalid JSONL record at ${rel}:${lineNo}: $($_.Exception.Message)") | Out-Null
@@ -831,7 +836,18 @@ function _ConvertConversationRecordToStoreRow {
         [Parameter(Mandatory)][long]$ByteOffset
     )
 
-    $convId = [string](_ObjVal $Record @('conversationId') '')
+    $resolveCommand = Get-Command Resolve-ConversationRecord -ErrorAction SilentlyContinue
+    if ($null -ne $resolveCommand) {
+        $resolved = & $resolveCommand -Record $Record
+        if ($null -ne $resolved) { $Record = $resolved }
+    }
+
+    $idCommand = Get-Command Get-ConversationIdFromRecord -ErrorAction SilentlyContinue
+    $convId = if ($null -ne $idCommand) {
+        [string](& $idCommand -Record $Record)
+    } else {
+        [string](_ObjVal $Record @('conversationId') '')
+    }
     if ([string]::IsNullOrWhiteSpace($convId)) { return $null }
 
     $rawJson      = _ToJsonOrNull -Value $Record
@@ -3590,6 +3606,116 @@ function Get-ConversationById {
     } finally { $conn.Close(); $conn.Dispose() }
     if ($rows.Count -eq 0) { return $null }
     return [pscustomobject]$rows[0]
+}
+
+function Resolve-ConversationDrilldownRecord {
+    <#
+    .SYNOPSIS
+        Resolves a conversation detail record from the case store first, then a run folder fallback.
+    #>
+    param(
+        [string]$CaseId = '',
+        [string]$RunFolder = '',
+        [Parameter(Mandatory)][string]$ConversationId,
+        [switch]$PreferRunFolder
+    )
+
+    $errors = New-Object System.Collections.Generic.List[string]
+    $warnings = New-Object System.Collections.Generic.List[string]
+    $record = $null
+    $rawJsonText = ''
+    $source = ''
+    $dbRowExists = $false
+    $indexRecordCount = 0
+    $indexContainsConversationId = $false
+
+    if (-not $PreferRunFolder -and
+        -not [string]::IsNullOrWhiteSpace($CaseId) -and
+        (Test-DatabaseInitialized)) {
+        try {
+            $dbRow = Get-ConversationById -CaseId $CaseId -ConversationId $ConversationId
+            if ($null -ne $dbRow) {
+                $dbRowExists = $true
+                $rawProp = $dbRow.PSObject.Properties['raw_json']
+                $rawJsonText = if ($null -ne $rawProp) { [string]$rawProp.Value } else { '' }
+                if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
+                    try {
+                        $record = $rawJsonText | ConvertFrom-Json
+                        $source = 'database.raw_json'
+                    } catch {
+                        $errors.Add("DB raw_json parse failed for ${ConversationId}: $($_.Exception.Message)") | Out-Null
+                        $record = $null
+                    }
+                }
+
+                if ($null -eq $record) {
+                    $ptjsonProp = $dbRow.PSObject.Properties['participants_json']
+                    $ptjson = if ($null -ne $ptjsonProp) { [string]$ptjsonProp.Value } else { '' }
+                    if (-not [string]::IsNullOrWhiteSpace($ptjson)) {
+                        try {
+                            $participants = $ptjson | ConvertFrom-Json
+                            $record = [pscustomobject]@{
+                                conversationId = $ConversationId
+                                conversationStart = if ($dbRow.PSObject.Properties['conversation_start']) { $dbRow.conversation_start } else { '' }
+                                conversationEnd = if ($dbRow.PSObject.Properties['conversation_end']) { $dbRow.conversation_end } else { '' }
+                                participants = $participants
+                                reconstructionNotice = 'Compatibility fallback: canonical raw_json was not available or could not be parsed for this imported row.'
+                            }
+                            $atjsonProp = $dbRow.PSObject.Properties['attributes_json']
+                            $atjson = if ($null -ne $atjsonProp) { [string]$atjsonProp.Value } else { '' }
+                            if (-not [string]::IsNullOrWhiteSpace($atjson)) {
+                                $record | Add-Member -NotePropertyName 'attributes' -NotePropertyValue ($atjson | ConvertFrom-Json) -Force
+                            }
+                            $rawJsonText = $record | ConvertTo-Json -Depth 20
+                            $source = 'database.reconstructed'
+                            $warnings.Add("DB raw_json unavailable; reconstructed ${ConversationId} from side-car JSON columns.") | Out-Null
+                        } catch {
+                            $errors.Add("DB side-car reconstruction failed for ${ConversationId}: $($_.Exception.Message)") | Out-Null
+                        }
+                    }
+                }
+            }
+        } catch {
+            $errors.Add("DB lookup failed for ${ConversationId}: $($_.Exception.Message)") | Out-Null
+        }
+    }
+
+    if ($null -eq $record -and -not [string]::IsNullOrWhiteSpace($RunFolder)) {
+        if (-not [System.IO.Directory]::Exists($RunFolder)) {
+            $errors.Add("Run folder does not exist: $RunFolder") | Out-Null
+        } else {
+            $loadIndexCommand = Get-Command Load-RunIndex -ErrorAction SilentlyContinue
+            $getRecordCommand = Get-Command Get-ConversationRecord -ErrorAction SilentlyContinue
+            if ($null -eq $loadIndexCommand -or $null -eq $getRecordCommand) {
+                $errors.Add('Run-folder fallback unavailable: App.Index.psm1 commands are not loaded.') | Out-Null
+            } else {
+                try {
+                    $idx = @(& $loadIndexCommand -RunFolder $RunFolder)
+                    $indexRecordCount = $idx.Count
+                    $indexContainsConversationId = (@($idx | Where-Object { $_.id -eq $ConversationId }).Count -gt 0)
+                    $record = & $getRecordCommand -RunFolder $RunFolder -ConversationId $ConversationId
+                    if ($null -ne $record) {
+                        $rawJsonText = $record | ConvertTo-Json -Depth 20
+                        $source = 'run-folder.jsonl'
+                    }
+                } catch {
+                    $errors.Add("Run-folder JSONL fallback failed for ${ConversationId}: $($_.Exception.Message)") | Out-Null
+                }
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Found = ($null -ne $record)
+        Record = $record
+        RawJsonText = $rawJsonText
+        Source = $source
+        DbRowExists = $dbRowExists
+        IndexRecordCount = $indexRecordCount
+        IndexContainsConversationId = $indexContainsConversationId
+        Errors = $errors.ToArray()
+        Warnings = $warnings.ToArray()
+    }
 }
 
 function Get-ConversationVersions {
@@ -6838,7 +6964,7 @@ Export-ModuleMember -Function `
     New-Import, Complete-Import, Fail-Import, Get-Imports, Import-RunFolderToCase, `
     Import-Conversations, Get-ConversationCount, Get-ConversationsPage, Get-ConversationPopulationRows, `
     Get-ConversationPopulationSummary, Get-ConversationFacetCounts, Get-RepresentativeConversations, `
-    Get-AnomalyRiskCohorts, Get-ConversationById, Get-ConversationVersions, `
+    Get-AnomalyRiskCohorts, Get-ConversationById, Resolve-ConversationDrilldownRecord, Get-ConversationVersions, `
     Get-CaseAgentUserIds, `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `

@@ -171,6 +171,45 @@ function New-SmokeRunFolder {
     return $runFolder
 }
 
+function New-SmokeEnvelopeRunFolder {
+    param([string]$Root)
+
+    $runFolder = Join-Path $Root 'analytics-conversation-details-query'
+    $runFolder = Join-Path $runFolder 'run-smoke-envelope-001'
+    $dataDir = Join-Path $runFolder 'data'
+    [System.IO.Directory]::CreateDirectory($dataDir) | Out-Null
+
+    $manifest = [pscustomobject]@{
+        run_id = 'run-smoke-envelope-001'
+        dataset_key = 'analytics-conversation-details-query'
+        status = 'complete'
+        schema_version = '1.0.0'
+        normalization_version = '1.0.0'
+        counts = [pscustomobject]@{ itemCount = 2 }
+    }
+    $summary = [pscustomobject]@{
+        run_id = 'run-smoke-envelope-001'
+        dataset_key = 'analytics-conversation-details-query'
+        status = 'complete'
+        totals = [pscustomobject]@{ totalRecords = 2 }
+    }
+
+    $records = @(
+        [pscustomobject]@{
+            item = (New-SmokeConversation -ConversationId 'env-001' -Direction 'inbound' -MediaType 'voice' -QueueName 'Envelope Queue' -QueueId 'queue-envelope' -AgentId 'agent-env-001' -DivisionId 'division-env' -ConversationStart '2026-03-02T09:00:00Z' -ConversationEnd '2026-03-02T09:04:00Z')
+        },
+        [pscustomobject]@{
+            record = (New-SmokeConversation -ConversationId 'env-002' -Direction 'outbound' -MediaType 'chat' -QueueName 'Envelope Queue' -QueueId 'queue-envelope' -AgentId 'agent-env-002' -DivisionId 'division-env' -ConversationStart '2026-03-02T10:00:00Z' -ConversationEnd '2026-03-02T10:08:00Z')
+        }
+    )
+
+    [System.IO.File]::WriteAllText((Join-Path $runFolder 'manifest.json'), ($manifest | ConvertTo-Json -Depth 10), [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $runFolder 'summary.json'), ($summary | ConvertTo-Json -Depth 10), [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $dataDir 'part-envelope.jsonl'), (($records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 20 }) -join [Environment]::NewLine), [System.Text.Encoding]::UTF8)
+
+    return $runFolder
+}
+
 function New-CoreConversationRunFixture {
     param([string]$Root)
 
@@ -299,6 +338,7 @@ $dbAvailable = $false
 try {
     [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
     $runFolder = New-SmokeRunFolder -Root $tempRoot
+    $envelopeRunFolder = New-SmokeEnvelopeRunFolder -Root $tempRoot
 
     Write-Host "`n--- Config ---" -ForegroundColor DarkCyan
 
@@ -370,6 +410,37 @@ try {
     SmokeCheck 'SMK-06' 'Get-ConversationRecord retrieves a full conversation by id' {
         $record = Get-ConversationRecord -RunFolder $runFolder -ConversationId 'conv-001'
         ($null -ne $record) -and ($record.attributes.caseId -eq 'CASE-123')
+    }
+
+    SmokeCheck 'SMK-06A' 'Build-RunIndex indexes envelope records with item/record conversation payloads' {
+        $idx = @(Build-RunIndex -RunFolder $envelopeRunFolder)
+        ($idx.Count -eq 2) -and
+        (($idx | ForEach-Object { $_.id }) -join ',') -eq 'env-001,env-002' -and
+        (($idx | Where-Object { $_.id -eq 'env-001' } | Select-Object -First 1).queue -eq 'Envelope Queue')
+    }
+
+    SmokeCheck 'SMK-06B' 'Get-ConversationRecord returns the unwrapped full conversation record' {
+        $record = Get-ConversationRecord -RunFolder $envelopeRunFolder -ConversationId 'env-002'
+        ($null -ne $record) -and
+        ($record.conversationId -eq 'env-002') -and
+        ($record.participants.Count -gt 0) -and
+        (-not $record.PSObject.Properties['record'])
+    }
+
+    Import-AppModule 'modules\App.Database.psm1'
+
+    SmokeCheck 'SMK-06C' 'Core artifact contract accepts supported envelope record shapes' {
+        $contract = Test-CoreRunArtifactContract -RunFolder $envelopeRunFolder
+        $contract.IsValid -and
+        ($contract.DataRecordCount -eq 2) -and
+        ($contract.ExpectedRecordCount -eq 2)
+    }
+
+    SmokeCheck 'SMK-06D' 'Drilldown resolver can load a record from run-folder fallback' {
+        $resolved = Resolve-ConversationDrilldownRecord -RunFolder $envelopeRunFolder -ConversationId 'env-001'
+        $resolved.Found -and
+        ($resolved.Source -eq 'run-folder.jsonl') -and
+        ($resolved.Record.conversationId -eq 'env-001')
     }
 
     Write-Host "`n--- Export ---" -ForegroundColor DarkCyan
@@ -571,6 +642,22 @@ try {
             $row = Get-ConversationById -CaseId $caseId -ConversationId 'conv-001'
             $raw = $row.raw_json | ConvertFrom-Json
             ($raw.conversationId -eq 'conv-001') -and (-not [string]::IsNullOrWhiteSpace([string]$row.payload_hash))
+        }
+
+        SmokeCheck 'SMK-16A' 'Get-ConversationsPage and display row expose a non-empty ConversationId after import' {
+            $caseId = $script:SmokeDbCaseId
+            $page = @(Get-ConversationsPage -CaseId $caseId -PageNumber 1 -PageSize 1)
+            $display = Get-DbConversationDisplayRow -DbRow $page[0]
+            ($page.Count -eq 1) -and
+            (-not [string]::IsNullOrWhiteSpace([string]$display.ConversationId))
+        }
+
+        SmokeCheck 'SMK-16B' 'Drilldown resolver can load a record from DB raw_json' {
+            $caseId = $script:SmokeDbCaseId
+            $resolved = Resolve-ConversationDrilldownRecord -CaseId $caseId -RunFolder $runFolder -ConversationId 'conv-001'
+            $resolved.Found -and
+            ($resolved.Source -eq 'database.raw_json') -and
+            ($resolved.Record.conversationId -eq 'conv-001')
         }
 
         SmokeCheck 'SMK-17' 'Reimports preserve conversation lineage versions' {

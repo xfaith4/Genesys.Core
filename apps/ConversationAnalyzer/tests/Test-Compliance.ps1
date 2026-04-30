@@ -675,8 +675,9 @@ Check 'WB-04' 'DB-mode UI report generation uses full filtered SQL population an
 }
 
 Check 'WB-05' 'DB-mode drilldown prefers canonical raw_json over reconstructed participants JSON' {
-    $uiContent -match 'raw_json' -and
-    $uiContent -match 'Compatibility fallback: canonical raw_json was not available' -and
+    $dbContent -match 'function Resolve-ConversationDrilldownRecord' -and
+    $dbContent -match 'raw_json' -and
+    $dbContent -match 'Compatibility fallback: canonical raw_json was not available' -and
     $uiContent -match 'TxtRawJson\.Text'
 }
 
@@ -690,7 +691,7 @@ Check 'WB-06' 'Reporting module defines explicit population report and conversat
 Check 'WB-07' 'Analyzer validates Core run artifact contract before DB import' {
     $dbContent -match 'function Test-CoreRunArtifactContract' -and
     $dbContent -match 'Core artifact contract count mismatch' -and
-    $dbContent -match 'Missing required conversationId' -and
+    $dbContent -match 'Missing required conversation id' -and
     $dbContent -match 'Invalid JSONL record' -and
     $dbContent -match 'Test-CoreRunArtifactContract -RunFolder \$RunFolder -ThrowOnError'
 }

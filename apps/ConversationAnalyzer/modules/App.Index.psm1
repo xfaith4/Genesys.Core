@@ -118,6 +118,85 @@ function _ReadFileLines {
     return $results.ToArray()
 }
 
+# ── Conversation record shape helpers ────────────────────────────────────────
+
+function _GetObjectPropertyValue {
+    param(
+        [object]$Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) { return $null }
+    if ($Object -is [hashtable] -and $Object.ContainsKey($Name)) { return $Object[$Name] }
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -ne $prop) { return $prop.Value }
+    return $null
+}
+
+function Test-IsConversationRecord {
+    <#
+    .SYNOPSIS
+        Returns true when an object is recognizably a Genesys conversation detail.
+    #>
+    param([object]$Record)
+
+    if ($null -eq $Record) { return $false }
+    $conversationId = _GetObjectPropertyValue -Object $Record -Name 'conversationId'
+    if (-not [string]::IsNullOrWhiteSpace([string]$conversationId)) { return $true }
+
+    $id = _GetObjectPropertyValue -Object $Record -Name 'id'
+    if ([string]::IsNullOrWhiteSpace([string]$id)) { return $false }
+
+    foreach ($signal in @('participants','conversationStart','conversationEnd','divisionIds')) {
+        if ($null -ne (_GetObjectPropertyValue -Object $Record -Name $signal)) { return $true }
+    }
+    return $false
+}
+
+function Resolve-ConversationRecord {
+    <#
+    .SYNOPSIS
+        Unwraps known Core/JSONL envelopes and returns the conversation detail record.
+    #>
+    param([object]$Record)
+
+    if ($null -eq $Record) { return $null }
+    if (Test-IsConversationRecord -Record $Record) { return $Record }
+
+    foreach ($name in @('item','record','data')) {
+        $value = _GetObjectPropertyValue -Object $Record -Name $name
+        if ($null -eq $value) { continue }
+        foreach ($candidate in @($value)) {
+            if (Test-IsConversationRecord -Record $candidate) { return $candidate }
+        }
+    }
+
+    return $null
+}
+
+function Get-ConversationIdFromRecord {
+    <#
+    .SYNOPSIS
+        Gets a conversation id from a top-level or envelope-wrapped record.
+    #>
+    param([object]$Record)
+
+    $conversation = Resolve-ConversationRecord -Record $Record
+    if ($null -eq $conversation) { return '' }
+
+    $conversationId = _GetObjectPropertyValue -Object $conversation -Name 'conversationId'
+    if (-not [string]::IsNullOrWhiteSpace([string]$conversationId)) {
+        return ([string]$conversationId).Trim()
+    }
+
+    $id = _GetObjectPropertyValue -Object $conversation -Name 'id'
+    if (-not [string]::IsNullOrWhiteSpace([string]$id) -and (Test-IsConversationRecord -Record $conversation)) {
+        return ([string]$id).Trim()
+    }
+
+    return ''
+}
+
 # ── Metadata extraction from a Genesys conversation detail record ─────────────
 
 function _ExtractIndexMetadata {
@@ -126,6 +205,12 @@ function _ExtractIndexMetadata {
         [Parameter(Mandatory)][string]$RelativePath,
         [Parameter(Mandatory)][long]$ByteOffset
     )
+
+    $conversation = Resolve-ConversationRecord -Record $Record
+    $convId = Get-ConversationIdFromRecord -Record $Record
+    if ($null -eq $conversation -or [string]::IsNullOrWhiteSpace($convId)) {
+        throw "JSONL record at ${RelativePath} does not contain a supported conversation id shape."
+    }
 
     $direction    = ''
     $mediaType    = ''
@@ -139,9 +224,9 @@ function _ExtractIndexMetadata {
     $queueIds     = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     $userIds      = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-    if ($Record.PSObject.Properties['participants']) {
-        $partCount = @($Record.participants).Count
-        foreach ($p in @($Record.participants)) {
+    if ($conversation.PSObject.Properties['participants']) {
+        $partCount = @($conversation.participants).Count
+        foreach ($p in @($conversation.participants)) {
             $isCustomer = ($p.PSObject.Properties['purpose'] -and $p.purpose -eq 'customer')
             if ($p.PSObject.Properties['userId'] -and $p.userId) {
                 $userIds.Add([string]$p.userId) | Out-Null
@@ -182,19 +267,18 @@ function _ExtractIndexMetadata {
         }
     }
 
-    if ($Record.PSObject.Properties['conversationStart'] -and
-        $Record.PSObject.Properties['conversationEnd']) {
+    if ($conversation.PSObject.Properties['conversationStart'] -and
+        $conversation.PSObject.Properties['conversationEnd']) {
         try {
-            $s = [datetime]::Parse($Record.conversationStart)
-            $e = [datetime]::Parse($Record.conversationEnd)
+            $s = [datetime]::Parse($conversation.conversationStart)
+            $e = [datetime]::Parse($conversation.conversationEnd)
             $durationSec = [int]($e - $s).TotalSeconds
         } catch { }
     }
 
-    $convId    = if ($Record.PSObject.Properties['conversationId'])    { $Record.conversationId }    else { '' }
-    $convStart = if ($Record.PSObject.Properties['conversationStart']) { $Record.conversationStart } else { '' }
-    $divIds    = @(if ($Record.PSObject.Properties['divisionIds'] -and $null -ne $Record.divisionIds) {
-        @($Record.divisionIds) | Where-Object { $_ }
+    $convStart = if ($conversation.PSObject.Properties['conversationStart']) { $conversation.conversationStart } else { '' }
+    $divIds    = @(if ($conversation.PSObject.Properties['divisionIds'] -and $null -ne $conversation.divisionIds) {
+        @($conversation.divisionIds) | Where-Object { $_ }
     })
 
     return [pscustomobject]@{
@@ -250,15 +334,19 @@ function Build-RunIndex {
         foreach ($dataFile in $dataFiles) {
             $relPath  = _GetRelativePath -BasePath $RunFolder -FullPath $dataFile
             $rawLines = _ReadFileLines -FilePath $dataFile
+            $lineNo = 0
 
             foreach ($lv in $rawLines) {
+                $lineNo++
                 if ([string]::IsNullOrWhiteSpace($lv.Line)) { continue }
                 try {
                     $record = $lv.Line | ConvertFrom-Json
                     $entry  = _ExtractIndexMetadata -Record $record -RelativePath $relPath -ByteOffset $lv.Offset
                     $entries.Add($entry)
                     $indexSw.WriteLine(($entry | ConvertTo-Json -Compress))
-                } catch { <# skip malformed records #> }
+                } catch {
+                    Write-Warning "Build-RunIndex: ${relPath}:${lineNo} $($_.Exception.Message)"
+                }
             }
         }
     } finally {
@@ -416,7 +504,13 @@ function Get-IndexedPage {
             if ($lineBytes.Count -gt 0) {
                 $line = [System.Text.Encoding]::UTF8.GetString($lineBytes.ToArray())
                 if (-not [string]::IsNullOrWhiteSpace($line)) {
-                    try { $results.Add(($line | ConvertFrom-Json)) } catch { }
+                    try {
+                        $record = $line | ConvertFrom-Json
+                        $conversation = Resolve-ConversationRecord -Record $record
+                        if ($null -ne $conversation) {
+                            $results.Add($conversation)
+                        }
+                    } catch { }
                 }
             }
         } finally {
@@ -446,4 +540,5 @@ function Get-ConversationRecord {
 
 Export-ModuleMember -Function `
     Build-RunIndex, Load-RunIndex, Clear-IndexCache, `
-    Get-IndexedPage, Get-ConversationRecord, Get-RunTotalCount, Get-FilteredIndex
+    Get-IndexedPage, Get-ConversationRecord, Get-RunTotalCount, Get-FilteredIndex, `
+    Test-IsConversationRecord, Resolve-ConversationRecord, Get-ConversationIdFromRecord

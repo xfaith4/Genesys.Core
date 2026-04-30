@@ -532,22 +532,163 @@ function _ResolveImportRunFolder {
     return ''
 }
 
+function _AppendRunDiagnostic {
+    param(
+        [string]$Stage,
+        [string]$Message,
+        [object]$Exception = $null,
+        [string]$RunFolder = '',
+        [string]$DataSource = '',
+        [string]$CaseId = '',
+        [string]$ConversationId = ''
+    )
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("[$([datetime]::UtcNow.ToString('o'))] $Stage") | Out-Null
+    if ($Message) { $lines.Add("Message        : $Message") | Out-Null }
+    if ($RunFolder) { $lines.Add("Run folder     : $RunFolder") | Out-Null }
+    if ($DataSource) { $lines.Add("Data source    : $DataSource") | Out-Null }
+    if ($CaseId) { $lines.Add("Case id        : $CaseId") | Out-Null }
+    if ($ConversationId) { $lines.Add("Conversation id: $ConversationId") | Out-Null }
+    if ($null -ne $Exception) {
+        $lines.Add("Exception      : $($Exception.Exception.Message)") | Out-Null
+        if ($Exception.ScriptStackTrace) {
+            $lines.Add('Script stack   :') | Out-Null
+            $lines.Add($Exception.ScriptStackTrace) | Out-Null
+        }
+    }
+
+    $text = ($lines.ToArray() -join [Environment]::NewLine)
+    _Dispatch {
+        if ($null -ne $script:TxtDiagnostics) {
+            if ([string]::IsNullOrWhiteSpace($script:TxtDiagnostics.Text)) {
+                $script:TxtDiagnostics.Text = $text
+            } else {
+                $script:TxtDiagnostics.AppendText([Environment]::NewLine + [Environment]::NewLine + $text)
+            }
+            try { $script:TxtDiagnostics.ScrollToEnd() } catch { }
+        }
+    }
+}
+
+function _SetDrilldownDiagnostic {
+    param(
+        [string]$Title,
+        [string]$Message,
+        [string]$ConversationId = '',
+        [string]$Stage = ''
+    )
+
+    _Dispatch {
+        if ($null -ne $script:LblSelectedConversation) {
+            $script:LblSelectedConversation.Text = if ([string]::IsNullOrWhiteSpace($ConversationId)) { $Title } else { $ConversationId }
+        }
+        if ($null -ne $script:TxtDrillSummary) {
+            $script:TxtDrillSummary.Text = @(
+                $Title
+                ''
+                $Message
+                ''
+                "Stage            : $Stage"
+                "Run folder       : $($script:State.CurrentRunFolder)"
+                "Data source      : $($script:State.DataSource)"
+                "Active case id   : $($script:State.ActiveCaseId)"
+                "Conversation id  : $ConversationId"
+            ) -join [Environment]::NewLine
+        }
+    }
+}
+
+function _TestCompletedRunFolder {
+    param([string]$RunFolder)
+
+    $manifestPath = if ($RunFolder) { [System.IO.Path]::Combine($RunFolder, 'manifest.json') } else { '' }
+    $summaryPath = if ($RunFolder) { [System.IO.Path]::Combine($RunFolder, 'summary.json') } else { '' }
+    $dataDir = if ($RunFolder) { [System.IO.Path]::Combine($RunFolder, 'data') } else { '' }
+    $dataFiles = @()
+    if ($dataDir -and [System.IO.Directory]::Exists($dataDir)) {
+        $dataFiles = @([System.IO.Directory]::GetFiles($dataDir, '*.jsonl'))
+    }
+
+    return [pscustomobject]@{
+        RunFolder = $RunFolder
+        RunFolderExists = (-not [string]::IsNullOrWhiteSpace($RunFolder) -and [System.IO.Directory]::Exists($RunFolder))
+        ManifestExists = ($manifestPath -and [System.IO.File]::Exists($manifestPath))
+        SummaryExists = ($summaryPath -and [System.IO.File]::Exists($summaryPath))
+        DataDirectoryExists = ($dataDir -and [System.IO.Directory]::Exists($dataDir))
+        DataFileCount = $dataFiles.Count
+        IsComplete = (-not [string]::IsNullOrWhiteSpace($RunFolder) -and [System.IO.Directory]::Exists($RunFolder) -and [System.IO.File]::Exists($manifestPath) -and [System.IO.File]::Exists($summaryPath) -and $dataFiles.Count -gt 0)
+    }
+}
+
 function _ResolveRunFolderFromResult {
     param([object]$RunResult)
 
     if ($null -eq $RunResult) { return $null }
 
-    $folder = @($RunResult) | ForEach-Object {
+    $propertyNames = @('runFolder','RunFolder','outputFolder','OutputFolder','runPath','RunPath','path','Path','folder','Folder')
+    $candidates = @($RunResult) | ForEach-Object {
         if ($_ -is [string]) {
             $_
-        } elseif ($null -ne $_ -and $_.PSObject.Properties.Name -contains 'runFolder') {
-            $_.runFolder
+        } elseif ($null -ne $_) {
+            foreach ($name in $propertyNames) {
+                $prop = $_.PSObject.Properties[$name]
+                if ($null -ne $prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+                    [string]$prop.Value
+                }
+            }
         }
-    } | Where-Object {
-        -not [string]::IsNullOrWhiteSpace([string]$_) -and [System.IO.Directory]::Exists([string]$_)
-    } | Select-Object -First 1
+    }
 
-    return $folder
+    foreach ($candidate in @($candidates)) {
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) { continue }
+        $check = _TestCompletedRunFolder -RunFolder ([string]$candidate)
+        if ($check.IsComplete) { return [string]$candidate }
+    }
+
+    return $null
+}
+
+function _FindCompletedRunFolder {
+    param(
+        [string]$OutputRoot,
+        [string]$DatasetKey,
+        [Nullable[datetime]]$StartedAfterUtc
+    )
+
+    if ([string]::IsNullOrWhiteSpace($OutputRoot) -or -not [System.IO.Directory]::Exists($OutputRoot)) {
+        return $null
+    }
+
+    $threshold = $null
+    if ($null -ne $StartedAfterUtc) {
+        $threshold = ([datetime]$StartedAfterUtc).ToUniversalTime().AddMinutes(-2)
+    }
+
+    $roots = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($DatasetKey)) {
+        $datasetRoot = [System.IO.Path]::Combine($OutputRoot, $DatasetKey)
+        if ([System.IO.Directory]::Exists($datasetRoot)) { $roots.Add($datasetRoot) | Out-Null }
+    }
+    $roots.Add($OutputRoot) | Out-Null
+
+    $seen = @{}
+    $candidates = New-Object System.Collections.Generic.List[string]
+    foreach ($root in $roots.ToArray()) {
+        foreach ($dir in [System.IO.Directory]::GetDirectories($root)) {
+            if ($seen.ContainsKey($dir)) { continue }
+            $seen[$dir] = $true
+            if ($null -ne $threshold) {
+                $created = [System.IO.Directory]::GetCreationTimeUtc($dir)
+                $written = [System.IO.Directory]::GetLastWriteTimeUtc($dir)
+                if ($created -lt $threshold -and $written -lt $threshold) { continue }
+            }
+            $check = _TestCompletedRunFolder -RunFolder $dir
+            if ($check.IsComplete) { $candidates.Add($dir) | Out-Null }
+        }
+    }
+
+    return @($candidates.ToArray() | Sort-Object { [System.IO.Directory]::GetLastWriteTimeUtc($_) } -Descending | Select-Object -First 1)
 }
 
 function _FindInProgressRunFolder {
@@ -3131,7 +3272,7 @@ function _RefreshGridFromDb {
     $caseId = $script:State.ActiveCaseId
     if ([string]::IsNullOrEmpty($caseId) -or -not (Test-DatabaseInitialized)) {
         _SetStatus 'No active case — import a run to a case to enable case-store view'
-        return
+        return [pscustomobject]@{ Succeeded = $false; RowCount = 0; Error = 'No active case or database is not initialized.' }
     }
 
     $filterState = _GetCanonicalFilterState
@@ -3177,8 +3318,20 @@ function _RefreshGridFromDb {
         # Mirror into CurrentIndex so impact reports keep working (index-compatible subset)
         $script:State.CurrentIndex = @($rows)
         _RefreshReportButtons
+        return [pscustomobject]@{ Succeeded = $true; RowCount = $displayRows.Count; Error = '' }
     } catch {
-        _SetStatus "Case grid error: $_"
+        _AppendRunDiagnostic `
+            -Stage 'DB grid refresh failed' `
+            -Message 'The case-store grid could not be refreshed. Preserving the previous grid contents.' `
+            -Exception $_ `
+            -RunFolder $script:State.CurrentRunFolder `
+            -DataSource $script:State.DataSource `
+            -CaseId $caseId
+        _Dispatch {
+            $script:TxtPageInfo.Text = 'Case grid error - see Run Console'
+        }
+        _SetStatus "Case grid error: $($_.Exception.Message)"
+        return [pscustomobject]@{ Succeeded = $false; RowCount = 0; Error = $_.Exception.Message }
     }
 }
 
@@ -3188,12 +3341,19 @@ function _SwitchToDbMode {
         Switches the conversations grid to DB mode for the active case.
         Called after a successful import or when the user selects a case that already has data.
     #>
-    if ([string]::IsNullOrEmpty($script:State.ActiveCaseId) -or -not (Test-DatabaseInitialized)) { return }
+    if ([string]::IsNullOrEmpty($script:State.ActiveCaseId) -or -not (Test-DatabaseInitialized)) {
+        return [pscustomobject]@{ Succeeded = $false; RowCount = 0; Error = 'No active case or database is not initialized.' }
+    }
+    $previousDataSource = $script:State.DataSource
     $script:State.DataSource   = 'database'
     $script:State.CurrentPage  = 1
     $script:State.CurrentImpactReport = $null
     _SetStatus "Case store view: $($script:State.ActiveCaseName)"
-    _RefreshGridFromDb
+    $result = _RefreshGridFromDb
+    if ($null -eq $result -or -not $result.Succeeded) {
+        $script:State.DataSource = $previousDataSource
+    }
+    return $result
 }
 
 # ── Index / paging ────────────────────────────────────────────────────────────
@@ -3209,6 +3369,7 @@ function _LoadRunAndRefreshGrid {
 
     $script:State.CurrentRunFolder  = $RunFolder
     $script:State.DiagnosticsContext = $RunFolder
+    $script:State.DataSource = 'index'
 
     # Clear stale run-specific filters for manually-loaded runs, but preserve the
     # filter that just produced a completed run so its detail pane can open.
@@ -3222,12 +3383,153 @@ function _LoadRunAndRefreshGrid {
         if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = '' }
     }
 
-    # Load or build index (may take a moment for large runs)
-    $allIdx = @(Load-RunIndex -RunFolder $RunFolder)
-    $script:State.CurrentPage = 1
-    _ApplyFiltersAndRefresh -AllIndex $allIdx
-    _SetStatus "Loaded $($allIdx.Count) records from $([System.IO.Path]::GetFileName($RunFolder))"
-    $script:TxtStatusRight.Text = [datetime]::Now.ToString('HH:mm:ss')
+    $contract = $null
+    if (Get-Command Test-CoreRunArtifactContract -ErrorAction SilentlyContinue) {
+        try {
+            $contract = Test-CoreRunArtifactContract -RunFolder $RunFolder
+            if (-not $contract.IsValid) {
+                _AppendRunDiagnostic `
+                    -Stage 'Artifact contract validation failed' `
+                    -Message ($contract.Errors -join '; ') `
+                    -RunFolder $RunFolder `
+                    -DataSource 'index'
+            } elseif ($contract.Warnings.Count -gt 0) {
+                _AppendRunDiagnostic `
+                    -Stage 'Artifact contract validation warnings' `
+                    -Message ($contract.Warnings -join '; ') `
+                    -RunFolder $RunFolder `
+                    -DataSource 'index'
+            }
+        } catch {
+            _AppendRunDiagnostic `
+                -Stage 'Artifact contract validation threw' `
+                -Message 'Validation could not complete before indexing.' `
+                -Exception $_ `
+                -RunFolder $RunFolder `
+                -DataSource 'index'
+        }
+    }
+
+    try {
+        # Load or build index (may take a moment for large runs)
+        $allIdx = @(Load-RunIndex -RunFolder $RunFolder)
+        $script:State.CurrentPage = 1
+        _ApplyFiltersAndRefresh -AllIndex $allIdx
+        _SetStatus "Loaded $($allIdx.Count) records from $([System.IO.Path]::GetFileName($RunFolder))"
+        $script:TxtStatusRight.Text = [datetime]::Now.ToString('HH:mm:ss')
+        return [pscustomobject]@{
+            Succeeded = $true
+            IndexRecordCount = $allIdx.Count
+            DisplayRecordCount = @($script:State.CurrentIndex).Count
+            Contract = $contract
+            Error = ''
+        }
+    } catch {
+        _AppendRunDiagnostic `
+            -Stage 'Run index load failed' `
+            -Message 'The Core run folder was found, but index loading/rendering failed.' `
+            -Exception $_ `
+            -RunFolder $RunFolder `
+            -DataSource 'index'
+        _SetStatus "Index load failed: $($_.Exception.Message)"
+        return [pscustomobject]@{
+            Succeeded = $false
+            IndexRecordCount = 0
+            DisplayRecordCount = 0
+            Contract = $contract
+            Error = $_.Exception.Message
+        }
+    }
+}
+
+function Test-ConversationDisplayPipeline {
+    param(
+        [string]$RunFolder,
+        [string]$CaseId = '',
+        [string]$PreferredConversationId = ''
+    )
+
+    $errors = New-Object System.Collections.Generic.List[string]
+    $warnings = New-Object System.Collections.Generic.List[string]
+    $check = _TestCompletedRunFolder -RunFolder $RunFolder
+    $dataRecordCount = 0
+    $indexRecordCount = 0
+    $firstConversationId = ''
+    $caseImportAttempted = (-not [string]::IsNullOrWhiteSpace($CaseId) -and (Test-DatabaseInitialized))
+    $caseConversationCount = 0
+    $dbPageRowCount = 0
+    $drilldownResolvable = $false
+
+    if ($check.DataDirectoryExists) {
+        try {
+            foreach ($file in [System.IO.Directory]::GetFiles(([System.IO.Path]::Combine($RunFolder, 'data')), '*.jsonl')) {
+                $reader = [System.IO.StreamReader]::new($file, [System.Text.Encoding]::UTF8, $true)
+                try {
+                    while (($line = $reader.ReadLine()) -ne $null) {
+                        if (-not [string]::IsNullOrWhiteSpace($line)) { $dataRecordCount++ }
+                    }
+                } finally {
+                    $reader.Close()
+                    $reader.Dispose()
+                }
+            }
+        } catch {
+            $errors.Add("Data record count failed: $($_.Exception.Message)") | Out-Null
+        }
+    }
+
+    if ($check.IsComplete) {
+        try {
+            $idx = @(Load-RunIndex -RunFolder $RunFolder)
+            $indexRecordCount = $idx.Count
+            if ($idx.Count -gt 0) { $firstConversationId = [string]$idx[0].id }
+        } catch {
+            $errors.Add("Index load failed: $($_.Exception.Message)") | Out-Null
+        }
+    } else {
+        $errors.Add('Run folder does not satisfy completed artifact contract: manifest.json, summary.json, and data/*.jsonl are required.') | Out-Null
+    }
+
+    if ($caseImportAttempted) {
+        try {
+            $caseConversationCount = Get-ConversationCount -CaseId $CaseId
+            $pageRows = @(Get-ConversationsPage -CaseId $CaseId -PageNumber 1 -PageSize $script:State.PageSize)
+            $dbPageRowCount = $pageRows.Count
+        } catch {
+            $warnings.Add("Case-store display check failed: $($_.Exception.Message)") | Out-Null
+        }
+    }
+
+    $probeId = if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId)) { $PreferredConversationId } else { $firstConversationId }
+    if (-not [string]::IsNullOrWhiteSpace($probeId)) {
+        try {
+            $resolved = Resolve-ConversationDrilldownRecord -CaseId $CaseId -RunFolder $RunFolder -ConversationId $probeId
+            $drilldownResolvable = ($null -ne $resolved -and $resolved.Found)
+            if ($null -ne $resolved) {
+                foreach ($err in @($resolved.Errors)) { $errors.Add($err) | Out-Null }
+                foreach ($warn in @($resolved.Warnings)) { $warnings.Add($warn) | Out-Null }
+            }
+        } catch {
+            $errors.Add("Drilldown resolver check failed: $($_.Exception.Message)") | Out-Null
+        }
+    }
+
+    return [pscustomobject]@{
+        RunFolderExists = $check.RunFolderExists
+        ManifestExists = $check.ManifestExists
+        SummaryExists = $check.SummaryExists
+        DataDirectoryExists = $check.DataDirectoryExists
+        DataFileCount = $check.DataFileCount
+        DataRecordCount = $dataRecordCount
+        IndexRecordCount = $indexRecordCount
+        FirstConversationId = $firstConversationId
+        CaseImportAttempted = $caseImportAttempted
+        CaseConversationCount = $caseConversationCount
+        DbPageRowCount = $dbPageRowCount
+        DrilldownResolvable = $drilldownResolvable
+        Errors = $errors.ToArray()
+        Warnings = $warnings.ToArray()
+    }
 }
 
 function _ApplyFiltersAndRefresh {
@@ -3440,6 +3742,11 @@ function _AutoOpenConversationFromRows {
                 -ConversationId $PreferredConversationId `
                 -Reason 'The run completed, but the active Conversation ID filter produced 0 display rows.' `
                 -RunRecordCount $RunRecordCount
+        } else {
+            _SetDrilldownDiagnostic `
+                -Title 'No conversations displayed' `
+                -Message 'The run completed, but the active filters produced no display rows. Check the Run Console display health summary.' `
+                -Stage 'display.empty'
         }
         return
     }
@@ -3461,6 +3768,11 @@ function _AutoOpenConversationFromRows {
                 -ConversationId $PreferredConversationId `
                 -Reason 'The run completed, but the requested Conversation ID was not present in the current display rows.' `
                 -RunRecordCount $RunRecordCount
+        } else {
+            _SetDrilldownDiagnostic `
+                -Title 'Select a row to view details' `
+                -Message 'The run returned multiple conversations. Select any conversation row to load Summary, Participants, Segments, Attributes, MOS / Quality, and Raw JSON.' `
+                -Stage 'display.ready'
         }
         return
     }
@@ -3487,65 +3799,64 @@ function _LoadDrilldown {
     _RefreshReportButtons
     _SetStatus "Loading drilldown: $ConversationId …"
 
-    $record = $null
-    $rawJsonText = $null
-
-    # ── DB path: prefer canonical raw_json stored in the case store. Reconstruct
-    # only as a compatibility fallback for older stores.
-    if ($script:State.DataSource -eq 'database' -and
-        -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
-        try {
-            $dbRow = Get-ConversationById -CaseId $script:State.ActiveCaseId `
-                                          -ConversationId $ConversationId
-            if ($null -ne $dbRow) {
-                $rawProp = $dbRow.PSObject.Properties['raw_json']
-                $rawJsonText = if ($null -ne $rawProp) { [string]$rawProp.Value } else { $null }
-                if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
-                    $record = $rawJsonText | ConvertFrom-Json
-                } else {
-                    $ptjsonProp = $dbRow.PSObject.Properties['participants_json']
-                    $ptjson     = if ($null -ne $ptjsonProp) { $ptjsonProp.Value } else { $null }
-                    if (-not [string]::IsNullOrWhiteSpace($ptjson)) {
-                        $participants = $ptjson | ConvertFrom-Json
-                        $record = [pscustomobject]@{
-                            conversationId    = $ConversationId
-                            conversationStart = if ($dbRow.PSObject.Properties['conversation_start']) { $dbRow.conversation_start } else { '' }
-                            conversationEnd   = if ($dbRow.PSObject.Properties['conversation_end'])   { $dbRow.conversation_end   } else { '' }
-                            participants      = $participants
-                            reconstructionNotice = 'Compatibility fallback: canonical raw_json was not available for this imported row.'
-                        }
-                        $atjsonProp = $dbRow.PSObject.Properties['attributes_json']
-                        $atjson     = if ($null -ne $atjsonProp) { $atjsonProp.Value } else { $null }
-                        if (-not [string]::IsNullOrWhiteSpace($atjson)) {
-                            $record | Add-Member -NotePropertyName 'attributes' `
-                                                 -NotePropertyValue ($atjson | ConvertFrom-Json) -Force
-                        }
-                        $rawJsonText = $record | ConvertTo-Json -Depth 20
-                    }
-                }
-            }
-        } catch { $record = $null }
+    $resolution = $null
+    try {
+        $resolution = Resolve-ConversationDrilldownRecord `
+            -CaseId $script:State.ActiveCaseId `
+            -RunFolder $script:State.CurrentRunFolder `
+            -ConversationId $ConversationId
+    } catch {
+        _AppendRunDiagnostic `
+            -Stage 'Drilldown resolver failed' `
+            -Message 'The DB/run-folder drilldown resolver threw before returning a structured result.' `
+            -Exception $_ `
+            -RunFolder $script:State.CurrentRunFolder `
+            -DataSource $script:State.DataSource `
+            -CaseId $script:State.ActiveCaseId `
+            -ConversationId $ConversationId
+        _SetDrilldownDiagnostic `
+            -Title 'Drilldown resolver failed' `
+            -Message $_.Exception.Message `
+            -ConversationId $ConversationId `
+            -Stage 'drilldown.resolve'
+        _SetStatus 'Drilldown resolver failed'
+        return
     }
 
-    # ── JSONL fallback: seek the source run folder ─────────────────────────────
-    if ($null -eq $record -and $null -ne $script:State.CurrentRunFolder) {
-        $record = Get-ConversationRecord -RunFolder $script:State.CurrentRunFolder `
-                                         -ConversationId $ConversationId
+    $record = if ($null -ne $resolution) { $resolution.Record } else { $null }
+    $rawJsonText = if ($null -ne $resolution) { $resolution.RawJsonText } else { '' }
+
+    if ($null -ne $resolution -and ($resolution.Errors.Count -gt 0 -or $resolution.Warnings.Count -gt 0)) {
+        $messages = @($resolution.Errors + $resolution.Warnings) -join '; '
+        _AppendRunDiagnostic `
+            -Stage 'Drilldown resolver diagnostics' `
+            -Message $messages `
+            -RunFolder $script:State.CurrentRunFolder `
+            -DataSource $script:State.DataSource `
+            -CaseId $script:State.ActiveCaseId `
+            -ConversationId $ConversationId
     }
 
     if ($null -eq $record) {
-        _Dispatch {
-            $script:LblSelectedConversation.Text = if ([string]::IsNullOrWhiteSpace($ConversationId)) { '(not found)' } else { $ConversationId }
-            $script:TxtDrillSummary.Text = @(
-                "Record not found for conversation ID: $ConversationId"
+        $errors = if ($null -ne $resolution -and $resolution.Errors.Count -gt 0) { $resolution.Errors -join [Environment]::NewLine } else { '(no resolver error text)' }
+        $warnings = if ($null -ne $resolution -and $resolution.Warnings.Count -gt 0) { $resolution.Warnings -join [Environment]::NewLine } else { '' }
+        $indexCount = if ($null -ne $resolution) { $resolution.IndexRecordCount } else { 0 }
+        $indexHasId = if ($null -ne $resolution) { $resolution.IndexContainsConversationId } else { $false }
+        $dbRowExists = if ($null -ne $resolution) { $resolution.DbRowExists } else { $false }
+        _SetDrilldownDiagnostic `
+            -Title 'Record not found' `
+            -Message (@(
+                'The row was selected, but the app could not resolve the full JSON conversation record from the active case store or run JSONL fallback.'
                 ''
-                "Run folder : $($script:State.CurrentRunFolder)"
-                "Data source: $($script:State.DataSource)"
-                ''
-                'The row was selected, but the app could not resolve the full JSON conversation record from the active run/case store.'
-            ) -join [Environment]::NewLine
-            _SelectDrilldownWorkspace
-        }
+                "Index record count      : $indexCount"
+                "Conversation in index  : $indexHasId"
+                "DB row exists          : $dbRowExists"
+                "Errors                 : $errors"
+                "Warnings               : $warnings"
+            ) -join [Environment]::NewLine) `
+            -ConversationId $ConversationId `
+            -Stage 'drilldown.not_found'
+        _SelectDrilldownWorkspace
         _SetStatus "Drilldown: record not found"
         return
     }
@@ -3953,6 +4264,12 @@ function _PollBackgroundRun {
     # Prefer the completed run's actual output folder over any in-progress folder
     # discovered while polling.
     $resultFolder = _ResolveRunFolderFromResult -RunResult $runResult
+    if (-not $resultFolder) {
+        $resultFolder = _FindCompletedRunFolder `
+            -OutputRoot $script:State.BackgroundRunOutputRoot `
+            -DatasetKey $script:State.BackgroundRunDataset `
+            -StartedAfterUtc $script:State.BackgroundRunStartedUtc
+    }
     if ($resultFolder) {
         $script:State.CurrentRunFolder   = $resultFolder
         $script:State.DiagnosticsContext = $resultFolder
@@ -3986,11 +4303,12 @@ function _PollBackgroundRun {
     }
 
     # Load run results
+    $preferredConversationId = [string]$script:State.PendingRunConversationId
+    $runLoadResult = $null
     if ($null -ne $script:State.CurrentRunFolder) {
         Add-RecentRun -RunFolder $script:State.CurrentRunFolder
         _RefreshRecentRuns
-        $preferredConversationId = [string]$script:State.PendingRunConversationId
-        _LoadRunAndRefreshGrid `
+        $runLoadResult = _LoadRunAndRefreshGrid `
             -RunFolder $script:State.CurrentRunFolder `
             -PreferredConversationId $preferredConversationId `
             -PreserveRunFilters
@@ -3998,13 +4316,72 @@ function _PollBackgroundRun {
         # Auto-import into the active case so every run accumulates in one place
         if ((Test-DatabaseInitialized) -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
             try {
-                Import-RunFolderToCase `
+                $importResult = Import-RunFolderToCase `
                     -CaseId    $script:State.ActiveCaseId `
-                    -RunFolder $script:State.CurrentRunFolder | Out-Null
-                _SwitchToDbMode
+                    -RunFolder $script:State.CurrentRunFolder
+
+                $dbFilterState = _GetCanonicalFilterState
+                $dbDisplayCount = Get-ConversationCount -CaseId $script:State.ActiveCaseId -FilterState $dbFilterState
+                if ($dbDisplayCount -gt 0 -or $importResult.RecordCount -eq 0) {
+                    $switchResult = _SwitchToDbMode
+                    if ($null -eq $switchResult -or -not $switchResult.Succeeded -or ($importResult.RecordCount -gt 0 -and $switchResult.RowCount -eq 0)) {
+                        _AppendRunDiagnostic `
+                            -Stage 'Case-store display fallback' `
+                            -Message 'Import completed, but the DB grid refresh did not produce display rows. Keeping run-artifact rows visible.' `
+                            -RunFolder $script:State.CurrentRunFolder `
+                            -DataSource 'index' `
+                            -CaseId $script:State.ActiveCaseId
+                        if ($null -ne $runLoadResult -and $runLoadResult.IndexRecordCount -gt 0) {
+                            _LoadRunAndRefreshGrid -RunFolder $script:State.CurrentRunFolder -PreferredConversationId $preferredConversationId -PreserveRunFilters | Out-Null
+                        }
+                    }
+                } else {
+                    _AppendRunDiagnostic `
+                        -Stage 'Case-store display fallback' `
+                        -Message 'Import completed, but the current case-store filters returned 0 rows. Keeping run-artifact rows visible.' `
+                        -RunFolder $script:State.CurrentRunFolder `
+                        -DataSource 'index' `
+                        -CaseId $script:State.ActiveCaseId
+                }
             } catch {
+                _AppendRunDiagnostic `
+                    -Stage 'Case auto-import failed' `
+                    -Message 'Keeping run-artifact rows visible because case-store import failed.' `
+                    -Exception $_ `
+                    -RunFolder $script:State.CurrentRunFolder `
+                    -DataSource 'index' `
+                    -CaseId $script:State.ActiveCaseId
                 Write-Warning "Case auto-import failed: $_"
             }
+        }
+    }
+
+    $healthText = ''
+    if ($null -ne $script:State.CurrentRunFolder) {
+        try {
+            $health = Test-ConversationDisplayPipeline `
+                -RunFolder $script:State.CurrentRunFolder `
+                -CaseId $script:State.ActiveCaseId `
+                -PreferredConversationId $preferredConversationId
+            $healthText = @(
+                '=== Post-Run Display Health ==='
+                "RunFolderExists       : $($health.RunFolderExists)"
+                "ManifestExists        : $($health.ManifestExists)"
+                "SummaryExists         : $($health.SummaryExists)"
+                "DataDirectoryExists   : $($health.DataDirectoryExists)"
+                "DataFileCount         : $($health.DataFileCount)"
+                "DataRecordCount       : $($health.DataRecordCount)"
+                "IndexRecordCount      : $($health.IndexRecordCount)"
+                "FirstConversationId   : $($health.FirstConversationId)"
+                "CaseImportAttempted   : $($health.CaseImportAttempted)"
+                "CaseConversationCount : $($health.CaseConversationCount)"
+                "DbPageRowCount        : $($health.DbPageRowCount)"
+                "DrilldownResolvable   : $($health.DrilldownResolvable)"
+                "Errors                : $(if ($health.Errors.Count -gt 0) { $health.Errors -join '; ' } else { '' })"
+                "Warnings              : $(if ($health.Warnings.Count -gt 0) { $health.Warnings -join '; ' } else { '' })"
+            ) -join [Environment]::NewLine
+        } catch {
+            $healthText = "=== Post-Run Display Health ===`nHealth check failed: $($_.Exception.Message)"
         }
     }
 
@@ -4012,6 +4389,11 @@ function _PollBackgroundRun {
         Get-DiagnosticsText -RunFolder $script:State.DiagnosticsContext
     } else { '(no run folder found — check trace above)' }
     if ($traceText) { $diagText = $traceText + "`n" + $diagText }
+    if ($healthText) { $diagText = $diagText + "`n`n" + $healthText }
+    $uiDiagnosticText = if ($null -ne $script:TxtDiagnostics) { [string]$script:TxtDiagnostics.Text } else { '' }
+    if (-not [string]::IsNullOrWhiteSpace($uiDiagnosticText) -and $diagText -notlike "*$uiDiagnosticText*") {
+        $diagText = $diagText + "`n`n=== UI Display Diagnostics ===`n" + $uiDiagnosticText
+    }
     _Dispatch {
         $script:TxtRunStatus.Text     = 'Run complete'
         $script:TxtConsoleStatus.Text = 'Complete'

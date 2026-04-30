@@ -178,6 +178,33 @@ ArchCheck 'ARCH-18' 'App.Index.psm1 handles UTF-8 BOM' {
     $index -match '0xEF|BOM'
 }
 
+ArchCheck 'ARCH-18A' 'App.Index.psm1 supports conversation envelope shapes' {
+    ($index -match 'function Resolve-ConversationRecord') -and
+    ($index -match "'item','record','data'") -and
+    ($index -match 'function Get-ConversationIdFromRecord')
+}
+
+ArchCheck 'ARCH-18B' 'App.UI.ps1 validates completed run folders before display loading' {
+    ($uiPs -match 'function _TestCompletedRunFolder') -and
+    ($uiPs -match 'function _FindCompletedRunFolder') -and
+    ($uiPs -match 'manifest\.json') -and
+    ($uiPs -match 'summary\.json') -and
+    ($uiPs -match "data'.*'\*\.jsonl")
+}
+
+ArchCheck 'ARCH-18C' 'App.UI.ps1 accepts common Core result run-folder property names' {
+    foreach ($name in @('runFolder','RunFolder','outputFolder','OutputFolder','runPath','RunPath','path','Path','folder','Folder')) {
+        if ($uiPs -notmatch $name) { return $false }
+    }
+    return $true
+}
+
+ArchCheck 'ARCH-18D' 'App.Database.psm1 exposes non-UI drilldown resolver' {
+    ($database -match 'function Resolve-ConversationDrilldownRecord') -and
+    ($database -match 'database\.raw_json') -and
+    ($database -match 'run-folder\.jsonl')
+}
+
 # ── Architecture: export streaming ────────────────────────────────────────────
 Write-Host "`n--- Export streaming ---" -ForegroundColor DarkCyan
 

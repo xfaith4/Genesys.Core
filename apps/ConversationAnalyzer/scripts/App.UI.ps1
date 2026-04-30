@@ -3249,17 +3249,6 @@ function _ApplyFiltersAndRefresh {
     $search = $script:State.SearchText
     $convId = $script:TxtConversationId.Text.Trim()
 
-    $filtered = Filter-Index -Index $AllIndex `
-        -Direction $dir `
-        -MediaType $media `
-        -SearchText $search `
-        -ConversationId $convId `
-        -ColumnFilters $script:State.ColumnFilters
-
-    $script:State.CurrentIndex = @($filtered)
-    _RefreshGridFromIndex
-}
-
     $userId = $script:TxtFilterUserId.Text.Trim()
     $divId  = $script:TxtFilterDivisionId.Text.Trim()
 

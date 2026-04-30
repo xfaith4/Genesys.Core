@@ -3273,8 +3273,9 @@ function _ApplyFiltersAndRefresh {
         }
     }
 
-    $script:State.CurrentIndex = @($filtered)
-    $script:State.TotalPages   = [math]::Max(1, [math]::Ceiling($filtered.Count / $script:State.PageSize))
+    $filteredRows = @($filtered)
+    $script:State.CurrentIndex = $filteredRows
+    $script:State.TotalPages   = [math]::Max(1, [math]::Ceiling($filteredRows.Count / $script:State.PageSize))
     $script:State.CurrentImpactReport = $null
     if ($script:State.CurrentPage -gt $script:State.TotalPages) {
         $script:State.CurrentPage = $script:State.TotalPages
@@ -3478,14 +3479,18 @@ function _GetDatasetParameters {
     $params = @{}
     $filterState = _GetCanonicalFilterState
     $range  = _GetQueryBoundaryDateTimes
+    $startUtc = $null
+    $endUtc = $null
 
     if ($null -ne $range.Start) {
         # Convert to UTC – WPF DatePicker yields DateTimeKind.Unspecified (treated as
         # local by ToUniversalTime).  The Genesys API expects UTC ISO-8601 timestamps.
-        $params['StartDateTime'] = $range.Start.ToUniversalTime().ToString('o')
+        $startUtc = $range.Start.ToUniversalTime().ToString('o')
+        $params['StartUtc'] = $startUtc
     }
     if ($null -ne $range.End) {
-        $params['EndDateTime'] = $range.End.ToUniversalTime().ToString('o')
+        $endUtc = $range.End.ToUniversalTime().ToString('o')
+        $params['EndUtc'] = $endUtc
     }
 
     $selDir = $script:CmbDirection.SelectedItem
@@ -3508,7 +3513,7 @@ function _GetDatasetParameters {
     if ($userId) { $params['UserId'] = $userId }
 
     $divId = $filterState.DivisionId
-    if ($divId) { $params['DivisionId'] = $divId }
+    if ($divId) { $params['DivisionIds'] = @($divId) }
 
     if ($script:ChkExternalTagExists.IsChecked -eq $true) {
         $params['ConversationFilters'] = @(@{
@@ -3532,6 +3537,45 @@ function _GetDatasetParameters {
     if ($segPredicates.Count -gt 0) {
         $params['SegmentFilters'] = @(@{ type = 'and'; predicates = $segPredicates.ToArray() })
     }
+
+    $body = [ordered]@{
+        order   = 'asc'
+        orderBy = 'conversationStart'
+    }
+
+    if ($startUtc -and $endUtc) {
+        $body.interval = "$startUtc/$endUtc"
+    }
+
+    $conversationPredicates = [System.Collections.Generic.List[object]]::new()
+    if ($convId) {
+        $conversationPredicates.Add([ordered]@{
+            type      = 'dimension'
+            dimension = 'conversationId'
+            operator  = 'matches'
+            value     = $convId
+        }) | Out-Null
+    }
+    if ($divId) {
+        $conversationPredicates.Add([ordered]@{
+            type      = 'dimension'
+            dimension = 'divisionId'
+            operator  = 'matches'
+            value     = $divId
+        }) | Out-Null
+    }
+    if ($conversationPredicates.Count -gt 0) {
+        $body.conversationFilters = @([ordered]@{
+            type       = 'and'
+            predicates = @($conversationPredicates.ToArray())
+        })
+    }
+
+    if ($params.ContainsKey('SegmentFilters')) {
+        $body.segmentFilters = $params['SegmentFilters']
+    }
+
+    $params['Body'] = $body
 
     return $params
 }

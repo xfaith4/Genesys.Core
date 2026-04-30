@@ -217,6 +217,7 @@ $script:State = @{
     QualityTimer            = $null
     QualityCaseId           = ''       # case targeted by in-progress quality pull
     SuppressConversationSelectionOpen = $false
+    PendingRunConversationId = ''
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -264,6 +265,11 @@ $script:UIAppDir = if ($PSScriptRoot) {
 
 function _Dispatch {
     param([scriptblock]$Action)
+    if ($script:Window.Dispatcher.CheckAccess()) {
+        & $Action
+        return
+    }
+
     $script:Window.Dispatcher.Invoke([System.Action]$Action)
 }
 
@@ -3165,7 +3171,7 @@ function _RefreshGridFromDb {
             $script:TxtPageInfo.Text = "Page $page of $pages  |  $count records  [case]"
             $script:BtnPrevPage.IsEnabled = ($page -gt 1)
             $script:BtnNextPage.IsEnabled = ($page -lt $pages)
-            _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId
+            _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId -RunRecordCount $count
         }
 
         # Mirror into CurrentIndex so impact reports keep working (index-compatible subset)
@@ -3193,18 +3199,28 @@ function _SwitchToDbMode {
 # ── Index / paging ────────────────────────────────────────────────────────────
 
 function _LoadRunAndRefreshGrid {
-    param([string]$RunFolder)
+    param(
+        [string]$RunFolder,
+        [string]$PreferredConversationId = '',
+        [switch]$PreserveRunFilters
+    )
     if ([string]::IsNullOrEmpty($RunFolder)) { return }
     _SetStatus "Loading index: $([System.IO.Path]::GetFileName($RunFolder)) …"
 
     $script:State.CurrentRunFolder  = $RunFolder
     $script:State.DiagnosticsContext = $RunFolder
 
-    # Clear run-specific ID filters – stale values from a prior run would silently
-    # filter the newly-loaded data and confuse the user.
-    $script:TxtConversationId.Text = ''
-    if ($null -ne $script:TxtFilterUserId)     { $script:TxtFilterUserId.Text     = '' }
-    if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = '' }
+    # Clear stale run-specific filters for manually-loaded runs, but preserve the
+    # filter that just produced a completed run so its detail pane can open.
+    if ($PreserveRunFilters) {
+        if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId) -and $null -ne $script:TxtConversationId) {
+            $script:TxtConversationId.Text = $PreferredConversationId
+        }
+    } else {
+        $script:TxtConversationId.Text = ''
+        if ($null -ne $script:TxtFilterUserId)     { $script:TxtFilterUserId.Text     = '' }
+        if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = '' }
+    }
 
     # Load or build index (may take a moment for large runs)
     $allIdx = @(Load-RunIndex -RunFolder $RunFolder)
@@ -3323,11 +3339,22 @@ function _RenderCurrentPage {
         $script:TxtPageInfo.Text = "Page $page of $pages  |  $total records"
         $script:BtnPrevPage.IsEnabled = ($page -gt 1)
         $script:BtnNextPage.IsEnabled = ($page -lt $pages)
-        _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId
+        _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId -RunRecordCount $total
     }
 }
 
 # ── Drilldown ─────────────────────────────────────────────────────────────────
+
+function _SelectDrilldownWorkspace {
+    $tabCtrl = _Ctrl 'TabWorkspace'
+    if ($null -eq $tabCtrl) { return }
+
+    if ($null -ne $script:TabDrilldownWorkspace) {
+        $tabCtrl.SelectedItem = $script:TabDrilldownWorkspace
+    } else {
+        $tabCtrl.SelectedIndex = 1
+    }
+}
 
 function _GetConversationIdFromGridRow {
     param([object]$Row)
@@ -3367,19 +3394,54 @@ function _OpenConversationGridRow {
     _LoadDrilldown -ConversationId $convId
 
     if ($SwitchToDrilldown) {
-        $tabCtrl = _Ctrl 'TabWorkspace'
-        if ($null -ne $tabCtrl) { $tabCtrl.SelectedIndex = 1 }
+        _SelectDrilldownWorkspace
+    }
+}
+
+function _ShowConversationLookupMiss {
+    param(
+        [string]$ConversationId,
+        [string]$Reason,
+        [int]$RunRecordCount = 0
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Reason)) {
+        $Reason = 'The run completed, but no matching conversation detail row was available to open.'
+    }
+
+    _Dispatch {
+        $script:LblSelectedConversation.Text = if ([string]::IsNullOrWhiteSpace($ConversationId)) { '(not found)' } else { $ConversationId }
+        $script:TxtDrillSummary.Text = @(
+            $Reason
+            ''
+            "Conversation ID : $ConversationId"
+            "Run folder      : $($script:State.CurrentRunFolder)"
+            "Run record count: $RunRecordCount"
+            "Data source     : $($script:State.DataSource)"
+            ''
+            'Check the selected date interval, division/user permissions, and Run Console diagnostics for the API result count.'
+        ) -join [Environment]::NewLine
+        _SelectDrilldownWorkspace
     }
 }
 
 function _AutoOpenConversationFromRows {
     param(
         [object[]]$Rows,
-        [string]$PreferredConversationId = ''
+        [string]$PreferredConversationId = '',
+        [int]$RunRecordCount = 0
     )
 
     $rowList = @($Rows)
-    if ($rowList.Count -eq 0) { return }
+    if ($rowList.Count -eq 0) {
+        if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId)) {
+            _ShowConversationLookupMiss `
+                -ConversationId $PreferredConversationId `
+                -Reason 'The run completed, but the active Conversation ID filter produced 0 display rows.' `
+                -RunRecordCount $RunRecordCount
+        }
+        return
+    }
 
     $target = $null
     if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId)) {
@@ -3392,7 +3454,15 @@ function _AutoOpenConversationFromRows {
         $target = $rowList[0]
     }
 
-    if ($null -eq $target) { return }
+    if ($null -eq $target) {
+        if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId)) {
+            _ShowConversationLookupMiss `
+                -ConversationId $PreferredConversationId `
+                -Reason 'The run completed, but the requested Conversation ID was not present in the current display rows.' `
+                -RunRecordCount $RunRecordCount
+        }
+        return
+    }
 
     $script:State.SuppressConversationSelectionOpen = $true
     try {
@@ -3464,8 +3534,16 @@ function _LoadDrilldown {
 
     if ($null -eq $record) {
         _Dispatch {
-            $script:LblSelectedConversation.Text = "(not found)"
-            $script:TxtDrillSummary.Text = "Record not found for conversation ID: $ConversationId"
+            $script:LblSelectedConversation.Text = if ([string]::IsNullOrWhiteSpace($ConversationId)) { '(not found)' } else { $ConversationId }
+            $script:TxtDrillSummary.Text = @(
+                "Record not found for conversation ID: $ConversationId"
+                ''
+                "Run folder : $($script:State.CurrentRunFolder)"
+                "Data source: $($script:State.DataSource)"
+                ''
+                'The row was selected, but the app could not resolve the full JSON conversation record from the active run/case store.'
+            ) -join [Environment]::NewLine
+            _SelectDrilldownWorkspace
         }
         _SetStatus "Drilldown: record not found"
         return
@@ -3712,6 +3790,11 @@ function _StartRunInBackground {
     $script:State.BackgroundRunDataset = $datasetKey
     $script:State.BackgroundRunOutputRoot = $outputRoot
     $script:State.BackgroundRunStartedUtc = [DateTime]::UtcNow
+    $script:State.PendingRunConversationId = if ($DatasetParameters.ContainsKey('ConversationId')) {
+        [string]$DatasetParameters['ConversationId']
+    } else {
+        ''
+    }
     _SetRunning $true
     _Dispatch {
         $script:TxtRunStatus.Text   = "Starting $RunType run…"
@@ -3897,6 +3980,7 @@ function _PollBackgroundRun {
         $script:State.BackgroundRunDataset = ''
         $script:State.BackgroundRunOutputRoot = ''
         $script:State.BackgroundRunStartedUtc = $null
+        $script:State.PendingRunConversationId = ''
         return
     }
 
@@ -3904,7 +3988,11 @@ function _PollBackgroundRun {
     if ($null -ne $script:State.CurrentRunFolder) {
         Add-RecentRun -RunFolder $script:State.CurrentRunFolder
         _RefreshRecentRuns
-        _LoadRunAndRefreshGrid -RunFolder $script:State.CurrentRunFolder
+        $preferredConversationId = [string]$script:State.PendingRunConversationId
+        _LoadRunAndRefreshGrid `
+            -RunFolder $script:State.CurrentRunFolder `
+            -PreferredConversationId $preferredConversationId `
+            -PreserveRunFilters
 
         # Auto-import into the active case so every run accumulates in one place
         if ((Test-DatabaseInitialized) -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
@@ -3933,6 +4021,7 @@ function _PollBackgroundRun {
     $script:State.BackgroundRunDataset = ''
     $script:State.BackgroundRunOutputRoot = ''
     $script:State.BackgroundRunStartedUtc = $null
+    $script:State.PendingRunConversationId = ''
 }
 
 function _CancelBackgroundRun {

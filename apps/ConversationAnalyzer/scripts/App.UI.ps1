@@ -216,6 +216,7 @@ $script:State = @{
     QualityRunspace         = $null
     QualityTimer            = $null
     QualityCaseId           = ''       # case targeted by in-progress quality pull
+    SuppressConversationSelectionOpen = $false
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -3157,12 +3158,14 @@ function _RefreshGridFromDb {
         $displayRows = @($rows | ForEach-Object { Get-DbConversationDisplayRow -DbRow $_ })
         $page  = $script:State.CurrentPage
         $pages = $script:State.TotalPages
+        $preferredConversationId = [string]$filterState.ConversationId
 
         _Dispatch {
             $script:DgConversations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($displayRows)
             $script:TxtPageInfo.Text = "Page $page of $pages  |  $count records  [case]"
             $script:BtnPrevPage.IsEnabled = ($page -gt 1)
             $script:BtnNextPage.IsEnabled = ($page -lt $pages)
+            _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId
         }
 
         # Mirror into CurrentIndex so impact reports keep working (index-compatible subset)
@@ -3310,16 +3313,97 @@ function _RenderCurrentPage {
 
     $pageEntries = @($idx[$startIdx..$endIdx])
     $displayRows = @($pageEntries | ForEach-Object { Get-ConversationDisplayRow -IndexEntry $_ })
+    $preferredConversationId = ''
+    if ($null -ne $script:TxtConversationId) {
+        $preferredConversationId = [string]$script:TxtConversationId.Text.Trim()
+    }
 
     _Dispatch {
         $script:DgConversations.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($displayRows)
         $script:TxtPageInfo.Text = "Page $page of $pages  |  $total records"
         $script:BtnPrevPage.IsEnabled = ($page -gt 1)
         $script:BtnNextPage.IsEnabled = ($page -lt $pages)
+        _AutoOpenConversationFromRows -Rows $displayRows -PreferredConversationId $preferredConversationId
     }
 }
 
 # ── Drilldown ─────────────────────────────────────────────────────────────────
+
+function _GetConversationIdFromGridRow {
+    param([object]$Row)
+
+    if ($null -eq $Row) { return '' }
+    if ($Row -is [string]) { return ([string]$Row).Trim() }
+
+    foreach ($name in @('ConversationId', 'conversationId', 'conversation_id', 'id')) {
+        $value = $null
+        if ($Row -is [hashtable] -and $Row.ContainsKey($name)) {
+            $value = $Row[$name]
+        } else {
+            $prop = $Row.PSObject.Properties[$name]
+            if ($null -ne $prop) { $value = $prop.Value }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace([string]$value)) {
+            return ([string]$value).Trim()
+        }
+    }
+
+    return ''
+}
+
+function _OpenConversationGridRow {
+    param(
+        [object]$Row,
+        [bool]$SwitchToDrilldown = $true
+    )
+
+    $convId = _GetConversationIdFromGridRow -Row $Row
+    if ([string]::IsNullOrWhiteSpace($convId)) {
+        _SetStatus 'Drilldown: selected row has no conversation ID'
+        return
+    }
+
+    _LoadDrilldown -ConversationId $convId
+
+    if ($SwitchToDrilldown) {
+        $tabCtrl = _Ctrl 'TabWorkspace'
+        if ($null -ne $tabCtrl) { $tabCtrl.SelectedIndex = 1 }
+    }
+}
+
+function _AutoOpenConversationFromRows {
+    param(
+        [object[]]$Rows,
+        [string]$PreferredConversationId = ''
+    )
+
+    $rowList = @($Rows)
+    if ($rowList.Count -eq 0) { return }
+
+    $target = $null
+    if (-not [string]::IsNullOrWhiteSpace($PreferredConversationId)) {
+        $target = $rowList |
+            Where-Object { (_GetConversationIdFromGridRow -Row $_) -eq $PreferredConversationId } |
+            Select-Object -First 1
+    }
+
+    if ($null -eq $target -and $rowList.Count -eq 1) {
+        $target = $rowList[0]
+    }
+
+    if ($null -eq $target) { return }
+
+    $script:State.SuppressConversationSelectionOpen = $true
+    try {
+        $script:DgConversations.SelectedItem = $target
+        try { $script:DgConversations.ScrollIntoView($target) } catch { }
+    } finally {
+        $script:State.SuppressConversationSelectionOpen = $false
+    }
+
+    _OpenConversationGridRow -Row $target -SwitchToDrilldown $true
+}
 
 function _LoadDrilldown {
     param([string]$ConversationId)
@@ -4631,13 +4715,10 @@ $script:DgConversations.Add_Sorting({
 })
 
 $script:DgConversations.Add_SelectionChanged({
+    if ($script:State.SuppressConversationSelectionOpen) { return }
     $sel = $script:DgConversations.SelectedItem
     if ($null -ne $sel) {
-        $convId = $sel.ConversationId
-        _LoadDrilldown -ConversationId $convId
-        # Switch to Drilldown tab
-        $tabCtrl = _Ctrl 'TabWorkspace'
-        $tabCtrl.SelectedIndex = 1
+        _OpenConversationGridRow -Row $sel -SwitchToDrilldown $true
     }
 })
 

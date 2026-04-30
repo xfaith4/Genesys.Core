@@ -1,6 +1,6 @@
 # Genesys.Core
 
-> Catalog-driven PowerShell execution engine for governed Genesys Cloud dataset collection — deterministic retry/paging, structured audit artifacts, and GitHub Actions automation.
+> Catalog-driven PowerShell execution engine for governed Genesys Cloud dataset collection and composed investigations — deterministic retry/paging, structured audit artifacts, and GitHub Actions automation.
 
 [![CI](https://github.com/your-org/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/Genesys.Core/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -16,6 +16,8 @@ Extracting governed, reproducible data from the Genesys Cloud REST API is harder
 
 Genesys.Core solves this with a **catalog-driven execution engine**: endpoint behavior (paging strategy, retry profile, async flow, redaction policy) lives in a single JSON catalog — not scattered across scripts. Every run produces identical, auditable output artifacts, making automation, compliance review, and CI integration straightforward.
 
+The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. The first flagship is Agent Investigation, which joins identity, division, skills, queue memberships, presence, activity, and touched conversations for one agent.
+
 ---
 
 ## Key Features
@@ -25,6 +27,7 @@ Genesys.Core solves this with a **catalog-driven execution engine**: endpoint be
 - **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
 - **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs
 - **Structured run output contract** — every run writes `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl` under `out/<datasetKey>/<runId>/`
+- **Investigation composition** — `Get-GenesysAgentInvestigation` emits the same artifact set for a joined, agent-centred investigation under `out/agent-investigation/<runId>/`
 - **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
 - **GitHub Actions integration** — scheduled and on-demand workflows for `audit-logs` with artifact upload and configurable retention
 - **Conversation Analysis web app** — `apps/ConversationAnalysis/index.html`, a self-contained SPA for exploring run artifacts (no build, no server)
@@ -67,6 +70,15 @@ Invoke-Dataset -Dataset 'users' -WhatIf
 
 # Live run
 Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
+```
+
+### 3b — Run an Agent Investigation
+
+```powershell
+Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
+Connect-GenesysCloud -AccessToken $authResponse.access_token -Region $region
+
+Get-GenesysAgentInvestigation -UserId '<genesys-user-guid>' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
 ```
 
 ### 4 — Inspect run output
@@ -136,6 +148,18 @@ Invoke-Dataset -Dataset 'routing-queues' -OutputRoot './out' -BaseUri $baseUri -
 ```
 
 All other keys in the catalog (27 additional) run via generic catalog-driven dispatch when endpoint metadata is present.
+
+### Investigation runs
+
+```powershell
+Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
+Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.cloud'
+
+# Resolve by name in the wrapper, then compose the investigation by UserId.
+Get-GenesysAgentInvestigation -UserName 'Jane Doe' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
+```
+
+Investigation output follows the same artifact contract as datasets, with an investigation manifest schema at `catalog/schema/investigation.manifest.schema.json`. See [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for the composition contract and release sequencing.
 
 ### Standalone script invocation (dry runs / CI bootstrap)
 

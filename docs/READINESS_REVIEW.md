@@ -122,11 +122,11 @@ change together with the evidence (test output, artifact, or PR link).
 | # | Criterion | Status | Verifiable by |
 |---|-----------|--------|---------------|
 | I-01 | All seven Agent Investigation datasets are live-validated (H-01 through H-07 are ✅ GREEN). | 🔒 BLOCKED | Live validation must complete first. |
-| I-02 | `Invoke-Investigation` private composer helper exists in `Genesys.Ops` with table-driven unit tests. | ❌ NOT MET | `tests/unit/` — no Investigation composer tests yet. |
-| I-03 | `Get-GenesysAgentInvestigation` public cmdlet exists and produces the standard artifact set under `out/agent-investigation/<runId>/`. | ❌ NOT MET | `modules/Genesys.Ops/Genesys.Ops.psm1` — cmdlet not yet implemented. |
-| I-04 | `manifest.json` for Agent Investigation conforms to the Investigation Manifest schema at `catalog/schema/investigation.manifest.schema.json`. | ❌ NOT MET | Schema file does not yet exist. |
-| I-05 | Fixture-driven integration test for Agent Investigation asserts manifest shape, join shape, and determinism. | ❌ NOT MET | `tests/integration/` — test not yet written. |
-| I-06 | `README.md` and `ONBOARDING.md` describe investigations as first-class alongside datasets. | ❌ NOT MET | `INVESTIGATIONS.md` exists but cross-links are missing from README/ONBOARDING. |
+| I-02 | `Invoke-Investigation` private composer helper exists in `Genesys.Ops` with table-driven fixture coverage. | ✅ GREEN | `modules/Genesys.Ops/Genesys.Ops.psm1`; `tests/integration/AgentInvestigation.Tests.ps1` covers required/optional step semantics, manifest join plan, and deterministic output. |
+| I-03 | `Get-GenesysAgentInvestigation` public cmdlet exists and produces the standard artifact set under `out/agent-investigation/<runId>/`. | ✅ GREEN | `tests/integration/AgentInvestigation.Tests.ps1` happy-path fixture asserts `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl`. |
+| I-04 | `manifest.json` for Agent Investigation conforms to the Investigation Manifest schema at `catalog/schema/investigation.manifest.schema.json`. | ✅ GREEN | `tests/integration/AgentInvestigation.Tests.ps1` validates emitted manifest JSON against `catalog/schema/investigation.manifest.schema.json`. |
+| I-05 | Fixture-driven integration test for Agent Investigation asserts manifest shape, join shape, and determinism. | ✅ GREEN | `tests/integration/AgentInvestigation.Tests.ps1`; `scripts/Invoke-Tests.ps1 -IncludeIntegration` passed 105 unit / 12 integration tests on 2026-04-30. |
+| I-06 | `README.md` and `ONBOARDING.md` describe investigations as first-class alongside datasets. | ✅ GREEN | `README.md`, `docs/ONBOARDING.md`, `docs/training/Training.md`, and `docs/INVESTIGATIONS.md` are cross-linked. |
 
 ---
 
@@ -138,9 +138,8 @@ current blocking items are:
 1. **H-01 → H-08**: Live validation of all seven Agent Investigation datasets.
    Once completed, update `validationStatus` in the catalog and promote the
    criteria.
-2. **I-02 → I-06**: Agent Investigation implementation (Track B).
-3. **C-03**: Explicit paging guard in generic paging path.
-4. **F-03**: CI determinism assertion for run artifacts.
+2. **C-03**: Explicit paging guard in generic paging path.
+3. **F-03**: CI determinism assertion for run artifacts.
 
 ---
 
@@ -148,6 +147,7 @@ current blocking items are:
 
 | Date | Change |
 |------|--------|
+| 2026-04-30 | Promoted Agent Investigation Track B implementation gates I-02 through I-06 after fixture integration validation. Live validation H-01 through H-08 remains blocking. |
 | 2026-04-29 | Rewrote as formal verifiable checklist for Release 1.0 (Track A deliverable). Previous narrative review archived below. |
 | 2026-02-22 | Initial readiness review written. |
 

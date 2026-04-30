@@ -70,3 +70,12 @@
 - Added quality import/accessor helpers for KPI summary, per-agent score distribution, per-queue survey distribution, low-score conversation drillthrough, topic overlays, and correlation summaries.
 - Added the new "Quality" tab and UI handlers for background pull, local rendering, and low-score conversation drillthrough.
 - Updated compliance/architecture tests and reran `apps/ConversationAnalyser/tests/Invoke-AllTests.ps1`: 234 PASS / 0 FAIL / 1 SKIP. DB runtime still skips in WSL because native `e_sqlite3` is absent.
+
+## 2026-04-30
+
+- Evaluated the current roadmap and found the next logical phase is Release 1.0 Track B follow-up for Agent Investigation, not another ConversationAnalyser session.
+- Ran `pwsh -NoProfile -File scripts/Invoke-Tests.ps1 -Path tests/unit -IncludeIntegration -Output Detailed`; unit tests passed but Agent Investigation integration initially failed on scalar/empty-array handling and the `-UserName` mock.
+- Hardened `Invoke-Investigation` to preserve empty arrays after deterministic sorting, fixed scalar-safe queue/conversation subject filters, and corrected `joinPlan.leftSource` to identify the source step.
+- Strengthened `tests/integration/AgentInvestigation.Tests.ps1` with a join-plan assertion and repaired the name-resolution mock.
+- Updated `README.md`, `docs/ONBOARDING.md`, `docs/training/Training.md`, `docs/ROADMAP.md`, `docs/READINESS_REVIEW.md`, and `docs/CHANGELOG.md` after validation.
+- Final validation passed: parser checks for `modules/Genesys.Ops/Genesys.Ops.psm1` and `tests/integration/AgentInvestigation.Tests.ps1`; `scripts/Invoke-Tests.ps1 -Path tests/unit -IncludeIntegration -Output Normal` passed 105 unit tests and 12 integration tests.

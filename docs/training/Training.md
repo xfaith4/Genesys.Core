@@ -9,5 +9,7 @@ This demo is a guided HTML/JS walkthrough for new users and contributors:
 - repo layering (Auth / Core / Ops)
 - authentication options (Connect-GenesysCloud, AuthContext, GENESYS_BEARER_TOKEN)
 - first dataset execution
+- first Agent Investigation execution
 - run artifact interpretation
+- investigation manifest interpretation
 - validation workflow

@@ -124,13 +124,13 @@ existing dataset run-artifact contract — investigations are not a new file
 format, they are datasets that join other datasets. No new module, no new
 artifact format, no broad abstraction layer.
 
-- [ ] **Investigation composer contract.** A single private helper
+- [x] **Investigation composer contract.** A single private helper
       (`Invoke-Investigation`) in `Genesys.Ops` that takes a subject + window,
       runs N registered datasets via existing `Genesys.Core` plumbing, joins
       on declared keys, and emits the standard artifact set under
       `out/<investigationKey>/<runId>/`. No new abstractions beyond the join
       helper.
-- [ ] **Investigation Manifest Contract.** The investigation's `manifest.json`
+- [x] **Investigation Manifest Contract.** The investigation's `manifest.json`
       records a fixed shape so downstream tooling (CI, audit, reporting) can
       consume any investigation uniformly. Required fields:
       `investigationKey`, `subjectType`, `subjectId`, `window` (`since`,
@@ -141,18 +141,18 @@ artifact format, no broad abstraction layer.
       `outputArtifacts` (`manifestPath`, `eventsPath`, `summaryPath`,
       `dataPaths`). See
       [INVESTIGATIONS.md § Manifest contract](INVESTIGATIONS.md#manifest-contract).
-- [ ] **Flagship investigation — Agent.**
+- [x] **Flagship investigation — Agent.**
       `Get-GenesysAgentInvestigation -UserId <x> -Since <window>` →
       identity + division + location + skills + queue memberships +
       conversations the agent touched + presence/login activity in the
       window. Emits the standard artifact set with the manifest above.
-- [ ] **Integration test contract for investigations.** Feed Agent
+- [x] **Integration test contract for investigations.** Feed Agent
       Investigation a known subject ID against a fixture and assert (a) the
       manifest shape, (b) the `summary.json` join shape, and (c)
       determinism — two consecutive runs over the same fixture produce
       byte-equivalent `summary.json` and `data/*.jsonl` (timestamps and
       `runId` excluded). Mirrors how dataset tests work today.
-- [ ] **Docs as first-class capability.** Update `README.md`, `ONBOARDING.md`,
+- [x] **Docs as first-class capability.** Update `README.md`, `ONBOARDING.md`,
       and training material to describe investigations alongside datasets.
       Cross-link `INVESTIGATIONS.md`. No "manages repositories" boilerplate
       anywhere.
@@ -179,15 +179,15 @@ Release 1.0 is complete when **all** of the following hold:
       end-to-end against live Genesys Cloud and exits 0.
 - [ ] Every dataset Agent Investigation invokes has `validationStatus =
       'live-validated'` recorded in its catalog entry as of release tag.
-- [ ] Fixture-driven integration test for Agent Investigation passes,
+- [x] Fixture-driven integration test for Agent Investigation passes,
       asserting manifest shape, join shape, and determinism (see
       [§ Acceptance tests for Agent Investigation](#acceptance-tests-for-agent-investigation)
       below).
-- [ ] Agent Investigation produces the full standard artifact set
+- [x] Agent Investigation produces the full standard artifact set
       (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`) under
       `out/agent-investigation/<runId>/`, and `manifest.json` conforms to the
       Investigation Manifest Contract.
-- [ ] `README.md` and `ONBOARDING.md` describe investigations as first-class;
+- [x] `README.md` and `ONBOARDING.md` describe investigations as first-class;
       `INVESTIGATIONS.md` is cross-linked from both.
 - [ ] No placeholder stubs or TODO comments remain in modified code.
 

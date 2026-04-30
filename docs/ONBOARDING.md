@@ -14,6 +14,7 @@ This guide describes how to run the repository under the Auth/Core/Ops lane stan
 - [6. Do a dry run first](#6-do-a-dry-run-first)
 - [7. Execute a dataset](#7-execute-a-dataset)
 - [8. Inspect run output](#8-inspect-run-output)
+- [9. Run an investigation](#9-run-an-investigation)
 - [Conversation Analysis app](#optional-conversation-analysis-app)
 - [Ops layer session](#optional-ops-layer-session)
 - [Windows GUI flow](#optional-windows-gui-flow)
@@ -24,8 +25,9 @@ This guide describes how to run the repository under the Auth/Core/Ops lane stan
 
 - **Genesys.Auth** — OAuth flows, DPAPI token store, `Connect-GenesysCloud`, `AuthContext`.
 - **Genesys.Core** — Catalog-driven `Invoke-Dataset` engine. Deterministic outputs.
-- **Genesys.Ops** — IT-Operations convenience layer (`Get-GenesysQueue`, health reports, etc.).
+- **Genesys.Ops** — IT-Operations convenience layer (`Get-GenesysQueue`, health reports, investigations, etc.).
 - Canonical catalog at `catalog/genesys.catalog.json`.
+- Investigation composition contract at `docs/INVESTIGATIONS.md`.
 - Windows GUI client (`GenesysCore-GUI.ps1`) for interactive use.
 
 ## Prerequisites
@@ -116,6 +118,27 @@ Get-Content (Join-Path $runFolder.FullName 'manifest.json') -Raw | ConvertFrom-J
 Get-Content (Join-Path $runFolder.FullName 'summary.json') -Raw | ConvertFrom-Json
 Get-Content (Join-Path $runFolder.FullName 'events.jsonl')
 ```
+
+## 9. Run an investigation
+
+Investigations compose multiple catalog datasets into one subject-centred run.
+They emit the same artifact set as datasets, under
+`out/<investigationKey>/<runId>/`.
+
+```powershell
+Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
+Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.cloud'
+
+Get-GenesysAgentInvestigation `
+    -UserId '<genesys-user-guid>' `
+    -Since (Get-Date).AddDays(-7) `
+    -OutputRoot './out'
+```
+
+Agent Investigation joins identity, division, skills, queue memberships,
+presence, activity, and conversations the agent touched in the selected window.
+For the manifest shape and release sequencing, see
+[INVESTIGATIONS.md](INVESTIGATIONS.md).
 
 ## Optional: Conversation Analysis app
 

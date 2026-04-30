@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-04-30
+
+### Changed
+
+- **Release 1.0 Track B — Agent Investigation hardening:**
+  - Hardened `Invoke-Investigation` so empty optional steps remain empty arrays
+    instead of becoming `$null` and failing `.Count` checks.
+  - Hardened Agent Investigation subject filters for scalar PowerShell pipeline
+    output from single queue memberships or single conversation participants.
+  - Corrected the investigation manifest join plan so `leftSource` records the
+    source step (`identity`) rather than duplicating the left key path.
+  - Strengthened `tests/integration/AgentInvestigation.Tests.ps1` to assert the
+    join-plan shape and repaired the name-resolution mock.
+  - Updated `README.md`, `docs/ONBOARDING.md`, `docs/training/Training.md`,
+    `docs/ROADMAP.md`, and `docs/READINESS_REVIEW.md` so investigations are
+    documented as first-class and the verified Track B gates are current.
+
 ## 2026-04-29
 
 ### Changed

@@ -4264,9 +4264,16 @@ function Invoke-Investigation {
 
         $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
 
+        $leftSource = $null
+        if ($joinOn -and $joinOn.ContainsKey('Source')) {
+            $leftSource = $joinOn.Source
+        } elseif ($joinOn -and $joinOn.ContainsKey('Left') -and $joinOn.Left) {
+            $leftSource = 'identity'
+        }
+
         $joinPlan.Add([ordered]@{
             stepName   = $stepName
-            leftSource = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
+            leftSource = $leftSource
             leftKey    = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
             rightKey   = if ($joinOn -and $joinOn.ContainsKey('Right')) { $joinOn.Right } else { $null }
             joinKind   = $joinKind
@@ -4311,7 +4318,7 @@ function Invoke-Investigation {
             $records = @($records | Where-Object { & $filter $_ $Subject })
         }
 
-        $records = Sort-RecordsForDeterminism -Records $records -SortKey $sortKey
+        $records = @(Sort-RecordsForDeterminism -Records $records -SortKey $sortKey)
 
         $stepDataPath = Join-Path $dataFolder ("$stepName.jsonl")
         if ($records.Count -gt 0) {
@@ -4473,13 +4480,13 @@ function Get-GenesysAgentInvestigationStepDefinition {
     $userIdMatches  = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s.UserId) }
     $userMembership = { param($r, $s)
         if ($r.PSObject.Properties['memberCount'] -and $r.PSObject.Properties['members']) {
-            return ($r.members | Where-Object { $_.id -eq $s.UserId }).Count -gt 0
+            return @($r.members | Where-Object { $_.id -eq $s.UserId }).Count -gt 0
         }
         $true
     }
     $participantMatchesUser = { param($r, $s)
         if (-not $r.PSObject.Properties['participants']) { return $false }
-        return ($r.participants | Where-Object { $_.userId -eq $s.UserId }).Count -gt 0
+        return @($r.participants | Where-Object { $_.userId -eq $s.UserId }).Count -gt 0
     }
 
     @(

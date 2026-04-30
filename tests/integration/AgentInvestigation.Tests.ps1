@@ -127,6 +127,10 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             $m.subjectType      | Should -Be 'agent'
             $m.subjectId        | Should -Be $script:KnownUserId
             $m.investigationKey | Should -Be 'agent-investigation'
+            $divisionJoin = $m.joinPlan | Where-Object { $_.stepName -eq 'division' }
+            $divisionJoin.leftSource | Should -Be 'identity'
+            $divisionJoin.leftKey    | Should -Be 'agent.id'
+            $divisionJoin.rightKey   | Should -Be 'id'
         }
 
         It 'summary contains the seven expected sections' {
@@ -236,7 +240,9 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             $resolved = [pscustomobject]@{ id = $script:KnownUserId; name = 'Jane Doe'; email = 'jane@x.com' }
             InModuleScope -ModuleName $script:OpsModule.Name -Parameters @{ resolved = $resolved } -ScriptBlock {
                 param($resolved)
-                Mock -CommandName 'Find-GenesysUser' -MockWith { $resolved }
+                Mock -CommandName 'Find-GenesysUser' -MockWith {
+                    [pscustomobject]@{ id = 'agent-fixture-001'; name = 'Jane Doe'; email = 'jane@x.com' }
+                }
                 Mock -CommandName 'Assert-GenesysConnected' -MockWith { }
             }
 

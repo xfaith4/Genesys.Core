@@ -7,7 +7,7 @@
 
     OAuth = @{
         PkceClientId    = ''
-        PkceRedirectUri = 'http://localhost:8080/callback'
+        PkceRedirectUri = 'http://localhost:8085/callback'
     }
 
     Ui = @{

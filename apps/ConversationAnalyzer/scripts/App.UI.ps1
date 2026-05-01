@@ -155,6 +155,14 @@ $script:TxtDiagnostics         = _Ctrl 'TxtDiagnostics'
 $script:TxtStatusMain          = _Ctrl 'TxtStatusMain'
 $script:TxtStatusRight         = _Ctrl 'TxtStatusRight'
 
+# Query Templates section
+$script:CmbQueryTemplate       = _Ctrl 'CmbQueryTemplate'
+$script:LblTemplateQueueGroup  = _Ctrl 'LblTemplateQueueGroup'
+$script:TxtTemplateQueueGroup  = _Ctrl 'TxtTemplateQueueGroup'
+$script:TxtTemplateNote        = _Ctrl 'TxtTemplateNote'
+$script:TxtQueryBody           = _Ctrl 'TxtQueryBody'
+$script:BtnClearQueryBody      = _Ctrl 'BtnClearQueryBody'
+
 # ── Application state bag ─────────────────────────────────────────────────────
 
 $script:State = @{
@@ -4114,7 +4122,215 @@ function _LoadDrilldown {
 
 # ── Run orchestration ─────────────────────────────────────────────────────────
 
+# ── Query template builder ────────────────────────────────────────────────────
+
+function _BuildQueryTemplateBody {
+    <#
+    .SYNOPSIS
+        Returns a JSON string for the Genesys analytics query body for the given template name.
+        The interval is set to "yesterday" expressed as the user's local calendar day, converted
+        to UTC — matching the same convention as the form-based date pickers.
+    #>
+    param(
+        [string]$TemplateName,
+        [string]$QueueGroupText = ''
+    )
+
+    # $yesterday has Kind=Local (same as WPF DatePicker values).  ToUniversalTime()
+    # correctly shifts local midnight → UTC so the interval covers "yesterday in the
+    # user's timezone", matching how _GetDatasetParameters processes date-picker values.
+    $yesterday = [DateTime]::Today.AddDays(-1)
+    $yStartUtc = $yesterday.ToUniversalTime().ToString('o')
+    $yEndUtc   = $yesterday.AddDays(1).AddMilliseconds(-1).ToUniversalTime().ToString('o')
+    $interval  = "$yStartUtc/$yEndUtc"
+
+    # MOS degraded threshold used in the filter below.
+    # Keep in sync with the ComboBoxItem label "Degraded Conversations (MOS < 3.5)"
+    # in MainWindow.xaml if this value ever changes.
+    [double]$mosThreshold = 3.5
+
+    $body = switch ($TemplateName) {
+
+        'Degraded Conversations (MOS < 3.5)' {
+            # Returns all voice conversations where the minimum MOS score across any
+            # session was below 3.5 (the standard "Good" threshold).
+            [ordered]@{
+                interval  = $interval
+                order     = 'asc'
+                orderBy   = 'conversationStart'
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{ type = 'dimension'; dimension = 'mediaType'; value = 'voice' }
+                        )
+                    }
+                )
+                metricFilters = @(
+                    [ordered]@{
+                        type    = 'and'
+                        metrics = @(
+                            [ordered]@{ metric = 'minMos'; range = [ordered]@{ lt = $mosThreshold } }
+                        )
+                    }
+                )
+            }
+        }
+
+        '480 Disconnect' {
+            # Returns conversations where a segment ended with SIP error code 480
+            # (Temporarily Unavailable) — typically agent or trunk unavailability.
+            [ordered]@{
+                interval  = $interval
+                order     = 'asc'
+                orderBy   = 'conversationStart'
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{ type = 'dimension'; dimension = 'errorCode'; value = '480' }
+                        )
+                    }
+                )
+            }
+        }
+
+        '10+ Hold Segments' {
+            # Returns conversations that contain at least one hold segment.
+            # Post-filter locally for conversations with 10 or more hold segments.
+            [ordered]@{
+                interval  = $interval
+                order     = 'asc'
+                orderBy   = 'conversationStart'
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{ type = 'dimension'; dimension = 'segmentType'; value = 'hold' }
+                        )
+                    }
+                )
+            }
+        }
+
+        'Queue Group Filter' {
+            # Returns conversations where an ACD segment was served by a queue whose name
+            # contains the specified text fragment.  Replace the value below with the
+            # queue name fragment provided by the end user.
+            $qValue = if (-not [string]::IsNullOrWhiteSpace($QueueGroupText)) {
+                $QueueGroupText
+            } else {
+                'REPLACE_WITH_QUEUE_NAME_FRAGMENT'
+            }
+            [ordered]@{
+                interval  = $interval
+                order     = 'asc'
+                orderBy   = 'conversationStart'
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{ type = 'dimension'; dimension = 'queueName'; operator = 'contains'; value = $qValue }
+                        )
+                    }
+                )
+            }
+        }
+
+        'Abandoned Conversations' {
+            # Returns conversations where the customer disconnected while waiting in an
+            # ACD alert segment (i.e., before being connected to an agent).
+            [ordered]@{
+                interval  = $interval
+                order     = 'asc'
+                orderBy   = 'conversationStart'
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{ type = 'dimension'; dimension = 'purpose';        value = 'acd'    }
+                            [ordered]@{ type = 'dimension'; dimension = 'segmentType';    value = 'alert'  }
+                            [ordered]@{ type = 'dimension'; dimension = 'disconnectType'; value = 'client' }
+                        )
+                    }
+                )
+            }
+        }
+
+        default { return '' }
+    }
+
+    return $body | ConvertTo-Json -Depth 20
+}
+
+function _ApplyQueryTemplate {
+    <#
+    .SYNOPSIS
+        Reads the selected template from CmbQueryTemplate, builds the body JSON,
+        sets the date pickers to yesterday, and populates TxtQueryBody.
+    #>
+    if ($null -eq $script:CmbQueryTemplate) { return }
+
+    $sel = $script:CmbQueryTemplate.SelectedItem
+    if ($null -eq $sel) { return }
+    $name = [string]$sel.Content
+
+    # Show / hide Queue Group input
+    $isQueueGroup = $name -eq 'Queue Group Filter'
+    $queueVis = if ($isQueueGroup) { 'Visible' } else { 'Collapsed' }
+    $script:LblTemplateQueueGroup.Visibility = [System.Windows.Visibility]::$queueVis
+    $script:TxtTemplateQueueGroup.Visibility = [System.Windows.Visibility]::$queueVis
+
+    # Show / hide contextual note
+    $noteText = switch ($name) {
+        '10+ Hold Segments' {
+            '⚠ The API returns all conversations with any hold segment. After loading, use the Conversations tab HasHold filter and manually count hold segments to find 10+.'
+        }
+        'Degraded Conversations (MOS < 3.5)' {
+            '⚠ MOS metric filtering requires the Genesys Analytics API to support metricFilters. If results are unexpected, review voice conversations locally using the MOS Quality tab.'
+        }
+        default { '' }
+    }
+    if ($noteText) {
+        $script:TxtTemplateNote.Text       = $noteText
+        $script:TxtTemplateNote.Visibility = [System.Windows.Visibility]::Visible
+    } else {
+        $script:TxtTemplateNote.Text       = ''
+        $script:TxtTemplateNote.Visibility = [System.Windows.Visibility]::Collapsed
+    }
+
+    # Clear body and set date pickers if a real template was chosen
+    if ($name -eq '(none — use form filters)') {
+        $script:TxtQueryBody.Text = ''
+        return
+    }
+
+    # Set date pickers to yesterday so the full-run date display is consistent
+    $yesterday = [DateTime]::Today.AddDays(-1)
+    $script:DtpStartDate.SelectedDate = $yesterday
+    $script:DtpEndDate.SelectedDate   = $yesterday
+    $script:TxtStartTime.Text = '00:00:00'
+    $script:TxtEndTime.Text   = '23:59:59'
+
+    $queueText = if ($isQueueGroup -and $null -ne $script:TxtTemplateQueueGroup) {
+        $script:TxtTemplateQueueGroup.Text.Trim()
+    } else { '' }
+
+    $json = _BuildQueryTemplateBody -TemplateName $name -QueueGroupText $queueText
+    $script:TxtQueryBody.Text = $json
+}
+
+
 function _GetDatasetParameters {
+    # Body override — when TxtQueryBody contains JSON, use it directly and skip
+    # all form-filter processing.  This supports both preview and full runs.
+    if ($null -ne $script:TxtQueryBody) {
+        $bodyText = $script:TxtQueryBody.Text.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($bodyText)) {
+            return @{ Body = $bodyText }
+        }
+    }
+
     $params = @{}
     $filterState = _GetCanonicalFilterState
     $range  = _GetQueryBoundaryDateTimes
@@ -5165,6 +5381,34 @@ if ($null -ne $script:BtnPullQualityReport) {
 
 if ($null -ne $script:DgLowScoreConversations) {
     $script:DgLowScoreConversations.Add_SelectionChanged({ _OpenLowScoreConversation })
+}
+
+# ── Query Template event handlers ─────────────────────────────────────────────
+
+if ($null -ne $script:CmbQueryTemplate) {
+    $script:CmbQueryTemplate.Add_SelectionChanged({ _ApplyQueryTemplate })
+}
+
+if ($null -ne $script:TxtTemplateQueueGroup) {
+    $script:TxtTemplateQueueGroup.Add_TextChanged({
+        # Re-build body when queue group text changes while Queue Group Filter is selected
+        $sel = $script:CmbQueryTemplate.SelectedItem
+        if ($null -ne $sel -and [string]$sel.Content -eq 'Queue Group Filter') {
+            $queueText = $script:TxtTemplateQueueGroup.Text.Trim()
+            $json = _BuildQueryTemplateBody -TemplateName 'Queue Group Filter' -QueueGroupText $queueText
+            $script:TxtQueryBody.Text = $json
+        }
+    })
+}
+
+if ($null -ne $script:BtnClearQueryBody) {
+    $script:BtnClearQueryBody.Add_Click({
+        $script:TxtQueryBody.Text = ''
+        # Reset template selector to (none)
+        if ($null -ne $script:CmbQueryTemplate -and $script:CmbQueryTemplate.Items.Count -gt 0) {
+            $script:CmbQueryTemplate.SelectedIndex = 0
+        }
+    })
 }
 
 $script:BtnRun.Add_Click({

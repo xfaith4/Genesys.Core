@@ -115,7 +115,7 @@ function Invoke-GenesysDataset {
                        -Recurse -Directory -Filter 'data' -ErrorAction SilentlyContinue |
                    Select-Object -First 1
 
-        if (-not $dataDir) { return @() }
+        if (-not $dataDir) { return , @() }
 
         $records = [System.Collections.Generic.List[object]]::new()
         Get-ChildItem $dataDir.FullName -Filter '*.jsonl' -ErrorAction SilentlyContinue |
@@ -125,7 +125,7 @@ function Invoke-GenesysDataset {
                     ForEach-Object { $records.Add(($_ | ConvertFrom-Json)) }
             }
 
-        return @($records.ToArray())
+        return , $records.ToArray()
     }
     finally {
         if ($ownedTmp -and -not $KeepArtifacts -and (Test-Path $outputRoot)) {
@@ -252,8 +252,14 @@ function Invoke-GenesysOpsDataset {
 
         $records = Invoke-GenesysDataset @invokeParams
 
-        $envelope.Records     = @($records)
-        $envelope.RecordCount = $envelope.Records.Count
+        # Normalize using a List to guarantee a non-null System.Object[] even for empty results.
+        # Direct @($records) collapses to $null under PowerShell 5.1 when records is null/empty.
+        $recordList = [System.Collections.Generic.List[object]]::new()
+        if ($null -ne $records) {
+            foreach ($item in @($records)) { if ($null -ne $item) { $recordList.Add($item) } }
+        }
+        $envelope.Records     = $recordList.ToArray()
+        $envelope.RecordCount = $recordList.Count
         $envelope.Status      = if ($envelope.RecordCount -eq 0) { 'Empty' } else { 'Succeeded' }
 
         if ($envelope.Status -eq 'Empty' -and -not $AllowEmpty) {
@@ -268,8 +274,8 @@ function Invoke-GenesysOpsDataset {
     }
 
     if ($IncludeDiagnostics) { return $envelope }
-    # Return records directly so callers can wrap with @() safely.
-    return @($envelope.Records)
+    # Return a guaranteed non-null array so callers can safely use @() wrapping or .Count.
+    return , $envelope.Records
 }
 
 #endregion
@@ -3276,7 +3282,6 @@ function Get-GenesysSentimentTrend {
         $avgScore = if ($scores -and @($scores).Count -gt 0) {
             [math]::Round((@($scores) | Measure-Object -Average).Average, 3)
         } else { $null }
-
 
         [PSCustomObject]@{
             ConversationId    = Get-PropertyValue $conv 'conversationId'

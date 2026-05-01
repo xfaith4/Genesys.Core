@@ -89,7 +89,11 @@ function Invoke-GenesysDataset {
         [switch] $KeepArtifacts,
 
         # When provided the caller owns the folder lifecycle; KeepArtifacts is implied.
-        [string] $ArtifactPath
+        [string] $ArtifactPath,
+
+        # Forwarded to Invoke-Dataset.  Use the 'Body' key to override the request body
+        # for POST analytics endpoints; 'Query' for query-string overrides; etc.
+        [hashtable] $DatasetParameters
     )
 
     $ownedTmp  = -not $ArtifactPath
@@ -106,6 +110,9 @@ function Invoke-GenesysDataset {
         }
         if ($script:GC.CatalogPath) {
             $invokeParams['CatalogPath'] = $script:GC.CatalogPath
+        }
+        if ($PSBoundParameters.ContainsKey('DatasetParameters') -and $null -ne $DatasetParameters) {
+            $invokeParams['DatasetParameters'] = $DatasetParameters
         }
 
         $null = Invoke-Dataset @invokeParams
@@ -131,6 +138,118 @@ function Invoke-GenesysDataset {
         if ($ownedTmp -and -not $KeepArtifacts -and (Test-Path $outputRoot)) {
             Remove-Item $outputRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
+    }
+}
+
+function New-GenesysAnalyticsInterval {
+    <#
+    .SYNOPSIS
+        Builds an ISO-8601 interval string ("<start>/<end>") for analytics POST bodies.
+    .DESCRIPTION
+        When neither bound is supplied, returns a default lookback window ending at
+        the current UTC time.  Both bounds must be provided together if either is
+        supplied.
+    #>
+    [CmdletBinding()]
+    param(
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [int] $DefaultLookbackHours = 24
+    )
+
+    if ($null -eq $Since -and $null -eq $Until) {
+        $endUtc = [DateTime]::UtcNow
+        $startUtc = $endUtc.AddHours(-1 * $DefaultLookbackHours)
+        return "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
+    }
+
+    if ($null -eq $Since) {
+        throw 'Since is required when Until is provided.'
+    }
+
+    if ($null -eq $Until) {
+        throw 'Until is required when Since is provided.'
+    }
+
+    return "$($Since.Value.ToUniversalTime().ToString('o'))/$($Until.Value.ToUniversalTime().ToString('o'))"
+}
+
+function New-GenesysAnalyticsFilter {
+    <#
+    .SYNOPSIS
+        Builds an analytics query filter block from one-or-more dimension values.
+    .DESCRIPTION
+        Input is a hashtable of dimensionName -> value-or-array.  Empty/null values
+        are skipped.  Returns:
+          - $null when no dimensions yield predicates (caller must omit 'filter').
+          - A single { type:'and'|'or', predicates:[...] } filter for a single
+            dimension (and for 1 value, or for multiple values).
+          - A compound { type:'and', clauses:[ ... ] } filter when multiple
+            dimensions are present, with one OR/AND sub-clause per dimension.
+    #>
+    [CmdletBinding()]
+    param(
+        [hashtable] $DimensionValues
+    )
+
+    if ($null -eq $DimensionValues -or $DimensionValues.Count -eq 0) {
+        return $null
+    }
+
+    $perDimension = [System.Collections.Generic.List[object]]::new()
+    foreach ($key in $DimensionValues.Keys) {
+        $raw = $DimensionValues[$key]
+        if ($null -eq $raw) {
+            continue
+        }
+
+        $values = @(@($raw) |
+            ForEach-Object { [string]$_ } |
+            Where-Object   { -not [string]::IsNullOrWhiteSpace($_) })
+
+        if ($values.Count -eq 0) {
+            continue
+        }
+
+        $predicates = @($values | ForEach-Object {
+            [ordered]@{
+                type      = 'dimension'
+                dimension = [string]$key
+                operator  = 'matches'
+                value     = $_
+            }
+        })
+
+        $perDimension.Add([pscustomobject]@{
+            Dimension  = $key
+            Predicates = $predicates
+        }) | Out-Null
+    }
+
+    if ($perDimension.Count -eq 0) {
+        return $null
+    }
+
+    if ($perDimension.Count -eq 1) {
+        $only = $perDimension[0]
+        $type = if (@($only.Predicates).Count -gt 1) { 'or' } else { 'and' }
+        return [ordered]@{
+            type       = $type
+            predicates = @($only.Predicates)
+        }
+    }
+
+    $clauses = @($perDimension | ForEach-Object {
+        $clauseType = if (@($_.Predicates).Count -gt 1) { 'or' } else { 'and' }
+        [ordered]@{
+            type       = $clauseType
+            predicates = @($_.Predicates)
+        }
+    })
+
+    return [ordered]@{
+        type    = 'and'
+        clauses = $clauses
     }
 }
 
@@ -1765,47 +1884,41 @@ function Get-GenesysQueueObservation {
             oOffQueueUsers — agents joined but off-queue (e.g. in ACW)
             oActiveUsers   — agents in an active state
 
-        Note: Genesys.Core must support body-parameter overrides for -QueueId,
-        -MediaType, and -Interval to take effect.  If the catalog default body
-        is used, the parameters are recorded for future use.
+        With no parameters, returns observations for all queues.  Provide -QueueId
+        and/or -MediaType to scope the query.
     .PARAMETER QueueId
-        Filter observations to a specific queue GUID.
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
+        One or more queue GUIDs to filter on.
     .PARAMETER MediaType
-        Filter by media type (voice, chat, email, etc.).
-    .PARAMETER IncludeDiagnostics
-        Return the full Invoke-GenesysOpsDataset diagnostic envelope.
+        Single media type (e.g. voice, chat, email) to filter on.
     .EXAMPLE
         # Current queue floor view
         Get-GenesysQueueObservation | Sort-Object oWaiting -Descending | Format-Table QueueId, oWaiting, oInteracting, oOnQueueUsers
     .EXAMPLE
-        # Alert if any queue has more than 10 contacts waiting
-        Get-GenesysQueueObservation | Where-Object { $_.oWaiting -gt 10 } |
-            ForEach-Object { Write-Warning "Queue $($_.QueueId): $($_.oWaiting) waiting" }
+        Get-GenesysQueueObservation -QueueId '11111111-2222-3333-4444-555555555555' -MediaType voice
     #>
     [CmdletBinding()]
     param(
-        [string] $QueueId,
-        [string] $MediaType,
-        [switch] $IncludeDiagnostics
+        [string[]] $QueueId,
+        [string]   $MediaType
     )
 
     Assert-GenesysConnected
 
-    if ($QueueId -or $MediaType) {
-        # TODO: Pass body overrides once Genesys.Core Invoke-Dataset supports -BodyOverride.
-        Write-Warning "Get-GenesysQueueObservation: -QueueId and -MediaType filtering requires Genesys.Core body-override support. The catalog default body is used; results may include all queues."
+    $body = [ordered]@{
+        metrics = @('oInteracting', 'oWaiting', 'oOnQueueUsers', 'oOffQueueUsers', 'oActiveUsers')
     }
 
-    $result = Invoke-GenesysOpsDataset -Dataset 'analytics.query.queue.observations.real.time.stats' `
-                  -FunctionName 'Get-GenesysQueueObservation' -IncludeDiagnostics:$IncludeDiagnostics
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        queueId   = $QueueId
+        mediaType = $MediaType
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
 
-    if ($IncludeDiagnostics) { return $result }
-
-    $rows = @($result) | ConvertFrom-ObservationResult
-    if ($MediaType) { $rows = $rows | Where-Object { $_.mediaType -eq $MediaType } }
-    if ($QueueId)   { $rows = $rows | Where-Object { $_.queueId   -eq $QueueId   } }
-    $rows
+    Invoke-GenesysDataset -Dataset 'analytics.query.queue.observations.real.time.stats' `
+                          -DatasetParameters @{ Body = $body } |
+        ConvertFrom-ObservationResult
 }
 
 function Get-GenesysUserObservation {
@@ -1814,45 +1927,38 @@ function Get-GenesysUserObservation {
         Returns real-time agent observation records (presence and routing status).
     .DESCRIPTION
         Returns one record per agent with current oUserPresence and oUserRoutingStatus.
-        More granular than the users dataset — useful for event-driven monitoring
-        scripts where you need raw observation values rather than normalised labels.
 
             UserId             — Genesys user GUID
             Interval           — observation snapshot timestamp
             oUserPresence      — current presence state count
             oUserRoutingStatus — current routing status count
 
-        Note: Genesys.Core must support body-parameter overrides for -UserId to
-        target a specific agent.
+        With no parameters, returns organisation-wide observations.  Provide -UserId
+        to filter to specific agents.
     .PARAMETER UserId
-        Filter to a specific agent GUID.
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
-    .PARAMETER IncludeDiagnostics
-        Return the full Invoke-GenesysOpsDataset diagnostic envelope.
+        One or more user GUIDs to filter on.
     .EXAMPLE
         Get-GenesysUserObservation | Format-Table UserId, Interval, oUserPresence, oUserRoutingStatus
     #>
     [CmdletBinding()]
     param(
-        [string] $UserId,
-        [switch] $IncludeDiagnostics
+        [string[]] $UserId
     )
 
     Assert-GenesysConnected
 
-    if ($UserId) {
-        # TODO: Pass body overrides once Genesys.Core Invoke-Dataset supports -BodyOverride.
-        Write-Warning "Get-GenesysUserObservation: -UserId filtering requires Genesys.Core body-override support. The catalog default body is used."
+    $body = [ordered]@{
+        metrics = @('oUserPresence', 'oUserRoutingStatus')
     }
 
-    $result = Invoke-GenesysOpsDataset -Dataset 'analytics.query.user.observations.real.time.status' `
-                  -FunctionName 'Get-GenesysUserObservation' -IncludeDiagnostics:$IncludeDiagnostics
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
 
-    if ($IncludeDiagnostics) { return $result }
-
-    $rows = @($result) | ConvertFrom-ObservationResult
-    if ($UserId) { $rows = $rows | Where-Object { $_.userId -eq $UserId } }
-    $rows
+    Invoke-GenesysDataset -Dataset 'analytics.query.user.observations.real.time.status' `
+                          -DatasetParameters @{ Body = $body } |
+        ConvertFrom-ObservationResult
 }
 
 function Get-GenesysQueuePerformance {
@@ -1876,24 +1982,16 @@ function Get-GenesysQueuePerformance {
 
         Derive averages: tHandle_sum / nConnected_count / 1000 = avg handle seconds.
 
-        Note: Genesys.Core must support body-parameter overrides for -QueueId,
-        -MediaType, -Since, -Until, and -Granularity to take effect.
     .PARAMETER QueueId
         Filter to a specific queue GUID.
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
     .PARAMETER MediaType
         Filter by media type.
     .PARAMETER Since
         Inclusive start of the aggregation interval.
-        TODO: Requires Genesys.Core body-override support.
     .PARAMETER Until
         Exclusive end of the aggregation interval.
-        TODO: Requires Genesys.Core body-override support.
     .PARAMETER Granularity
         Time bucket granularity (e.g. PT1H, PT15M).
-        TODO: Requires Genesys.Core body-override support.
-    .PARAMETER IncludeDiagnostics
-        Return the full Invoke-GenesysOpsDataset diagnostic envelope.
     .EXAMPLE
         $perf = Get-GenesysQueuePerformance
         $perf | Select-Object queueId, Interval, nConnected_count,
@@ -1902,30 +2000,36 @@ function Get-GenesysQueuePerformance {
     #>
     [CmdletBinding()]
     param(
-        [string] $QueueId,
-        [string] $MediaType,
-        [datetime] $Since,
-        [datetime] $Until,
-        [string] $Granularity,
-        [switch] $IncludeDiagnostics
+        [string[]]           $QueueId,
+        [string]             $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string]             $Granularity
     )
 
     Assert-GenesysConnected
 
-    if ($QueueId -or $Since -or $Until -or $Granularity) {
-        # TODO: Pass body overrides once Genesys.Core Invoke-Dataset supports -BodyOverride.
-        Write-Warning "Get-GenesysQueuePerformance: -QueueId/-Since/-Until/-Granularity require Genesys.Core body-override support. The catalog default body is used."
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('queueId')
+        metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
     }
 
-    $result = Invoke-GenesysOpsDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
-                  -FunctionName 'Get-GenesysQueuePerformance' -IncludeDiagnostics:$IncludeDiagnostics
+    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+        $body.granularity = $Granularity
+    }
 
-    if ($IncludeDiagnostics) { return $result }
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        queueId   = $QueueId
+        mediaType = $MediaType
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
 
-    $rows = @($result) | ConvertFrom-AggregateResult
-    if ($QueueId)   { $rows = $rows | Where-Object { $_.queueId   -eq $QueueId   } }
-    if ($MediaType) { $rows = $rows | Where-Object { $_.mediaType -eq $MediaType } }
-    $rows
+    Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
+                          -DatasetParameters @{ Body = $body } |
+        ConvertFrom-AggregateResult
 }
 
 #endregion
@@ -2354,42 +2458,46 @@ function Get-GenesysFlowObservation {
             oFlow           — Contacts currently executing this flow
             oFlowDisconnect — Contacts disconnected mid-flow (self-service abandons)
 
-        Note: Genesys.Core must support body-parameter overrides for -FlowType
-        and -FlowId to take effect.
+        Provide -FlowType and/or -FlowId to scope the query.
     .PARAMETER FlowType
-        Filter to a specific flow type (inboundcall, bot, etc.).
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
+        Single flow type (e.g. inboundcall, outboundcall, workflow) to filter on.
     .PARAMETER FlowId
-        Filter to a specific flow GUID.
-    .PARAMETER IncludeDiagnostics
-        Return the full Invoke-GenesysOpsDataset diagnostic envelope.
+        One or more Architect flow GUIDs to filter on.
+    .PARAMETER Interval
+        Optional pre-built ISO-8601 interval string (the observations endpoint accepts
+        an explicit interval to constrain disconnect counts).
     .EXAMPLE
         Get-GenesysFlowObservation | Where-Object { $_.oFlowDisconnect -gt 0 } |
             Format-Table flowId, oFlow, oFlowDisconnect
     #>
     [CmdletBinding()]
     param(
-        [string] $FlowType,
-        [string] $FlowId,
-        [switch] $IncludeDiagnostics
+        [string]   $FlowType,
+        [string[]] $FlowId,
+        [string]   $Interval
     )
 
     Assert-GenesysConnected
 
-    if ($FlowType) {
-        # TODO: Pass body overrides once Genesys.Core Invoke-Dataset supports -BodyOverride.
-        Write-Warning "Get-GenesysFlowObservation: -FlowType filtering requires Genesys.Core body-override support. The catalog default body is used."
+    $body = [ordered]@{
+        metrics = @('oFlow', 'oFlowDisconnect')
     }
 
-    $result = Invoke-GenesysOpsDataset -Dataset 'analytics.query.flow.observations' `
-                  -FunctionName 'Get-GenesysFlowObservation' -IncludeDiagnostics:$IncludeDiagnostics
+    if (-not [string]::IsNullOrWhiteSpace($Interval)) {
+        $body.interval = $Interval
+    }
 
-    if ($IncludeDiagnostics) { return $result }
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        flowType = $FlowType
+        flowId   = $FlowId
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
 
-    $rows = @($result) | ConvertFrom-ObservationResult
-    if ($FlowType) { $rows = $rows | Where-Object { $_.flowType -eq $FlowType } }
-    if ($FlowId)   { $rows = $rows | Where-Object { $_.flowId   -eq $FlowId   } }
-    $rows
+    Invoke-GenesysDataset -Dataset 'analytics.query.flow.observations' `
+                          -DatasetParameters @{ Body = $body } |
+        ConvertFrom-ObservationResult
 }
 
 #endregion
@@ -2428,15 +2536,10 @@ function Get-GenesysAgentPerformance {
         Filter by media type (voice, chat, email, etc.).
     .PARAMETER Since
         Inclusive start of the aggregation interval.
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
     .PARAMETER Until
         Exclusive end of the aggregation interval.
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
     .PARAMETER Granularity
         Time bucket granularity (e.g. PT1H, PT15M).
-        TODO: Requires Genesys.Core body-override support in Invoke-Dataset.
-    .PARAMETER IncludeDiagnostics
-        Return the full Invoke-GenesysOpsDataset diagnostic envelope.
     .EXAMPLE
         # Who handled the most calls?
         Get-GenesysAgentPerformance |
@@ -2457,23 +2560,37 @@ function Get-GenesysAgentPerformance {
     #>
     [CmdletBinding()]
     param(
-        [int]    $MinConversations = 0,
-        [string] $UserId,
-        [string] $MediaType,
-        [datetime] $Since,
-        [datetime] $Until,
-        [string] $Granularity,
-        [switch] $IncludeDiagnostics
+        [int] $MinConversations = 0,
+
+        [string[]]           $UserId,
+        [string]             $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string]             $Granularity
     )
 
     Assert-GenesysConnected
 
-    if ($UserId -or $Since -or $Until -or $Granularity) {
-        # TODO: Pass body overrides once Genesys.Core Invoke-Dataset supports -BodyOverride.
-        Write-Warning "Get-GenesysAgentPerformance: -UserId/-Since/-Until/-Granularity require Genesys.Core body-override support. The catalog default body is used."
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('userId')
+        metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
     }
 
-    $raw = Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.performance.metrics'
+    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+        $body.granularity = $Granularity
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        userId    = $UserId
+        mediaType = $MediaType
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    $raw = Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.performance.metrics' `
+                                 -DatasetParameters @{ Body = $body }
 
     $records = foreach ($r in @($raw)) {
         # Use safe property access to avoid StrictMode failures on partial records.
@@ -2954,11 +3071,31 @@ function Get-GenesysQueueAbandonRate {
             ForEach-Object { Write-Warning "Queue $($_.QueueId) abandon rate: $($_.AbandonRate)%" }
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]           $QueueId,
+        [string]             $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.abandon.metrics' |
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('queueId')
+        metrics  = @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        queueId   = $QueueId
+        mediaType = $MediaType
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.abandon.metrics' `
+                                   -DatasetParameters @{ Body = $body } |
              ConvertFrom-AggregateResult)
 
     foreach ($r in $raw) {
@@ -3014,11 +3151,31 @@ function Get-GenesysQueueServiceLevel {
             Format-Table QueueId, nOffered, ServiceLevel30Pct
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]           $QueueId,
+        [string]             $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.queue.aggregates.service.level' |
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('queueId')
+        metrics  = @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        queueId   = $QueueId
+        mediaType = $MediaType
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.queue.aggregates.service.level' `
+                                   -DatasetParameters @{ Body = $body } |
              ConvertFrom-AggregateResult)
 
     foreach ($r in $raw) {
@@ -3072,11 +3229,27 @@ function Get-GenesysTransferAnalysis {
             Format-Table QueueId, nConnected, nBlindTransferred, TransferRate
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]           $QueueId,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.transfer.metrics' |
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('queueId')
+        metrics  = @('nConnected', 'nTransferred', 'nBlindTransferred', 'nConsultTransferred')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ queueId = $QueueId }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.transfer.metrics' `
+                                   -DatasetParameters @{ Body = $body } |
              ConvertFrom-AggregateResult)
 
     foreach ($r in $raw) {
@@ -3122,10 +3295,31 @@ function Get-GenesysWrapupDistribution {
         Get-GenesysWrapupDistribution | Export-Csv .\wrapup-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]           $QueueId,
+        [string[]]           $WrapupCodeId,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.wrapup.distribution' |
+
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('queueId', 'wrapUpCode')
+        metrics  = @('nConnected', 'tHandle')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        queueId    = $QueueId
+        wrapUpCode = $WrapupCodeId
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.wrapup.distribution' `
+                            -DatasetParameters @{ Body = $body } |
       ConvertFrom-AggregateResult)
 }
 
@@ -3152,10 +3346,27 @@ function Get-GenesysDigitalChannelVolume {
             Sort-Object TotalOffered -Descending | Format-Table
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string]             $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.digital.channels' |
+
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('mediaType', 'queueId')
+        metrics  = @('nOffered', 'nConnected', 'nAbandoned', 'tHandle')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ mediaType = $MediaType }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.digital.channels' `
+                            -DatasetParameters @{ Body = $body } |
       ConvertFrom-AggregateResult)
 }
 
@@ -3398,10 +3609,27 @@ function Get-GenesysAgentLoginActivity {
             } | Format-Table UserId, Interval
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]           $UserId,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.login.activity' |
+
+    $body = [ordered]@{
+        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+        groupBy  = @('userId')
+        metrics  = @('tOnQueueTime', 'tOffQueueTime', 'tIdleTime', 'tNotRespondingTime', 'nConnected')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    @(Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.login.activity' `
+                            -DatasetParameters @{ Body = $body } |
       ConvertFrom-AggregateResult)
 }
 

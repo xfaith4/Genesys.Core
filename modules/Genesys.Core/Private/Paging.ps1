@@ -266,6 +266,16 @@ function Invoke-PagingNextUri {
         $itemsPath = [string]$EndpointSpec.itemsPath
     }
 
+    $pagingProfile = $null
+    if ($EndpointSpec.PSObject.Properties.Name -contains 'paging') {
+        $pagingProfile = $EndpointSpec.paging
+    }
+
+    $maxPages = 1000
+    if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'maxPages' -and $null -ne $pagingProfile.maxPages) {
+        $maxPages = [int]$pagingProfile.maxPages
+    }
+
     $retrySettings = Resolve-RetryRuntimeSettings -RetryProfile $RetryProfile
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
@@ -277,6 +287,17 @@ function Invoke-PagingNextUri {
     $currentBody = $InitialBody
 
     while ([string]::IsNullOrWhiteSpace($currentUri) -eq $false) {
+        if ($pageNumber -gt $maxPages) {
+            $RunEvents.Add([pscustomobject]@{
+                eventType = 'paging.terminated.maxPages'
+                page = $pageNumber
+                maxPages = $maxPages
+                uri = $currentUri
+                timestampUtc = [DateTime]::UtcNow.ToString('o')
+            })
+            break
+        }
+
         if ($visitedUris.Contains($currentUri)) {
             $RunEvents.Add([pscustomobject]@{
                 eventType = 'paging.terminated.duplicateUri'

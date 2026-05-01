@@ -1,179 +1,136 @@
 # Genesys.Ops Dataset Coverage Report
 
-Generated: 2026-05-01  
-Catalog: `catalog/genesys.catalog.json`
+> Version: 2.0 — 2026-05-01
+>
+> Supersedes the prior coverage report. Body-override is implemented via
+> `DatasetParameters['Body']` in `Invoke-SimpleCollectionDataset`. All eleven
+> previously medium-risk analytics functions now accept runtime filter
+> parameters and construct request bodies inline.
+
+---
 
 ## Summary
 
 | Metric | Count |
-|--------|-------|
-| Total public functions | 79 |
-| Composite/reporting functions | 16 |
-| Dataset-backed functions | 63 |
-| Valid catalog-backed functions | 79 |
-| Missing/Unsupported dataset keys | 0 |
-| Functions relying on default body (Medium risk) | 11 |
-| Functions requiring parameter/body override work | 11 |
+|---|---|
+| Functions relying on default body (Medium risk) | 0 |
+| Functions requiring parameter/body override work | 0 |
+| Functions covered as Low risk after the 2026-05-01 refactor | 11 |
 
-All 79 mapped functions have dataset keys that resolve in the active catalog.
-11 functions rely on catalog default request bodies — these work but lack runtime parameterisation for operational filtering.
+The previous report's blocker note —
+> *Until `Invoke-Dataset` accepts a `-BodyOverride` parameter, eleven analytics
+> functions cannot scope their queries at runtime…*
 
----
-
-## Function Coverage Table
-
-| FunctionName | DatasetKey | IsInCatalog | HasRequiredBody | InvocationRisk | Notes |
-|---|---|---|---|---|---|
-| Get-GenesysOrganization | organization.get.organization.details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOrganizationLimit | organization.get.organization.limits | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysDivision | authorization.get.all.divisions | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAgent | users | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAgentPresence | users.get.bulk.user.presences.genesys.cloud | ✅ | No | Low | Dataset key validated in catalog. |
-| Find-GenesysUser | users.search.users.by.name.or.email | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysUserWithDivision | users.division.analysis.get.users.with.division.info | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysSystemPresence | presence.get.system.presence.definitions | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysCustomPresence | presence.get.organization.presence.definitions | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysQueue | routing-queues | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysRoutingSkill | routing.get.all.routing.skills | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysWrapupCode | routing.get.all.wrapup.codes | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysLanguage | routing.get.all.languages | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysActiveConversation | conversations.get.active.conversations | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysActiveCall | conversations.get.active.calls | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysActiveChat | conversations.get.active.chats | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysActiveEmail | conversations.get.active.emails | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysActiveCallback | conversations.get.active.callbacks | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysCallHistory | conversations.get.call.history | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysConversationDetail | analytics-conversation-details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAuditEvent | audit-logs | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysApiUsage | usage.get.api.usage.organization.summary | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysApiUsageByClient | usage.get.api.usage.by.client | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysApiUsageByUser | usage.get.api.usage.by.user | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysNotificationTopic | notifications.get.available.notification.topics | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysNotificationSubscription | notifications.get.notification.subscriptions | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOAuthClient | oauth.get.clients | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOAuthAuthorization | oauth.get.authorizations | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysRateLimitEvent | analytics.query.rate.limit.aggregates | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOutboundCampaign | outbound.get.campaigns | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOutboundContactList | outbound.get.contact.lists | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysOutboundEvent | outbound.get.events | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysMessagingCampaign | outbound.get.messaging.campaigns | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysFlow | flows.get.all.flows | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysFlowOutcome | flows.get.flow.outcomes | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysFlowMilestone | flows.get.flow.milestones | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysFlowAggregate | analytics.query.flow.aggregates.execution.metrics | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysFlowObservation | analytics.query.flow.observations | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysAgentPerformance | analytics.query.user.aggregates.performance.metrics | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysUserActivity | analytics.query.user.details.activity.report | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAgentVoiceQuality | analytics-conversation-details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysEdge | telephony.get.edges | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysTrunk | telephony.get.trunks | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysTrunkMetrics | telephony.get.trunk.metrics.summary | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysStation | stations.get.stations | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysQueueAbandonRate | analytics.query.conversation.aggregates.abandon.metrics | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysQueueServiceLevel | analytics.query.queue.aggregates.service.level | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysTransferAnalysis | analytics.query.conversation.aggregates.transfer.metrics | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysWrapupDistribution | analytics.query.conversation.aggregates.wrapup.distribution | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysDigitalChannelVolume | analytics.query.conversation.aggregates.digital.channels | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysEvaluation | quality.get.evaluations.query | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysSurvey | quality.get.surveys | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAlertingRule | alerting.get.rules | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAlert | alerting.get.alerts | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysAgentLoginActivity | analytics.query.user.aggregates.login.activity | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysQueueObservation | analytics.query.queue.observations.real.time.stats | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysUserObservation | analytics.query.user.observations.real.time.status | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysQueuePerformance | analytics.query.conversation.aggregates.queue.performance | ✅ | **Yes** | **Medium** | Uses catalog default request body — add parameters or body override for operational use. |
-| Get-GenesysWorkforceManagementUnit | workforce.get.management.units | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysJourneyActionMap | journey.get.action.maps | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysSentimentTrend | analytics-conversation-details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysLongHandleConversation | analytics-conversation-details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysRepeatCaller | analytics-conversation-details | ✅ | No | Low | Dataset key validated in catalog. |
-| Get-GenesysContactCentreStatus | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Invoke-GenesysDailyHealthReport | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Export-GenesysConfigurationSnapshot | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysEdgeHealthSnapshot | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysWebRtcDisconnectSummary | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysConversationLatencyTrend | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysAgentAcwAnomaly | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysChangeAuditFeed | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysAbandonRateDashboard | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysQueueHealthSnapshot | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysAgentQualitySnapshot | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Invoke-GenesysOperationsReport | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysPeakHourLoad | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysOutboundCampaignPerformance | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysFlowOutcomeKpiCorrelation | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
-| Get-GenesysAgentInvestigation | (composite) | ✅ | No | Low | Composite function — calls multiple child cmdlets. Risk depends on children. |
+— was based on a misdiagnosis. Body override is implemented via
+`DatasetParameters['Body']` in `Invoke-SimpleCollectionDataset`. All eleven
+functions now accept runtime filter parameters.
 
 ---
 
-## Functions Requiring Parameter / Body Override Work
+## How runtime body override works
 
-These 11 functions currently rely on the catalog default request body.
-They will call the dataset successfully only if the catalog default body is appropriate.
-To make them operationally useful (filter by queue/user/time), Genesys.Core must support body overrides via `Invoke-Dataset -BodyOverride`.
+`Invoke-SimpleCollectionDataset` (`modules/Genesys.Core/Private/Datasets.ps1`)
+accepts a `Body` key inside `DatasetParameters`:
 
-| FunctionName | DatasetKey | RecommendedFix |
+```powershell
+if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')) {
+    $bodyValue = $DatasetParameters['Body']
+    $initialBody = if ($bodyValue -is [string]) {
+        $bodyValue
+    }
+    else {
+        $bodyValue | ConvertTo-Json -Depth 100
+    }
+}
+```
+
+`Genesys.Ops` calls `Invoke-Dataset` through the local `Invoke-GenesysDataset`
+helper, which now forwards a `[hashtable] $DatasetParameters` argument. Each
+analytics cmdlet builds an ordered hashtable for `Body` and passes it through:
+
+```powershell
+Invoke-GenesysDataset -Dataset <key> -DatasetParameters @{ Body = $body }
+```
+
+No new `-BodyOverride` parameter was added to `Invoke-Dataset`. No direct REST
+calls were introduced into `Genesys.Ops`.
+
+---
+
+## Implementation summary by function group
+
+### Real-time observation cmdlets
+
+POST `/api/v2/analytics/*/observations/query`. Body shape:
+`{ filter?, metrics }` — no interval.
+
+| Function | Optional parameters | Filter dimensions | Risk |
+|---|---|---|---|
+| `Get-GenesysQueueObservation` | `-QueueId [string[]]`, `-MediaType [string]` | `queueId`, `mediaType` | Low |
+| `Get-GenesysUserObservation` | `-UserId [string[]]` | `userId` | Low |
+| `Get-GenesysFlowObservation` | `-FlowType [string]`, `-FlowId [string[]]`, `-Interval [string]` | `flowType`, `flowId` | Low |
+
+### Aggregate metric cmdlets
+
+POST `/api/v2/analytics/*/aggregates/query`. Body shape:
+`{ interval, granularity?, groupBy, filter?, metrics }`. When `-Since`/`-Until`
+are not supplied, a 24-hour default lookback is computed via
+`New-GenesysAnalyticsInterval`.
+
+| Function | Optional parameters | Filter dimensions | Risk |
+|---|---|---|---|
+| `Get-GenesysAgentPerformance` | `-UserId`, `-MediaType`, `-Since`, `-Until`, `-Granularity` | `userId`, `mediaType` | Low |
+| `Get-GenesysAgentLoginActivity` | `-UserId`, `-Since`, `-Until` | `userId` | Low |
+| `Get-GenesysQueuePerformance` | `-QueueId`, `-MediaType`, `-Since`, `-Until`, `-Granularity` | `queueId`, `mediaType` | Low |
+| `Get-GenesysQueueAbandonRate` | `-QueueId`, `-MediaType`, `-Since`, `-Until` | `queueId`, `mediaType` | Low |
+| `Get-GenesysQueueServiceLevel` | `-QueueId`, `-MediaType`, `-Since`, `-Until` | `queueId`, `mediaType` | Low |
+| `Get-GenesysTransferAnalysis` | `-QueueId`, `-Since`, `-Until` | `queueId` | Low |
+| `Get-GenesysWrapupDistribution` | `-QueueId`, `-WrapupCodeId`, `-Since`, `-Until` | `queueId`, `wrapUpCode` | Low |
+| `Get-GenesysDigitalChannelVolume` | `-MediaType`, `-Since`, `-Until` | `mediaType` | Low |
+
+---
+
+## Filter shape
+
+`New-GenesysAnalyticsFilter` (private helper in `Genesys.Ops.psm1`) emits:
+
+- **No filter** — when no parameters yield predicates. The `filter` key is
+  omitted entirely (Genesys treats an empty filter object as an error).
+- **Single dimension, single value** —
+  `{ type:'and', predicates:[ { type:'dimension', dimension, operator:'matches', value } ] }`
+- **Single dimension, multiple values** —
+  `{ type:'or', predicates:[ … ] }`
+- **Multiple dimensions** —
+  `{ type:'and', clauses:[ { type:'or', predicates:[…] }, … ] }` with one
+  sub-clause per dimension.
+
+All predicates use `operator = 'matches'`.
+
+---
+
+## Constraints honoured
+
+- No `Invoke-RestMethod` or `Invoke-WebRequest` was added to `Genesys.Ops`.
+- `Invoke-Dataset` was **not** modified with a `-BodyOverride` parameter.
+- All extraction goes through `Invoke-GenesysDataset` → `Invoke-Dataset` →
+  `Invoke-SimpleCollectionDataset`.
+- PowerShell 5.1 compatibility preserved: no ternary, no null-coalescing, no
+  `if`-expressions inside hashtable literals; explicit `if` blocks only.
+- `Set-StrictMode -Version Latest` retained at module scope.
+
+---
+
+## Resolved release-gate items
+
+| Gate | Status | Resolution |
 |---|---|---|
-| Get-GenesysFlowObservation | analytics.query.flow.observations | Add `-FlowType`, `-FlowId`, `-Interval` parameters and pass body override to Invoke-Dataset. |
-| Get-GenesysAgentPerformance | analytics.query.user.aggregates.performance.metrics | Add `-UserId`, `-MediaType`, `-Since`, `-Until`, `-Granularity` parameters. |
-| Get-GenesysQueueAbandonRate | analytics.query.conversation.aggregates.abandon.metrics | Add `-QueueId`, `-MediaType`, `-Since`, `-Until` parameters. |
-| Get-GenesysQueueServiceLevel | analytics.query.queue.aggregates.service.level | Add `-QueueId`, `-MediaType`, `-Since`, `-Until` parameters. |
-| Get-GenesysTransferAnalysis | analytics.query.conversation.aggregates.transfer.metrics | Add `-QueueId`, `-Since`, `-Until` parameters. |
-| Get-GenesysWrapupDistribution | analytics.query.conversation.aggregates.wrapup.distribution | Add `-QueueId`, `-WrapupCodeId`, `-Since`, `-Until` parameters. |
-| Get-GenesysDigitalChannelVolume | analytics.query.conversation.aggregates.digital.channels | Add `-Since`, `-Until`, `-MediaType` parameters. |
-| Get-GenesysAgentLoginActivity | analytics.query.user.aggregates.login.activity | Add `-UserId`, `-Since`, `-Until` parameters. |
-| Get-GenesysQueueObservation | analytics.query.queue.observations.real.time.stats | Add `-QueueId`, `-MediaType` parameters. |
-| Get-GenesysUserObservation | analytics.query.user.observations.real.time.status | Add `-UserId` parameter. |
-| Get-GenesysQueuePerformance | analytics.query.conversation.aggregates.queue.performance | Add `-QueueId`, `-MediaType`, `-Since`, `-Until`, `-Granularity` parameters. |
-
-> **Blocker**: Until `Invoke-Dataset` accepts a `-BodyOverride` parameter, these functions cannot be operationally parameterised without bypassing the Genesys.Core contract. A Genesys.Core enhancement is required.
+| `C-03` — Paging max-page guard | ✅ GREEN | `Invoke-PagingNextUri` now reads `paging.maxPages` (default 1000) and emits `paging.terminated.maxPages` when the ceiling is hit. Verified by `Paging.Tests.ps1`. |
+| `F-03` — CI determinism assertion | ✅ GREEN | `RunContract.Tests.ps1` runs `Invoke-Dataset` twice over the same fixture invoker and asserts byte-equivalent `summary.json` (after stripping `runId` and ISO-8601 timestamps) and SHA-256-equal `data/*.jsonl`. |
 
 ---
 
-## Key Inconsistency: Presence Dataset Keys
+## Out of scope
 
-Two distinct dataset keys exist for bulk user presences:
-
-| Key | Redaction Profile | Used By |
-|-----|-------------------|---------|
-| `users.get.bulk.user.presences` | `agent-investigation-presences` | Agent Investigation steps |
-| `users.get.bulk.user.presences.genesys.cloud` | (none) | `Get-GenesysAgentPresence` |
-
-Both keys are valid entries in the active catalog. They target different endpoints and schemas.
-`Get-GenesysAgentPresence` intentionally uses the `.genesys.cloud` variant (no redaction profile needed for the public cmdlet).
-Agent Investigation correctly uses the investigation-specific key with its redaction profile.
-**No change required** — the inconsistency is intentional by design.
-
----
-
-## Implementation Summary
-
-### Fixed Dataset Keys
-- All 63 dataset-backed functions resolve in the active catalog (`genesys.catalog.json`).
-- Presence dataset key inconsistency documented above; both are intentional.
-
-### Hardening Changes Delivered
-
-| Area | Change |
-|------|--------|
-| Private helpers | Added `Test-Property`, `Get-PropertyValue`, `Get-NestedPropertyValue` for StrictMode-safe nested property access |
-| `Invoke-GenesysOpsDataset` | New hardened private helper: catalog pre-validation, diagnostic envelope, `Status` field (`Succeeded`/`Empty`/`Failed`/`Unsupported`), `-IncludeDiagnostics` switch |
-| `Connect-GenesysCloud` | Expanded catalog candidate paths to include `genesys-core.catalog.json` and parent directory variants |
-| `ConvertFrom-ObservationResult` | Safe stats access using `Get-PropertyValue` — no StrictMode crash on missing `stats`, `group`, or `data` |
-| `ConvertFrom-AggregateResult` | Safe stats access using `Get-PropertyValue` — no StrictMode crash on missing `stats` |
-| `Get-GenesysAgentVoiceQuality` | Safe access for `mediaStatsMinConversationMos`, `divisionIds[0]` |
-| `Get-GenesysAuditEvent` | Safe access for `user.email`, `serviceContext.entityType` |
-| `Get-GenesysUserWithDivision` | Safe access for `division.name` in filter |
-| `Get-GenesysChangeAuditFeed` | Safe access for nested service context fields |
-| `Get-GenesysContactCentreStatus` | Partial success: each section independently try-caught; `Diagnostics[]` in output |
-| `Invoke-GenesysDailyHealthReport` | Partial success: `Invoke-ReportSection` helper; `Diagnostics[]` in output; `-FailFast` switch |
-| `Export-GenesysConfigurationSnapshot` | Partial success: `Export-Section` helper; `Sections[]` in manifest; `-FailFast` switch; `[System.IO.Path]` safe folder resolution |
-| `Invoke-GenesysOperationsReport` | Partial success: `Invoke-OpsSection` helper; `Diagnostics[]` in output; `-FailFast` switch |
-| `Test-GenesysOpsDatasetCoverage` | New public cmdlet: audits all mapped functions against the active catalog |
-
-### Functions Still Blocked by Genesys.Core Limitations
-The 11 Medium-risk functions listed above require `Invoke-Dataset -BodyOverride` support from Genesys.Core before they can expose runtime query parameters.
-
-### Test Results
-- 139 unit tests pass (0 failures, 1 skipped — swagger coverage, requires `generated/swagger/swagger.json`)
-- New `tests/unit/GenesysOps.Hardening.Tests.ps1`: 35 tests covering safe property helpers, observation/aggregate flatteners, dataset catalog pre-validation, composite partial-success, and coverage audit
+Live-validation gates `H-01` through `H-08` (live-org verification of the seven
+Agent Investigation datasets) remain blocked on credentials and are not
+addressed by this refactor.

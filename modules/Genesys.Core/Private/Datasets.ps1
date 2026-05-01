@@ -767,6 +767,15 @@ function Invoke-AnalyticsConversationDetailsDataset {
         jobLabel           = 'Analytics conversation details job'
     }
 
+    # Body override — when a pre-built JSON body is supplied by the caller (e.g., from a
+    # query template), use it directly instead of the body assembled from named parameters.
+    $submitBodyJson = if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')) {
+        $bodyValue = $DatasetParameters['Body']
+        if ($bodyValue -is [string]) { $bodyValue } else { $bodyValue | ConvertTo-Json -Depth 100 }
+    } else {
+        $body | ConvertTo-Json -Depth 20
+    }
+
     $jobResult = Invoke-AsyncJob `
         -SubmitEndpointSpec $submitEndpoint `
         -StatusEndpointSpec $statusEndpoint `
@@ -774,7 +783,7 @@ function Invoke-AnalyticsConversationDetailsDataset {
         -AsyncProfile $asyncProfile `
         -BaseUri $BaseUri `
         -Headers $Headers `
-        -SubmitBody ($body | ConvertTo-Json -Depth 20) `
+        -SubmitBody $submitBodyJson `
         -RunEvents $runEvents `
         -RequestInvoker $RequestInvoker
 

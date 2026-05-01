@@ -581,19 +581,24 @@ function _Refresh-Results {
         return
     }
 
-    $filters = _Get-CurrentFilters
-    $limit = 0
-    if ($script:State.CurrentRunMode -eq 'Preview') {
-        [void][int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$limit)
-    }
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+    try {
+        $filters = _Get-CurrentFilters
+        $limit = 0
+        if ($script:State.CurrentRunMode -eq 'Preview') {
+            [void][int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$limit)
+        }
 
-    $script:State.FilteredIndex = @(Search-AuditRun -RunFolder $script:State.CurrentRunFolder -Service $filters.Service -Action $filters.Action -Actor $filters.Actor -Entity $filters.Entity -Keyword $filters.Keyword -Limit $limit)
-    $page = Get-AuditResultPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $script:State.FilteredIndex -PageNumber $script:State.CurrentPage -PageSize $script:State.PageSize
-    $script:DgAuditResults.ItemsSource = $page.Rows
-    $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
-    $script:BtnPrevPage.IsEnabled = $page.PageNumber -gt 1
-    $script:BtnNextPage.IsEnabled = $page.PageNumber -lt $page.TotalPages
-    $script:TxtCurrentRunStatus.Text = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+        $script:State.FilteredIndex = @(Search-AuditRun -RunFolder $script:State.CurrentRunFolder -Service $filters.Service -Action $filters.Action -Actor $filters.Actor -Entity $filters.Entity -Keyword $filters.Keyword -Limit $limit)
+        $page = Get-AuditResultPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $script:State.FilteredIndex -PageNumber $script:State.CurrentPage -PageSize $script:State.PageSize
+        $script:DgAuditResults.ItemsSource = $page.Rows
+        $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
+        $script:BtnPrevPage.IsEnabled = $page.PageNumber -gt 1
+        $script:BtnNextPage.IsEnabled = $page.PageNumber -lt $page.TotalPages
+        $script:TxtCurrentRunStatus.Text = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
+    }
 }
 
 function _Load-Run {
@@ -606,26 +611,31 @@ function _Load-Run {
         throw "Run folder not found: $RunFolder"
     }
 
-    $script:State.CurrentRunFolder = $RunFolder
-    if (-not [string]::IsNullOrWhiteSpace($Mode)) {
-        $script:State.CurrentRunMode = $Mode
-    }
-    else {
-        $request = Get-RunRequestMetadata -RunFolder $RunFolder
-        if ($null -ne $request) {
-            $script:State.CurrentRunMode = [string]$request.mode
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+    try {
+        $script:State.CurrentRunFolder = $RunFolder
+        if (-not [string]::IsNullOrWhiteSpace($Mode)) {
+            $script:State.CurrentRunMode = $Mode
         }
-    }
+        else {
+            $request = Get-RunRequestMetadata -RunFolder $RunFolder
+            if ($null -ne $request) {
+                $script:State.CurrentRunMode = [string]$request.mode
+            }
+        }
 
-    Clear-AuditIndexCache -RunFolder $RunFolder
-    Load-AuditIndex -RunFolder $RunFolder | Out-Null
-    _Populate-RunFilters -RunFolder $RunFolder
-    _Refresh-CurrentRunSummary
-    $script:State.CurrentPage = 1
-    _Refresh-Results
-    _Render-Console
-    _Set-RunActionState
-    _SetStatus -Main "Loaded run $([System.IO.Path]::GetFileName($RunFolder))" -Right ([datetime]::Now.ToString('HH:mm:ss'))
+        Clear-AuditIndexCache -RunFolder $RunFolder
+        Load-AuditIndex -RunFolder $RunFolder | Out-Null
+        _Populate-RunFilters -RunFolder $RunFolder
+        _Refresh-CurrentRunSummary
+        $script:State.CurrentPage = 1
+        _Refresh-Results
+        _Render-Console
+        _Set-RunActionState
+        _SetStatus -Main "Loaded run $([System.IO.Path]::GetFileName($RunFolder))" -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
+    }
 }
 
 function _Open-RunFolder {
@@ -734,6 +744,12 @@ function _Poll-BackgroundRun {
     if (-not [string]::IsNullOrWhiteSpace([string]$script:State.CurrentRunFolder)) {
         _Refresh-CurrentRunSummary
         _Render-Console
+    }
+
+    # Show elapsed run time in the right-side status label while the run is active
+    if (-not $script:State.RunHandle.IsCompleted -and $null -ne $script:State.RunStartedAtUtc) {
+        $elapsed = ([datetime]::UtcNow - $script:State.RunStartedAtUtc).ToString('hh\:mm\:ss')
+        _SetStatus -Main $script:TxtStatusMain.Text -Right $elapsed
     }
 
     if (-not $script:State.RunHandle.IsCompleted) {
@@ -847,15 +863,16 @@ function _Poll-PkceLogin {
         $script:State.AuthContext = $ctx
         _Update-AuthState
         _Refresh-FilterCatalogFromLiveSession
-        _SetStatus -Main "Connected to Genesys Cloud via PKCE ($($ctx.Region))." -Right ([datetime]::Now.ToString('HH:mm:ss'))
+        $connectedVia = if ($null -ne $ctx -and $ctx.PSObject.Properties['AuthFlow'] -and $ctx.AuthFlow -eq 'pkce') { 'PKCE' } else { 'bearer token' }
+        _SetStatus -Main "Connected to Genesys Cloud via $connectedVia ($($ctx.Region))." -Right ([datetime]::Now.ToString('HH:mm:ss'))
     }
     catch {
         [System.Windows.MessageBox]::Show(
             $_.Exception.Message,
-            'PKCE Login Error',
+            'Authentication Error',
             [System.Windows.MessageBoxButton]::OK,
             [System.Windows.MessageBoxImage]::Error) | Out-Null
-        _SetStatus -Main 'PKCE login failed.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+        _SetStatus -Main 'Authentication failed.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
     }
     finally {
         try { $script:State.AuthPowerShell.Dispose() } catch { }
@@ -912,7 +929,7 @@ _Refresh-RecentRuns
 _Try-AutoConnect
 
 $script:State.PollTimer = New-Object System.Windows.Threading.DispatcherTimer
-$script:State.PollTimer.Interval = [TimeSpan]::FromSeconds(1.5)
+$script:State.PollTimer.Interval = [TimeSpan]::FromMilliseconds(500)
 $script:State.PollTimer.Add_Tick({
     _Poll-PkceLogin
     _Poll-BackgroundRun
@@ -920,20 +937,39 @@ $script:State.PollTimer.Add_Tick({
 $script:State.PollTimer.Start()
 
 $script:BtnConnect.Add_Click({
-    try {
-        $script:State.AuthContext = Connect-AuditSession -AccessToken $script:PwdAccessToken.Password -Region $script:CmbRegion.Text
-        _Update-AuthState
-        _Refresh-FilterCatalogFromLiveSession
-        _SetStatus -Main 'Connected to Genesys Cloud session.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
-        _Set-RunActionState
-    }
-    catch {
+    $accessToken = $script:PwdAccessToken.Password
+    $region      = [string]$script:CmbRegion.Text
+
+    if ([string]::IsNullOrWhiteSpace($accessToken)) {
         [System.Windows.MessageBox]::Show(
-            $_.Exception.Message,
-            'Connection Error',
+            'Paste a bearer token into the access token field.',
+            'Connection',
             [System.Windows.MessageBoxButton]::OK,
-            [System.Windows.MessageBoxImage]::Error) | Out-Null
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
     }
+
+    # Guard: don't start a second auth if one is already in flight.
+    if ($null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted) { return }
+
+    $scriptText = @'
+param($appRoot, $settings, $accessToken, $region)
+Import-Module (Join-Path $appRoot 'App.CoreAdapter.psm1') -Force
+Initialize-CoreIntegration -CoreModulePath $settings.CoreModulePath -AuthModulePath $settings.AuthModulePath -CatalogPath $settings.CatalogPath -SchemaPath $settings.SchemaPath -OutputRoot $settings.OutputRoot -DatasetKeys $settings.DatasetKeys -PreviewConfig $settings.Preview | Out-Null
+Connect-AuditSession -AccessToken $accessToken -Region $region
+'@
+    $ps = [powershell]::Create()
+    [void]$ps.AddScript($scriptText)
+    [void]$ps.AddArgument($script:AppContext.Settings.AppRoot)
+    [void]$ps.AddArgument($script:AppContext.Settings)
+    [void]$ps.AddArgument($accessToken)
+    [void]$ps.AddArgument($region)
+
+    $script:State.AuthPowerShell = $ps
+    $script:State.AuthHandle     = $ps.BeginInvoke()
+
+    _SetStatus -Main 'Connecting…' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    _Set-RunActionState
 })
 
 $script:BtnPkceLogin.Add_Click({ _Start-PkceLogin })

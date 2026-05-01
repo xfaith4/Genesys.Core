@@ -156,6 +156,7 @@ $script:SelectedDataset = $null
 $script:LastRunFolder   = $null
 $script:ActiveRun       = $null
 $script:ActiveAuth      = $null
+$script:PendingResultsJob = $null
 
 foreach ($d in $script:AllDatasets) {
     $display = ("[{0}] {1}" -f $d.Group, $d.Key)
@@ -546,37 +547,95 @@ function Complete-Run {
         if ($runFolder) {
             $script:LastRunFolder = $runFolder
             $controls.BtnOpenRun.IsEnabled = $true
-            try {
-                $results = Get-RunResults -RunFolder $runFolder -MaxRows $settings.Ui.PreviewRows
-                $flat = ConvertTo-FlatRows -Rows $results.Rows
-                $controls.GridResults.ItemsSource = $flat
 
-                $summaryText  = if ($null -ne $results.Summary)  { ($results.Summary  | ConvertTo-Json -Depth 10) } else { '(no summary.json)' }
-                $manifestText = if ($null -ne $results.Manifest) { ($results.Manifest | ConvertTo-Json -Depth 10) } else { '(no manifest.json)' }
-                $controls.TxtSummary.Text = "=== summary.json ===`n$summaryText`n`n=== manifest.json ===`n$manifestText"
+            # Load results in a background runspace so the UI thread stays responsive.
+            Set-Status ("Completed '{0}'. Loading results…" -f $run.DatasetKey) '#34D399'
+            [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
 
-                $sb = New-Object System.Text.StringBuilder
-                $previewCount = [Math]::Min($results.Rows.Count, 50)
-                for ($i = 0; $i -lt $previewCount; $i++) {
-                    [void]$sb.AppendLine(($results.Rows[$i] | ConvertTo-Json -Depth 10 -Compress))
-                }
-                if ($results.Rows.Count -gt $previewCount) {
-                    [void]$sb.AppendLine("...")
-                    [void]$sb.AppendLine("($($results.Rows.Count - $previewCount) more rows truncated in this view; full JSONL is in $($results.DataDir))")
-                }
-                $controls.TxtRaw.Text = $sb.ToString()
+            $capturedRunFolder  = $runFolder
+            $capturedDatasetKey = $run.DatasetKey
+            $capturedMaxRows    = $settings.Ui.PreviewRows
+            $capturedCorePath   = $corePath
 
-                $total = $results.Rows.Count
-                if ($null -ne $results.Summary -and $results.Summary.PSObject.Properties['totals'] -and $null -ne $results.Summary.totals -and $results.Summary.totals.PSObject.Properties['totalRecords']) {
-                    $total = [int]$results.Summary.totals.totalRecords
-                }
-                Set-Status ("Completed '{0}'. Total records: {1}. Preview rows: {2}. Run folder: {3}" -f $run.DatasetKey, $total, $flat.Count, $runFolder) '#34D399'
-                $controls.TabResults.SelectedItem = $controls.TabRows
+            $rsRes = [runspacefactory]::CreateRunspace()
+            $rsRes.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::UseNewThread
+            $rsRes.Open()
+            $psRes = [powershell]::Create()
+            $psRes.Runspace = $rsRes
+            [void]$psRes.AddScript({
+                param($CoreModulePath, $RunFolder, $MaxRows)
+                Import-Module $CoreModulePath -Force -ErrorAction Stop
+                $results = Get-RunResults -RunFolder $RunFolder -MaxRows $MaxRows
+                $flat    = ConvertTo-FlatRows -Rows $results.Rows
+                return [pscustomobject]@{ Results = $results; FlatRows = $flat }
+            })
+            [void]$psRes.AddArgument($capturedCorePath)
+            [void]$psRes.AddArgument($capturedRunFolder)
+            [void]$psRes.AddArgument($capturedMaxRows)
+            $asyncRes = $psRes.BeginInvoke()
+
+            $script:PendingResultsJob = @{
+                PsInstance   = $psRes
+                Runspace     = $rsRes
+                AsyncResult  = $asyncRes
+                RunFolder    = $capturedRunFolder
+                DatasetKey   = $capturedDatasetKey
+                Timer        = $null
             }
-            catch {
-                Set-Status "Run completed but results could not be loaded: $($_.Exception.Message)" '#F87171'
-                $controls.TxtSummary.Text = $_.Exception.ToString()
-            }
+
+            $resultTimer = New-Object System.Windows.Threading.DispatcherTimer
+            $resultTimer.Interval = [TimeSpan]::FromMilliseconds(200)
+            $resultTimer.Add_Tick({
+                $job = $script:PendingResultsJob
+                if ($null -eq $job) { $resultTimer.Stop(); return }
+                if (-not $job.AsyncResult.IsCompleted) { return }
+
+                $resultTimer.Stop()
+                [System.Windows.Input.Mouse]::OverrideCursor = $null
+
+                try {
+                    $output = $job.PsInstance.EndInvoke($job.AsyncResult)
+                    $loaded  = $output | Select-Object -Last 1
+                    $results = $loaded.Results
+                    $flat    = $loaded.FlatRows
+
+                    $controls.GridResults.ItemsSource = $flat
+
+                    $summaryText  = if ($null -ne $results.Summary)  { ($results.Summary  | ConvertTo-Json -Depth 10) } else { '(no summary.json)' }
+                    $manifestText = if ($null -ne $results.Manifest) { ($results.Manifest | ConvertTo-Json -Depth 10) } else { '(no manifest.json)' }
+                    $controls.TxtSummary.Text = "=== summary.json ===`n$summaryText`n`n=== manifest.json ===`n$manifestText"
+
+                    $sb = New-Object System.Text.StringBuilder
+                    $previewCount = [Math]::Min($results.Rows.Count, 50)
+                    for ($i = 0; $i -lt $previewCount; $i++) {
+                        [void]$sb.AppendLine(($results.Rows[$i] | ConvertTo-Json -Depth 10 -Compress))
+                    }
+                    if ($results.Rows.Count -gt $previewCount) {
+                        [void]$sb.AppendLine("...")
+                        [void]$sb.AppendLine("($($results.Rows.Count - $previewCount) more rows truncated in this view; full JSONL is in $($results.DataDir))")
+                    }
+                    $controls.TxtRaw.Text = $sb.ToString()
+
+                    $total = $results.Rows.Count
+                    if ($null -ne $results.Summary -and $results.Summary.PSObject.Properties['totals'] -and $null -ne $results.Summary.totals -and $results.Summary.totals.PSObject.Properties['totalRecords']) {
+                        $total = [int]$results.Summary.totals.totalRecords
+                    }
+                    Set-Status ("Completed '{0}'. Total records: {1}. Preview rows: {2}. Run folder: {3}" -f $job.DatasetKey, $total, $flat.Count, $job.RunFolder) '#34D399'
+                    $controls.TabResults.SelectedItem = $controls.TabRows
+                }
+                catch {
+                    [System.Windows.Input.Mouse]::OverrideCursor = $null
+                    Set-Status "Run completed but results could not be loaded: $($_.Exception.Message)" '#F87171'
+                    $controls.TxtSummary.Text = $_.Exception.ToString()
+                }
+                finally {
+                    try { $job.PsInstance.Dispose() } catch {}
+                    try { $job.Runspace.Close(); $job.Runspace.Dispose() } catch {}
+                    $script:PendingResultsJob = $null
+                }
+            }.GetNewClosure())
+            $script:PendingResultsJob.Timer = $resultTimer
+            $resultTimer.Start()
         }
         else {
             Set-Status "Run completed but no run folder was detected." '#FBBF24'
@@ -687,6 +746,15 @@ $controls.BtnRun.Add_Click({
             }
         }
 
+        # Show elapsed time alongside any paging progress
+        $elapsed = ([datetime]::UtcNow - $run.StartUtc).ToString('hh\:mm\:ss')
+        if ($run.LastPage -gt 0) {
+            $tot = if ($run.LastItems -gt 0) { " items=$($run.LastItems)" } else { '' }
+            Set-Progress ("page $($run.LastPage)$tot  [$elapsed]")
+        } else {
+            Set-Progress $elapsed
+        }
+
         if ($null -ne $run.RunFolder) {
             $eventsPath = [System.IO.Path]::Combine($run.RunFolder, 'events.jsonl')
             if ([System.IO.File]::Exists($eventsPath)) {
@@ -705,7 +773,6 @@ $controls.BtnRun.Add_Click({
                         if ($evt.PSObject.Properties['page']) { $run.LastPage = [int]$evt.page }
                         $tot = ''
                         if ($evt.PSObject.Properties['totalHits'] -and $null -ne $evt.totalHits) { $tot = " / total=$($evt.totalHits)" }
-                        Set-Progress ("page {0}{1}" -f $run.LastPage, $tot)
                         Set-Status ("Running '{0}': page {1}{2}" -f $run.DatasetKey, $run.LastPage, $tot) '#FBBF24'
                     }
                     elseif ($evt.PSObject.Properties['eventType'] -and [string]$evt.eventType -eq 'request.completed') {
@@ -754,6 +821,13 @@ $window.Add_Closing({
         try { $script:ActiveRun.PsInstance.Dispose() } catch {}
         try { $script:ActiveRun.Runspace.Close(); $script:ActiveRun.Runspace.Dispose() } catch {}
         $script:ActiveRun = $null
+    }
+    if ($null -ne $script:PendingResultsJob) {
+        try { $script:PendingResultsJob.Timer.Stop() } catch {}
+        try { $script:PendingResultsJob.PsInstance.Dispose() } catch {}
+        try { $script:PendingResultsJob.Runspace.Close(); $script:PendingResultsJob.Runspace.Dispose() } catch {}
+        $script:PendingResultsJob = $null
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 })
 

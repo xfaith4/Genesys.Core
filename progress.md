@@ -33,7 +33,7 @@
 - Hardened `App.UI.ps1` background run polling so in-progress diagnostics use the new run folder and completed display always prefers the returned run context `.runFolder` over any folder discovered while polling.
 - Hardened async job polling so terminal/success state comparisons are case-insensitive, and the analytics conversation-details job uses a longer 300-poll profile with common success-state aliases.
 - Added smoke coverage for Windows-style persisted config paths and unit coverage for lower-case async terminal states.
-- Verified current config now resolves OutputRoot to `/mnt/c/Users/benfu/AppData/Local/GenesysConversationAnalysis/runs` and the Core/catalog/schema paths to the repo paths.
+- Verified current config now resolves OutputRoot to the local `GenesysConversationAnalysis/runs` directory and the Core/catalog/schema paths to the repo paths.
 - Verified parser checks, `Invoke-AllTests.ps1` (196 PASS, 0 FAIL, 1 SKIP), `Invoke-Pester tests/unit/AsyncJob.Engine.Tests.ps1` (3 PASS), and scoped `git diff --check`.
 
 ## 2026-04-19

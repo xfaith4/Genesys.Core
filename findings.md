@@ -20,7 +20,7 @@
 - The persisted config at `%LOCALAPPDATA%\GenesysConversationAnalysis\config.json` contained Windows absolute paths and backslash relative paths. In the WSL/Linux runtime, `[System.IO.Path]::IsPathRooted('C:\...')` returned false, so the app built malformed app-relative paths like `<app>/C:\Users\...`.
 - The UI polling path could discover a completed older run while the new run was still executing, then keep that folder for display because completion only recovered `.runFolder` when `CurrentRunFolder` was null. Completed runs now override with the returned run context folder.
 - The full conversation-details run uses the async analytics job path. Async state comparison was case-sensitive and the dataset-specific profile ignored the longer catalog-style polling window; both were hardened to reduce false timeouts before result retrieval.
-- Local artifact search found no real run folders under `/mnt/c/Users/benfu/AppData/Local/GenesysConversationAnalysis`; only `config.json` and `cases.sqlite` were present, so the no-display symptom could not be reproduced from existing run artifacts.
+- Local artifact search found no real run folders under the local `GenesysConversationAnalysis` data directory; only `config.json` and `cases.sqlite` were present, so the no-display symptom could not be reproduced from existing run artifacts.
 
 ## Product-Purpose Reorientation Findings
 

@@ -4128,17 +4128,26 @@ function _BuildQueryTemplateBody {
     <#
     .SYNOPSIS
         Returns a JSON string for the Genesys analytics query body for the given template name.
-        The interval is set to yesterday (local midnight → 23:59:59.999 UTC).
+        The interval is set to "yesterday" expressed as the user's local calendar day, converted
+        to UTC — matching the same convention as the form-based date pickers.
     #>
     param(
         [string]$TemplateName,
         [string]$QueueGroupText = ''
     )
 
+    # $yesterday has Kind=Local (same as WPF DatePicker values).  ToUniversalTime()
+    # correctly shifts local midnight → UTC so the interval covers "yesterday in the
+    # user's timezone", matching how _GetDatasetParameters processes date-picker values.
     $yesterday = [DateTime]::Today.AddDays(-1)
     $yStartUtc = $yesterday.ToUniversalTime().ToString('o')
     $yEndUtc   = $yesterday.AddDays(1).AddMilliseconds(-1).ToUniversalTime().ToString('o')
     $interval  = "$yStartUtc/$yEndUtc"
+
+    # MOS degraded threshold used in the filter below.
+    # Keep in sync with the ComboBoxItem label "Degraded Conversations (MOS < 3.5)"
+    # in MainWindow.xaml if this value ever changes.
+    [double]$mosThreshold = 3.5
 
     $body = switch ($TemplateName) {
 
@@ -4161,7 +4170,7 @@ function _BuildQueryTemplateBody {
                     [ordered]@{
                         type    = 'and'
                         metrics = @(
-                            [ordered]@{ metric = 'minMos'; range = [ordered]@{ lt = 3.5 } }
+                            [ordered]@{ metric = 'minMos'; range = [ordered]@{ lt = $mosThreshold } }
                         )
                     }
                 )

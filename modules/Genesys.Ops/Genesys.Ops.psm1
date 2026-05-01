@@ -256,6 +256,150 @@ function New-GenesysAnalyticsFilter {
 #endregion
 
 # ---------------------------------------------------------------------------
+#region Private safe-property helpers (StrictMode-compatible)
+# ---------------------------------------------------------------------------
+
+function Test-Property {
+    # Returns $true when $InputObject has a PSObject property named $Name.
+    param([object]$InputObject, [string]$Name)
+    if ($null -eq $InputObject) { return $false }
+    return [bool]($InputObject.PSObject.Properties[$Name])
+}
+
+function Get-PropertyValue {
+    # Returns a property value from $InputObject, or $Default if missing/null.
+    param([object]$InputObject, [string]$Name, [object]$Default = $null)
+    if ($null -eq $InputObject) { return $Default }
+    $prop = $InputObject.PSObject.Properties[$Name]
+    if ($prop) { return $prop.Value }
+    return $Default
+}
+
+function Get-NestedPropertyValue {
+    # Traverses a dot-separated path (e.g. 'user.email') without throwing on
+    # missing segments or null intermediate values under Set-StrictMode -Version Latest.
+    param([object]$InputObject, [string]$Path, [object]$Default = $null)
+    if ($null -eq $InputObject) { return $Default }
+    $current = $InputObject
+    foreach ($segment in ($Path -split '\.')) {
+        if ($null -eq $current) { return $Default }
+        $prop = $current.PSObject.Properties[$segment]
+        if (-not $prop) { return $Default }
+        $current = $prop.Value
+    }
+    if ($null -ne $current) { $current } else { $Default }
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
+#region Hardened private dataset helper
+# ---------------------------------------------------------------------------
+
+function Invoke-GenesysOpsDataset {
+    <#
+    .SYNOPSIS
+        Hardened internal dataset helper. Validates the dataset key against the
+        active catalog before calling Invoke-GenesysDataset and returns a
+        diagnostic envelope or plain records.
+    .PARAMETER Dataset
+        Catalog dataset key.
+    .PARAMETER FunctionName
+        Calling public function name — included in diagnostic messages.
+    .PARAMETER AllowEmpty
+        When set, an empty result is Status='Empty' rather than a warning.
+    .PARAMETER IncludeDiagnostics
+        Return the full diagnostic envelope instead of just records.
+    .PARAMETER KeepArtifacts
+        Passed through to Invoke-GenesysDataset.
+    .PARAMETER ArtifactPath
+        Passed through to Invoke-GenesysDataset.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Dataset,
+
+        [string] $FunctionName,
+        [switch] $AllowEmpty,
+        [switch] $IncludeDiagnostics,
+        [switch] $KeepArtifacts,
+        [string] $ArtifactPath
+    )
+
+    $callerName = if ($FunctionName) { $FunctionName } else { '<unknown>' }
+
+    $envelope = [PSCustomObject][ordered]@{
+        DatasetKey   = $Dataset
+        FunctionName = $callerName
+        Status       = 'Failed'
+        Records      = @()
+        RecordCount  = 0
+        RunFolder    = $null
+        ManifestPath = $null
+        DataFolder   = $null
+        Error        = $null
+    }
+
+    # Pre-validate dataset key against the active catalog when available.
+    $catalogPath = $script:GC.CatalogPath
+    if ($catalogPath -and (Test-Path $catalogPath)) {
+        try {
+            $catalogObj    = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json
+            $datasetsNode  = Get-PropertyValue $catalogObj 'datasets'
+            if ($datasetsNode) {
+                $datasetEntry = Get-PropertyValue $datasetsNode $Dataset
+                if (-not $datasetEntry) {
+                    $msg = "$($callerName): Dataset key '$($Dataset)' not found in catalog '$($catalogPath)'."
+                    $envelope.Status = 'Unsupported'
+                    $envelope.Error  = $msg
+                    if ($IncludeDiagnostics) { return $envelope }
+                    Write-Warning $msg
+                    return @()
+                }
+            }
+        } catch {
+            Write-Verbose "$($callerName): Catalog pre-validation skipped — $($_)"
+        }
+    }
+
+    # Invoke the dataset via the established Genesys.Core contract.
+    try {
+        $invokeParams = @{ Dataset = $Dataset }
+        if ($KeepArtifacts) { $invokeParams['KeepArtifacts'] = $true }
+        if ($ArtifactPath)  { $invokeParams['ArtifactPath']  = $ArtifactPath }
+
+        $records = Invoke-GenesysDataset @invokeParams
+
+        # Normalize using a List to guarantee a non-null System.Object[] even for empty results.
+        # Direct @($records) collapses to $null under PowerShell 5.1 when records is null/empty.
+        $recordList = [System.Collections.Generic.List[object]]::new()
+        if ($null -ne $records) {
+            foreach ($item in @($records)) { if ($null -ne $item) { $recordList.Add($item) } }
+        }
+        $envelope.Records     = $recordList.ToArray()
+        $envelope.RecordCount = $recordList.Count
+        $envelope.Status      = if ($envelope.RecordCount -eq 0) { 'Empty' } else { 'Succeeded' }
+
+        if ($envelope.Status -eq 'Empty' -and -not $AllowEmpty) {
+            Write-Verbose "$($callerName): Dataset '$($Dataset)' returned 0 records."
+        }
+    } catch {
+        $msg = "$($callerName): Dataset '$($Dataset)' failed — $_"
+        $envelope.Status = 'Failed'
+        $envelope.Error  = $msg
+        if ($IncludeDiagnostics) { return $envelope }
+        throw $msg
+    }
+
+    if ($IncludeDiagnostics) { return $envelope }
+    # Return a guaranteed non-null array so callers can safely use @() wrapping or .Count.
+    return , $envelope.Records
+}
+
+#endregion
+
+# ---------------------------------------------------------------------------
 #region Authentication & Session
 # ---------------------------------------------------------------------------
 
@@ -338,16 +482,23 @@ function Connect-GenesysCloud {
         }
     }
 
-    # ---- Resolve catalog ----
+    # ---- Resolve catalog — search likely Genesys.Core catalog locations ----
     $resolvedCatalog = $CatalogPath
     if (-not $resolvedCatalog) {
         $catalogCandidates = @(
-            (Join-Path $PSScriptRoot  '../../catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot  '../catalog/genesys.catalog.json')
+            (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
+            (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
+            (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
+            (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json'),
+            (Join-Path $PSScriptRoot 'catalog/genesys.catalog.json'),
+            (Join-Path $PSScriptRoot 'catalog/genesys-core.catalog.json')
         )
         $resolvedCatalog = $catalogCandidates |
             Where-Object { Test-Path $_ } |
             Select-Object -First 1
+    }
+    if (-not $resolvedCatalog) {
+        Write-Warning "Connect-GenesysCloud: Catalog not found. Dataset key pre-validation will be skipped. Pass -CatalogPath to resolve manually."
     }
 
     $script:GC.BaseUri       = "https://api.$Region"
@@ -612,6 +763,10 @@ function Get-GenesysAgentPresence {
     param()
 
     Assert-GenesysConnected
+    # NOTE: Both 'users.get.bulk.user.presences' and 'users.get.bulk.user.presences.genesys.cloud'
+    # exist in the catalog. The Agent Investigation steps use 'users.get.bulk.user.presences'
+    # (with agent-investigation-presences redaction profile). This public cmdlet uses the
+    # '.genesys.cloud' variant which maps to the same endpoint without a redaction profile.
     Invoke-GenesysDataset -Dataset 'users.get.bulk.user.presences.genesys.cloud'
 }
 
@@ -673,7 +828,8 @@ function Get-GenesysUserWithDivision {
     Assert-GenesysConnected
     $results = Invoke-GenesysDataset -Dataset 'users.division.analysis.get.users.with.division.info'
     if ($DivisionName) {
-        $results = $results | Where-Object { $_.division.name -like $DivisionName }
+        # Use Get-NestedPropertyValue to avoid StrictMode failures when division is null.
+        $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'division.name') -like $DivisionName }
     }
     $results
 }
@@ -1101,9 +1257,11 @@ function Get-GenesysAuditEvent {
     Assert-GenesysConnected
     $results = Invoke-GenesysDataset -Dataset 'audit-logs'
 
-    if ($Action)     { $results = $results | Where-Object { $_.action                     -like $Action     } }
-    if ($Username)   { $results = $results | Where-Object { $_.user.email                 -like $Username   } }
-    if ($EntityType) { $results = $results | Where-Object { $_.serviceContext.entityType  -eq   $EntityType } }
+    # Use safe nested property access to avoid StrictMode failures when
+    # user or serviceContext sub-objects are absent from a record.
+    if ($Action)     { $results = $results | Where-Object { (Get-PropertyValue $_ 'action')                                -like $Action     } }
+    if ($Username)   { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'user.email')                     -like $Username   } }
+    if ($EntityType) { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'serviceContext.entityType')      -eq   $EntityType } }
 
     $results
 }
@@ -1260,6 +1418,13 @@ function Get-GenesysContactCentreStatus {
         Aggregates agents, queues, and active conversation counts into one
         summary object.  Designed for IT Ops dashboards, alerting scripts, or
         chat-ops bots that post a floor health update on a schedule.
+
+        Each section is collected independently.  When a section fails, its
+        fields in the output are $null and a Diagnostics property is populated
+        with per-section status.  Pass -ErrorAction Stop to abort on first failure.
+    .PARAMETER FailFast
+        Stop immediately if any section fails (equivalent to -ErrorAction Stop
+        for each internal call).
     .EXAMPLE
         Get-GenesysContactCentreStatus | Format-List
     .EXAMPLE
@@ -1282,21 +1447,71 @@ function Get-GenesysContactCentreStatus {
         }
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [switch] $FailFast
+    )
 
     Assert-GenesysConnected
 
+    $diag = [System.Collections.Generic.List[object]]::new()
+
+    # Collect each section independently; failures populate $diag but do not abort.
+    function Add-Diag {
+        param([string]$Section, [string]$Status, $Count, [string]$Error)
+        $diag.Add([PSCustomObject]@{ Section = $Section; Status = $Status; Count = $Count; Error = $Error })
+    }
+
     Write-Verbose 'Fetching agents...'
-    $agents   = Get-GenesysAgent
+    $agents = [System.Object[]]@()
+    try {
+        $agents = [System.Object[]]@(Get-GenesysAgent)
+        Add-Diag 'Agents' 'OK' $agents.Count $null
+    } catch { Add-Diag 'Agents' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Agents: $_"; if ($FailFast) { throw } }
 
     Write-Verbose 'Fetching queues...'
-    $queues   = Get-GenesysQueue
+    $queues = [System.Object[]]@()
+    try {
+        $queues = [System.Object[]]@(Get-GenesysQueue)
+        Add-Diag 'Queues' 'OK' $queues.Count $null
+    } catch { Add-Diag 'Queues' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Queues: $_"; if ($FailFast) { throw } }
 
-    Write-Verbose 'Fetching active conversations...'
-    $calls     = Get-GenesysActiveCall
-    $chats     = Get-GenesysActiveChat
-    $emails    = Get-GenesysActiveEmail
-    $callbacks = Get-GenesysActiveCallback
+    Write-Verbose 'Fetching active calls...'
+    $calls = [System.Object[]]@()
+    try {
+        $calls = [System.Object[]]@(Get-GenesysActiveCall)
+        Add-Diag 'ActiveCalls' 'OK' $calls.Count $null
+    } catch { Add-Diag 'ActiveCalls' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveCalls: $_"; if ($FailFast) { throw } }
+
+    Write-Verbose 'Fetching active chats...'
+    $chats = [System.Object[]]@()
+    try {
+        $chats = [System.Object[]]@(Get-GenesysActiveChat)
+        Add-Diag 'ActiveChats' 'OK' $chats.Count $null
+    } catch { Add-Diag 'ActiveChats' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveChats: $_"; if ($FailFast) { throw } }
+
+    Write-Verbose 'Fetching active emails...'
+    $emails = [System.Object[]]@()
+    try {
+        $emails = [System.Object[]]@(Get-GenesysActiveEmail)
+        Add-Diag 'ActiveEmails' 'OK' $emails.Count $null
+    } catch { Add-Diag 'ActiveEmails' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveEmails: $_"; if ($FailFast) { throw } }
+
+    Write-Verbose 'Fetching active callbacks...'
+    $callbacks = [System.Object[]]@()
+    $callbackFailed = $false
+    try {
+        $callbacks = [System.Object[]]@(Get-GenesysActiveCallback)
+        Add-Diag 'ActiveCallbacks' 'OK' $callbacks.Count $null
+    } catch {
+        $callbackFailed = $true
+        Add-Diag 'ActiveCallbacks' 'Failed' $null "$($_.Exception.Message)"
+        Write-Warning "ActiveCallbacks: $_"
+        if ($FailFast) { throw }
+    }
+
+    $callbackCount          = if ($callbackFailed) { 0 } else { $callbacks.Count }
+    $activeCallbacksValue   = if ($callbackFailed) { $null } else { $callbackCount }
+    $callbackCountForTotal  = $callbackCount
 
     [PSCustomObject]@{
         Timestamp           = Get-Date -Format 'o'
@@ -1309,8 +1524,9 @@ function Get-GenesysContactCentreStatus {
         ActiveCalls         = $calls.Count
         ActiveChats         = $chats.Count
         ActiveEmails        = $emails.Count
-        ActiveCallbacks     = $callbacks.Count
-        TotalActiveContacts = $calls.Count + $chats.Count + $emails.Count + $callbacks.Count
+        ActiveCallbacks     = $activeCallbacksValue
+        TotalActiveContacts = $calls.Count + $chats.Count + $emails.Count + $callbackCountForTotal
+        Diagnostics         = $diag.ToArray()
     }
 }
 
@@ -1326,10 +1542,15 @@ function Invoke-GenesysDailyHealthReport {
         Designed to run as a scheduled task each morning or at shift handover.
         Use -OutputPath to write the report as JSON for downstream consumption
         (dashboards, ticketing systems, log aggregators).
+
+        Each section is collected independently.  When a section fails its data
+        is $null in the report and Diagnostics shows the section error.
     .PARAMETER OutputPath
         If specified, the report is serialised as UTF-8 JSON to this path.
     .PARAMETER PassThru
         Return the report object even when -OutputPath is used.
+    .PARAMETER FailFast
+        Abort the report on the first failed section.
     .EXAMPLE
         # Morning check — display in console
         Invoke-GenesysDailyHealthReport | ConvertTo-Json -Depth 5
@@ -1349,61 +1570,90 @@ function Invoke-GenesysDailyHealthReport {
     [CmdletBinding()]
     param(
         [string] $OutputPath,
-        [switch] $PassThru
+        [switch] $PassThru,
+        [switch] $FailFast
     )
 
     Assert-GenesysConnected
 
+    $diag = [System.Collections.Generic.List[object]]::new()
+
+    function Invoke-ReportSection {
+        param([string]$Name, [scriptblock]$Action)
+        try {
+            $r = & $Action
+            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK'; Error = $null })
+            return $r
+        } catch {
+            $msg = "$($Name): $_"
+            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Error = $msg })
+            Write-Warning $msg
+            if ($FailFast) { throw $msg }
+            return $null
+        }
+    }
+
     Write-Verbose 'Collecting organisation details...'
-    $org    = Get-GenesysOrganization
+    $org    = Invoke-ReportSection 'Organisation' { Get-GenesysOrganization }
 
     Write-Verbose 'Collecting agent roster...'
-    $agents = Get-GenesysAgent
+    $agents = Invoke-ReportSection 'Agents' { @(Get-GenesysAgent) }
 
     Write-Verbose 'Collecting queue details...'
-    $queues = Get-GenesysQueue
+    $queues = Invoke-ReportSection 'Queues' { @(Get-GenesysQueue) }
 
     Write-Verbose 'Collecting API usage...'
-    $usage  = Get-GenesysApiUsage
+    $usage  = Invoke-ReportSection 'ApiUsage' { Get-GenesysApiUsage }
 
     Write-Verbose 'Collecting recent audit events...'
-    $audit  = Get-GenesysAuditEvent
+    $audit  = Invoke-ReportSection 'Audit' { @(Get-GenesysAuditEvent) }
 
-    $presenceBreakdown = $agents |
-        Group-Object presence |
-        Sort-Object Count -Descending |
-        ForEach-Object { [PSCustomObject]@{ Presence = $_.Name; Count = $_.Count } }
+    $presenceBreakdown = if ($agents) {
+        $agents |
+            Group-Object presence |
+            Sort-Object Count -Descending |
+            ForEach-Object { [PSCustomObject]@{ Presence = $_.Name; Count = $_.Count } }
+    } else { $null }
 
     $report = [PSCustomObject]@{
         GeneratedAt  = Get-Date -Format 'o'
-        Organisation = [PSCustomObject]@{
-            Name            = $org.name
-            Id              = $org.id
-            DefaultLanguage = $org.defaultLanguage
-        }
-        Agents       = [PSCustomObject]@{
-            Total             = $agents.Count
-            Active            = @($agents | Where-Object { $_.state         -eq 'ACTIVE'                    }).Count
-            OnQueue           = @($agents | Where-Object { $_.routingStatus -in @('IDLE','INTERACTING')      }).Count
-            PresenceBreakdown = $presenceBreakdown
-        }
-        Queues       = [PSCustomObject]@{
-            Total        = $queues.Count
-            EmptyCount   = @($queues | Where-Object { $_.memberCount -eq 0 }).Count
-            TopByMembers = ($queues | Sort-Object memberCount -Descending | Select-Object -First 5 |
-                               Select-Object name, memberCount)
-        }
+        Organisation = if ($org) {
+            [PSCustomObject]@{
+                Name            = (Get-PropertyValue $org 'name')
+                Id              = (Get-PropertyValue $org 'id')
+                DefaultLanguage = (Get-PropertyValue $org 'defaultLanguage')
+            }
+        } else { $null }
+        Agents       = if ($agents) {
+            [PSCustomObject]@{
+                Total             = $agents.Count
+                Active            = @($agents | Where-Object { $_.state         -eq 'ACTIVE'               }).Count
+                OnQueue           = @($agents | Where-Object { $_.routingStatus -in @('IDLE','INTERACTING') }).Count
+                PresenceBreakdown = $presenceBreakdown
+            }
+        } else { $null }
+        Queues       = if ($queues) {
+            [PSCustomObject]@{
+                Total        = $queues.Count
+                EmptyCount   = @($queues | Where-Object { $_.memberCount -eq 0 }).Count
+                TopByMembers = ($queues | Sort-Object memberCount -Descending | Select-Object -First 5 |
+                                   Select-Object name, memberCount)
+            }
+        } else { $null }
         ApiUsage     = $usage
-        RecentAudit  = [PSCustomObject]@{
-            TotalEvents  = $audit.Count
-            LoginCount   = @($audit | Where-Object { $_.action -like '*LOGIN*'   }).Count
-            DeleteCount  = @($audit | Where-Object { $_.action -like 'DELETE_*'  }).Count
-        }
+        RecentAudit  = if ($audit) {
+            [PSCustomObject]@{
+                TotalEvents  = $audit.Count
+                LoginCount   = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like '*LOGIN*'  }).Count
+                DeleteCount  = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like 'DELETE_*' }).Count
+            }
+        } else { $null }
+        Diagnostics  = $diag.ToArray()
     }
 
     if ($OutputPath) {
         $report | ConvertTo-Json -Depth 8 | Set-Content -Path $OutputPath -Encoding UTF8
-        Write-Verbose "Report saved: $OutputPath"
+        Write-Verbose "Report saved: $($OutputPath)"
     }
 
     if ($PassThru -or -not $OutputPath) { $report }
@@ -1418,8 +1668,13 @@ function Export-GenesysConfigurationSnapshot {
         Run before and after planned changes as a change-management baseline, or
         schedule weekly to track configuration drift.  Each entity type is written
         to its own CSV so the files can be diff-ed independently.
+
+        Sections that fail are noted in the returned manifest with Status='Failed'.
+        A FailFast switch stops on the first section failure.
     .PARAMETER OutputFolder
         Folder to write CSV files into.  Created if it does not exist.
+    .PARAMETER FailFast
+        Abort on the first section export failure.
     .EXAMPLE
         Export-GenesysConfigurationSnapshot -OutputFolder '.\config-baseline-20260223'
     .EXAMPLE
@@ -1438,60 +1693,75 @@ function Export-GenesysConfigurationSnapshot {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
-        [string] $OutputFolder
+        [string] $OutputFolder,
+
+        [switch] $FailFast
     )
 
     Assert-GenesysConnected
 
     if ($PSCmdlet.ShouldProcess($OutputFolder, 'Write configuration snapshot CSVs')) {
-        if (-not (Test-Path $OutputFolder)) {
-            $null = New-Item -ItemType Directory -Path $OutputFolder -Force
+        $resolvedFolder = if ([System.IO.Path]::IsPathRooted($OutputFolder)) {
+            [System.IO.Path]::GetFullPath($OutputFolder)
+        } else {
+            [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputFolder))
+        }
+        if (-not (Test-Path $resolvedFolder)) {
+            $null = New-Item -ItemType Directory -Path $resolvedFolder -Force
         }
 
-        $stamp = Get-Date -Format 'o'
+        $stamp    = Get-Date -Format 'o'
+        $sections = [System.Collections.Generic.List[object]]::new()
+
+        function Export-Section {
+            param([string]$Name, [string]$File, [scriptblock]$Action, [string[]]$Fields)
+            $csvPath = Join-Path $resolvedFolder $File
+            try {
+                $data = & $Action
+                $data | Select-Object $Fields | Export-Csv $csvPath -NoTypeInformation
+                $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'OK';     Count = @($data).Count; Error = $null })
+            } catch {
+                $msg = "$($Name): $_"
+                $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'Failed'; Count = $null;          Error = $msg  })
+                Write-Warning $msg
+                if ($FailFast) { throw $msg }
+            }
+        }
 
         Write-Verbose 'Exporting queues...'
-        Get-GenesysQueue |
-            Select-Object id, name, divisionId, memberCount |
-            Export-Csv (Join-Path $OutputFolder 'queues.csv') -NoTypeInformation
+        Export-Section 'Queues'         'queues.csv'         { Get-GenesysQueue }         @('id','name','divisionId','memberCount')
 
         Write-Verbose 'Exporting routing skills...'
-        Get-GenesysRoutingSkill |
-            Select-Object id, name |
-            Export-Csv (Join-Path $OutputFolder 'routing-skills.csv') -NoTypeInformation
+        Export-Section 'RoutingSkills'  'routing-skills.csv' { Get-GenesysRoutingSkill }  @('id','name')
 
         Write-Verbose 'Exporting wrapup codes...'
-        Get-GenesysWrapupCode |
-            Select-Object id, name |
-            Export-Csv (Join-Path $OutputFolder 'wrapup-codes.csv') -NoTypeInformation
+        Export-Section 'WrapupCodes'    'wrapup-codes.csv'   { Get-GenesysWrapupCode }    @('id','name')
 
         Write-Verbose 'Exporting languages...'
-        Get-GenesysLanguage |
-            Select-Object id, name |
-            Export-Csv (Join-Path $OutputFolder 'languages.csv') -NoTypeInformation
+        Export-Section 'Languages'      'languages.csv'      { Get-GenesysLanguage }      @('id','name')
 
         Write-Verbose 'Exporting divisions...'
-        Get-GenesysDivision |
-            Select-Object id, name |
-            Export-Csv (Join-Path $OutputFolder 'divisions.csv') -NoTypeInformation
+        Export-Section 'Divisions'      'divisions.csv'      { Get-GenesysDivision }      @('id','name')
 
         Write-Verbose 'Exporting agents...'
-        Get-GenesysAgent |
-            Select-Object id, name, email, state |
-            Export-Csv (Join-Path $OutputFolder 'agents.csv') -NoTypeInformation
+        Export-Section 'Agents'         'agents.csv'         { Get-GenesysAgent }         @('id','name','email','state')
 
         # Write manifest
-        [PSCustomObject]@{
+        $csvFiles = (Get-ChildItem $resolvedFolder -Filter '*.csv').Name
+        $manifest = [PSCustomObject]@{
             SnapshotTimestamp = $stamp
-            OutputFolder      = (Resolve-Path $OutputFolder).Path
-            Files             = (Get-ChildItem $OutputFolder -Filter '*.csv').Name
-        } | ConvertTo-Json | Set-Content (Join-Path $OutputFolder 'manifest.json') -Encoding UTF8
+            OutputFolder      = $resolvedFolder
+            Files             = $csvFiles
+            Sections          = $sections.ToArray()
+        }
+        $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $resolvedFolder 'manifest.json') -Encoding UTF8
 
-        Write-Verbose "Snapshot complete: $OutputFolder"
+        Write-Verbose "Snapshot complete: $($resolvedFolder)"
 
         [PSCustomObject]@{
-            OutputFolder = (Resolve-Path $OutputFolder).Path
-            Files        = (Get-ChildItem $OutputFolder -Filter '*.csv').Name
+            OutputFolder = $resolvedFolder
+            Files        = $csvFiles
+            Sections     = $sections.ToArray()
         }
     }
 }
@@ -1508,6 +1778,7 @@ function ConvertFrom-ObservationResult {
     { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count}}]}] }
     into a single PSCustomObject with group dimensions + each metric as a named
     property (using the raw metric name, e.g. oInteracting, oWaiting).
+    Uses safe property access to avoid StrictMode failures on partial API results.
     #>
     param(
         [Parameter(ValueFromPipeline)]
@@ -1515,14 +1786,24 @@ function ConvertFrom-ObservationResult {
     )
     process {
         $r = $InputObject
+        if ($null -eq $r) { return }
         $props = [ordered]@{}
-        if ($r.group) {
-            $r.group.psobject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
+        $group = Get-PropertyValue $r 'group'
+        if ($group) {
+            $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
         }
-        if ($r.data -and $r.data.Count -gt 0) {
-            $props['Interval'] = $r.data[0].interval
-            foreach ($m in @($r.data[0].metrics)) {
-                $props[$m.metric] = $m.stats.count
+        $data = Get-PropertyValue $r 'data'
+        if ($data -and @($data).Count -gt 0) {
+            $firstData = @($data)[0]
+            $props['Interval'] = Get-PropertyValue $firstData 'interval'
+            $metrics = Get-PropertyValue $firstData 'metrics'
+            if ($metrics) {
+                foreach ($m in @($metrics)) {
+                    $metricName = Get-PropertyValue $m 'metric'
+                    if (-not $metricName) { continue }
+                    $stats = Get-PropertyValue $m 'stats'
+                    $props[$metricName] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
+                }
             }
         }
         [PSCustomObject]$props
@@ -1535,6 +1816,7 @@ function ConvertFrom-AggregateResult {
     { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count,sum,min,max}}]}] }
     into one PSCustomObject per group+interval with columns:
         <metric>_count, <metric>_sum, <metric>_min, <metric>_max
+    Uses safe property access to avoid StrictMode failures on partial API results.
     #>
     param(
         [Parameter(ValueFromPipeline)]
@@ -1542,17 +1824,28 @@ function ConvertFrom-AggregateResult {
     )
     process {
         $r = $InputObject
-        foreach ($d in @($r.data)) {
-            $props = [ordered]@{ Interval = $d.interval }
-            if ($r.group) {
-                $r.group.psobject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
+        if ($null -eq $r) { return }
+        $group = Get-PropertyValue $r 'group'
+        $data  = Get-PropertyValue $r 'data'
+        if (-not $data) { return }
+        foreach ($d in @($data)) {
+            if ($null -eq $d) { continue }
+            $props = [ordered]@{ Interval = Get-PropertyValue $d 'interval' }
+            if ($group) {
+                $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
             }
-            foreach ($m in @($d.metrics)) {
-                $key = $m.metric
-                $props["${key}_count"] = $m.stats.count
-                $props["${key}_sum"]   = $m.stats.sum
-                $props["${key}_min"]   = $m.stats.min
-                $props["${key}_max"]   = $m.stats.max
+            $metrics = Get-PropertyValue $d 'metrics'
+            if ($metrics) {
+                foreach ($m in @($metrics)) {
+                    if ($null -eq $m) { continue }
+                    $key   = Get-PropertyValue $m 'metric'
+                    if (-not $key) { continue }
+                    $stats = Get-PropertyValue $m 'stats'
+                    $props["${key}_count"] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
+                    $props["${key}_sum"]   = if ($stats) { Get-PropertyValue $stats 'sum'   } else { $null }
+                    $props["${key}_min"]   = if ($stats) { Get-PropertyValue $stats 'min'   } else { $null }
+                    $props["${key}_max"]   = if ($stats) { Get-PropertyValue $stats 'max'   } else { $null }
+                }
             }
             [PSCustomObject]$props
         }
@@ -1688,16 +1981,22 @@ function Get-GenesysQueuePerformance {
             nOffered_count           — contacts offered to queue
 
         Derive averages: tHandle_sum / nConnected_count / 1000 = avg handle seconds.
+
+    .PARAMETER QueueId
+        Filter to a specific queue GUID.
+    .PARAMETER MediaType
+        Filter by media type.
+    .PARAMETER Since
+        Inclusive start of the aggregation interval.
+    .PARAMETER Until
+        Exclusive end of the aggregation interval.
+    .PARAMETER Granularity
+        Time bucket granularity (e.g. PT1H, PT15M).
     .EXAMPLE
         $perf = Get-GenesysQueuePerformance
         $perf | Select-Object queueId, Interval, nConnected_count,
             @{ n='AvgHandleSec'; e={ if ($_.nConnected_count) { [int]($_.tHandle_sum / $_.nConnected_count / 1000) } } } |
             Format-Table
-    .EXAMPLE
-        # Find queues where avg handle time > 600 s
-        Get-GenesysQueuePerformance |
-            Where-Object { $_.nConnected_count -and ($_.tHandle_sum / $_.nConnected_count / 1000) -gt 600 } |
-            Format-Table queueId, nConnected_count
     #>
     [CmdletBinding()]
     param(
@@ -2231,6 +2530,16 @@ function Get-GenesysAgentPerformance {
         Avg columns are rounded integers for easy display.
     .PARAMETER MinConversations
         Only return agents who handled at least this many conversations.
+    .PARAMETER UserId
+        Filter to a specific agent GUID.
+    .PARAMETER MediaType
+        Filter by media type (voice, chat, email, etc.).
+    .PARAMETER Since
+        Inclusive start of the aggregation interval.
+    .PARAMETER Until
+        Exclusive end of the aggregation interval.
+    .PARAMETER Granularity
+        Time bucket granularity (e.g. PT1H, PT15M).
     .EXAMPLE
         # Who handled the most calls?
         Get-GenesysAgentPerformance |
@@ -2284,20 +2593,29 @@ function Get-GenesysAgentPerformance {
                                  -DatasetParameters @{ Body = $body }
 
     $records = foreach ($r in @($raw)) {
-        foreach ($d in @($r.data)) {
+        # Use safe property access to avoid StrictMode failures on partial records.
+        $group = Get-PropertyValue $r 'group'
+        $data  = Get-PropertyValue $r 'data'
+        foreach ($d in @($data)) {
+            if ($null -eq $d) { continue }
             $mHash = @{}
-            foreach ($m in @($d.metrics)) { $mHash[$m.metric] = $m.stats }
+            foreach ($m in @(Get-PropertyValue $d 'metrics')) {
+                if ($null -eq $m) { continue }
+                $mName  = Get-PropertyValue $m 'metric'
+                $mStats = Get-PropertyValue $m 'stats'
+                if ($mName) { $mHash[$mName] = $mStats }
+            }
 
-            $handled = if ($mHash['nConnected']) { $mHash['nConnected'].count } else { 0 }
-            $handleMs = if ($mHash['tHandle'])   { $mHash['tHandle'].sum    } else { $null }
-            $talkMs   = if ($mHash['tTalk'])     { $mHash['tTalk'].sum      } else { $null }
-            $acwMs    = if ($mHash['tAcw'])      { $mHash['tAcw'].sum       } else { $null }
-            $ansMs    = if ($mHash['tAnswered'])  { $mHash['tAnswered'].sum  } else { $null }
+            $handled  = if ($mHash['nConnected']) { [int](Get-PropertyValue $mHash['nConnected'] 'count') } else { 0 }
+            $handleMs = if ($mHash['tHandle'])    { Get-PropertyValue $mHash['tHandle']   'sum' } else { $null }
+            $talkMs   = if ($mHash['tTalk'])      { Get-PropertyValue $mHash['tTalk']     'sum' } else { $null }
+            $acwMs    = if ($mHash['tAcw'])       { Get-PropertyValue $mHash['tAcw']      'sum' } else { $null }
+            $ansMs    = if ($mHash['tAnswered'])   { Get-PropertyValue $mHash['tAnswered'] 'sum' } else { $null }
 
             [PSCustomObject]@{
-                UserId               = $r.group.userId
-                MediaType            = $r.group.mediaType
-                Interval             = $d.interval
+                UserId               = if ($group) { Get-PropertyValue $group 'userId'    } else { $null }
+                MediaType            = if ($group) { Get-PropertyValue $group 'mediaType' } else { $null }
+                Interval             = Get-PropertyValue $d 'interval'
                 ConversationsHandled = $handled
                 TotalHandleMs        = $handleMs
                 TotalTalkMs          = $talkMs
@@ -2310,8 +2628,23 @@ function Get-GenesysAgentPerformance {
         }
     }
 
-    if ($MinConversations -gt 0) {
-        $records = $records | Where-Object { $_.ConversationsHandled -ge $MinConversations }
+    if ($MinConversations -gt 0) { $records = $records | Where-Object { $_.ConversationsHandled -ge $MinConversations } }
+    if ($UserId)   { $records = $records | Where-Object { $_.UserId    -eq $UserId   } }
+    if ($MediaType){ $records = $records | Where-Object { $_.MediaType -eq $MediaType } }
+
+    if ($IncludeDiagnostics) {
+        # Wrap in a diagnostic envelope for consistency
+        return [PSCustomObject][ordered]@{
+            DatasetKey   = 'analytics.query.user.aggregates.performance.metrics'
+            FunctionName = 'Get-GenesysAgentPerformance'
+            Status       = if (@($records).Count -gt 0) { 'Succeeded' } else { 'Empty' }
+            Records      = @($records)
+            RecordCount  = @($records).Count
+            RunFolder    = $null
+            ManifestPath = $null
+            DataFolder   = $null
+            Error        = $null
+        }
     }
     $records
 }
@@ -2465,48 +2798,56 @@ function Get-GenesysAgentVoiceQuality {
         }
 
         foreach ($conv in $conversations) {
-            $convMos   = $conv.mediaStatsMinConversationMos
-            $divId     = if ($conv.divisionIds -and $conv.divisionIds.Count -gt 0) { $conv.divisionIds[0] } else { $null }
+            # Use safe property access for optional fields that may be absent
+            # from the API response under StrictMode -Version Latest.
+            $convMos = Get-PropertyValue $conv 'mediaStatsMinConversationMos'
+            $divIds  = Get-PropertyValue $conv 'divisionIds'
+            $divId   = if ($divIds -and @($divIds).Count -gt 0) { @($divIds)[0] } else { $null }
 
-            foreach ($p in @($conv.participants)) {
+            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                if ($null -eq $p) { continue }
+                $purpose = Get-PropertyValue $p 'purpose'
+                $userId  = Get-PropertyValue $p 'userId'
                 # Only agent legs (users) on voice
-                if ($p.purpose -ne 'agent' -and $p.purpose -ne 'user') { continue }
-                if (-not $p.userId) { continue }
+                if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
+                if (-not $userId) { continue }
 
-                foreach ($sess in @($p.sessions)) {
-                    if ($sess.mediaType -ne 'voice') { continue }
+                foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                    if ($null -eq $sess) { continue }
+                    if ((Get-PropertyValue $sess 'mediaType') -ne 'voice') { continue }
 
-                    $segments     = @(if ($sess.segments) { $sess.segments } else { @() })
+                    $segmentsRaw  = Get-PropertyValue $sess 'segments'
+                    $segments     = @(if ($segmentsRaw) { $segmentsRaw } else { @() })
                     $lastSeg      = if ($segments.Count -gt 0) { $segments[-1] } else { $null }
 
                     # Last segment that carries an errorCode
-                    $errorSeg     = $segments | Where-Object { $_.errorCode } | Select-Object -Last 1
+                    $errorSeg     = $segments | Where-Object { Get-PropertyValue $_ 'errorCode' } | Select-Object -Last 1
 
                     # Queue from first ACD segment
-                    $acdSeg       = $segments | Where-Object { $_.queueId } | Select-Object -First 1
+                    $acdSeg       = $segments | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
 
-                    $sessionMos   = $sess.mediaStatsMinConversationMos
-                    $effectiveMos = if ($null -ne $sessionMos)  { $sessionMos }
-                                   elseif ($null -ne $convMos)  { $convMos    }
-                                   else                         { $null       }
+                    $sessionMos   = Get-PropertyValue $sess 'mediaStatsMinConversationMos'
+                    $effectiveMos = if ($null -ne $sessionMos) { $sessionMos }
+                                   elseif ($null -ne $convMos) { $convMos    }
+                                   else                        { $null       }
 
                     [PSCustomObject]@{
-                        ConversationId    = $conv.conversationId
-                        ConversationStart = $conv.conversationStart
-                        AgentUserId       = $p.userId
-                        ParticipantId     = $p.participantId
-                        SessionId         = $sess.sessionId
-                        Provider          = $sess.provider
-                        MediaType         = $sess.mediaType
+                        ConversationId    = Get-PropertyValue $conv 'conversationId'
+                        ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                        AgentUserId       = $userId
+                        ParticipantId     = Get-PropertyValue $p    'participantId'
+                        SessionId         = Get-PropertyValue $sess  'sessionId'
+                        Provider          = Get-PropertyValue $sess  'provider'
+                        MediaType         = Get-PropertyValue $sess  'mediaType'
                         SessionMos        = $sessionMos
                         ConversationMos   = $convMos
                         MosCategory       = Get-MosCategory $effectiveMos
-                        RFactor           = $sess.mediaStatsMinConversationRFactor
-                        DisconnectType    = if ($lastSeg) { $lastSeg.disconnectType } else { $null }
-                        ErrorCode         = if ($errorSeg) { $errorSeg.errorCode } else { $null }
+                        RFactor           = Get-PropertyValue $sess  'mediaStatsMinConversationRFactor'
+                        DisconnectType    = if ($lastSeg)  { Get-PropertyValue $lastSeg  'disconnectType' } else { $null }
+                        ErrorCode         = if ($errorSeg) { Get-PropertyValue $errorSeg 'errorCode'      } else { $null }
                         SegmentCount      = $segments.Count
-                        QueueId           = if ($acdSeg)  { $acdSeg.queueId   } else { $null }
-                        QueueName         = if ($acdSeg)  { $acdSeg.queueName } else { $null }
+                        QueueId           = if ($acdSeg)  { Get-PropertyValue $acdSeg 'queueId'   } else { $null }
+                        QueueName         = if ($acdSeg)  { Get-PropertyValue $acdSeg 'queueName' } else { $null }
                         DivisionId        = $divId
                     }
                 }
@@ -3140,21 +3481,25 @@ function Get-GenesysSentimentTrend {
     $conversations = @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
 
     foreach ($conv in $conversations) {
-        # Collect sentiment scores across all participants
-        $scores = foreach ($p in @($conv.participants)) {
-            foreach ($sess in @($p.sessions)) {
-                if ($null -ne $sess.sentimentScore) { $sess.sentimentScore }
+        # Collect sentiment scores across all participants using safe property access.
+        $participants = Get-PropertyValue $conv 'participants'
+        $scores = foreach ($p in @($participants)) {
+            if ($null -eq $p) { continue }
+            foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                if ($null -eq $sess) { continue }
+                $score = Get-PropertyValue $sess 'sentimentScore'
+                if ($null -ne $score) { $score }
             }
         }
-        $avgScore = if ($scores.Count -gt 0) {
-            [math]::Round(($scores | Measure-Object -Average).Average, 3)
+        $avgScore = if ($scores -and @($scores).Count -gt 0) {
+            [math]::Round((@($scores) | Measure-Object -Average).Average, 3)
         } else { $null }
 
         [PSCustomObject]@{
-            ConversationId    = $conv.conversationId
-            ConversationStart = $conv.conversationStart
+            ConversationId    = Get-PropertyValue $conv 'conversationId'
+            ConversationStart = Get-PropertyValue $conv 'conversationStart'
             OverallScore      = $avgScore
-            ParticipantCount  = @($conv.participants).Count
+            ParticipantCount  = @($participants).Count
         }
     }
 }
@@ -3345,21 +3690,28 @@ function Get-GenesysLongHandleConversation {
         }
 
         foreach ($conv in $conversations) {
-            foreach ($p in @($conv.participants)) {
-                if ($p.purpose -ne 'agent' -and $p.purpose -ne 'user') { continue }
-                if (-not $p.userId) { continue }
+            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                if ($null -eq $p) { continue }
+                $purpose = Get-PropertyValue $p 'purpose'
+                $userId  = Get-PropertyValue $p 'userId'
+                if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
+                if (-not $userId) { continue }
 
-                foreach ($sess in @($p.sessions)) {
-                    $segs   = @(if ($sess.segments) { $sess.segments } else { @() })
-                    $acdSeg = $segs | Where-Object { $_.queueId } | Select-Object -First 1
+                foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                    if ($null -eq $sess) { continue }
+                    $segsRaw = Get-PropertyValue $sess 'segments'
+                    $segs    = @(if ($segsRaw) { $segsRaw } else { @() })
+                    $acdSeg  = $segs | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
 
                     # Sum segment durations for this session
                     $handleMs = 0
                     foreach ($seg in $segs) {
-                        if ($seg.segmentStart -and $seg.segmentEnd) {
+                        $segStart = Get-PropertyValue $seg 'segmentStart'
+                        $segEnd   = Get-PropertyValue $seg 'segmentEnd'
+                        if ($segStart -and $segEnd) {
                             try {
-                                $start = [datetime]::Parse($seg.segmentStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                                $end   = [datetime]::Parse($seg.segmentEnd,   $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $start = [datetime]::Parse($segStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                $end   = [datetime]::Parse($segEnd,   $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
                                 $handleMs += ($end - $start).TotalMilliseconds
                             } catch { }
                         }
@@ -3368,12 +3720,12 @@ function Get-GenesysLongHandleConversation {
                     $handleSec = [math]::Round($handleMs / 1000, 1)
                     if ($handleSec -ge $ThresholdSeconds) {
                         [PSCustomObject]@{
-                            ConversationId    = $conv.conversationId
-                            ConversationStart = $conv.conversationStart
-                            AgentUserId       = $p.userId
+                            ConversationId    = Get-PropertyValue $conv 'conversationId'
+                            ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                            AgentUserId       = $userId
                             HandleSec         = $handleSec
-                            QueueId           = if ($acdSeg) { $acdSeg.queueId } else { $null }
-                            MediaType         = $sess.mediaType
+                            QueueId           = if ($acdSeg) { Get-PropertyValue $acdSeg 'queueId' } else { $null }
+                            MediaType         = Get-PropertyValue $sess 'mediaType'
                         }
                     }
                 }
@@ -3436,16 +3788,20 @@ function Get-GenesysRepeatCaller {
             @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
         }
 
-        # Extract ANI from customer participants
+        # Extract ANI from customer participants using safe property access.
         $byAni = @{}
         foreach ($conv in $conversations) {
-            $custPart = @($conv.participants) | Where-Object { $_.purpose -eq 'customer' } | Select-Object -First 1
+            $allParts = Get-PropertyValue $conv 'participants'
+            $custPart = @($allParts) | Where-Object { (Get-PropertyValue $_ 'purpose') -eq 'customer' } | Select-Object -First 1
             if (-not $custPart) { continue }
 
             $ani = $null
-            foreach ($sess in @($custPart.sessions)) {
-                if ($sess.ani)  { $ani = $sess.ani;  break }
-                if ($sess.dnis) { $ani = $sess.dnis; break }
+            foreach ($sess in @(Get-PropertyValue $custPart 'sessions')) {
+                if ($null -eq $sess) { continue }
+                $aniVal  = Get-PropertyValue $sess 'ani'
+                $dnisVal = Get-PropertyValue $sess 'dnis'
+                if ($aniVal)  { $ani = $aniVal;  break }
+                if ($dnisVal) { $ani = $dnisVal; break }
             }
             if (-not $ani) { continue }
 
@@ -3453,8 +3809,8 @@ function Get-GenesysRepeatCaller {
                 $byAni[$ani] = [System.Collections.Generic.List[object]]::new()
             }
             $byAni[$ani].Add([PSCustomObject]@{
-                ConversationId    = $conv.conversationId
-                ConversationStart = $conv.conversationStart
+                ConversationId    = Get-PropertyValue $conv 'conversationId'
+                ConversationStart = Get-PropertyValue $conv 'conversationStart'
             })
         }
 
@@ -3889,9 +4245,10 @@ function Get-GenesysChangeAuditFeed {
     $mediumRiskEntities = @('QUEUE','ROUTING_SKILL','WRAPUP_CODE','SCHEDULE','STATION')
 
     foreach ($ev in $events) {
-        $action     = [string]$ev.action
-        $entityType = [string]$ev.serviceContext.entityType
-        $entityName = [string]$ev.serviceContext.entityName
+        # Use safe property access to avoid StrictMode failures when serviceContext or user is absent.
+        $action     = [string](Get-PropertyValue $ev 'action')
+        $entityType = [string](Get-NestedPropertyValue $ev 'serviceContext.entityType')
+        $entityName = [string](Get-NestedPropertyValue $ev 'serviceContext.entityName')
 
         # Classify risk
         $riskLevel = 'LOW'
@@ -3903,19 +4260,20 @@ function Get-GenesysChangeAuditFeed {
         elseif ($isMediumAction -and $entityType -in $highRiskEntities){ $riskLevel = 'MEDIUM' }
         elseif ($isMediumAction -and $entityType -in $mediumRiskEntities) { $riskLevel = 'LOW' }
 
-        # Compose summary
-        $actor   = if ($ev.user -and $ev.user.email) { $ev.user.email } else { 'unknown' }
-        $summary = "$action on $entityType '$entityName' by $actor"
+        # Compose summary using safe access for user sub-object
+        $actor   = Get-NestedPropertyValue $ev 'user.email'
+        $actor   = if ($actor) { $actor } else { 'unknown' }
+        $summary = "$($action) on $($entityType) '$($entityName)' by $($actor)"
 
         $record = [PSCustomObject]@{
-            Timestamp  = $ev.timestamp
+            Timestamp  = Get-PropertyValue $ev 'timestamp'
             Risk       = $riskLevel
             Action     = $action
             EntityType = $entityType
             EntityName = $entityName
             Actor      = $actor
             Summary    = $summary
-            IpAddress  = $ev.user.ipAddress
+            IpAddress  = Get-NestedPropertyValue $ev 'user.ipAddress'
         }
 
         # Apply risk filter if requested
@@ -4313,12 +4671,17 @@ function Invoke-GenesysOperationsReport {
           - Active platform alerts
           - WebRTC disconnect summary
 
+        Sections are collected independently.  A failure in one section does not
+        abort the report unless -FailFast is specified.
+
         Use -OutputPath to write the report as UTF-8 JSON for downstream
         consumption (dashboards, ticketing, log aggregation).
     .PARAMETER OutputPath
         If specified, the report is serialised to this path as UTF-8 JSON.
     .PARAMETER PassThru
         Return the report object even when -OutputPath is used.
+    .PARAMETER FailFast
+        Stop immediately if any section fails.
     .EXAMPLE
         Invoke-GenesysOperationsReport | ConvertTo-Json -Depth 8
     .EXAMPLE
@@ -4327,48 +4690,66 @@ function Invoke-GenesysOperationsReport {
     [CmdletBinding()]
     param(
         [string] $OutputPath,
-        [switch] $PassThru
+        [switch] $PassThru,
+        [switch] $FailFast
     )
 
     Assert-GenesysConnected
 
+    $diag = [System.Collections.Generic.List[object]]::new()
+
+    function Invoke-OpsSection {
+        param([string]$Name, [scriptblock]$Action)
+        try {
+            $r = & $Action
+            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK';     Count = @($r).Count; Error = $null })
+            return $r
+        } catch {
+            $msg = "$($Name): $_"
+            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Count = $null;        Error = $msg  })
+            Write-Warning $msg
+            if ($FailFast) { throw $msg }
+            return $null
+        }
+    }
+
     Write-Verbose 'Collecting organisation details...'
-    $org = Get-GenesysOrganization
+    $org = Invoke-OpsSection 'Organisation' { Get-GenesysOrganization }
 
     Write-Verbose 'Collecting contact centre status...'
-    $ccStatus = Get-GenesysContactCentreStatus
+    $ccStatus = Invoke-OpsSection 'ContactCentre' { Get-GenesysContactCentreStatus }
 
     Write-Verbose 'Collecting queue abandon rates...'
-    $abandon = @(Get-GenesysQueueAbandonRate)
+    $abandon = Invoke-OpsSection 'AbandonRate' { @(Get-GenesysQueueAbandonRate) }
 
     Write-Verbose 'Collecting queue service levels...'
-    $sla = @(Get-GenesysQueueServiceLevel)
+    $sla = Invoke-OpsSection 'ServiceLevel' { @(Get-GenesysQueueServiceLevel) }
 
     Write-Verbose 'Collecting edge health...'
-    $edgeSnap = Get-GenesysEdgeHealthSnapshot
+    $edgeSnap = Invoke-OpsSection 'EdgeHealth' { Get-GenesysEdgeHealthSnapshot }
 
     Write-Verbose 'Collecting active alerts...'
-    $alerts = @(Get-GenesysAlert)
+    $alerts = Invoke-OpsSection 'ActiveAlerts' { @(Get-GenesysAlert) }
 
     Write-Verbose 'Collecting voice quality / WebRTC disconnects...'
-    $webrtcSummary = @(Get-GenesysWebRtcDisconnectSummary)
+    $webrtcSummary = Invoke-OpsSection 'WebRtcDisconnects' { @(Get-GenesysWebRtcDisconnectSummary) }
 
-    $highAbandon = @($abandon | Where-Object { $_.AbandonRate -gt 10 })
-    $avgAbandon  = if ($abandon.Count -gt 0) {
-        [math]::Round(($abandon | Measure-Object AbandonRate -Average).Average, 1)
+    $highAbandon = if ($abandon) { @($abandon | Where-Object { $_.AbandonRate -gt 10 }) } else { @() }
+    $avgAbandon  = if ($abandon -and @($abandon).Count -gt 0) {
+        [math]::Round((@($abandon) | Measure-Object AbandonRate -Average).Average, 1)
     } else { $null }
 
-    $belowSla = @($sla | Where-Object { $_.nOffered -gt 0 -and $_.ServiceLevel30Pct -lt 80 })
-    $avgSla   = if ($sla.Count -gt 0) {
-        [math]::Round(($sla | Where-Object ServiceLevel30Pct | Measure-Object ServiceLevel30Pct -Average).Average, 1)
+    $belowSla = if ($sla) { @($sla | Where-Object { $_.nOffered -gt 0 -and $_.ServiceLevel30Pct -lt 80 }) } else { @() }
+    $avgSla   = if ($sla -and @($sla).Count -gt 0) {
+        $slaWithData = @($sla | Where-Object { $null -ne $_.ServiceLevel30Pct })
+        if ($slaWithData.Count -gt 0) { [math]::Round(($slaWithData | Measure-Object ServiceLevel30Pct -Average).Average, 1) } else { $null }
     } else { $null }
 
     $report = [PSCustomObject]@{
         GeneratedAt   = Get-Date -Format 'o'
-        Organisation  = [PSCustomObject]@{
-            Name = $org.name
-            Id   = $org.id
-        }
+        Organisation  = if ($org) {
+            [PSCustomObject]@{ Name = (Get-PropertyValue $org 'name'); Id = (Get-PropertyValue $org 'id') }
+        } else { $null }
         ContactCentre = $ccStatus
         AbandonRate   = [PSCustomObject]@{
             AverageAbandonPct   = $avgAbandon
@@ -4381,22 +4762,27 @@ function Invoke-GenesysOperationsReport {
             BelowTargetQueueIds = $belowSla | ForEach-Object { $_.QueueId }
         }
         EdgeHealth    = $edgeSnap
-        ActiveAlerts  = [PSCustomObject]@{
-            Count  = $alerts.Count
-            Alerts = $alerts | Select-Object -First 10 | ForEach-Object { $_.name }
-        }
-        WebRtcDisconnects = [PSCustomObject]@{
-            TotalErrorEvents = ($webrtcSummary | Measure-Object Count -Sum).Sum
-            ByErrorCode      = $webrtcSummary |
-                Group-Object ErrorCode |
-                Select-Object Name, @{n='Count';e={($_.Group|Measure-Object Count -Sum).Sum}} |
-                Sort-Object Count -Descending
-        }
+        ActiveAlerts  = if ($alerts) {
+            [PSCustomObject]@{
+                Count  = @($alerts).Count
+                Alerts = @($alerts) | Select-Object -First 10 | ForEach-Object { Get-PropertyValue $_ 'name' }
+            }
+        } else { $null }
+        WebRtcDisconnects = if ($webrtcSummary) {
+            [PSCustomObject]@{
+                TotalErrorEvents = (@($webrtcSummary) | Measure-Object Count -Sum).Sum
+                ByErrorCode      = @($webrtcSummary) |
+                    Group-Object ErrorCode |
+                    Select-Object Name, @{n='Count';e={($_.Group|Measure-Object Count -Sum).Sum}} |
+                    Sort-Object Count -Descending
+            }
+        } else { $null }
+        Diagnostics   = $diag.ToArray()
     }
 
     if ($OutputPath) {
         $report | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath -Encoding UTF8
-        Write-Verbose "Report saved: $OutputPath"
+        Write-Verbose "Report saved: $($OutputPath)"
     }
 
     if ($PassThru -or -not $OutputPath) { $report }
@@ -4405,8 +4791,215 @@ function Invoke-GenesysOperationsReport {
 #endregion
 
 # ---------------------------------------------------------------------------
-#region Investigations (Release 1.0 Track B)
+#region Dataset Coverage Audit
 # ---------------------------------------------------------------------------
+
+function Test-GenesysOpsDatasetCoverage {
+    <#
+    .SYNOPSIS
+        Audits Genesys.Ops public cmdlets against the active Genesys.Core catalog.
+    .DESCRIPTION
+        Inspects the built-in cmdlet-to-dataset map and validates each dataset
+        key against the active catalog.  Returns one record per public cmdlet:
+
+            FunctionName     — Cmdlet name
+            DatasetKey       — Primary dataset key (or comma-separated for composites)
+            IsInCatalog      — $true when the dataset key exists in the catalog
+            HasRequiredBody  — $true when the catalog entry has a defaultBody
+            InvocationRisk   — Low | Medium | High | Unsupported
+            Notes            — Explanation of risk/status
+
+        InvocationRisk:
+            Low         — Dataset in catalog, key validated, no body concerns
+            Medium      — Dataset in catalog but relies on default body params
+            High        — Dataset unvalidated or relies heavily on catalog defaults
+            Unsupported — Dataset key not found in the catalog
+
+        Composite functions that call multiple child cmdlets are listed with
+        DatasetKey = '(composite)' and reflect the aggregate risk.
+
+    .PARAMETER CatalogPath
+        Override the catalog path.  Defaults to the path resolved during
+        Connect-GenesysCloud.
+    .EXAMPLE
+        Test-GenesysOpsDatasetCoverage | Format-Table FunctionName, IsInCatalog, InvocationRisk
+    .EXAMPLE
+        # Show only unsupported or high-risk functions
+        Test-GenesysOpsDatasetCoverage | Where-Object { $_.InvocationRisk -in @('Unsupported','High') } |
+            Format-Table FunctionName, DatasetKey, Notes
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $CatalogPath
+    )
+
+    # Cmdlet-to-dataset map.  Composite functions are listed with DatasetKey = '(composite)'.
+    $map = @(
+        @{ Function = 'Get-GenesysOrganization';            Dataset = 'organization.get.organization.details' }
+        @{ Function = 'Get-GenesysOrganizationLimit';       Dataset = 'organization.get.organization.limits' }
+        @{ Function = 'Get-GenesysDivision';                Dataset = 'authorization.get.all.divisions' }
+        @{ Function = 'Get-GenesysAgent';                   Dataset = 'users' }
+        @{ Function = 'Get-GenesysAgentPresence';           Dataset = 'users.get.bulk.user.presences.genesys.cloud' }
+        @{ Function = 'Find-GenesysUser';                   Dataset = 'users.search.users.by.name.or.email' }
+        @{ Function = 'Get-GenesysUserWithDivision';        Dataset = 'users.division.analysis.get.users.with.division.info' }
+        @{ Function = 'Get-GenesysSystemPresence';          Dataset = 'presence.get.system.presence.definitions' }
+        @{ Function = 'Get-GenesysCustomPresence';          Dataset = 'presence.get.organization.presence.definitions' }
+        @{ Function = 'Get-GenesysQueue';                   Dataset = 'routing-queues' }
+        @{ Function = 'Get-GenesysRoutingSkill';            Dataset = 'routing.get.all.routing.skills' }
+        @{ Function = 'Get-GenesysWrapupCode';              Dataset = 'routing.get.all.wrapup.codes' }
+        @{ Function = 'Get-GenesysLanguage';                Dataset = 'routing.get.all.languages' }
+        @{ Function = 'Get-GenesysActiveConversation';      Dataset = 'conversations.get.active.conversations' }
+        @{ Function = 'Get-GenesysActiveCall';              Dataset = 'conversations.get.active.calls' }
+        @{ Function = 'Get-GenesysActiveChat';              Dataset = 'conversations.get.active.chats' }
+        @{ Function = 'Get-GenesysActiveEmail';             Dataset = 'conversations.get.active.emails' }
+        @{ Function = 'Get-GenesysActiveCallback';          Dataset = 'conversations.get.active.callbacks' }
+        @{ Function = 'Get-GenesysCallHistory';             Dataset = 'conversations.get.call.history' }
+        @{ Function = 'Get-GenesysConversationDetail';      Dataset = 'analytics-conversation-details' }
+        @{ Function = 'Get-GenesysAuditEvent';              Dataset = 'audit-logs' }
+        @{ Function = 'Get-GenesysApiUsage';                Dataset = 'usage.get.api.usage.organization.summary' }
+        @{ Function = 'Get-GenesysApiUsageByClient';        Dataset = 'usage.get.api.usage.by.client' }
+        @{ Function = 'Get-GenesysApiUsageByUser';          Dataset = 'usage.get.api.usage.by.user' }
+        @{ Function = 'Get-GenesysNotificationTopic';       Dataset = 'notifications.get.available.notification.topics' }
+        @{ Function = 'Get-GenesysNotificationSubscription';Dataset = 'notifications.get.notification.subscriptions' }
+        @{ Function = 'Get-GenesysOAuthClient';             Dataset = 'oauth.get.clients' }
+        @{ Function = 'Get-GenesysOAuthAuthorization';      Dataset = 'oauth.get.authorizations' }
+        @{ Function = 'Get-GenesysRateLimitEvent';          Dataset = 'analytics.query.rate.limit.aggregates' }
+        @{ Function = 'Get-GenesysOutboundCampaign';        Dataset = 'outbound.get.campaigns' }
+        @{ Function = 'Get-GenesysOutboundContactList';     Dataset = 'outbound.get.contact.lists' }
+        @{ Function = 'Get-GenesysOutboundEvent';           Dataset = 'outbound.get.events' }
+        @{ Function = 'Get-GenesysMessagingCampaign';       Dataset = 'outbound.get.messaging.campaigns' }
+        @{ Function = 'Get-GenesysFlow';                    Dataset = 'flows.get.all.flows' }
+        @{ Function = 'Get-GenesysFlowOutcome';             Dataset = 'flows.get.flow.outcomes' }
+        @{ Function = 'Get-GenesysFlowMilestone';           Dataset = 'flows.get.flow.milestones' }
+        @{ Function = 'Get-GenesysFlowAggregate';           Dataset = 'analytics.query.flow.aggregates.execution.metrics' }
+        @{ Function = 'Get-GenesysFlowObservation';         Dataset = 'analytics.query.flow.observations'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysAgentPerformance';        Dataset = 'analytics.query.user.aggregates.performance.metrics'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysUserActivity';            Dataset = 'analytics.query.user.details.activity.report' }
+        @{ Function = 'Get-GenesysAgentVoiceQuality';       Dataset = 'analytics-conversation-details' }
+        @{ Function = 'Get-GenesysEdge';                    Dataset = 'telephony.get.edges' }
+        @{ Function = 'Get-GenesysTrunk';                   Dataset = 'telephony.get.trunks' }
+        @{ Function = 'Get-GenesysTrunkMetrics';            Dataset = 'telephony.get.trunk.metrics.summary' }
+        @{ Function = 'Get-GenesysStation';                 Dataset = 'stations.get.stations' }
+        @{ Function = 'Get-GenesysQueueAbandonRate';        Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysQueueServiceLevel';       Dataset = 'analytics.query.queue.aggregates.service.level'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysTransferAnalysis';        Dataset = 'analytics.query.conversation.aggregates.transfer.metrics'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysWrapupDistribution';      Dataset = 'analytics.query.conversation.aggregates.wrapup.distribution'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysDigitalChannelVolume';    Dataset = 'analytics.query.conversation.aggregates.digital.channels'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysEvaluation';              Dataset = 'quality.get.evaluations.query' }
+        @{ Function = 'Get-GenesysSurvey';                  Dataset = 'quality.get.surveys' }
+        @{ Function = 'Get-GenesysAlertingRule';            Dataset = 'alerting.get.rules' }
+        @{ Function = 'Get-GenesysAlert';                   Dataset = 'alerting.get.alerts' }
+        @{ Function = 'Get-GenesysAgentLoginActivity';      Dataset = 'analytics.query.user.aggregates.login.activity'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysQueueObservation';        Dataset = 'analytics.query.queue.observations.real.time.stats'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysUserObservation';         Dataset = 'analytics.query.user.observations.real.time.status'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysQueuePerformance';        Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysWorkforceManagementUnit'; Dataset = 'workforce.get.management.units' }
+        @{ Function = 'Get-GenesysJourneyActionMap';        Dataset = 'journey.get.action.maps' }
+        # Composite/enriched functions
+        @{ Function = 'Get-GenesysContactCentreStatus';        Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Invoke-GenesysDailyHealthReport';       Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Export-GenesysConfigurationSnapshot';   Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysEdgeHealthSnapshot';         Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysQueueAbandonRate';           Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
+        @{ Function = 'Get-GenesysSentimentTrend';             Dataset = 'analytics-conversation-details' }
+        @{ Function = 'Get-GenesysLongHandleConversation';     Dataset = 'analytics-conversation-details' }
+        @{ Function = 'Get-GenesysRepeatCaller';               Dataset = 'analytics-conversation-details' }
+        @{ Function = 'Get-GenesysWebRtcDisconnectSummary';    Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysConversationLatencyTrend';   Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysAgentAcwAnomaly';            Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysChangeAuditFeed';            Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysAbandonRateDashboard';       Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysQueueHealthSnapshot';        Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysAgentQualitySnapshot';       Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Invoke-GenesysOperationsReport';        Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysPeakHourLoad';               Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysOutboundCampaignPerformance';Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysFlowOutcomeKpiCorrelation';  Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysAgentInvestigation';         Dataset = '(composite)'; Composite = $true }
+    )
+
+    # Resolve catalog
+    $resolvedCatalog = $CatalogPath
+    if (-not $resolvedCatalog -and $script:GC.CatalogPath) { $resolvedCatalog = $script:GC.CatalogPath }
+    if (-not $resolvedCatalog) {
+        $candidates = @(
+            (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
+            (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
+            (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
+            (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json')
+        )
+        $resolvedCatalog = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    }
+
+    $catalogDatasets = $null
+    if ($resolvedCatalog -and (Test-Path $resolvedCatalog)) {
+        try {
+            $catalogObj     = Get-Content -Path $resolvedCatalog -Raw | ConvertFrom-Json
+            $catalogDatasets = Get-PropertyValue $catalogObj 'datasets'
+        } catch {
+            Write-Warning "Test-GenesysOpsDatasetCoverage: Could not load catalog '$($resolvedCatalog)' — $($_)"
+        }
+    } else {
+        Write-Warning "Test-GenesysOpsDatasetCoverage: No catalog found. Set -CatalogPath or call Connect-GenesysCloud first."
+    }
+
+    # De-duplicate by function name (take first entry)
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $deduped = foreach ($entry in $map) {
+        if ($seen.Add($entry.Function)) { $entry }
+    }
+
+    foreach ($entry in $deduped) {
+        $dataset     = [string]$entry.Dataset
+        $isComposite = $entry.ContainsKey('Composite') -and $entry.Composite
+        $hasBody     = $entry.ContainsKey('DefaultBody') -and $entry.DefaultBody
+
+        if ($isComposite) {
+            [PSCustomObject]@{
+                FunctionName    = $entry.Function
+                DatasetKey      = '(composite)'
+                IsInCatalog     = $true   # Composites call child functions; no direct dataset
+                HasRequiredBody = $false
+                InvocationRisk  = 'Low'
+                Notes           = 'Composite function — calls multiple child cmdlets. Risk depends on children.'
+            }
+            continue
+        }
+
+        $inCatalog = $false
+        if ($catalogDatasets) {
+            $inCatalog = [bool]($catalogDatasets.PSObject.Properties[$dataset])
+        }
+
+        $risk = if (-not $catalogDatasets) {
+            'Medium'
+        } elseif (-not $inCatalog) {
+            'Unsupported'
+        } elseif ($hasBody) {
+            'Medium'
+        } else {
+            'Low'
+        }
+
+        $notes = switch ($risk) {
+            'Unsupported' { "Dataset key '$($dataset)' not found in catalog '$($resolvedCatalog)'." }
+            'Medium'      { if ($hasBody) { "Uses catalog default request body — add parameters or body override for operational use." } else { "Catalog not loaded; risk indeterminate." } }
+            'Low'         { "Dataset key validated in catalog." }
+            default       { '' }
+        }
+
+        [PSCustomObject]@{
+            FunctionName    = $entry.Function
+            DatasetKey      = $dataset
+            IsInCatalog     = $inCatalog
+            HasRequiredBody = $hasBody
+            InvocationRisk  = $risk
+            Notes           = $notes
+        }
+    }
+}
+
+#endregion
 
 $script:GcOpsComposerVersion = '1.0.0'
 

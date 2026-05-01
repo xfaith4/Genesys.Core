@@ -160,6 +160,9 @@
 
         # Investigations (Release 1.0 Track B)
         'Get-GenesysAgentInvestigation'
+
+        # Dataset coverage audit
+        'Test-GenesysOpsDatasetCoverage'
     )
 
     CmdletsToExport   = @()

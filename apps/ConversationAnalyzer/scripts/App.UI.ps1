@@ -218,6 +218,9 @@ $script:State = @{
     QualityCaseId           = ''       # case targeted by in-progress quality pull
     SuppressConversationSelectionOpen = $false
     PendingRunConversationId = ''
+    AutoImportJob      = $null  # background Import-RunFolderToCase job
+    AutoImportRunspace = $null
+    AutoImportTimer    = $null
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -911,6 +914,7 @@ function _GenerateImpactReport {
         return
     }
 
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
     try {
         if ($script:State.DataSource -eq 'database' -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId) -and (Test-DatabaseInitialized)) {
             $filterState = _GetCanonicalFilterState
@@ -950,6 +954,8 @@ function _GenerateImpactReport {
     } catch {
         _SetStatus 'Impact report generation failed'
         [System.Windows.MessageBox]::Show("Failed to generate impact report: $_", 'Impact Report')
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 }
 
@@ -967,6 +973,7 @@ function _SaveImpactReportSnapshot {
     $case = _EnsureActiveCase
     if ($null -eq $case) { return }
 
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
     try {
         $snapshotName = "{0} [{1}]" -f $script:State.CurrentImpactReport.ReportTitle, (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
         $snapshotContent = [pscustomobject][ordered]@{
@@ -980,6 +987,8 @@ function _SaveImpactReportSnapshot {
     } catch {
         _SetStatus 'Failed to save report snapshot'
         [System.Windows.MessageBox]::Show("Failed to save impact report snapshot: $_", 'Impact Report')
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 }
 
@@ -3231,33 +3240,184 @@ function _ImportCurrentRunToCase {
     $case = _EnsureActiveCase
     if ($null -eq $case) { return }
 
-    try {
-        _SetStatus "Importing run into case '$($case.name)' …"
-        $result = Import-RunFolderToCase -CaseId $case.case_id -RunFolder $runFolder
-        $summary = "Imported $($result.RecordCount) conversations into case '$($result.CaseName)'."
-        if ($result.SkippedCount -gt 0 -or $result.FailedCount -gt 0) {
-            $summary += "`nSkipped: $($result.SkippedCount)  Failed: $($result.FailedCount)"
-        }
-        _Dispatch {
-            $script:TxtDiagnostics.Text = @"
-=== Case Import ===
-Case        : $($result.CaseName)
-Run Folder  : $($result.RunFolder)
-Run Id      : $($result.RunId)
-Dataset     : $($result.DatasetKey)
-Imported    : $($result.RecordCount)
-Skipped     : $($result.SkippedCount)
-Failed      : $($result.FailedCount)
-"@
-        }
-        _SetStatus "Imported $($result.RecordCount) conversations into $($result.CaseName)"
-        [System.Windows.MessageBox]::Show($summary, 'Import Complete')
-        # Automatically switch the grid to DB mode to show the freshly imported data
-        _SwitchToDbMode
-    } catch {
-        _SetStatus 'Import failed'
-        [System.Windows.MessageBox]::Show("Import failed: $_", 'Import Run')
+    # Delegate to the background import so the UI thread stays responsive.
+    _StartAutoImportInBackground `
+        -CaseId    $case.case_id `
+        -CaseName  $case.name `
+        -RunFolder $runFolder `
+        -FromButton
+}
+
+function _StartAutoImportInBackground {
+    <#
+    .SYNOPSIS
+        Runs Import-RunFolderToCase in a dedicated runspace so the UI thread
+        remains responsive (IsActive = true) during the SQLite write.
+    .PARAMETER FromButton
+        When set, shows a MessageBox on completion/failure (manual import).
+        Omit for silent auto-import triggered after a run completes.
+    #>
+    param(
+        [string]$CaseId,
+        [string]$CaseName,
+        [string]$RunFolder,
+        [string]$PreferredConversationId = '',
+        [pscustomobject]$RunLoadResult   = $null,
+        [switch]$FromButton
+    )
+
+    if (-not (Test-DatabaseInitialized) -or [string]::IsNullOrEmpty($CaseId) -or [string]::IsNullOrWhiteSpace($RunFolder)) {
+        return
     }
+
+    # Prevent double-start; the Import button is disabled during the job.
+    if ($null -ne $script:State.AutoImportJob) { return }
+
+    $cfg        = Get-AppConfig
+    $dbPath     = $cfg.DatabasePath
+    $sqliteDll  = $cfg.SqliteDllPath
+    $appDir     = $script:UIAppDir
+    $fromButton = [bool]$FromButton
+
+    _SetStatus "Importing conversations into case '$CaseName'…"
+    _Dispatch { if ($null -ne $script:BtnImportRun) { $script:BtnImportRun.IsEnabled = $false } }
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+
+    [void]$ps.AddScript({
+        param($AppDir, $CaseId, $RunFolder, $DatabasePath, $SqliteDllPath)
+        Set-StrictMode -Version Latest
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.Database.psm1')) -Force -ErrorAction Stop
+        Initialize-Database -DatabasePath $DatabasePath -SqliteDllPath $SqliteDllPath -AppDir $AppDir -ErrorAction Stop | Out-Null
+        return (Import-RunFolderToCase -CaseId $CaseId -RunFolder $RunFolder)
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($CaseId)
+    [void]$ps.AddArgument($RunFolder)
+    [void]$ps.AddArgument($dbPath)
+    [void]$ps.AddArgument($sqliteDll)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.AutoImportJob = @{
+        Ps                     = $ps
+        Async                  = $asyncResult
+        CaseId                 = $CaseId
+        CaseName               = $CaseName
+        RunFolder              = $RunFolder
+        PreferredConversationId = $PreferredConversationId
+        RunLoadResult          = $RunLoadResult
+        FromButton             = $fromButton
+    }
+    $script:State.AutoImportRunspace = $rs
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(1)
+    $script:State.AutoImportTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.AutoImportJob
+        if ($null -eq $job) { $script:State.AutoImportTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.AutoImportTimer.Stop()
+        $script:State.AutoImportTimer = $null
+
+        $importResult = $null
+        $endFailure   = $null
+        try {
+            $results      = $job.Ps.EndInvoke($job.Async)
+            $importResult = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                          catch {}
+            try { $script:State.AutoImportRunspace.Close()   } catch {}
+            try { $script:State.AutoImportRunspace.Dispose() } catch {}
+            $script:State.AutoImportJob      = $null
+            $script:State.AutoImportRunspace = $null
+        }
+
+        _Dispatch { if ($null -ne $script:BtnImportRun) { $script:BtnImportRun.IsEnabled = $true } }
+
+        if ($null -ne $endFailure) {
+            _AppendRunDiagnostic `
+                -Stage 'Case import failed' `
+                -Message 'Import-RunFolderToCase failed in background runspace.' `
+                -Exception $endFailure `
+                -RunFolder $job.RunFolder `
+                -DataSource 'index' `
+                -CaseId $job.CaseId
+            _SetStatus "Import failed: $($endFailure.Exception.Message)"
+            if ($job.FromButton) {
+                [System.Windows.MessageBox]::Show("Import failed: $endFailure", 'Import Run')
+            }
+            return
+        }
+
+        $imported = if ($null -ne $importResult -and $importResult.PSObject.Properties['RecordCount']) { [int]$importResult.RecordCount } else { 0 }
+        $skipped  = if ($null -ne $importResult -and $importResult.PSObject.Properties['SkippedCount']) { [int]$importResult.SkippedCount } else { 0 }
+        $failed   = if ($null -ne $importResult -and $importResult.PSObject.Properties['FailedCount'])  { [int]$importResult.FailedCount  } else { 0 }
+        $runId    = if ($null -ne $importResult -and $importResult.PSObject.Properties['RunId'])        { [string]$importResult.RunId      } else { '' }
+        $dataset  = if ($null -ne $importResult -and $importResult.PSObject.Properties['DatasetKey'])   { [string]$importResult.DatasetKey } else { '' }
+        $convWord = if ($imported -eq 1) { 'conversation' } else { 'conversations' }
+        $summary  = "Imported $imported $convWord into case '$($job.CaseName)'"
+        if ($skipped -gt 0 -or $failed -gt 0) { $summary += " (skipped: $skipped, failed: $failed)" }
+
+        if ($job.FromButton) {
+            _Dispatch {
+                $script:TxtDiagnostics.Text = @"
+=== Case Import ===
+Case        : $($job.CaseName)
+Run Folder  : $($job.RunFolder)
+Run Id      : $runId
+Dataset     : $dataset
+Imported    : $imported
+Skipped     : $skipped
+Failed      : $failed
+"@
+            }
+        }
+
+        if ($null -ne $importResult) {
+            $filterState    = _GetCanonicalFilterState
+            $dbDisplayCount = 0
+            try { $dbDisplayCount = Get-ConversationCount -CaseId $job.CaseId -FilterState $filterState } catch {}
+            if ($dbDisplayCount -gt 0 -or $imported -eq 0) {
+                $switchResult = _SwitchToDbMode
+                if ($null -eq $switchResult -or -not $switchResult.Succeeded -or ($imported -gt 0 -and $switchResult.RowCount -eq 0)) {
+                    _AppendRunDiagnostic `
+                        -Stage 'Case-store display fallback' `
+                        -Message 'Import completed, but the DB grid refresh did not produce display rows. Keeping run-artifact rows visible.' `
+                        -RunFolder $job.RunFolder `
+                        -DataSource 'index' `
+                        -CaseId $job.CaseId
+                    $rl = $job.RunLoadResult
+                    if ($null -ne $rl -and $rl.PSObject.Properties['IndexRecordCount'] -and $rl.IndexRecordCount -gt 0) {
+                        _LoadRunAndRefreshGrid -RunFolder $job.RunFolder -PreferredConversationId $job.PreferredConversationId -PreserveRunFilters | Out-Null
+                    }
+                }
+            } else {
+                _AppendRunDiagnostic `
+                    -Stage 'Case-store display fallback' `
+                    -Message 'Import completed, but the current case-store filters returned 0 rows. Keeping run-artifact rows visible.' `
+                    -RunFolder $job.RunFolder `
+                    -DataSource 'index' `
+                    -CaseId $job.CaseId
+            }
+        }
+
+        _SetStatus $summary
+        if ($job.FromButton) {
+            [System.Windows.MessageBox]::Show($summary, 'Import Complete')
+        }
+    })
+
+    $timer.Start()
 }
 
 # ── Database-backed grid ──────────────────────────────────────────────────────
@@ -3799,152 +3959,157 @@ function _LoadDrilldown {
     _RefreshReportButtons
     _SetStatus "Loading drilldown: $ConversationId …"
 
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
     $resolution = $null
     try {
-        $resolution = Resolve-ConversationDrilldownRecord `
-            -CaseId $script:State.ActiveCaseId `
-            -RunFolder $script:State.CurrentRunFolder `
-            -ConversationId $ConversationId
-    } catch {
-        _AppendRunDiagnostic `
-            -Stage 'Drilldown resolver failed' `
-            -Message 'The DB/run-folder drilldown resolver threw before returning a structured result.' `
-            -Exception $_ `
-            -RunFolder $script:State.CurrentRunFolder `
-            -DataSource $script:State.DataSource `
-            -CaseId $script:State.ActiveCaseId `
-            -ConversationId $ConversationId
-        _SetDrilldownDiagnostic `
-            -Title 'Drilldown resolver failed' `
-            -Message $_.Exception.Message `
-            -ConversationId $ConversationId `
-            -Stage 'drilldown.resolve'
-        _SetStatus 'Drilldown resolver failed'
-        return
-    }
-
-    $record = if ($null -ne $resolution) { $resolution.Record } else { $null }
-    $rawJsonText = if ($null -ne $resolution) { $resolution.RawJsonText } else { '' }
-
-    if ($null -ne $resolution -and ($resolution.Errors.Count -gt 0 -or $resolution.Warnings.Count -gt 0)) {
-        $messages = @($resolution.Errors + $resolution.Warnings) -join '; '
-        _AppendRunDiagnostic `
-            -Stage 'Drilldown resolver diagnostics' `
-            -Message $messages `
-            -RunFolder $script:State.CurrentRunFolder `
-            -DataSource $script:State.DataSource `
-            -CaseId $script:State.ActiveCaseId `
-            -ConversationId $ConversationId
-    }
-
-    if ($null -eq $record) {
-        $errors = if ($null -ne $resolution -and $resolution.Errors.Count -gt 0) { $resolution.Errors -join [Environment]::NewLine } else { '(no resolver error text)' }
-        $warnings = if ($null -ne $resolution -and $resolution.Warnings.Count -gt 0) { $resolution.Warnings -join [Environment]::NewLine } else { '' }
-        $indexCount = if ($null -ne $resolution) { $resolution.IndexRecordCount } else { 0 }
-        $indexHasId = if ($null -ne $resolution) { $resolution.IndexContainsConversationId } else { $false }
-        $dbRowExists = if ($null -ne $resolution) { $resolution.DbRowExists } else { $false }
-        _SetDrilldownDiagnostic `
-            -Title 'Record not found' `
-            -Message (@(
-                'The row was selected, but the app could not resolve the full JSON conversation record from the active case store or run JSONL fallback.'
-                ''
-                "Index record count      : $indexCount"
-                "Conversation in index  : $indexHasId"
-                "DB row exists          : $dbRowExists"
-                "Errors                 : $errors"
-                "Warnings               : $warnings"
-            ) -join [Environment]::NewLine) `
-            -ConversationId $ConversationId `
-            -Stage 'drilldown.not_found'
-        _SelectDrilldownWorkspace
-        _SetStatus "Drilldown: record not found"
-        return
-    }
-
-    _Dispatch {
-        $script:LblSelectedConversation.Text = $ConversationId
-
-        # ── Summary tab ──
-        $flat = ConvertTo-FlatRow -Record $record -IncludeAttributes
-        $sb   = New-Object System.Text.StringBuilder
-        foreach ($k in $flat.Keys) {
-            [void]$sb.AppendLine("$($k): $($flat[$k])")
+        try {
+            $resolution = Resolve-ConversationDrilldownRecord `
+                -CaseId $script:State.ActiveCaseId `
+                -RunFolder $script:State.CurrentRunFolder `
+                -ConversationId $ConversationId
+        } catch {
+            _AppendRunDiagnostic `
+                -Stage 'Drilldown resolver failed' `
+                -Message 'The DB/run-folder drilldown resolver threw before returning a structured result.' `
+                -Exception $_ `
+                -RunFolder $script:State.CurrentRunFolder `
+                -DataSource $script:State.DataSource `
+                -CaseId $script:State.ActiveCaseId `
+                -ConversationId $ConversationId
+            _SetDrilldownDiagnostic `
+                -Title 'Drilldown resolver failed' `
+                -Message $_.Exception.Message `
+                -ConversationId $ConversationId `
+                -Stage 'drilldown.resolve'
+            _SetStatus 'Drilldown resolver failed'
+            return
         }
-        $script:TxtDrillSummary.Text = $sb.ToString()
 
-        # ── Participants tab ──
-        $parts = @()
-        if ($record.PSObject.Properties['participants']) { $parts = @($record.participants) }
-        $script:DgParticipants.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($parts)
+        $record = if ($null -ne $resolution) { $resolution.Record } else { $null }
+        $rawJsonText = if ($null -ne $resolution) { $resolution.RawJsonText } else { '' }
 
-        # ── Segments tab ──
-        $segRows = New-Object System.Collections.Generic.List[object]
-        foreach ($p in $parts) {
-            if (-not $p.PSObject.Properties['sessions']) { continue }
-            foreach ($s in @($p.sessions)) {
-                if (-not $s.PSObject.Properties['segments']) { continue }
-                foreach ($seg in @($s.segments)) {
-                    $durSec = 0
-                    if ($seg.PSObject.Properties['segmentStart'] -and $seg.PSObject.Properties['segmentEnd']) {
-                        try {
-                            $ss = [datetime]::Parse($seg.segmentStart)
-                            $se = [datetime]::Parse($seg.segmentEnd)
-                            $durSec = [int]($se - $ss).TotalSeconds
-                        } catch { }
-                    }
-                    $segRows.Add([pscustomobject]@{
-                        Purpose       = if ($p.PSObject.Properties['purpose']) { $p.purpose } else { '' }
-                        SegmentType   = if ($seg.PSObject.Properties['segmentType'])   { $seg.segmentType }   else { '' }
-                        SegmentStart  = if ($seg.PSObject.Properties['segmentStart'])  { $seg.segmentStart }  else { '' }
-                        SegmentEnd    = if ($seg.PSObject.Properties['segmentEnd'])    { $seg.segmentEnd }    else { '' }
-                        DurationSec   = $durSec
-                        QueueName     = if ($seg.PSObject.Properties['queueName'])     { $seg.queueName }     else { '' }
-                        DisconnectType = if ($seg.PSObject.Properties['disconnectType']) { $seg.disconnectType } else { '' }
-                    })
-                }
+        if ($null -ne $resolution -and ($resolution.Errors.Count -gt 0 -or $resolution.Warnings.Count -gt 0)) {
+            $messages = @($resolution.Errors + $resolution.Warnings) -join '; '
+            _AppendRunDiagnostic `
+                -Stage 'Drilldown resolver diagnostics' `
+                -Message $messages `
+                -RunFolder $script:State.CurrentRunFolder `
+                -DataSource $script:State.DataSource `
+                -CaseId $script:State.ActiveCaseId `
+                -ConversationId $ConversationId
+        }
+
+        if ($null -eq $record) {
+            $errors = if ($null -ne $resolution -and $resolution.Errors.Count -gt 0) { $resolution.Errors -join [Environment]::NewLine } else { '(no resolver error text)' }
+            $warnings = if ($null -ne $resolution -and $resolution.Warnings.Count -gt 0) { $resolution.Warnings -join [Environment]::NewLine } else { '' }
+            $indexCount = if ($null -ne $resolution) { $resolution.IndexRecordCount } else { 0 }
+            $indexHasId = if ($null -ne $resolution) { $resolution.IndexContainsConversationId } else { $false }
+            $dbRowExists = if ($null -ne $resolution) { $resolution.DbRowExists } else { $false }
+            _SetDrilldownDiagnostic `
+                -Title 'Record not found' `
+                -Message (@(
+                    'The row was selected, but the app could not resolve the full JSON conversation record from the active case store or run JSONL fallback.'
+                    ''
+                    "Index record count      : $indexCount"
+                    "Conversation in index  : $indexHasId"
+                    "DB row exists          : $dbRowExists"
+                    "Errors                 : $errors"
+                    "Warnings               : $warnings"
+                ) -join [Environment]::NewLine) `
+                -ConversationId $ConversationId `
+                -Stage 'drilldown.not_found'
+            _SelectDrilldownWorkspace
+            _SetStatus "Drilldown: record not found"
+            return
+        }
+
+        _Dispatch {
+            $script:LblSelectedConversation.Text = $ConversationId
+
+            # ── Summary tab ──
+            $flat = ConvertTo-FlatRow -Record $record -IncludeAttributes
+            $sb   = New-Object System.Text.StringBuilder
+            foreach ($k in $flat.Keys) {
+                [void]$sb.AppendLine("$($k): $($flat[$k])")
             }
-        }
-        $script:DgSegments.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($segRows.ToArray())
+            $script:TxtDrillSummary.Text = $sb.ToString()
 
-        # ── Attributes tab ──
-        $attrRows = New-Object System.Collections.Generic.List[object]
-        if ($record.PSObject.Properties['attributes'] -and $null -ne $record.attributes) {
-            foreach ($prop in $record.attributes.PSObject.Properties) {
-                $attrRows.Add([pscustomobject]@{ Name = $prop.Name; Value = $prop.Value })
-            }
-        }
-        $attrArray = $attrRows.ToArray()
-        $script:DgAttributes.Tag = $attrArray
-        $script:DgAttributes.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($attrArray)
+            # ── Participants tab ──
+            $parts = @()
+            if ($record.PSObject.Properties['participants']) { $parts = @($record.participants) }
+            $script:DgParticipants.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($parts)
 
-        # ── MOS / Quality tab ──
-        $mosSb = New-Object System.Text.StringBuilder
-        foreach ($p in $parts) {
-            if (-not $p.PSObject.Properties['sessions']) { continue }
-            foreach ($s in @($p.sessions)) {
-                if (-not $s.PSObject.Properties['metrics']) { continue }
-                foreach ($m in @($s.metrics)) {
-                    if ($m.PSObject.Properties['name'] -and ($m.name -like '*mos*' -or $m.name -like '*Mos*')) {
-                        [void]$mosSb.AppendLine("Metric : $($m.name)")
-                        if ($m.PSObject.Properties['stats']) {
-                            $st = $m.stats
-                            [void]$mosSb.AppendLine("  Stats: $($st | ConvertTo-Json -Compress)")
+            # ── Segments tab ──
+            $segRows = New-Object System.Collections.Generic.List[object]
+            foreach ($p in $parts) {
+                if (-not $p.PSObject.Properties['sessions']) { continue }
+                foreach ($s in @($p.sessions)) {
+                    if (-not $s.PSObject.Properties['segments']) { continue }
+                    foreach ($seg in @($s.segments)) {
+                        $durSec = 0
+                        if ($seg.PSObject.Properties['segmentStart'] -and $seg.PSObject.Properties['segmentEnd']) {
+                            try {
+                                $ss = [datetime]::Parse($seg.segmentStart)
+                                $se = [datetime]::Parse($seg.segmentEnd)
+                                $durSec = [int]($se - $ss).TotalSeconds
+                            } catch { }
                         }
-                        [void]$mosSb.AppendLine()
+                        $segRows.Add([pscustomobject]@{
+                            Purpose       = if ($p.PSObject.Properties['purpose']) { $p.purpose } else { '' }
+                            SegmentType   = if ($seg.PSObject.Properties['segmentType'])   { $seg.segmentType }   else { '' }
+                            SegmentStart  = if ($seg.PSObject.Properties['segmentStart'])  { $seg.segmentStart }  else { '' }
+                            SegmentEnd    = if ($seg.PSObject.Properties['segmentEnd'])    { $seg.segmentEnd }    else { '' }
+                            DurationSec   = $durSec
+                            QueueName     = if ($seg.PSObject.Properties['queueName'])     { $seg.queueName }     else { '' }
+                            DisconnectType = if ($seg.PSObject.Properties['disconnectType']) { $seg.disconnectType } else { '' }
+                        })
                     }
                 }
             }
-        }
-        $script:TxtMosQuality.Text = if ($mosSb.Length -eq 0) { '(no MOS metrics)' } else { $mosSb.ToString() }
+            $script:DgSegments.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($segRows.ToArray())
 
-        # ── Raw JSON tab ──
-        $script:TxtRawJson.Text = if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
-            $rawJsonText
-        } else {
-            $record | ConvertTo-Json -Depth 20
+            # ── Attributes tab ──
+            $attrRows = New-Object System.Collections.Generic.List[object]
+            if ($record.PSObject.Properties['attributes'] -and $null -ne $record.attributes) {
+                foreach ($prop in $record.attributes.PSObject.Properties) {
+                    $attrRows.Add([pscustomobject]@{ Name = $prop.Name; Value = $prop.Value })
+                }
+            }
+            $attrArray = $attrRows.ToArray()
+            $script:DgAttributes.Tag = $attrArray
+            $script:DgAttributes.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($attrArray)
+
+            # ── MOS / Quality tab ──
+            $mosSb = New-Object System.Text.StringBuilder
+            foreach ($p in $parts) {
+                if (-not $p.PSObject.Properties['sessions']) { continue }
+                foreach ($s in @($p.sessions)) {
+                    if (-not $s.PSObject.Properties['metrics']) { continue }
+                    foreach ($m in @($s.metrics)) {
+                        if ($m.PSObject.Properties['name'] -and ($m.name -like '*mos*' -or $m.name -like '*Mos*')) {
+                            [void]$mosSb.AppendLine("Metric : $($m.name)")
+                            if ($m.PSObject.Properties['stats']) {
+                                $st = $m.stats
+                                [void]$mosSb.AppendLine("  Stats: $($st | ConvertTo-Json -Compress)")
+                            }
+                            [void]$mosSb.AppendLine()
+                        }
+                    }
+                }
+            }
+            $script:TxtMosQuality.Text = if ($mosSb.Length -eq 0) { '(no MOS metrics)' } else { $mosSb.ToString() }
+
+            # ── Raw JSON tab ──
+            $script:TxtRawJson.Text = if (-not [string]::IsNullOrWhiteSpace($rawJsonText)) {
+                $rawJsonText
+            } else {
+                $record | ConvertTo-Json -Depth 20
+            }
         }
+        _SetStatus "Drilldown loaded: $ConversationId"
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
-    _SetStatus "Drilldown loaded: $ConversationId"
 }
 
 # ── Run orchestration ─────────────────────────────────────────────────────────
@@ -4192,7 +4357,7 @@ function _StartRunInBackground {
 
     # Start polling timer
     $timer           = New-Object System.Windows.Threading.DispatcherTimer
-    $timer.Interval  = [System.TimeSpan]::FromSeconds(2)
+    $timer.Interval  = [System.TimeSpan]::FromMilliseconds(500)
     $script:State.PollingTimer = $timer
 
     $timer.Add_Tick({
@@ -4228,11 +4393,15 @@ function _PollBackgroundRun {
         }
     }
 
-    # Show run status
+    # Show run status and elapsed time
     $statusText = if ($script:State.RunCancelled) { 'Cancelling…' } else { 'Running…' }
+    $elapsed = if ($null -ne $script:State.BackgroundRunStartedUtc) {
+        ([datetime]::UtcNow - $script:State.BackgroundRunStartedUtc).ToString('hh\:mm\:ss')
+    } else { '' }
     _Dispatch {
         $script:TxtRunStatus.Text     = $statusText
         $script:TxtConsoleStatus.Text = $statusText
+        if ($elapsed) { $script:TxtStatusRight.Text = $elapsed }
     }
 
     if (-not $async.IsCompleted) { return }
@@ -4313,46 +4482,14 @@ function _PollBackgroundRun {
             -PreferredConversationId $preferredConversationId `
             -PreserveRunFilters
 
-        # Auto-import into the active case so every run accumulates in one place
+        # Auto-import into the active case in the background so the UI stays responsive.
         if ((Test-DatabaseInitialized) -and -not [string]::IsNullOrEmpty($script:State.ActiveCaseId)) {
-            try {
-                $importResult = Import-RunFolderToCase `
-                    -CaseId    $script:State.ActiveCaseId `
-                    -RunFolder $script:State.CurrentRunFolder
-
-                $dbFilterState = _GetCanonicalFilterState
-                $dbDisplayCount = Get-ConversationCount -CaseId $script:State.ActiveCaseId -FilterState $dbFilterState
-                if ($dbDisplayCount -gt 0 -or $importResult.RecordCount -eq 0) {
-                    $switchResult = _SwitchToDbMode
-                    if ($null -eq $switchResult -or -not $switchResult.Succeeded -or ($importResult.RecordCount -gt 0 -and $switchResult.RowCount -eq 0)) {
-                        _AppendRunDiagnostic `
-                            -Stage 'Case-store display fallback' `
-                            -Message 'Import completed, but the DB grid refresh did not produce display rows. Keeping run-artifact rows visible.' `
-                            -RunFolder $script:State.CurrentRunFolder `
-                            -DataSource 'index' `
-                            -CaseId $script:State.ActiveCaseId
-                        if ($null -ne $runLoadResult -and $runLoadResult.IndexRecordCount -gt 0) {
-                            _LoadRunAndRefreshGrid -RunFolder $script:State.CurrentRunFolder -PreferredConversationId $preferredConversationId -PreserveRunFilters | Out-Null
-                        }
-                    }
-                } else {
-                    _AppendRunDiagnostic `
-                        -Stage 'Case-store display fallback' `
-                        -Message 'Import completed, but the current case-store filters returned 0 rows. Keeping run-artifact rows visible.' `
-                        -RunFolder $script:State.CurrentRunFolder `
-                        -DataSource 'index' `
-                        -CaseId $script:State.ActiveCaseId
-                }
-            } catch {
-                _AppendRunDiagnostic `
-                    -Stage 'Case auto-import failed' `
-                    -Message 'Keeping run-artifact rows visible because case-store import failed.' `
-                    -Exception $_ `
-                    -RunFolder $script:State.CurrentRunFolder `
-                    -DataSource 'index' `
-                    -CaseId $script:State.ActiveCaseId
-                Write-Warning "Case auto-import failed: $_"
-            }
+            _StartAutoImportInBackground `
+                -CaseId                  $script:State.ActiveCaseId `
+                -CaseName                $script:State.ActiveCaseName `
+                -RunFolder               $script:State.CurrentRunFolder `
+                -PreferredConversationId $preferredConversationId `
+                -RunLoadResult           $runLoadResult
         }
     }
 

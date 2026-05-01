@@ -320,6 +320,21 @@ $script:Window.Add_Closing({
         try { $script:State.BackgroundRunspace.Close() } catch { }
     }
 
+    # Stop any in-progress background import
+    if ($null -ne $script:State.AutoImportTimer) {
+        try { $script:State.AutoImportTimer.Stop() } catch { }
+        $script:State.AutoImportTimer = $null
+    }
+    if ($null -ne $script:State.AutoImportJob) {
+        try { $script:State.AutoImportJob.Ps.Stop() } catch { }
+        $script:State.AutoImportJob = $null
+    }
+    if ($null -ne $script:State.AutoImportRunspace) {
+        try { $script:State.AutoImportRunspace.Close()   } catch { }
+        try { $script:State.AutoImportRunspace.Dispose() } catch { }
+        $script:State.AutoImportRunspace = $null
+    }
+
     # Persist last query range
     try {
         $startDate = $script:DtpStartDate.SelectedDate

@@ -3315,7 +3315,7 @@ function _StartAutoImportInBackground {
     $script:State.AutoImportRunspace = $rs
 
     $timer = New-Object System.Windows.Threading.DispatcherTimer
-    $timer.Interval = [System.TimeSpan]::FromMilliseconds(500)
+    $timer.Interval = [System.TimeSpan]::FromSeconds(1)
     $script:State.AutoImportTimer = $timer
 
     $timer.Add_Tick({
@@ -3364,7 +3364,8 @@ function _StartAutoImportInBackground {
         $failed   = if ($null -ne $importResult -and $importResult.PSObject.Properties['FailedCount'])  { [int]$importResult.FailedCount  } else { 0 }
         $runId    = if ($null -ne $importResult -and $importResult.PSObject.Properties['RunId'])        { [string]$importResult.RunId      } else { '' }
         $dataset  = if ($null -ne $importResult -and $importResult.PSObject.Properties['DatasetKey'])   { [string]$importResult.DatasetKey } else { '' }
-        $summary  = "Imported $imported conversation(s) into case '$($job.CaseName)'"
+        $convWord = if ($imported -eq 1) { 'conversation' } else { 'conversations' }
+        $summary  = "Imported $imported $convWord into case '$($job.CaseName)'"
         if ($skipped -gt 0 -or $failed -gt 0) { $summary += " (skipped: $skipped, failed: $failed)" }
 
         if ($job.FromButton) {

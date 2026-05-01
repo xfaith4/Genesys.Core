@@ -558,7 +558,7 @@ function Complete-Run {
             $capturedCorePath   = $corePath
 
             $rsRes = [runspacefactory]::CreateRunspace()
-            $rsRes.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::UseNewThread
+            $rsRes.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
             $rsRes.Open()
             $psRes = [powershell]::Create()
             $psRes.Runspace = $rsRes

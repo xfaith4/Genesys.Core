@@ -108,7 +108,7 @@ For engineering integration/auth patterns across PowerShell, HTML/JS, .NET, and 
 
 ```powershell
 # Clone the repo
-git clone https://github.com/your-org/Genesys.Core.git
+git clone https://github.com/xfaith4/Genesys.Core.git
 Set-Location Genesys.Core
 
 # Import the module

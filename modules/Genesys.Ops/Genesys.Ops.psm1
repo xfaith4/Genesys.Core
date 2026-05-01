@@ -1390,8 +1390,9 @@ function Get-GenesysContactCentreStatus {
         if ($FailFast) { throw }
     }
 
-    $activeCallbacksValue = if ($callbackFailed) { $null } else { $callbacks.Count }
-    $callbackCountForTotal = if ($callbackFailed) { 0 } else { $callbacks.Count }
+    $callbackCount          = if ($callbackFailed) { 0 } else { $callbacks.Count }
+    $activeCallbacksValue   = if ($callbackFailed) { $null } else { $callbackCount }
+    $callbackCountForTotal  = $callbackCount
 
     [PSCustomObject]@{
         Timestamp           = Get-Date -Format 'o'
@@ -4034,7 +4035,7 @@ function Get-GenesysChangeAuditFeed {
         # Compose summary using safe access for user sub-object
         $actor   = Get-NestedPropertyValue $ev 'user.email'
         $actor   = if ($actor) { $actor } else { 'unknown' }
-        $summary = "$($action): $($entityType) '$($entityName)' by $($actor)"
+        $summary = "$($action) on $($entityType) '$($entityName)' by $($actor)"
 
         $record = [PSCustomObject]@{
             Timestamp  = Get-PropertyValue $ev 'timestamp'

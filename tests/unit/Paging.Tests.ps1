@@ -283,6 +283,37 @@ Describe 'Paging strategies' {
         $result.PagingTelemetry[1].nextUri | Should -BeNullOrEmpty
     }
 
+    It 'terminates nextUri paging at the configured max-page ceiling' {
+        $calls = [System.Collections.Generic.List[string]]::new()
+        $runEvents = [System.Collections.Generic.List[object]]::new()
+
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key       = 'paging.runaway'
+            method    = 'GET'
+            itemsPath = '$.results'
+            paging    = [pscustomobject]@{
+                profile  = 'nextUri'
+                maxPages = 3
+            }
+        }) -InitialUri 'https://example.test/api/v2/runaway?page=1' -RunEvents $runEvents -RequestInvoker {
+            param($request)
+            $calls.Add([string]$request.Uri) | Out-Null
+            $next = "https://example.test/api/v2/runaway?page=$($calls.Count + 1)"
+            return [pscustomobject]@{ Result = [pscustomobject]@{
+                results = @("item-$($calls.Count)")
+                nextUri = $next
+            } }
+        }
+
+        @($result.Items).Count | Should -Be 3
+        $calls.Count | Should -Be 3
+
+        $maxPagesEvent = @($runEvents | Where-Object { $_.eventType -eq 'paging.terminated.maxPages' })
+        $maxPagesEvent.Count | Should -Be 1
+        $maxPagesEvent[0].maxPages | Should -Be 3
+        $maxPagesEvent[0].page | Should -Be 4
+    }
+
     It 'terminates nextUri_default paging when nextUri is null' {
         $responses = @{
             'https://example.test/api/v2/oauth/clients?pageSize=100' = [pscustomobject]@{

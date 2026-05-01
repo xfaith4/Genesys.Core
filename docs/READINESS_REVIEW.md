@@ -54,7 +54,7 @@ change together with the evidence (test output, artifact, or PR link).
 |---|-----------|--------|---------------|
 | C-01 | `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `none`, and `transactionResults` paging profiles are all exercised. | ✅ GREEN | `Paging.Tests.ps1`. |
 | C-02 | Paging terminates safely when the API returns an empty page or omits the nextUri field. | ✅ GREEN | `Paging.Tests.ps1` — empty-page and missing-nextUri cases. |
-| C-03 | Paging guard (max-page circuit breaker) is present to prevent infinite loops on malformed API responses. | ⚠️ PARTIAL | Guard exists via `maxPolls` on transaction profiles; generic paging relies on API termination. Add an explicit page-count ceiling to `Invoke-GenericPaging` before release. |
+| C-03 | Paging guard (max-page circuit breaker) is present to prevent infinite loops on malformed API responses. | ✅ GREEN | `Invoke-PagingNextUri` reads `paging.maxPages` (default 1000) and emits `paging.terminated.maxPages` when the ceiling is hit, alongside the existing duplicate-URI guard. Verified by `Paging.Tests.ps1` "terminates nextUri paging at the configured max-page ceiling". `Invoke-PagingPageNumber` and `Invoke-PagingCursor` already enforced the same ceiling. |
 
 ---
 
@@ -87,7 +87,7 @@ change together with the evidence (test output, artifact, or PR link).
 |---|-----------|--------|---------------|
 | F-01 | Every run produces `manifest.json`, `events.jsonl`, `summary.json`, and at least one `data/*.jsonl`. | ✅ GREEN | `RunContract.Tests.ps1`. |
 | F-02 | `manifest.json` contains `datasetKey`, `runId`, `startedAtUtc`, `endedAtUtc`, and `counts`. | ✅ GREEN | `RunContract.Tests.ps1`. |
-| F-03 | Two consecutive runs over the same fixture produce byte-equivalent `summary.json` (timestamps and runId excluded). | ⚠️ PARTIAL | Determinism is asserted for unit fixtures. Full live-run determinism is verified manually; add a CI determinism assertion before release. |
+| F-03 | Two consecutive runs over the same fixture produce byte-equivalent `summary.json` (timestamps and runId excluded). | ✅ GREEN | `RunContract.Tests.ps1` "produces byte-equivalent run artifacts across two consecutive fixture runs" runs `Invoke-Dataset` twice over the same mock invoker and asserts (a) normalised `summary.json` is identical after stripping `runId` and ISO-8601 timestamp fields, and (b) every `data/*.jsonl` file matches by SHA-256. The test runs in CI on every PR via `ci.yml`. |
 | F-04 | The `data/*.jsonl` filename is derived from the dataset key and is stable across runs. | ✅ GREEN | `ConvertTo-DatasetDataFileName` in `Datasets.ps1`. |
 
 ---
@@ -138,8 +138,9 @@ current blocking items are:
 1. **H-01 → H-08**: Live validation of all seven Agent Investigation datasets.
    Once completed, update `validationStatus` in the catalog and promote the
    criteria.
-2. **C-03**: Explicit paging guard in generic paging path.
-3. **F-03**: CI determinism assertion for run artifacts.
+
+`C-03` (explicit paging guard) and `F-03` (CI determinism assertion) were
+resolved in the 2026-05-01 corrective refactor and are now ✅ GREEN.
 
 ---
 
@@ -147,6 +148,7 @@ current blocking items are:
 
 | Date | Change |
 |------|--------|
+| 2026-05-01 | Promoted `C-03` (paging max-page ceiling on `Invoke-PagingNextUri`) and `F-03` (CI determinism assertion in `RunContract.Tests.ps1`) to ✅ GREEN. Live-validation gates `H-01` through `H-08` remain blocking. |
 | 2026-04-30 | Promoted Agent Investigation Track B implementation gates I-02 through I-06 after fixture integration validation. Live validation H-01 through H-08 remains blocking. |
 | 2026-04-29 | Rewrote as formal verifiable checklist for Release 1.0 (Track A deliverable). Previous narrative review archived below. |
 | 2026-02-22 | Initial readiness review written. |

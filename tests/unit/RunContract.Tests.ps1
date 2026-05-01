@@ -109,6 +109,83 @@ Describe 'Run output contract' {
         $apiLog[0].uri | Should -Not -BeNullOrEmpty
         $apiLog[0].durationMs | Should -Not -BeNullOrEmpty
     }
+
+    It 'produces byte-equivalent run artifacts across two consecutive fixture runs' {
+        Import-Module "$PSScriptRoot/../../modules/Genesys.Core/Genesys.Core.psd1" -Force
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+
+            $uri = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-determinism' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-determinism') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/tx-determinism/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    results = @(
+                        [pscustomobject]@{ id = '1'; serviceName = 'routing'; action = 'create' }
+                        [pscustomobject]@{ id = '2'; serviceName = 'routing'; action = 'update' }
+                    )
+                    nextUri = $null
+                    totalHits = 2
+                } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        $runA = Join-Path -Path $TestDrive -ChildPath 'runA'
+        $runB = Join-Path -Path $TestDrive -ChildPath 'runB'
+
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $runA -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
+        Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $runB -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
+
+        $folderA = Get-ChildItem -Path (Join-Path $runA 'audit-logs') -Directory | Select-Object -First 1
+        $folderB = Get-ChildItem -Path (Join-Path $runB 'audit-logs') -Directory | Select-Object -First 1
+
+        $folderA | Should -Not -BeNullOrEmpty
+        $folderB | Should -Not -BeNullOrEmpty
+
+        $volatileFieldRegex = '"(runId|runIdUtc|generatedAtUtc|startedAtUtc|endedAtUtc|timestampUtc|createdAtUtc|sourceTimestamp)"\s*:\s*"[^"]*"'
+        $isoTimestampRegex  = '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})'
+
+        $normalize = {
+            param([string]$Path)
+            $raw = Get-Content -Path $Path -Raw
+            $raw = [System.Text.RegularExpressions.Regex]::Replace($raw, $volatileFieldRegex, '"$1":"<volatile>"')
+            $raw = [System.Text.RegularExpressions.Regex]::Replace($raw, $isoTimestampRegex, '<iso-ts>')
+            return $raw
+        }
+
+        $summaryA = & $normalize (Join-Path $folderA.FullName 'summary.json')
+        $summaryB = & $normalize (Join-Path $folderB.FullName 'summary.json')
+        $summaryA | Should -Be $summaryB
+
+        $dataFilesA = @(Get-ChildItem -Path (Join-Path $folderA.FullName 'data') -Filter '*.jsonl' | Sort-Object Name)
+        $dataFilesB = @(Get-ChildItem -Path (Join-Path $folderB.FullName 'data') -Filter '*.jsonl' | Sort-Object Name)
+
+        $dataFilesA.Count | Should -Be $dataFilesB.Count
+        $dataFilesA.Count | Should -BeGreaterThan 0
+
+        for ($i = 0; $i -lt $dataFilesA.Count; $i++) {
+            $dataFilesA[$i].Name | Should -Be $dataFilesB[$i].Name
+            $hashA = (Get-FileHash -Path $dataFilesA[$i].FullName -Algorithm SHA256).Hash
+            $hashB = (Get-FileHash -Path $dataFilesB[$i].FullName -Algorithm SHA256).Hash
+            $hashA | Should -Be $hashB
+        }
+    }
 }
 
 

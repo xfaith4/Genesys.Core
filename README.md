@@ -30,8 +30,8 @@ The Ops layer builds on that contract with **investigations**: subject-centred c
 - **Investigation composition** — `Get-GenesysAgentInvestigation` emits the same artifact set for a joined, agent-centred investigation under `out/agent-investigation/<runId>/`
 - **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
 - **GitHub Actions integration** — scheduled and on-demand workflows for `audit-logs` with artifact upload and configurable retention
-- **Conversation Analysis web app** — `apps/ConversationAnalysis/index.html`, a self-contained SPA for exploring run artifacts (no build, no server)
-- **Windows GUI client** — `GenesysCore-GUI.ps1` wraps `Invoke-Dataset` with an OAuth auth flow, dataset picker, and run log view (WPF, Windows only)
+- **Ready-made frontend apps** — five sample apps in `apps/` demonstrate the custom-wrapper pattern (web SPAs, WPF consoles, operator dashboards); see [Apps](#apps) below
+- **Custom-wrapper friendly** — the core is designed so any GUI, web app, .NET service, or Go binary can use `Invoke-Dataset` as its backend data source with no forking required
 - **PS 5.1 and 7+ compatible** — runs on Windows PowerShell 5.1 and PowerShell 7+
 
 ---
@@ -174,10 +174,29 @@ pwsh -NoProfile -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset 
 ### Windows GUI
 
 ```powershell
-.\GenesysCore-GUI.ps1
+# GenesysInterrogator — catalog validator / dataset tester (WPF, Windows)
+Set-Location .\apps\GenesysInterrogator
+.\App.ps1
+
+# AuditLogsConsole — audit log operator console (WPF, Windows PowerShell 5.1)
+Set-Location .\apps\AuditLogsConsole
+.\App.ps1
+
+# ConversationAnalyzer — full investigation workbench (WPF, PowerShell 7+, Windows)
+Set-Location .\apps\ConversationAnalyzer
+.\App.ps1
 ```
 
-The WPF GUI provides an OAuth auth flow, dataset selection from the catalog, run/what-if execution, and an execution log view. **Windows only** (requires WPF).
+All WPF apps are Windows-only and require WPF to be available. `ConversationAnalyzer` requires PowerShell 7.2+; the others run on Windows PowerShell 5.1 or PowerShell 7+.
+
+### Web dashboards (browser, no server required)
+
+```
+apps/ConversationAnalysis/index.html   # conversation analytics SPA
+apps/OpsConsole/index.html             # ops visibility dashboard
+```
+
+Open either file directly in Chrome, Edge, Firefox, or Safari — no build step, no server.
 
 ---
 
@@ -272,8 +291,21 @@ Genesys.Core/
 │       ├── Genesys.Ops.psd1
 │       └── Genesys.Ops.psm1
 ├── apps/
-│   └── ConversationAnalysis/
-│       ├── index.html                     # Self-contained SPA (no build required)
+│   ├── App_Builder_Template.md            # Prompt template for generating new Core-backed apps
+│   ├── ConversationAnalysis/
+│   │   ├── index.html                     # Web SPA — conversation analytics (no build, no server)
+│   │   └── README.md
+│   ├── ConversationAnalyzer/
+│   │   ├── App.ps1                        # WPF investigation workbench (PowerShell 7+, Windows)
+│   │   └── README.md
+│   ├── GenesysInterrogator/
+│   │   ├── App.ps1                        # WPF catalog validator / dataset tester (PS 5.1/7+)
+│   │   └── README.md
+│   ├── AuditLogsConsole/
+│   │   ├── App.ps1                        # WPF audit log operator console (PS 5.1+)
+│   │   └── README.md
+│   └── OpsConsole/
+│       ├── index.html                     # Web SPA — Ops visibility dashboard (no build, no server)
 │       └── README.md
 ├── scripts/
 │   ├── Invoke-Smoke.ps1                   # Smoke test runner
@@ -293,12 +325,39 @@ Genesys.Core/
 │   ├── ENGINEER_INTEGRATIONS_AUTH.md
 │   └── training/
 │       └── genesys-onboarding.html        # Interactive training page
-├── GenesysCore-GUI.ps1                    # Windows WPF GUI client
 └── .github/workflows/
     ├── ci.yml                             # Pester on pull_request + workflow_dispatch
     ├── audit-logs.scheduled.yml           # Scheduled daily run
     └── audit-logs.on-demand.yml           # Manual trigger with time-window inputs
 ```
+
+---
+
+## Apps
+
+Genesys.Core is designed as a **backend engine**: any GUI, web app, .NET service, or Go binary can call `Invoke-Dataset` (or `Get-GenesysAgentInvestigation`) and use the structured run output as its data source — no forking the core required.
+
+The `apps/` directory contains ready-made reference implementations that follow this pattern. Each app is independently runnable and has its own `README.md`.
+
+| App | Type | Purpose |
+|-----|------|---------|
+| [`ConversationAnalysis`](apps/ConversationAnalysis/README.md) | Web SPA (HTML, no build) | Explore, filter, and drilldown into conversation analytics run artifacts in the browser |
+| [`ConversationAnalyzer`](apps/ConversationAnalyzer/README.md) | WPF — PowerShell 7+, Windows | Full investigation workbench: SQLite case store, multi-run imports, population reports, saved views, findings |
+| [`GenesysInterrogator`](apps/GenesysInterrogator/README.md) | WPF — PS 5.1 / 7+, Windows | Catalog validator and dataset tester — one window, all datasets, live JSON parameter editor |
+| [`AuditLogsConsole`](apps/AuditLogsConsole/README.md) | WPF — PS 5.1+, Windows | Operator console for Audit Logs: run, browse, and reopen recent runs |
+| [`OpsConsole`](apps/OpsConsole/README.md) | Web SPA (HTML, no build) | Ops visibility dashboard: queue health, abandon rates, agent quality, edge/trunk status, change audit |
+
+`apps/App_Builder_Template.md` is a prompt template you can use to generate new Core-backed apps — paste it into a Copilot/LLM session with your business requirements to scaffold a fully compliant wrapper app.
+
+### Architecture constraint (all apps)
+
+Every app must follow the **Core-first rule**:
+
+1. **No direct Genesys REST calls for data extraction** — no custom paging, retry, or job polling in the app.
+2. **All extraction via `Invoke-Dataset`** (or exported Ops-layer cmdlets) — keyed by catalog dataset key.
+3. **UI reads Core run artifacts** (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`) — it does not hold raw API responses in memory.
+
+This contract means swapping out the UI layer (WPF → web → CLI) never requires touching extraction logic, and Core improvements propagate to all apps automatically.
 
 ---
 

@@ -159,9 +159,10 @@ artifact format, no broad abstraction layer.
 
 ### Dependencies and ordering
 
-- Agent Investigation depends on these Track A datasets having passed live
-  validation: `users`, division-info, skills, `routing-queues`, bulk
-  presences, user activity report, `analytics-conversation-details-query`.
+- Agent Investigation depends on these Track A datasets having
+  `Live Invoke-Dataset acceptance passed`: `users`, division-info, skills,
+  `routing-queues`, bulk presences, user activity report,
+  `analytics-conversation-details-query`.
   The flagship cannot be marked done until each of these reports a green
   validation status in its catalog entry.
 - Mirror-catalog consolidation has landed; Agent Investigation may reference
@@ -177,7 +178,8 @@ Release 1.0 is complete when **all** of the following hold:
       `READINESS_REVIEW.md` reports green.
 - [ ] `Get-GenesysAgentInvestigation -UserId <known-id> -Since 7d` runs
       end-to-end against live Genesys Cloud and exits 0.
-- [ ] Every dataset Agent Investigation invokes has `validationStatus =
+- [ ] Every dataset Agent Investigation invokes has
+      `Live Invoke-Dataset acceptance passed` and `validationStatus =
       'live-validated'` recorded in its catalog entry as of release tag.
 - [x] Fixture-driven integration test for Agent Investigation passes,
       asserting manifest shape, join shape, and determinism (see

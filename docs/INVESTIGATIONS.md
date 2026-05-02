@@ -132,7 +132,7 @@ Required fields:
   "stepName": "identity",
   "datasetKey": "users",
   "runId": "<dataset run id>",
-  "validationStatus": "live-validated | fixture | unvalidated",
+  "validationStatus": "live-validated | fixture-validated | offline-runtime-tested | live-probed | unvalidated",
   "recordCount": 1,
   "required": true,
   "status": "ok | failed | skipped",
@@ -206,9 +206,10 @@ not the manifest.
 ## 5. Dependencies
 
 Track B is gated by Track A. Each flagship investigation cannot be marked done
-until the datasets it composes have passed live validation under Track A.
+until the datasets it composes have `Live Invoke-Dataset acceptance passed`
+under Track A.
 
-| Investigation | Datasets that must pass live validation first |
+| Investigation | Datasets that must pass `Live Invoke-Dataset acceptance passed` first |
 | --- | --- |
 | Agent | `users`, division-info, skills, `routing-queues`, bulk presences, user activity report, `analytics-conversation-details-query` |
 | Conversation | `analytics-conversation-details`, `users`, division-info, skills, recordings, evaluations |
@@ -254,7 +255,9 @@ Investigations get the same testing treatment as datasets:
   `tests/integration/`.
 - **Live validation:** each flagship is exercised against live Genesys Cloud
   with a known agent/conversation/queue once during release validation, and
-  the run artifact is attached to the readiness review.
+  the run artifact is attached to the readiness review. The datasets it
+  composes require `Live Invoke-Dataset acceptance passed`; the investigation
+  workflow itself requires `Production workflow validated`.
 
 ## 8. Relationship to existing composers
 

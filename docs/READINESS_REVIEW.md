@@ -18,6 +18,8 @@ Each criterion has:
 
 - **Status** — ✅ GREEN (met) / ⚠️ PARTIAL (conditionally met) / ❌ NOT MET /
   🔒 BLOCKED (blocked by another criterion)
+- **Evidence Level Required** — exact validation evidence label from
+  `docs/TEST_EVIDENCE_LEVELS.md`, where applicable.
 - **Verifiable by** — the action a reviewer can take to confirm the criterion.
 
 When a criterion is met or promoted, update its status here and commit the
@@ -104,16 +106,16 @@ change together with the evidence (test output, artifact, or PR link).
 
 ## 8. Live Validation
 
-| # | Criterion | Status | Verifiable by |
-|---|-----------|--------|---------------|
-| H-01 | `users` dataset: `itemsPath`, paging profile, retry behaviour confirmed against live Genesys Cloud. | ❌ NOT MET | Run `dataset.on-demand.yml` with `datasetKey=users` against a live org; inspect `events.jsonl`. |
-| H-02 | `users.division.analysis.get.users.with.division.info` dataset: same verification. | ❌ NOT MET | As above. |
-| H-03 | `routing.get.all.routing.skills` dataset: same verification. | ❌ NOT MET | As above. |
-| H-04 | `routing-queues` dataset: same verification. | ❌ NOT MET | As above. |
-| H-05 | `users.get.bulk.user.presences` dataset: same verification. | ❌ NOT MET | As above. |
-| H-06 | `analytics.query.user.details.activity.report` dataset: same verification. | ❌ NOT MET | As above. |
-| H-07 | `analytics-conversation-details-query` dataset: same verification. | ❌ NOT MET | As above. |
-| H-08 | Each validated dataset has `validationStatus` updated from `"unvalidated"` to `"live-validated"` in `catalog/genesys.catalog.json`. | ❌ NOT MET | Inspect `catalog/genesys.catalog.json` for the seven Agent Investigation entries. |
+| # | Criterion | Status | Evidence Level Required | Verifiable by |
+|---|-----------|--------|-------------------------|---------------|
+| H-01 | `users` dataset: `itemsPath`, paging profile, retry behaviour confirmed against live Genesys Cloud. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | Run `dataset.on-demand.yml` with `datasetKey=users` against a live org; inspect sanitized artifacts. |
+| H-02 | `users.division.analysis.get.users.with.division.info` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-03 | `routing.get.all.routing.skills` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-04 | `routing-queues` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-05 | `users.get.bulk.user.presences` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-06 | `analytics.query.user.details.activity.report` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-07 | `analytics-conversation-details-query` dataset: same verification. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` | As above. |
+| H-08 | Each validated dataset has `validationStatus` updated from `"unvalidated"` to `"live-validated"` in `catalog/genesys.catalog.json`. | ❌ NOT MET | `Live Invoke-Dataset acceptance passed` for H-01 through H-07 | Inspect `catalog/genesys.catalog.json` for the seven Agent Investigation entries. |
 
 ---
 

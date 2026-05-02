@@ -17,6 +17,17 @@
 | Functions requiring parameter/body override work | 0 |
 | Functions covered as Low risk after the 2026-05-01 refactor | 11 |
 
+## Evidence interpretation
+
+`Risk: Low` in this report means the wrapper implementation is low risk after
+offline runtime checks. It does not mean the dataset is live-ready.
+
+Evidence: `Dataset route construction passed`; `Dataset response processing
+passed` where mocked or fixture responses cover the function path.
+
+Live status: `unvalidated` unless separately promoted in
+`docs/READINESS_REVIEW.md` with `Live Invoke-Dataset acceptance passed`.
+
 The previous report's blocker note —
 > *Until `Invoke-Dataset` accepts a `-BodyOverride` parameter, eleven analytics
 > functions cannot scope their queries at runtime…*

@@ -90,6 +90,7 @@ Get-Content (Join-Path $runFolder.FullName 'summary.json') | ConvertFrom-Json
 
 For full onboarding steps, see [docs/ONBOARDING.md](docs/ONBOARDING.md).
 For engineering integration/auth patterns across PowerShell, HTML/JS, .NET, and Go, see [docs/ENGINEER_INTEGRATIONS_AUTH.md](docs/ENGINEER_INTEGRATIONS_AUTH.md).
+For precise testing claims, see [docs/TEST_EVIDENCE_LEVELS.md](docs/TEST_EVIDENCE_LEVELS.md).
 
 ---
 
@@ -373,6 +374,7 @@ To keep CI passing and still provide meaningful validation, all Genesys Cloud AP
 | Pester unit tests (all 16 files) | Run via `ci.yml` on every PR; all API calls are already mocked via `RequestInvoker` |
 
 **Real integration tests** (live API calls with a valid bearer token) must be run locally or in an environment where the `GENESYS_BEARER_TOKEN` secret is available.
+Use [docs/TEST_EVIDENCE_LEVELS.md](docs/TEST_EVIDENCE_LEVELS.md) when interpreting "all tests pass"; CI success does not mean every Genesys Cloud endpoint has passed live `Invoke-Dataset` acceptance.
 
 ---
 

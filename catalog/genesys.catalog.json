@@ -362,7 +362,7 @@
       }
     },
     "analytics.query.queue.observations.real.time.stats": {
-      "description": "Query Queue Observations — real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
+      "description": "Query Queue Observations \u2014 real-time stats: oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers.",
       "endpoint": "analytics.query.queue.observations.real.time.stats",
       "itemsPath": "$.results",
       "paging": {
@@ -373,7 +373,7 @@
       }
     },
     "analytics.query.user.observations.real.time.status": {
-      "description": "Query User Observations — real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
+      "description": "Query User Observations \u2014 real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
       "endpoint": "analytics.query.user.observations.real.time.status",
       "itemsPath": "$.results",
       "paging": {
@@ -384,7 +384,7 @@
       }
     },
     "analytics.query.user.aggregates.performance.metrics": {
-      "description": "Query User Aggregates — agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
+      "description": "Query User Aggregates \u2014 agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
       "endpoint": "analytics.query.user.aggregates.performance.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -395,7 +395,7 @@
       }
     },
     "analytics.query.conversation.aggregates.queue.performance": {
-      "description": "Query Conversation Aggregates — queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
+      "description": "Query Conversation Aggregates \u2014 queue performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered.",
       "endpoint": "analytics.query.conversation.aggregates.queue.performance",
       "itemsPath": "$.results",
       "paging": {
@@ -406,7 +406,7 @@
       }
     },
     "analytics.query.conversation.aggregates.agent.performance": {
-      "description": "Query Conversation Aggregates — per-agent handle/talk/ACW/connected metrics.",
+      "description": "Query Conversation Aggregates \u2014 per-agent handle/talk/ACW/connected metrics.",
       "endpoint": "analytics.query.conversation.aggregates.agent.performance",
       "itemsPath": "$.results",
       "paging": {
@@ -417,7 +417,7 @@
       }
     },
     "analytics.query.flow.aggregates.execution.metrics": {
-      "description": "Query Flow Aggregates — Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
+      "description": "Query Flow Aggregates \u2014 Architect flow execution: nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone.",
       "endpoint": "analytics.query.flow.aggregates.execution.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -428,7 +428,7 @@
       }
     },
     "analytics.query.rate.limit.aggregates": {
-      "description": "Query Rate Limit Aggregates — API rate-limit hits and over-limit events: nError, nOverLimit.",
+      "description": "Query Rate Limit Aggregates \u2014 API rate-limit hits and over-limit events: nError, nOverLimit.",
       "endpoint": "analytics.query.rate.limit.aggregates",
       "itemsPath": "$.results",
       "paging": {
@@ -439,7 +439,7 @@
       }
     },
     "analytics.query.user.details.activity.report": {
-      "description": "Query User Details — agent presence and routing activity report.",
+      "description": "Query User Details \u2014 agent presence and routing activity report.",
       "endpoint": "analytics.query.user.details.activity.report",
       "itemsPath": "$.userDetails",
       "paging": {
@@ -452,7 +452,7 @@
       "validationStatus": "unvalidated"
     },
     "oauth.get.clients": {
-      "description": "Get OAuth Clients — all configured OAuth client applications and their grant types.",
+      "description": "Get OAuth Clients \u2014 all configured OAuth client applications and their grant types.",
       "endpoint": "oauth.get.clients",
       "itemsPath": "$.entities",
       "paging": {
@@ -463,7 +463,7 @@
       }
     },
     "oauth.get.authorizations": {
-      "description": "Get OAuth Authorizations — active client authorization grants issued to users.",
+      "description": "Get OAuth Authorizations \u2014 active client authorization grants issued to users.",
       "endpoint": "oauth.get.authorizations",
       "itemsPath": "$.entities",
       "paging": {
@@ -474,7 +474,7 @@
       }
     },
     "outbound.get.campaigns": {
-      "description": "Get Outbound Campaigns — voice and preview dialing campaigns with status and progress.",
+      "description": "Get Outbound Campaigns \u2014 voice and preview dialing campaigns with status and progress.",
       "endpoint": "outbound.get.campaigns",
       "itemsPath": "$.entities",
       "paging": {
@@ -485,7 +485,7 @@
       }
     },
     "outbound.get.contact.lists": {
-      "description": "Get Outbound Contact Lists — contact list definitions used by dialing campaigns.",
+      "description": "Get Outbound Contact Lists \u2014 contact list definitions used by dialing campaigns.",
       "endpoint": "outbound.get.contact.lists",
       "itemsPath": "$.entities",
       "paging": {
@@ -496,7 +496,7 @@
       }
     },
     "outbound.get.messaging.campaigns": {
-      "description": "Get Outbound Messaging Campaigns — SMS and digital outbound messaging campaigns.",
+      "description": "Get Outbound Messaging Campaigns \u2014 SMS and digital outbound messaging campaigns.",
       "endpoint": "outbound.get.messaging.campaigns",
       "itemsPath": "$.entities",
       "paging": {
@@ -507,7 +507,7 @@
       }
     },
     "outbound.get.events": {
-      "description": "Get Outbound Dialer Events — campaign and contact disposition events from the dialer.",
+      "description": "Get Outbound Dialer Events \u2014 campaign and contact disposition events from the dialer.",
       "endpoint": "outbound.get.events",
       "itemsPath": "$.entities",
       "paging": {
@@ -518,7 +518,7 @@
       }
     },
     "flows.get.all.flows": {
-      "description": "Get All Architect Flows — IVR, inbound call, outbound call, bot, and in-queue flows.",
+      "description": "Get All Architect Flows \u2014 IVR, inbound call, outbound call, bot, and in-queue flows.",
       "endpoint": "flows.get.all.flows",
       "itemsPath": "$.entities",
       "paging": {
@@ -529,7 +529,7 @@
       }
     },
     "flows.get.flow.outcomes": {
-      "description": "Get Flow Outcome Definitions — configurable outcome labels used to classify flow exits.",
+      "description": "Get Flow Outcome Definitions \u2014 configurable outcome labels used to classify flow exits.",
       "endpoint": "flows.get.flow.outcomes",
       "itemsPath": "$.entities",
       "paging": {
@@ -540,7 +540,7 @@
       }
     },
     "flows.get.flow.milestones": {
-      "description": "Get Flow Milestone Definitions — named checkpoints within Architect flows for analytics tracking.",
+      "description": "Get Flow Milestone Definitions \u2014 named checkpoints within Architect flows for analytics tracking.",
       "endpoint": "flows.get.flow.milestones",
       "itemsPath": "$.entities",
       "paging": {
@@ -551,7 +551,7 @@
       }
     },
     "analytics.query.flow.observations": {
-      "description": "Query Flow Observations — real-time Architect flow execution status: oFlow, oFlowDisconnect.",
+      "description": "Query Flow Observations \u2014 real-time Architect flow execution status: oFlow, oFlowDisconnect.",
       "endpoint": "analytics.query.flow.observations",
       "itemsPath": "$.results",
       "paging": {
@@ -738,7 +738,7 @@
       }
     },
     "analytics.query.conversation.aggregates.abandon.metrics": {
-      "description": "Abandon rate aggregates — nAbandoned, tAbandoned, nOffered grouped by queue.",
+      "description": "Abandon rate aggregates \u2014 nAbandoned, tAbandoned, nOffered grouped by queue.",
       "endpoint": "analytics.query.conversation.aggregates.abandon.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -749,7 +749,7 @@
       }
     },
     "analytics.query.queue.aggregates.service.level": {
-      "description": "Service level / SLA aggregates — nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
+      "description": "Service level / SLA aggregates \u2014 nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
       "endpoint": "analytics.query.queue.aggregates.service.level",
       "itemsPath": "$.results",
       "paging": {
@@ -760,7 +760,7 @@
       }
     },
     "analytics.query.conversation.aggregates.transfer.metrics": {
-      "description": "Transfer analysis — nTransferred, nBlindTransferred, nConsultTransferred by queue.",
+      "description": "Transfer analysis \u2014 nTransferred, nBlindTransferred, nConsultTransferred by queue.",
       "endpoint": "analytics.query.conversation.aggregates.transfer.metrics",
       "itemsPath": "$.results",
       "paging": {
@@ -771,7 +771,7 @@
       }
     },
     "analytics.query.conversation.aggregates.wrapup.distribution": {
-      "description": "Wrapup code distribution — nConnected grouped by wrapUpCode and queueId.",
+      "description": "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
       "endpoint": "analytics.query.conversation.aggregates.wrapup.distribution",
       "itemsPath": "$.results",
       "paging": {
@@ -782,7 +782,7 @@
       }
     },
     "analytics.query.conversation.aggregates.digital.channels": {
-      "description": "Digital channel volume trends — nOffered, nConnected, nAbandoned by mediaType.",
+      "description": "Digital channel volume trends \u2014 nOffered, nConnected, nAbandoned by mediaType.",
       "endpoint": "analytics.query.conversation.aggregates.digital.channels",
       "itemsPath": "$.results",
       "paging": {
@@ -793,7 +793,7 @@
       }
     },
     "analytics.query.user.aggregates.login.activity": {
-      "description": "Agent login activity — tOnQueueTime, tOffQueueTime, tIdleTime grouped by userId.",
+      "description": "Agent login activity \u2014 tOnQueueTime, tOffQueueTime, tIdleTime grouped by userId.",
       "endpoint": "analytics.query.user.aggregates.login.activity",
       "itemsPath": "$.results",
       "paging": {
@@ -812,6 +812,130 @@
       },
       "retry": {
         "profile": "rateLimitAware"
+      }
+    },
+    "analytics.get.agent.active.status": {
+      "description": "Real-time active session and routing status for a single agent \u2014 live channel assignments and current state.",
+      "endpoint": "analytics.get.agent.active.status",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "quality.get.agents.activity": {
+      "description": "Per-agent quality evaluation activity \u2014 evaluation counts, highest/average/lowest scores, and per-evaluator breakdown.",
+      "endpoint": "quality.get.agents.activity",
+      "itemsPath": "$.agents",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "quality.get.published.evaluation.forms": {
+      "description": "Published evaluation form catalog \u2014 form definitions used to score agent interactions in QM.",
+      "endpoint": "quality.get.published.evaluation.forms",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "routing.get.skill.groups": {
+      "description": "All routing skill groups with member counts and division assignments \u2014 used to understand agent capability groupings across queues.",
+      "endpoint": "routing.get.skill.groups",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "routing.get.user.utilization": {
+      "description": "Per-agent max utilization settings \u2014 channel capacities that govern how many simultaneous interactions an agent can handle.",
+      "endpoint": "routing.get.user.utilization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "coaching.get.appointments": {
+      "description": "Coaching and development appointments with status, scheduled dates, facilitators, and attendees.",
+      "endpoint": "coaching.get.appointments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "workforce.get.business.units": {
+      "description": "WFM business units \u2014 top-level containers for scheduling, forecasting, and adherence management.",
+      "endpoint": "workforce.get.business.units",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "workforce.get.management.unit.users": {
+      "description": "Agents assigned to a WFM management unit \u2014 the scheduling team roster with user IDs for adherence joins.",
+      "endpoint": "workforce.get.management.unit.users",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "workforce.get.management.unit.adherence": {
+      "description": "Schedule adherence records for all agents in a WFM management unit \u2014 scheduled vs. actual state with variance.",
+      "endpoint": "workforce.get.management.unit.adherence",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.get.reporting.exports": {
+      "description": "Configured analytics reporting export jobs \u2014 schedule, format, and recipient settings for automated report delivery.",
+      "endpoint": "analytics.get.reporting.exports",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "analytics.post.users.details.jobs": {
+      "description": "Async user activity detail job \u2014 submit a large-window user presence and routing-status detail query as a background job.",
+      "endpoint": "analytics.post.users.details.jobs",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "analytics_jobs"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "analytics_jobs"
       }
     }
   },
@@ -1009,7 +1133,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Transcript Aggregates — Speech & Text Analytics metrics by queue/user",
+        "Query Transcript Aggregates \u2014 Speech & Text Analytics metrics by queue/user",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"queueId\",\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nSpeechTextAnalyzedConversations\",\n    \"oSentimentScore\",\n    \"tAgentSpeech\",\n    \"tCustomerSpeech\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -1074,7 +1198,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Aggregates — Agent Performance Metrics grouped by userId",
+        "Query Conversation Aggregates \u2014 Agent Performance Metrics grouped by userId",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tAcw\",\n    \"nOffered\",\n    \"tAnswered\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"queueId\",\n        \"value\": \"queue-id-goes-here\"\n      },\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -1151,7 +1275,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Flow Observations — Real-Time Architect Flow Status",
+        "Query Flow Observations \u2014 Real-Time Architect Flow Status",
         "group: Analytics",
         "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oFlow\"\n  ]\n}"
       ]
@@ -1267,7 +1391,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Abandon rate metrics — tAbandon, tShortAbandon, nOffered grouped by queue",
+        "Abandon rate metrics \u2014 tAbandon, tShortAbandon, nOffered grouped by queue",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"tAbandon\",\n    \"tShortAbandon\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
@@ -1555,7 +1679,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Transfer analysis metrics — nTransferred, nBlindTransferred, nConsultTransferred.",
+        "Transfer analysis metrics \u2014 nTransferred, nBlindTransferred, nConsultTransferred.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"queueId\", \"mediaType\"],\n  \"metrics\": [\"nTransferred\", \"nBlindTransferred\", \"nConsultTransferred\", \"nConnected\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -1658,7 +1782,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query User Observations — Real-Time Queue Membership Status",
+        "Query User Observations \u2014 Real-Time Queue Membership Status",
         "group: Analytics",
         "defaultBody:\n{\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"userId\",\n        \"value\": \"user-id-goes-here\"\n      }\n    ]\n  },\n  \"metrics\": [\n    \"oActiveQueues\",\n    \"oMemberQueues\"\n  ]\n}"
       ]
@@ -1763,7 +1887,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Agent routing status time — tAgentRoutingStatus, tSystemPresence, tOrganizationPresence grouped by userId",
+        "Agent routing status time \u2014 tAgentRoutingStatus, tSystemPresence, tOrganizationPresence grouped by userId",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"userId\"\n  ],\n  \"metrics\": [\n    \"tAgentRoutingStatus\",\n    \"tSystemPresence\",\n    \"tOrganizationPresence\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
@@ -1868,7 +1992,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Query Conversation Activity — Real-Time in-flight conversation metrics",
+        "Query Conversation Activity \u2014 Real-Time in-flight conversation metrics",
         "group: Analytics",
         "defaultBody:\n{\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  },\n  \"metrics\": [\n    {\n      \"metric\": \"oInteracting\"\n    },\n    {\n      \"metric\": \"oWaiting\"\n    },\n    {\n      \"metric\": \"oAlerting\"\n    },\n    {\n      \"metric\": \"oLongestWaiting\"\n    }\n  ]\n}"
       ]
@@ -1905,7 +2029,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Wrapup code distribution — nConnected grouped by wrapUpCode and queueId.",
+        "Wrapup code distribution \u2014 nConnected grouped by wrapUpCode and queueId.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1D\",\n  \"groupBy\": [\"queueId\", \"wrapUpCode\"],\n  \"metrics\": [\"nConnected\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -2005,7 +2129,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Service level / SLA metrics — oServiceLevel, oServiceTarget, nOverSla grouped by queue",
+        "Service level / SLA metrics \u2014 oServiceLevel, oServiceTarget, nOverSla grouped by queue",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-01T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\n    \"queueId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nOffered\",\n    \"nConnected\",\n    \"nOverSla\",\n    \"oServiceLevel\",\n    \"oServiceTarget\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": []\n  }\n}"
       ]
@@ -2028,7 +2152,7 @@
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
-        "Digital channel volume trends — nConnected, nOffered grouped by mediaType.",
+        "Digital channel volume trends \u2014 nConnected, nOffered grouped by mediaType.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2026-03-01T00:00:00.000Z/2026-03-07T23:59:59.999Z\",\n  \"granularity\": \"PT1H\",\n  \"groupBy\": [\"mediaType\", \"queueId\"],\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nAbandoned\", \"tHandle\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
       ]
@@ -23429,7 +23553,7 @@
         "Quality"
       ],
       "summary": "Search evaluations based along specified criteria",
-      "description": "Search Rules:\n1. Time Range\n   - Time Range: Max 3 months (required)\n2. Question Group Level Query: Use at least one field containing 'questionGroup' in name + exactly one questionGroupId\n3. Question Level Query: Use at least one field containing 'question' in name + exactly one questionId\n4. Mixed Queries: questionId alone is sufficient\n5. Search Logic:\n   - Multiple criteria: AND operation\n   - Multiple values per criterion: OR operation\n   EXAMPLE: (agentId₁ OR agentId₂) AND (evaluatorId₁ OR evaluatorId₂)\n5. Aggregations:\n   - Omit or set pageSize = 0\n   - Choose: multiple aggregations OR single aggregation with multiple sub-aggregations\n   - To aggregate against question fields, one must query by either a questionId OR a single top level TERM questionId aggregation AND query by a single formID or questionGroupId, or list of questionIds\n   - To aggregate against question group fields, one must query either a questionId/questionGroupId OR a single top level TERM questionGroupId aggregation AND query by a single formID or list of questionGroupIds\n"
+      "description": "Search Rules:\n1. Time Range\n   - Time Range: Max 3 months (required)\n2. Question Group Level Query: Use at least one field containing 'questionGroup' in name + exactly one questionGroupId\n3. Question Level Query: Use at least one field containing 'question' in name + exactly one questionId\n4. Mixed Queries: questionId alone is sufficient\n5. Search Logic:\n   - Multiple criteria: AND operation\n   - Multiple values per criterion: OR operation\n   EXAMPLE: (agentId\u2081 OR agentId\u2082) AND (evaluatorId\u2081 OR evaluatorId\u2082)\n5. Aggregations:\n   - Omit or set pageSize = 0\n   - Choose: multiple aggregations OR single aggregation with multiple sub-aggregations\n   - To aggregate against question fields, one must query by either a questionId OR a single top level TERM questionId aggregation AND query by a single formID or questionGroupId, or list of questionIds\n   - To aggregate against question group fields, one must query either a questionId/questionGroupId OR a single top level TERM questionGroupId aggregation AND query by a single formID or list of questionGroupIds\n"
     },
     "getQualityEvaluatorsActivity": {
       "method": "GET",
@@ -25087,7 +25211,7 @@
       "tags": [
         "Routing"
       ],
-      "summary": "Retrieve a single benefit assessments job."
+      "summary": "Retrieve a single benefit assessments\u00a0job."
     },
     "getRoutingAssessmentsJobs": {
       "method": "GET",
@@ -35140,7 +35264,7 @@
       "tags": [
         "Workforce Management"
       ],
-      "summary": "Get alternative shifts settings from the current logged in agent’s business unit"
+      "summary": "Get alternative shifts settings from the current logged in agent\u2019s business unit"
     },
     "postWorkforcemanagementAgentschedulesMine": {
       "method": "POST",
@@ -38585,6 +38709,1250 @@
         "Users Rules"
       ],
       "summary": "Get the settings for a specific users rule type"
+    },
+    "analytics.get.agent.active.status": {
+      "method": "GET",
+      "path": "/api/v2/analytics/agents/{userId}/status",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsAgentStatus",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Get an agent and their active sessions by user ID \u2014 real-time channel assignments and routing state.",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      }
+    },
+    "conversations.get.conversation.summaries": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/summaries",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationSummaries",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "AI-generated summaries for a conversation (Copilot/Einstein summary per communication leg).",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/participants/{participantId}/wrapup",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationParticipantWrapup",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Get the wrapup code selected by a specific participant in a conversation.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here",
+        "participantId": "participant-id-goes-here",
+        "provisional": "false"
+      }
+    },
+    "conversations.get.call.detail": {
+      "method": "GET",
+      "path": "/api/v2/conversations/calls/{conversationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsCall",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Full call conversation detail \u2014 participants, recordings, ANI/DNIS, call legs, and hold events.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/categories",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getSpeechandtextanalyticsConversationCategories",
+      "tags": [
+        "Speech and Text Analytics"
+      ],
+      "summary": "Topic and category classifications applied to a conversation by the S&TA engine.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here",
+        "pageSize": "100"
+      }
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/summaries",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getSpeechandtextanalyticsConversationSummaries",
+      "tags": [
+        "Speech and Text Analytics"
+      ],
+      "summary": "AI-generated S&TA summaries for each communication leg of a conversation.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "speechandtextanalytics.get.conversation.transcript.urls": {
+      "method": "GET",
+      "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/communications/{communicationId}/transcripturls",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getSpeechandtextanalyticsConversationCommunicationTranscripturls",
+      "tags": [
+        "Speech and Text Analytics"
+      ],
+      "summary": "Signed download URLs for all transcript formats (JSON, text, VTT) for a communication leg.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here",
+        "communicationId": "communication-id-goes-here"
+      }
+    },
+    "quality.get.conversation.evaluation": {
+      "method": "GET",
+      "path": "/api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getQualityConversationEvaluation",
+      "tags": [
+        "Quality"
+      ],
+      "summary": "Full evaluation record for a specific conversation \u2014 scores, answers, calibration status, and evaluator identity.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here",
+        "evaluationId": "evaluation-id-goes-here",
+        "expand": "agent,evaluator"
+      }
+    },
+    "quality.get.conversation.surveys": {
+      "method": "GET",
+      "path": "/api/v2/quality/conversations/{conversationId}/surveys",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getQualityConversationSurveys",
+      "tags": [
+        "Quality"
+      ],
+      "summary": "Post-interaction CSAT/NPS survey results for a specific conversation.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "quality.get.agents.activity": {
+      "method": "GET",
+      "path": "/api/v2/quality/agents/activity",
+      "itemsPath": "$.agents",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getQualityAgentsActivity",
+      "tags": [
+        "Quality"
+      ],
+      "summary": "Agent evaluation activity summary \u2014 evaluation counts, highest/average/lowest scores, and per-evaluator breakdown.",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1",
+        "sortBy": "name",
+        "expand": "evaluator"
+      }
+    },
+    "quality.get.published.evaluation.forms": {
+      "method": "GET",
+      "path": "/api/v2/quality/publishedforms/evaluations",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getQualityPublishedformsEvaluations",
+      "tags": [
+        "Quality"
+      ],
+      "summary": "All currently published evaluation form definitions \u2014 forms available for use in quality reviews.",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      }
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}/estimatedwaittime",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getRoutingQueueEstimatedwaittime",
+      "tags": [
+        "Routing"
+      ],
+      "summary": "Current estimated wait time (EWT) for a queue \u2014 real-time caller wait forecast in seconds.",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here"
+      }
+    },
+    "routing.get.queue.estimated.wait.time.by.media": {
+      "method": "GET",
+      "path": "/api/v2/routing/queues/{queueId}/mediatypes/{mediaType}/estimatedwaittime",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getRoutingQueueMediatypeEstimatedwaittime",
+      "tags": [
+        "Routing"
+      ],
+      "summary": "Estimated wait time for a queue scoped to a specific media type (voice, chat, email, callback).",
+      "defaultQueryParams": {
+        "queueId": "queue-id-goes-here",
+        "mediaType": "voice"
+      }
+    },
+    "routing.get.skill.groups": {
+      "method": "GET",
+      "path": "/api/v2/routing/skillgroups",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "operationId": "getRoutingSkillgroups",
+      "tags": [
+        "Routing"
+      ],
+      "summary": "All routing skill groups \u2014 named groupings of agents by skill profile used for preferred agent routing.",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "name": ""
+      }
+    },
+    "routing.get.skill.group.members": {
+      "method": "GET",
+      "path": "/api/v2/routing/skillgroups/{skillGroupId}/members",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "operationId": "getRoutingSkillgroupMembers",
+      "tags": [
+        "Routing"
+      ],
+      "summary": "Agents assigned to a specific skill group.",
+      "defaultQueryParams": {
+        "skillGroupId": "skill-group-id-goes-here",
+        "pageSize": "100"
+      }
+    },
+    "routing.get.user.utilization": {
+      "method": "GET",
+      "path": "/api/v2/routing/users/{userId}/utilization",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getRoutingUserUtilization",
+      "tags": [
+        "Routing"
+      ],
+      "summary": "Per-agent utilization settings \u2014 per-channel maximum concurrent interaction counts. Falls back to org default if not customised.",
+      "defaultQueryParams": {
+        "userId": "user-id-goes-here"
+      }
+    },
+    "authorization.get.division.grants": {
+      "method": "GET",
+      "path": "/api/v2/authorization/divisions/{divisionId}/grants",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getAuthorizationDivisionGrants",
+      "tags": [
+        "Authorization",
+        "Objects"
+      ],
+      "summary": "Access control grants assigned to a division \u2014 subjects (users/roles) and their granted permissions within this division.",
+      "defaultQueryParams": {
+        "divisionId": "division-id-goes-here",
+        "pageSize": "100",
+        "pageNumber": "1"
+      }
+    },
+    "workforce.get.business.units": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/businessunits",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementBusinessunits",
+      "tags": [
+        "WorkforceManagement"
+      ],
+      "summary": "All WFM business units \u2014 top-level scheduling and forecasting containers spanning management units.",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      }
+    },
+    "workforce.get.agent.management.unit": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/agents/{agentId}/managementunit",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementAgentManagementunit",
+      "tags": [
+        "WorkforceManagement"
+      ],
+      "summary": "The WFM management unit an agent belongs to \u2014 used to locate the agent's schedule, adherence, and WFM team.",
+      "defaultQueryParams": {
+        "agentId": "user-id-goes-here"
+      }
+    },
+    "workforce.get.management.unit.users": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/managementunits/{managementUnitId}/users",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementManagementunitUsers",
+      "tags": [
+        "WorkforceManagement"
+      ],
+      "summary": "All agents in a WFM management unit \u2014 the full scheduling-team roster.",
+      "defaultQueryParams": {
+        "managementUnitId": "management-unit-id-goes-here",
+        "pageSize": "100",
+        "pageNumber": "1"
+      }
+    },
+    "workforce.get.management.unit.adherence": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/managementunits/{managementUnitId}/adherence",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementManagementunitAdherence",
+      "tags": [
+        "WorkforceManagement"
+      ],
+      "summary": "Schedule adherence for all agents in a management unit \u2014 actual vs. scheduled state with variance minutes.",
+      "defaultQueryParams": {
+        "managementUnitId": "management-unit-id-goes-here"
+      }
+    },
+    "workforce.get.adherence.bulk": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/adherence",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementAdherence",
+      "tags": [
+        "WorkforceManagement"
+      ],
+      "summary": "Bulk schedule adherence for a list of user IDs \u2014 scheduled vs. actual routing status with adherence percentage.",
+      "defaultQueryParams": {
+        "userId": "user-id-1,user-id-2,user-id-3"
+      }
+    },
+    "coaching.get.appointments": {
+      "method": "GET",
+      "path": "/api/v2/coaching/appointments",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getCoachingAppointments",
+      "tags": [
+        "Coaching"
+      ],
+      "summary": "All coaching appointments \u2014 session details, attendees, status (Scheduled/Completed/Cancelled), and associated documents.",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1",
+        "sortBy": "startTime",
+        "interval": "",
+        "statuses": "Scheduled,InProgress,Completed"
+      }
+    },
+    "analytics.post.users.details.jobs": {
+      "method": "POST",
+      "path": "/api/v2/analytics/users/details/jobs",
+      "itemsPath": "$",
+      "pagingProfile": "analytics_jobs",
+      "retryProfile": "default",
+      "operationId": "postAnalyticsUsersDetailsJobs",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Submit async user presence and routing-status detail job \u2014 use for large time-window agent activity analysis.",
+      "notes": [
+        "defaultBody:\n{\n  \"interval\": \"2026-04-01T00:00:00.000Z/2026-04-30T23:59:59.999Z\",\n  \"userFilters\": [\n    {\n      \"type\": \"or\",\n      \"predicates\": [\n        {\n          \"dimension\": \"userId\",\n          \"value\": \"user-id-goes-here\"\n        }\n      ]\n    }\n  ]\n}"
+      ],
+      "transactionProfile": "analytics_jobs"
+    },
+    "analytics.get.user.details.job.status": {
+      "method": "GET",
+      "path": "/api/v2/analytics/users/details/jobs/{jobId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsUsersDetailsJob",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Poll status of an async user details job \u2014 returns QUEUED, RUNNING, FULFILLED, or FAILED.",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      }
+    },
+    "analytics.get.user.details.job.results": {
+      "method": "GET",
+      "path": "/api/v2/analytics/users/details/jobs/{jobId}/results",
+      "itemsPath": "$.userDetails",
+      "pagingProfile": "analytics_jobs_results",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsUsersDetailsJobResults",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Fetch paged results from a completed user details job \u2014 cursor-paged user presence and routing-status segments.",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here",
+        "pageSize": "100"
+      }
+    },
+    "analytics.get.reporting.exports": {
+      "method": "GET",
+      "path": "/api/v2/analytics/reporting/exports",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsReportingExports",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "All configured analytics reporting export jobs \u2014 schedule, format (CSV/PDF), recipients, and last-run status.",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      }
+    }
+  },
+  "combinations": {
+    "_description": "Named investigation recipes and reporting playbooks \u2014 composed sequences of catalog datasets for specific analytical goals. Each recipe documents dataset order, join keys, diagnostic signals, and the executive metrics it surfaces. Recipes are consumed by Genesys.Ops investigation cmdlets and by application-layer reporting pipelines.",
+    "investigationRecipes": {
+      "single-conversation-investigation": {
+        "description": "Complete forensic investigation of one conversation \u2014 identity, timeline, recordings, wrapup, S&TA sentiment/categories, evaluations, and CSAT survey. Used by QA analysts, supervisors, and voice engineers to understand everything that happened in a single interaction.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "description": "Full participant and segment timeline with all duration metrics (tTalk, tHeld, tAcw, tHandle)"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
+            "description": "Base conversation object with media type, state, and full participant roster"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant",
+            "description": "Wrapup code selected by each agent; requires iterating over agent participants from the seed"
+          },
+          {
+            "step": "call-detail",
+            "dataset": "conversations.get.call.detail",
+            "joinKey": "conversationId",
+            "provides": "callLeg details, hold events, ANI/DNIS routing path",
+            "description": "Voice-specific call detail including all hold/mute/transfer events and DNIS routing path"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus, policyName",
+            "description": "Recording metadata \u2014 confirms recording was captured; links to archival policy"
+          },
+          {
+            "step": "recordings",
+            "dataset": "conversations.get.recordings",
+            "joinKey": "conversationId",
+            "provides": "downloadURL, recordingType, mediaType",
+            "description": "Actual recording objects with signed download URLs"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
+            "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
+          },
+          {
+            "step": "sta-categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "categoryName, score, matched topics",
+            "description": "Topic and category classifications applied to the conversation by the S&TA engine"
+          },
+          {
+            "step": "sta-summaries",
+            "dataset": "speechandtextanalytics.get.conversation.summaries.detail",
+            "joinKey": "conversationId",
+            "provides": "AI summary text per communication leg",
+            "description": "AI-generated summaries for each leg \u2014 useful for rapid content review without listening"
+          },
+          {
+            "step": "transcript-urls",
+            "dataset": "speechandtextanalytics.get.conversation.communication.transcripturl",
+            "joinKey": "conversationId+communicationId",
+            "provides": "signedTranscriptDownloadUrl",
+            "description": "Signed transcript download URL per communication leg (requires communicationId from seed)"
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution",
+            "description": "Copilot/Agent Assist AI summaries \u2014 reason for contact and resolution notes"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId, calibrated",
+            "description": "Quality evaluation scores; filter by conversationId in the query parameters"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction customer satisfaction survey results"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
+            "description": "Raw SIP signalling log \u2014 critical for trunk routing diagnosis and call failure forensics"
+          }
+        ],
+        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
+        "voiceEngineerHighlights": [
+          "sip-trace: SIP 486/503/487 responses reveal trunk capacity or routing-rule failure",
+          "call-detail: DNIS value vs. expected queue DNIS confirms correct routing table entry",
+          "recording-metadata: absent recording (empty result) indicates edge policy or consent gap",
+          "sta-overview: extreme sentiment + silence > 30% flags CX issue for QM escalation",
+          "analytics-detail: tTalkComplete=0 with tAbandon>0 confirms abandoned before agent answer"
+        ],
+        "executiveMetrics": [
+          "tTalk",
+          "tAcw",
+          "tHandle",
+          "tHeld",
+          "agentSentimentScore",
+          "customerSentimentScore",
+          "evaluationScore",
+          "csatScore",
+          "wrapUpCode"
+        ]
+      },
+      "agent-investigation": {
+        "description": "Multi-dimensional investigation of a single agent \u2014 identity, division, skills, queue memberships, conversation history, performance aggregates, quality scores, adherence, and coaching. Used for performance reviews, PIPs, and escalation root-cause. Divisions are the cross-queue grouping unit: an agent's divisionId ties them to queues across the organisation regardless of queue configuration.",
+        "subjectParam": "userId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "identity",
+            "dataset": "users",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, email, state, department, manager, station",
+            "description": "Agent identity with presence, routing status, and conversation summary"
+          },
+          {
+            "step": "division",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId",
+            "joinKey": "id",
+            "provides": "division.id, division.name, location.name",
+            "description": "Division assignment \u2014 the primary cross-queue grouping for this agent"
+          },
+          {
+            "step": "skills",
+            "dataset": "users.get.user.s.routing.skills",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "skillName, proficiencyRating",
+            "description": "All routing skills assigned to the agent with proficiency levels"
+          },
+          {
+            "step": "queue-memberships",
+            "dataset": "users.get.user.s.queue.memberships",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "queueId, queueName, joined, divisionId",
+            "description": "Queues the agent is a member of \u2014 spans all divisions"
+          },
+          {
+            "step": "utilization",
+            "dataset": "routing.get.user.utilization",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "maxCapacity per mediaType",
+            "description": "Per-channel concurrency limits \u2014 how many simultaneous chats/calls/emails this agent can handle"
+          },
+          {
+            "step": "presence-activity",
+            "dataset": "analytics.query.user.details.activity.report",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "presenceSegments, routingStatusSegments, loginEvents, tOnQueue, tOffQueue",
+            "description": "Presence and routing-status segments over the investigation window"
+          },
+          {
+            "step": "performance-aggregates",
+            "dataset": "analytics.query.user.aggregates.performance.metrics",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw, tAnswered",
+            "description": "Aggregated performance metrics for the window; group by userId for per-agent view"
+          },
+          {
+            "step": "conversations",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participantUserId",
+            "joinKey": "userId",
+            "provides": "conversationId, queueId, wrapUpCode, tTalk, tHandle, mediaType",
+            "description": "All conversations the agent participated in during the window"
+          },
+          {
+            "step": "real-time-status",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "oUserPresence, oUserRoutingStatus, oActiveQueues",
+            "description": "Current presence and routing status \u2014 point-in-time only"
+          },
+          {
+            "step": "active-sessions",
+            "dataset": "analytics.get.agent.active.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "activeChannels, currentConversationIds",
+            "description": "Live active session detail \u2014 what channels this agent is handling right now"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "agentUserId",
+            "joinKey": "userId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId, conversationId",
+            "description": "Quality evaluations received in the window; join to conversations on conversationId"
+          },
+          {
+            "step": "qa-activity-summary",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "agentUserId",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore, highScore, lowScore, perEvaluatorBreakdown",
+            "description": "Aggregate QA activity summary \u2014 faster than iterating individual evaluations for totals"
+          },
+          {
+            "step": "wfm-management-unit",
+            "dataset": "workforce.get.agent.management.unit",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "managementUnitId, managementUnitName, businessUnitId",
+            "description": "WFM team membership \u2014 used to retrieve schedule and adherence data"
+          },
+          {
+            "step": "adherence",
+            "dataset": "workforce.get.adherence.bulk",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "adherenceState, adherencePct, impact, scheduledActivityCategory",
+            "description": "Current schedule adherence \u2014 scheduled vs. actual state with variance"
+          },
+          {
+            "step": "coaching",
+            "dataset": "coaching.get.appointments",
+            "filterBy": "agentId",
+            "joinKey": "userId",
+            "provides": "appointmentDate, status, facilitatorId, topic",
+            "description": "Coaching and development sessions for the agent in the window"
+          }
+        ],
+        "joinSequence": "seed (identity) \u2192 division (id) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
+        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.search.division.objects with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
+        "executiveMetrics": [
+          "nConnected",
+          "tHandle (avg)",
+          "tTalk (avg)",
+          "tAcw (avg)",
+          "adherencePct",
+          "evalAvgScore",
+          "criticalItemFailCount",
+          "coachingSessionCount",
+          "presenceUtilisationPct"
+        ]
+      },
+      "queue-investigation": {
+        "description": "End-to-end investigation of a queue \u2014 configuration, membership, real-time health, EWT, historical SLA, abandons, transfers, wrapup distribution, and per-agent performance within the queue. Covers both the current moment and a historical window.",
+        "subjectParam": "queueId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "queue-config",
+            "dataset": "routing-queues",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, divisionId, mediaSettings, acwSettings, scoringMethod",
+            "description": "Queue configuration \u2014 routing settings, ACW timeout, and scoring method"
+          },
+          {
+            "step": "wrapup-codes",
+            "dataset": "routing.get.queue.wrapup.codes",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "wrapUpCode catalog for this queue",
+            "description": "Valid wrapup codes assigned to this queue \u2014 used to decode wrapup distribution"
+          },
+          {
+            "step": "members",
+            "dataset": "routing.get.queue.members.with.status",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "userId, routingStatus, presence, conversationSummary",
+            "description": "All queue members with live routing status and presence"
+          },
+          {
+            "step": "real-time-observations",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oAlerting",
+            "description": "Live queue counters \u2014 interacting, waiting, alerting, and on/off-queue agent counts"
+          },
+          {
+            "step": "estimated-wait-time",
+            "dataset": "routing.get.queue.estimated.wait.time",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "estimatedWaitTimeSeconds by mediaType",
+            "description": "Real-time EWT \u2014 caller wait forecast; compare to SLA target for immediate action trigger"
+          },
+          {
+            "step": "agent-real-time",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "per-agent oUserPresence, oUserRoutingStatus",
+            "description": "Live per-agent presence and routing status within this queue"
+          },
+          {
+            "step": "performance",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered",
+            "description": "Historical handle/talk/ACW metrics grouped by queue and media type"
+          },
+          {
+            "step": "sla",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nOverSla, oServiceLevel, oServiceTarget, nOffered",
+            "description": "Service level / SLA compliance \u2014 % answered within target threshold"
+          },
+          {
+            "step": "abandons",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nAbandoned, tAbandon, tShortAbandon, nOffered",
+            "description": "Abandon volume and timing \u2014 short abandons may indicate IVR issues, long abandons indicate understaffing"
+          },
+          {
+            "step": "transfers",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nTransferred, nBlindTransferred, nConsultTransferred",
+            "description": "Transfer analysis \u2014 high blind transfers may indicate agents routing around queue rules"
+          },
+          {
+            "step": "wrapup-distribution",
+            "dataset": "analytics.query.conversation.aggregates.wrapup.distribution",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nConnected by wrapUpCode",
+            "description": "Wrapup code frequency \u2014 reveals call reason distribution and potential mis-classification"
+          },
+          {
+            "step": "conversations",
+            "dataset": "analytics.query.conversation.details.by.queue",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "conversationId, agentId, wrapUpCode, tTalk, tHandle",
+            "description": "Full conversation list for the queue in the window \u2014 seed for per-conversation drilldown"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "evaluationScore per agent and conversation",
+            "description": "Quality evaluations for conversations that touched this queue"
+          }
+        ],
+        "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution",
+        "executiveMetrics": [
+          "nOffered",
+          "nConnected",
+          "nAbandoned",
+          "abandonRate%",
+          "serviceLevelPct",
+          "avgHandleTime",
+          "avgTalkTime",
+          "avgAcwTime",
+          "transferRate%",
+          "estWaitTimeSecs",
+          "oOnQueueUsers",
+          "oWaiting"
+        ]
+      },
+      "division-investigation": {
+        "description": "Cross-queue analysis scoped to a division. Divisions are the primary organisational grouping in Genesys Cloud \u2014 agents assigned to a division serve queues in that division, even if those queues span different functional areas. Use this recipe to produce territory/region or business-unit level executive reporting.",
+        "subjectParam": "divisionId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "division-detail",
+            "dataset": "authorization.get.all.divisions",
+            "role": "seed",
+            "filterBy": "divisionId",
+            "joinKey": "id",
+            "provides": "name, description, homeDivision flag",
+            "description": "Division metadata \u2014 name and description"
+          },
+          {
+            "step": "division-queues",
+            "dataset": "authorization.search.division.objects",
+            "filterBy": "divisionId",
+            "queryParam": "objectType=QUEUE",
+            "joinKey": "divisionId",
+            "provides": "queueId list within this division",
+            "description": "All queues assigned to this division \u2014 drives all queue-scoped aggregates below"
+          },
+          {
+            "step": "division-agents",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "userId list with name, email, state",
+            "description": "All agents whose primary division is this one \u2014 spans all queue memberships"
+          },
+          {
+            "step": "division-grants",
+            "dataset": "authorization.get.division.grants",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "subjectId, subjectType, roleId, grantMadeAt",
+            "description": "Access control grants in this division \u2014 who has what permissions here"
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.user.aggregates.performance.metrics",
+            "filterBy": "divisionId (via userId list from division-agents)",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per agent",
+            "description": "Performance aggregates for all agents in the division over the window"
+          },
+          {
+            "step": "conversation-aggregates-by-division",
+            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
+            "description": "Division-level conversation volume and handle-time aggregates \u2014 use as the KPI rollup"
+          },
+          {
+            "step": "queue-performance-by-division",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId list from division-queues",
+            "joinKey": "queueId",
+            "provides": "SLA, abandon, handle metrics per queue",
+            "description": "Queue-level metrics for all queues in the division \u2014 drives per-queue drilldown"
+          },
+          {
+            "step": "quality-by-division",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "agentUserId list from division-agents",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore per agent in division",
+            "description": "Quality scores for all agents in the division"
+          }
+        ],
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "executiveMetrics": [
+          "nOffered (division total)",
+          "nConnected",
+          "tHandle (division avg)",
+          "serviceLevelPct (weighted)",
+          "abandonRate%",
+          "evalAvgScore",
+          "agentCount",
+          "queueCount"
+        ]
+      }
+    },
+    "executiveReportingPlaybooks": {
+      "service-level-and-abandon-kpis": {
+        "description": "Weekly/monthly SLA health \u2014 service level %, abandon rate, and volume trends grouped by queue. The primary input for executive contact-centre dashboards.",
+        "datasetsInOrder": [
+          "routing-queues",
+          "analytics.query.queue.aggregates.service.level",
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "queueId",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "mediaType"
+        ],
+        "granularity": "PT1H or P1D",
+        "outputMetrics": [
+          "nOffered",
+          "nConnected",
+          "nAbandoned",
+          "abandonRate% = nAbandoned / nOffered",
+          "serviceLevelPct = 1 - (nOverSla / nOffered)",
+          "avgHandleTime = tHandle / nConnected",
+          "avgTalkTime = tTalk / nConnected",
+          "avgAcwTime = tAcw / nConnected"
+        ],
+        "executivePresentation": "KPI cards: Service Level %, Abandon Rate %, Volume, AHT"
+      },
+      "agent-performance-scorecard": {
+        "description": "Per-agent handle time, volume, and quality scores across all queues in a division. Used in monthly agent scorecards, performance reviews, and PIP tracking.",
+        "datasetsInOrder": [
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.user.aggregates.performance.metrics",
+          "analytics.query.conversation.aggregates.agent.performance",
+          "quality.get.agents.activity",
+          "coaching.get.appointments"
+        ],
+        "joinOn": "userId",
+        "groupBy": [
+          "userId",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "nConnected",
+          "tHandle (avg)",
+          "tTalk (avg)",
+          "tAcw (avg)",
+          "evalCount",
+          "evalAvgScore",
+          "criticalItemFailCount",
+          "coachingSessionCount (in window)"
+        ],
+        "executivePresentation": "Sortable agent scorecard table; highlight outliers on AHT and eval score"
+      },
+      "wrapup-and-transfer-analysis": {
+        "description": "Wrapup code distribution and transfer rates \u2014 reveals mis-classification, escalation patterns, and call routing gaps. High value for CX strategy and routing optimisation.",
+        "datasetsInOrder": [
+          "routing.get.all.wrapup.codes",
+          "analytics.query.conversation.aggregates.wrapup.distribution",
+          "analytics.query.conversation.aggregates.transfer.metrics"
+        ],
+        "joinOn": "queueId",
+        "groupBy": [
+          "queueId",
+          "wrapUpCode"
+        ],
+        "outputMetrics": [
+          "nConnected by wrapUpCode (distribution %)",
+          "nTransferred",
+          "nBlindTransferred",
+          "nConsultTransferred",
+          "transferRate% = nTransferred / nConnected",
+          "blindTransferRate% = nBlindTransferred / nTransferred"
+        ],
+        "executivePresentation": "Wrapup pie chart + transfer type bar chart per queue; flag queues with blind transfer > 20%"
+      },
+      "quality-and-csat-summary": {
+        "description": "QM rollup \u2014 evaluation scores and CSAT/NPS completion rates per agent and queue. Feeds quality management dashboards and calibration sessions.",
+        "datasetsInOrder": [
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "quality.get.surveys"
+        ],
+        "joinOn": "agentUserId or conversationId",
+        "groupBy": [
+          "agentUserId",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "evalCount",
+          "avgEvaluationScore%",
+          "criticalItemFailRate%",
+          "surveyCompletionRate%",
+          "avgCsatScore (1\u20135)",
+          "avgNpsScore (0\u201310)"
+        ],
+        "executivePresentation": "QM trend line + agent ranking table; highlight critical-item failures and low CSAT"
+      },
+      "speech-text-analytics-sentiment-trends": {
+        "description": "Org-wide sentiment and topic trends for voice channels. Identifies rising negativity, compliance-risk conversations, and topic spikes that require targeted coaching or process changes.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.transcripts",
+          "speechandtextanalytics.get.topics",
+          "analytics.post.transcripts.aggregates.query"
+        ],
+        "joinOn": "queueId or userId",
+        "groupBy": [
+          "queueId",
+          "userId",
+          "topicId"
+        ],
+        "outputMetrics": [
+          "nAnalyzedConversations",
+          "avgAgentSentimentScore",
+          "avgCustomerSentimentScore",
+          "sentimentTrend (week-over-week)",
+          "topTopics (by frequency)",
+          "silencePct (avg)",
+          "overtalkPct (avg)"
+        ],
+        "executivePresentation": "Sentiment trend chart + topic frequency heat map; flag topics with negative sentiment correlation"
+      },
+      "digital-channel-volume-and-sla": {
+        "description": "Omni-channel volume breakdown \u2014 compare voice, chat, email, and messaging workloads for capacity planning and SLA compliance reporting across all media types.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.digital.channels",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "queueId",
+        "groupBy": [
+          "mediaType",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "nOffered by mediaType",
+          "nConnected by mediaType",
+          "nAbandoned by mediaType",
+          "tHandle by mediaType",
+          "mediaTypeMix% (voice vs. digital)"
+        ],
+        "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+      },
+      "wfm-adherence-and-occupancy": {
+        "description": "Workforce adherence and occupancy \u2014 scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",
+        "datasetsInOrder": [
+          "workforce.get.business.units",
+          "workforce.get.management.units",
+          "workforce.get.management.unit.users",
+          "workforce.get.management.unit.adherence",
+          "analytics.query.user.aggregates.login.activity"
+        ],
+        "joinOn": "managementUnitId \u2192 userId",
+        "groupBy": [
+          "managementUnitId",
+          "userId"
+        ],
+        "outputMetrics": [
+          "adherencePct% (scheduled vs. actual)",
+          "tOnQueueTime",
+          "tOffQueueTime",
+          "tIdleTime",
+          "scheduleVarianceMinutes",
+          "occupancyPct = tInteracting / tOnQueue"
+        ],
+        "executivePresentation": "Adherence heat map by management unit + individual agent variance table"
+      },
+      "outbound-campaign-performance": {
+        "description": "Outbound dialer campaign reach rates, contact dispositions, and messaging engagement. Feeds campaign ROI reporting and list penetration tracking.",
+        "datasetsInOrder": [
+          "outbound.get.campaigns",
+          "outbound.get.contact.lists",
+          "outbound.get.events",
+          "outbound.get.messaging.campaigns"
+        ],
+        "joinOn": "campaignId",
+        "groupBy": [
+          "campaignId"
+        ],
+        "outputMetrics": [
+          "contactsDialed",
+          "rightPartyContactRate%",
+          "dispositionCounts (by outcome)",
+          "messagingDeliveryRate%",
+          "campaignCompletionPct%"
+        ],
+        "executivePresentation": "Campaign funnel chart + disposition breakdown pie"
+      },
+      "flow-and-ivr-performance": {
+        "description": "Architect IVR and bot flow execution metrics \u2014 outcome success rates, milestone completion, and self-service containment. Informs IVR design and bot deflection ROI.",
+        "datasetsInOrder": [
+          "flows.get.all.flows",
+          "flows.get.flow.outcomes",
+          "flows.get.flow.milestones",
+          "analytics.query.flow.aggregates.execution.metrics"
+        ],
+        "joinOn": "flowId",
+        "groupBy": [
+          "flowId",
+          "flowType"
+        ],
+        "outputMetrics": [
+          "nFlow (total executions)",
+          "nFlowOutcome (successful exits)",
+          "nFlowOutcomeFailed (failed exits)",
+          "containmentRate% = nFlowOutcome / nFlow",
+          "nFlowMilestone (key-step completion counts)"
+        ],
+        "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      }
+    },
+    "voiceEngineerPlaybooks": {
+      "single-call-forensics": {
+        "description": "Deep-dive into one call to diagnose quality issues, misrouting, recording gaps, or unexpected disconnects. The go-to playbook for a customer escalation or complaint.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "analytics.get.single.conversation.analytics",
+          "conversations.get.specific.conversation.details",
+          "conversations.get.call.detail",
+          "telephony.get.sip.message.for.conversation",
+          "conversations.get.recordings",
+          "conversations.get.conversation.recording.metadata",
+          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+        ],
+        "diagnosticSignals": [
+          "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
+          "SIP 503 Service Unavailable \u2192 edge or trunk provider outage",
+          "SIP 487 Request Terminated \u2192 caller hung up before answer (confirmed abandon)",
+          "SIP 4xx on INVITE with wrong DNIS \u2192 routing table misconfiguration",
+          "tTalkComplete=0 + tAbandon>0 in analytics \u2192 caller abandoned in queue before agent",
+          "recording absent (empty result from conversations.get.recordings) \u2192 edge recording policy or consent flag missing",
+          "sentimentScore < -0.5 \u2192 severe CX impact; escalate to QM for evaluation priority",
+          "ANI displayed as 'Anonymous' \u2192 CLI blocking active on inbound DID",
+          "originatingDirection=outbound on inbound DID \u2192 DNIS routing to wrong queue direction"
+        ],
+        "enrichWith": [
+          "users (for agent identity given userId from analytics-detail participants)",
+          "quality.get.evaluations.query (for evaluation if one exists)"
+        ]
+      },
+      "trunk-and-edge-health-check": {
+        "description": "SIP infrastructure health snapshot \u2014 edge appliance status, trunk utilisation, active call load, and station registration. Used for proactive monitoring and incident response.",
+        "datasetsInOrder": [
+          "telephony.get.edges",
+          "telephony.get.trunks",
+          "telephony.get.trunk.metrics.summary",
+          "stations.get.stations",
+          "conversations.get.active.calls"
+        ],
+        "diagnosticSignals": [
+          "Edge statusCode != 'ACTIVE' \u2192 failover condition; check edge firmware and network path",
+          "Trunk inService=false \u2192 provider circuit down or PSTN gateway misconfiguration",
+          "trunk.currentCalls / trunk.maxConcurrentCalls > 0.85 \u2192 capacity saturation risk",
+          "Stations with registered=false spike \u2192 network or DNS issue affecting softphone registration",
+          "Active calls vs. trunk maxConcurrentCalls \u2192 concurrent call ceiling proximity",
+          "Edge with onlineStatus=DISCONNECTED \u2192 peer connection lost; check management network"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (check for active telephony alerts)",
+          "alerting.get.rules (confirm alerting thresholds are configured for trunk capacity)"
+        ]
+      },
+      "queue-saturation-and-staffing-analysis": {
+        "description": "Real-time and near-real-time analysis of queue congestion \u2014 waiting callers, on-queue agents, EWT, and historical abandon trends. Used when a queue is hot and supervisors need to act within minutes.",
+        "subjectParam": "queueId",
+        "datasetsInOrder": [
+          "analytics.query.queue.observations.real.time.stats",
+          "routing.get.queue.estimated.wait.time",
+          "routing.get.queue.members.with.status",
+          "analytics.query.user.observations.real.time.status",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.conversation.aggregates.abandon.metrics"
+        ],
+        "diagnosticSignals": [
+          "oWaiting > 0 + oOnQueueUsers = 0 \u2192 no agents staffed; escalate immediately",
+          "oOffQueueUsers high relative to oOnQueueUsers \u2192 agents logged in but not ready (presence audit needed)",
+          "EWT > SLA target \u2192 real-time staffing intervention required",
+          "nAbandoned spike in last hour \u2192 callers abandoning; correlate with EWT to confirm cause",
+          "oInteracting / oOnQueueUsers > 0.9 \u2192 agents fully occupied; queue will build",
+          "presence = 'On Queue' but routingStatus = 'NOT_RESPONDING' \u2192 ghost agents; check station registration"
+        ],
+        "enrichWith": [
+          "users (to resolve userId to name for supervisor view)",
+          "analytics.query.user.aggregates.login.activity (to confirm agents are genuinely on-shift)",
+          "workforce.get.management.unit.adherence (to see if off-queue agents are on a scheduled break)"
+        ]
+      },
+      "flow-and-ivr-diagnostics": {
+        "description": "Architect IVR and bot flow execution health \u2014 identifying flows with high failure rates, stuck executions, or unexpected exit paths. Used for post-deployment validation and incident root-cause on self-service outages.",
+        "datasetsInOrder": [
+          "flows.get.all.flows",
+          "flows.get.flow.outcomes",
+          "flows.get.flow.milestones",
+          "analytics.query.flow.aggregates.execution.metrics",
+          "analytics.query.flow.observations"
+        ],
+        "diagnosticSignals": [
+          "nFlowOutcomeFailed spike \u2192 IVR routing error, missing menu option, or backend API timeout",
+          "nFlowMilestone count lower than baseline \u2192 callers abandoning mid-flow (check hold music / wait prompts)",
+          "oFlow high with zero queue activity \u2192 calls stuck in flow loop or dead-end branch",
+          "Flow outcome = 'Default Exit' > 5% \u2192 unmatched input causing fallthrough to default branch",
+          "Bot flow nFlowOutcomeFailed / nFlow > 0.10 \u2192 NLU intent model degradation; retest utterances",
+          "nFlow drop without corresponding queue drop \u2192 calls not reaching the flow (DID routing issue)"
+        ],
+        "enrichWith": [
+          "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
+          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+        ]
+      },
+      "recording-compliance-audit": {
+        "description": "Verify recording coverage across a queue or agent \u2014 confirm recordings are being captured per policy. Used for compliance audits and archival verification.",
+        "subjectParam": "queueId or agentUserId",
+        "datasetsInOrder": [
+          "analytics.query.conversation.details.by.queue",
+          "conversations.get.recordings",
+          "conversations.get.conversation.recording.metadata"
+        ],
+        "derivedMetric": "recordingCoverageRate% = conversationsWithRecordings / totalConnectedConversations",
+        "diagnosticSignals": [
+          "conversationId in details but absent from recordings \u2192 recording policy not triggering; check queue recording rules",
+          "recording.fileState = 'ERROR' \u2192 edge storage issue or retention policy conflict",
+          "recording.mediaType != conversation.mediaType \u2192 wrong recording profile applied",
+          "archiveDate in past with no archiveDestination \u2192 archival export job misconfigured",
+          "recording.duration << conversation.tTalk \u2192 recording stopped early (agent disconnection or hold gap)"
+        ],
+        "enrichWith": [
+          "audit-logs (filter by service=Recording to see policy change events)",
+          "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      }
     }
   }
 }

@@ -145,6 +145,7 @@
         'Get-GenesysQueueHealthSnapshot'
         'Get-GenesysAgentQualitySnapshot'
         'Invoke-GenesysOperationsReport'
+        'Invoke-GenesysNotRespondingReport'
 
         # Idea 27 — Peak Hour Load Analysis
         'Get-GenesysPeakHourLoad'

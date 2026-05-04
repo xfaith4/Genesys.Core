@@ -59,16 +59,31 @@ $xaml = @'
     </Border>
 
     <Grid DockPanel.Dock="Left" Width="360" Margin="10">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="*"/>
-      </Grid.RowDefinitions>
-      <TextBlock Grid.Row="0" Text="Catalog datasets" FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
-      <TextBlock Grid.Row="1" Name="TxtCatalogCount" Foreground="#64748B" Margin="0,0,0,6" Text=""/>
-      <TextBox Grid.Row="2" Name="TxtFilter" Height="26" Margin="0,0,0,8" VerticalContentAlignment="Center" ToolTip="Filter by key, group, endpoint, or description"/>
-      <ListBox Grid.Row="3" Name="LstDatasets" DisplayMemberPath="Display"/>
+      <TabControl Name="TabSidebar">
+        <TabItem Header="Datasets" Name="TabSideDatasets">
+          <Grid Margin="4,8,4,4">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Name="TxtCatalogCount" Foreground="#64748B" Margin="0,0,0,6" Text=""/>
+            <TextBox Grid.Row="1" Name="TxtFilter" Height="26" Margin="0,0,0,8" VerticalContentAlignment="Center" ToolTip="Filter by key, group, endpoint, or description"/>
+            <ListBox Grid.Row="2" Name="LstDatasets" DisplayMemberPath="Display"/>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Reports" Name="TabSideReports">
+          <Grid Margin="4,8,4,4">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Foreground="#64748B" Margin="0,0,0,8" TextWrapping="Wrap"
+                       Text="Composed investigations across multiple datasets. Each report runs an Ops cmdlet that joins data the API can't filter natively."/>
+            <ListBox Grid.Row="1" Name="LstReports" DisplayMemberPath="Display"/>
+          </Grid>
+        </TabItem>
+      </TabControl>
     </Grid>
 
     <Grid Margin="10">
@@ -83,11 +98,40 @@ $xaml = @'
       <TextBlock Grid.Row="0" Name="TxtDatasetTitle" FontWeight="Bold" FontSize="15" Text="Select a dataset to begin"/>
       <TextBlock Grid.Row="1" Name="TxtDatasetMeta" Foreground="#475569" Margin="0,4,0,10" TextWrapping="Wrap"/>
 
-      <GroupBox Grid.Row="2" Header="Dataset parameters (JSON)">
-        <TextBox Name="TxtParams" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                 FontFamily="Consolas" FontSize="12" Padding="6"/>
-      </GroupBox>
+      <Grid Grid.Row="2">
+        <GroupBox Name="GrpDatasetParams" Header="Dataset parameters (JSON)">
+          <TextBox Name="TxtParams" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                   FontFamily="Consolas" FontSize="12" Padding="6"/>
+        </GroupBox>
+        <GroupBox Name="GrpReportParams" Header="Report parameters" Visibility="Collapsed">
+          <Grid Margin="10,8,10,8">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="200"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Window (days back)" VerticalAlignment="Center" Margin="0,4,0,4"/>
+            <TextBox   Grid.Row="0" Grid.Column="1" Name="TxtNrDays" Text="14" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Min transitions per active day" VerticalAlignment="Center" Margin="0,4,0,4"
+                       ToolTip="Flag agents whose transitions/active-day exceeds this value"/>
+            <TextBox   Grid.Row="1" Grid.Column="1" Name="TxtNrThreshold" Text="1.0" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Top N users" VerticalAlignment="Center" Margin="0,4,0,4"/>
+            <TextBox   Grid.Row="2" Grid.Column="1" Name="TxtNrTopN" Text="25" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
+            <CheckBox  Grid.Row="3" Grid.ColumnSpan="2" Name="ChkNrIncludeConv" Margin="0,8,0,4"
+                       Content="Include conversation context (pulls a conversation-details job for top-N users; adds 30s–2min)"/>
+            <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Foreground="#64748B" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="Submits an async user-details job filtered to NOT_RESPONDING transitions, then aggregates per-user counts, durations, and daily breakdown. With conversation context, joins on userId to surface affected conversations."/>
+          </Grid>
+        </GroupBox>
+      </Grid>
 
       <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,10">
         <Button Name="BtnRun" Content="Run dataset" Width="140" Height="30" FontWeight="Bold"/>
@@ -139,8 +183,11 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 
 $controls = @{}
 foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtPkceClientId','BtnPkceLogin','BtnCancelPkce','TxtConn','TxtStatus',
-               'TxtCatalogCount','TxtFilter','LstDatasets',
-               'TxtDatasetTitle','TxtDatasetMeta','TxtParams',
+               'TabSidebar','TabSideDatasets','TabSideReports',
+               'TxtCatalogCount','TxtFilter','LstDatasets','LstReports',
+               'TxtDatasetTitle','TxtDatasetMeta',
+               'GrpDatasetParams','TxtParams',
+               'GrpReportParams','TxtNrDays','TxtNrThreshold','TxtNrTopN','ChkNrIncludeConv',
                'BtnRun','BtnCancel','BtnReset','BtnOpenRun','TxtProgress',
                'TabResults','TabLive','TabRows',
                'GridResults','TxtSummary','TxtRaw','LstEvents') {
@@ -153,6 +200,8 @@ $controls.TxtPkceClientId.Text = if ([string]::IsNullOrWhiteSpace($env:GENESYS_P
 
 $script:AllDatasets     = @(Get-CatalogDatasets)
 $script:SelectedDataset = $null
+$script:SelectedReport  = $null
+$script:RunMode         = 'dataset'   # 'dataset' | 'report'
 $script:LastRunFolder   = $null
 $script:ActiveRun       = $null
 $script:ActiveAuth      = $null
@@ -162,6 +211,19 @@ foreach ($d in $script:AllDatasets) {
     $display = ("[{0}] {1}" -f $d.Group, $d.Key)
     $d | Add-Member -NotePropertyName Display -NotePropertyValue $display -Force
 }
+
+# Available reports — composed Ops cmdlets that join multiple datasets.
+$script:AvailableReports = @(
+    [pscustomobject]@{
+        Key         = 'not-responding'
+        Name        = 'Not-Responding patterns'
+        Display     = '[Investigation] Not-Responding patterns'
+        Description = 'Submits an async user-details job filtered to NOT_RESPONDING and (optionally) a conversation-details job filtered by the top-N user IDs. Aggregates per-user transition count, total/avg NR seconds, daily breakdown, and flags agents above the transitions-per-day threshold.'
+        Cmdlet      = 'Invoke-GenesysNotRespondingReport'
+        Datasets    = @('analytics.post.users.details.jobs', 'analytics-conversation-details')
+    }
+)
+foreach ($r in $script:AvailableReports) { [void]$controls.LstReports.Items.Add($r) }
 
 function Set-DatasetList {
     param([object[]]$Items)
@@ -234,11 +296,60 @@ $controls.LstDatasets.Add_SelectionChanged({
 })
 
 $controls.BtnReset.Add_Click({
+    if ($script:RunMode -eq 'report') {
+        $controls.TxtNrDays.Text         = '14'
+        $controls.TxtNrThreshold.Text    = '1.0'
+        $controls.TxtNrTopN.Text         = '25'
+        $controls.ChkNrIncludeConv.IsChecked = $false
+        return
+    }
     if ($null -eq $script:SelectedDataset) { return }
     $defaults = Get-DefaultDatasetParameters -Endpoint $script:SelectedDataset.EndpointDef
     $controls.TxtParams.Text = if ($defaults -and $defaults.Keys.Count -gt 0) {
         ($defaults | ConvertTo-Json -Depth 12)
     } else { '{}' }
+})
+
+function Set-RunMode {
+    param([ValidateSet('dataset','report')][string]$Mode)
+    $script:RunMode = $Mode
+    if ($Mode -eq 'report') {
+        $controls.GrpDatasetParams.Visibility = 'Collapsed'
+        $controls.GrpReportParams.Visibility  = 'Visible'
+        $controls.BtnRun.Content = 'Run report'
+    } else {
+        $controls.GrpDatasetParams.Visibility = 'Visible'
+        $controls.GrpReportParams.Visibility  = 'Collapsed'
+        $controls.BtnRun.Content = 'Run dataset'
+    }
+}
+
+$controls.TabSidebar.Add_SelectionChanged({
+    # Only respond when the change is from the sidebar TabControl itself, not nested controls.
+    if ($_.OriginalSource -ne $controls.TabSidebar) { return }
+    if ($controls.TabSidebar.SelectedItem -eq $controls.TabSideReports) {
+        Set-RunMode -Mode 'report'
+        if ($null -eq $script:SelectedReport -and $controls.LstReports.Items.Count -gt 0) {
+            $controls.LstReports.SelectedIndex = 0
+        }
+    } else {
+        Set-RunMode -Mode 'dataset'
+        if ($null -ne $script:SelectedDataset) {
+            $controls.TxtDatasetTitle.Text = $script:SelectedDataset.Key
+        }
+    }
+})
+
+$controls.LstReports.Add_SelectionChanged({
+    $sel = $controls.LstReports.SelectedItem
+    if ($null -eq $sel) { return }
+    $script:SelectedReport = $sel
+    $controls.TxtDatasetTitle.Text = $sel.Name
+    $meta  = $sel.Description
+    $meta += "`nCmdlet: $($sel.Cmdlet)"
+    $meta += "`nUnderlying datasets: $($sel.Datasets -join ', ')"
+    $controls.TxtDatasetMeta.Text = $meta
+    Set-RunMode -Mode 'report'
 })
 
 $controls.BtnConnect.Add_Click({
@@ -650,8 +761,224 @@ function Complete-Run {
     Set-Progress ''
 }
 
+function Start-ReportRun {
+    if ($null -ne $script:ActiveRun) { return }
+    if ($null -eq $script:SelectedReport) {
+        Set-Status 'Select a report first.' '#FBBF24'
+        return
+    }
+
+    $session = Get-InterrogatorSession
+    if ($null -eq $session) {
+        Set-Status 'Not connected. Click Connect first.' '#FBBF24'
+        return
+    }
+
+    $days = 0; $threshold = 0.0; $topN = 0
+    if (-not [int]::TryParse($controls.TxtNrDays.Text.Trim(), [ref]$days) -or $days -le 0) {
+        Set-Status 'Window (days back) must be a positive integer.' '#F87171'; return
+    }
+    if (-not [double]::TryParse($controls.TxtNrThreshold.Text.Trim(), [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$threshold) -or $threshold -lt 0) {
+        Set-Status 'Min transitions/day must be a non-negative number.' '#F87171'; return
+    }
+    if (-not [int]::TryParse($controls.TxtNrTopN.Text.Trim(), [ref]$topN) -or $topN -le 0) {
+        Set-Status 'Top N must be a positive integer.' '#F87171'; return
+    }
+    $includeConv = [bool]$controls.ChkNrIncludeConv.IsChecked
+
+    $reportKey  = $script:SelectedReport.Key
+    $cmdlet     = $script:SelectedReport.Cmdlet
+    $runId      = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $reportRoot = [System.IO.Path]::Combine($outputRoot, '_reports', $reportKey, $runId)
+    [void][System.IO.Directory]::CreateDirectory($reportRoot)
+    $reportPath = [System.IO.Path]::Combine($reportRoot, 'report.json')
+
+    $controls.BtnRun.IsEnabled = $false
+    $controls.BtnCancel.IsEnabled = $true
+    $controls.BtnRun.Content = 'Running...'
+    Set-AuthActionState
+    $controls.GridResults.ItemsSource = $null
+    $controls.TxtSummary.Text = ''
+    $controls.TxtRaw.Text = ''
+    $controls.LstEvents.Items.Clear()
+    $controls.TabResults.SelectedItem = $controls.TabLive
+    Set-Status ("Started report '{0}' over the last {1} day(s)..." -f $script:SelectedReport.Name, $days) '#FBBF24'
+    Set-Progress 'submitting jobs...'
+    Add-LiveEvent -Line ("{0} | report.started | {1}" -f (Get-Date -f 'HH:mm:ss.fff'), $cmdlet) -Color '#0369A1'
+    if ($includeConv) {
+        Add-LiveEvent -Line 'note: -IncludeConversations adds a conversation-details job (slower)' -Color '#5B21B6'
+    }
+
+    $authPathLocal    = $authPath
+    $opsPathCandidate = [System.IO.Path]::GetFullPath((Join-Path $appRoot '../../modules/Genesys.Ops/Genesys.Ops.psd1'))
+
+    $runspace = [runspacefactory]::CreateRunspace()
+    $runspace.ApartmentState = 'STA'
+    $runspace.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::UseNewThread
+    $runspace.Open()
+
+    $ps = [powershell]::Create()
+    $ps.Runspace = $runspace
+    [void]$ps.AddScript({
+        param($AuthModulePath, $CoreModulePath, $OpsModulePath, $AccessToken, $Region,
+              $Cmdlet, $Days, $Threshold, $TopN, $IncludeConv, $OutputPath)
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        Import-Module $AuthModulePath -Force -ErrorAction Stop
+        Import-Module $CoreModulePath -Force -ErrorAction Stop
+        Import-Module $OpsModulePath  -Force -ErrorAction Stop
+
+        # Use the Ops Connect-GenesysCloud (most-recent import wins) to set $script:GC state.
+        Connect-GenesysCloud -AccessToken $AccessToken -Region $Region | Out-Null
+
+        $until = [datetime]::UtcNow
+        $since = $until.AddDays(-1 * $Days)
+
+        $params = @{
+            Since                = $since
+            Until                = $until
+            MinTransitionsPerDay = $Threshold
+            TopN                 = $TopN
+            OutputPath           = $OutputPath
+            PassThru             = $true
+        }
+        if ($IncludeConv) { $params.IncludeConversations = $true }
+
+        & $Cmdlet @params
+    })
+    [void]$ps.AddArgument($authPathLocal)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($opsPathCandidate)
+    [void]$ps.AddArgument([string]$session.Token)
+    [void]$ps.AddArgument([string]$session.Region)
+    [void]$ps.AddArgument($cmdlet)
+    [void]$ps.AddArgument($days)
+    [void]$ps.AddArgument($threshold)
+    [void]$ps.AddArgument($topN)
+    [void]$ps.AddArgument($includeConv)
+    [void]$ps.AddArgument($reportPath)
+
+    $async = $ps.BeginInvoke()
+
+    $script:ActiveRun = @{
+        Mode         = 'report'
+        PsInstance   = $ps
+        Runspace     = $runspace
+        AsyncResult  = $async
+        ReportKey    = $reportKey
+        ReportPath   = $reportPath
+        RunFolder    = $reportRoot
+        StartUtc     = [datetime]::UtcNow
+        Timer        = $null
+    }
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(400)
+    $timer.Add_Tick({
+        $run = $script:ActiveRun
+        if ($null -eq $run) { return }
+        $elapsed = ([datetime]::UtcNow - $run.StartUtc).ToString('hh\:mm\:ss')
+        Set-Progress $elapsed
+        if ($run.AsyncResult.IsCompleted) { Complete-ReportRun }
+    })
+    $script:ActiveRun.Timer = $timer
+    $timer.Start()
+}
+
+function Complete-ReportRun {
+    $run = $script:ActiveRun
+    if ($null -eq $run) { return }
+    if ($run.Timer) { try { $run.Timer.Stop() } catch {} }
+
+    $errorRecord = $null
+    try {
+        $output = $run.PsInstance.EndInvoke($run.AsyncResult)
+        if ($run.PsInstance.HadErrors) {
+            $errorRecord = $run.PsInstance.Streams.Error | Select-Object -First 1
+        }
+    } catch {
+        $errorRecord = $_
+    } finally {
+        try { $run.PsInstance.Dispose() } catch {}
+        try { $run.Runspace.Close(); $run.Runspace.Dispose() } catch {}
+    }
+
+    if ($null -ne $errorRecord) {
+        $msg = if ($errorRecord.Exception) { $errorRecord.Exception.Message } else { [string]$errorRecord }
+        Set-Status "Report failed: $msg" '#F87171'
+        $controls.TxtSummary.Text = "=== Error ===`n$msg`n`n$($errorRecord | Out-String)"
+    }
+    elseif (-not [System.IO.File]::Exists($run.ReportPath)) {
+        Set-Status 'Report completed but no report.json was produced.' '#FBBF24'
+    }
+    else {
+        $script:LastRunFolder = $run.RunFolder
+        $controls.BtnOpenRun.IsEnabled = $true
+        try {
+            $report = Get-Content -Path $run.ReportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $controls.GridResults.ItemsSource = @($report.TopUsers | ForEach-Object {
+                [pscustomobject]@{
+                    UserId                  = $_.UserId
+                    Name                    = $_.Name
+                    Division                = $_.Division
+                    TransitionCount         = $_.TransitionCount
+                    ActiveDays              = $_.ActiveDays
+                    TransitionsPerActiveDay = $_.TransitionsPerActiveDay
+                    TotalNrSeconds          = $_.TotalNrSeconds
+                    AvgNrSeconds            = $_.AvgNrSeconds
+                    Flag                    = $_.Flag
+                    DailyBreakdown          = (@($_.DailyBreakdown) | ForEach-Object { "$($_.Date)x$($_.Count)" }) -join ' '
+                    Conversations           = (@($_.ConversationIds).Count)
+                }
+            })
+
+            $headerLines = @(
+                "Report: $($script:SelectedReport.Name)"
+                "Window: $($report.Window.Since)  ->  $($report.Window.Until)  ($($report.Window.Days) day(s))"
+                "Threshold: >= $($report.Threshold.MinTransitionsPerDay) transitions/active-day"
+                "Users with NR transitions: $($report.UsersWithNotResponding)"
+                "Users flagged Consistent: $($report.UsersFlaggedConsistent)"
+                "Total NR transitions: $($report.TotalNrTransitions)"
+                "Generated: $($report.GeneratedAt)"
+            )
+            $controls.TxtSummary.Text = ($headerLines -join "`n") + "`n`n=== Full report (JSON) ===`n" + ($report | ConvertTo-Json -Depth 8)
+
+            $sb = New-Object System.Text.StringBuilder
+            foreach ($u in @($report.AllUsers | Select-Object -First 50)) {
+                [void]$sb.AppendLine(($u | ConvertTo-Json -Depth 6 -Compress))
+            }
+            if (@($report.AllUsers).Count -gt 50) {
+                [void]$sb.AppendLine("... ($(@($report.AllUsers).Count - 50) more users in report.json)")
+            }
+            $controls.TxtRaw.Text = $sb.ToString()
+
+            Set-Status ("Report complete. {0} users with NR ({1} flagged). File: {2}" -f $report.UsersWithNotResponding, $report.UsersFlaggedConsistent, $run.ReportPath) '#34D399'
+            $controls.TabResults.SelectedItem = $controls.TabRows
+            Add-LiveEvent -Line ("{0} | report.completed | {1} users / {2} flagged" -f (Get-Date -f 'HH:mm:ss.fff'), $report.UsersWithNotResponding, $report.UsersFlaggedConsistent) -Color '#047857'
+        } catch {
+            Set-Status "Report ran but the result could not be loaded: $($_.Exception.Message)" '#F87171'
+            $controls.TxtSummary.Text = $_.Exception.ToString()
+        }
+    }
+
+    $script:ActiveRun = $null
+    $controls.BtnRun.IsEnabled = $true
+    $controls.BtnCancel.IsEnabled = $false
+    $controls.BtnRun.Content = if ($script:RunMode -eq 'report') { 'Run report' } else { 'Run dataset' }
+    Set-AuthActionState
+    Set-Progress ''
+}
+
 $controls.BtnRun.Add_Click({
     if ($null -ne $script:ActiveRun) { return }
+
+    if ($script:RunMode -eq 'report') {
+        Start-ReportRun
+        return
+    }
+
     if ($null -eq $script:SelectedDataset) {
         Set-Status 'Select a dataset first.' '#FBBF24'
         return
@@ -798,7 +1125,21 @@ $controls.BtnCancel.Add_Click({
     Set-Status "Cancelling run..." '#FBBF24'
     $controls.BtnCancel.IsEnabled = $false
     try { [void]$run.PsInstance.BeginStop($null, $null) } catch {}
-    Complete-Run -Cancelled:$true
+    $isReport = ($run.PSObject.Properties['Mode'] -and $run.Mode -eq 'report')
+    if ($isReport) {
+        if ($run.Timer) { try { $run.Timer.Stop() } catch {} }
+        try { $run.PsInstance.Dispose() } catch {}
+        try { $run.Runspace.Close(); $run.Runspace.Dispose() } catch {}
+        $script:ActiveRun = $null
+        $controls.BtnRun.IsEnabled = $true
+        $controls.BtnCancel.IsEnabled = $false
+        $controls.BtnRun.Content = if ($script:RunMode -eq 'report') { 'Run report' } else { 'Run dataset' }
+        Set-AuthActionState
+        Set-Progress ''
+        Set-Status 'Report cancelled.' '#FBBF24'
+    } else {
+        Complete-Run -Cancelled:$true
+    }
 })
 
 $controls.BtnOpenRun.Add_Click({

@@ -4788,6 +4788,260 @@ function Invoke-GenesysOperationsReport {
     if ($PassThru -or -not $OutputPath) { $report }
 }
 
+function Invoke-GenesysNotRespondingReport {
+    <#
+    .SYNOPSIS
+        Identifies agents who consistently enter NOT_RESPONDING and the conversations
+        active when they did so.
+    .DESCRIPTION
+        Composes two async analytics jobs to build a frequency-and-pattern report:
+
+          1. analytics.post.users.details.jobs filtered to routingStatus = NOT_RESPONDING
+             over the requested window. Returns one record per user with all of their
+             NR routingStatusDetail segments.
+
+          2. (Optional, when -IncludeConversations) analytics-conversation-details
+             filtered by segmentFilters userId IN (top-N NR users), so conversations
+             that were alerting when each agent went NR are joined to the user record.
+
+        Per-user aggregates: transition count, total NR seconds, average NR seconds,
+        active-day count (distinct UTC days the user had any routing activity),
+        transitions-per-active-day, and a per-day breakdown. Users meeting the
+        -MinTransitionsPerDay threshold are flagged Consistent.
+    .PARAMETER Since
+        Window start (UTC). Defaults to 14 days before -Until.
+    .PARAMETER Until
+        Window end (UTC). Defaults to now.
+    .PARAMETER MinTransitionsPerDay
+        Threshold for the Consistent flag: TransitionCount / ActiveDays >= this value.
+        Default 1.0 (at least one NR per active day).
+    .PARAMETER TopN
+        Cap on TopUsers in the returned report and on the userId list passed to the
+        conversation-details join. Default 25.
+    .PARAMETER IncludeConversations
+        Pull the conversation-details job for the top-N users and attach the set of
+        ConversationIds each appeared in. Adds 30s-2min depending on volume.
+    .PARAMETER OutputPath
+        If specified, the report is written as UTF-8 JSON.
+    .PARAMETER PassThru
+        Return the report object even when -OutputPath is used.
+    .EXAMPLE
+        # Last 14 days, default 1.0/day threshold
+        Invoke-GenesysNotRespondingReport | Format-Table -AutoSize
+    .EXAMPLE
+        # Stricter: only flag users averaging 3+ NR per active day, include conversations
+        Invoke-GenesysNotRespondingReport -MinTransitionsPerDay 3 -IncludeConversations
+    .EXAMPLE
+        # Save for tracking
+        Invoke-GenesysNotRespondingReport -OutputPath ".\nr-$(Get-Date -f yyyyMMdd).json"
+    #>
+    [CmdletBinding()]
+    param(
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [double]             $MinTransitionsPerDay = 1.0,
+        [int]                $TopN = 25,
+        [switch]             $IncludeConversations,
+        [string]             $OutputPath,
+        [switch]             $PassThru
+    )
+
+    Assert-GenesysConnected
+
+    $untilUtc = if ($Until.HasValue) { $Until.Value.ToUniversalTime() } else { [datetime]::UtcNow }
+    $sinceUtc = if ($Since.HasValue) { $Since.Value.ToUniversalTime() } else { $untilUtc.AddDays(-14) }
+    $interval = '{0}/{1}' -f `
+        $sinceUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), `
+        $untilUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+
+    Write-Verbose "Submitting user-details NR job over $interval"
+    $userJobBody = [ordered]@{
+        interval             = $interval
+        routingStatusFilters = @(
+            [ordered]@{
+                type       = 'and'
+                predicates = @(
+                    [ordered]@{
+                        dimension = 'routingStatus'
+                        operator  = 'matches'
+                        value     = 'NOT_RESPONDING'
+                    }
+                )
+            }
+        )
+    }
+
+    $userDetails = @(Invoke-GenesysDataset `
+        -Dataset 'analytics.post.users.details.jobs' `
+        -DatasetParameters @{ Body = $userJobBody })
+
+    Write-Verbose "User-details job returned $($userDetails.Count) user records"
+
+    $perUser = New-Object System.Collections.Generic.List[object]
+    foreach ($u in $userDetails) {
+        $userId = Get-PropertyValue $u 'userId'
+        if (-not $userId) { continue }
+
+        $segments = @(Get-PropertyValue $u 'routingStatusDetail')
+        $nrSegments = @($segments | Where-Object {
+            (Get-PropertyValue $_ 'routingStatus') -eq 'NOT_RESPONDING'
+        })
+        if ($nrSegments.Count -eq 0) { continue }
+
+        $totalNrMs = 0.0
+        $nrTimestamps = New-Object System.Collections.Generic.List[datetime]
+        foreach ($seg in $nrSegments) {
+            $startStr = Get-PropertyValue $seg 'startTime'
+            if (-not $startStr) { continue }
+            $start = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+            $nrTimestamps.Add($start)
+            $endStr = Get-PropertyValue $seg 'endTime'
+            if ($endStr) {
+                $end = [datetime]::Parse($endStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+                $totalNrMs += ($end - $start).TotalMilliseconds
+            }
+        }
+
+        $allDayBuckets = @{}
+        foreach ($seg in $segments) {
+            $startStr = Get-PropertyValue $seg 'startTime'
+            if (-not $startStr) { continue }
+            $d = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal).Date
+            $allDayBuckets[$d.ToString('yyyy-MM-dd')] = $true
+        }
+        $activeDays = [Math]::Max(1, $allDayBuckets.Count)
+
+        $byDay = $nrTimestamps |
+            Group-Object { $_.Date.ToString('yyyy-MM-dd') } |
+            ForEach-Object { [pscustomobject]@{ Date = $_.Name; Count = $_.Count } } |
+            Sort-Object Date
+
+        $count = $nrSegments.Count
+        $tpd   = [math]::Round($count / $activeDays, 2)
+        $avgMs = if ($count -gt 0) { $totalNrMs / $count } else { 0 }
+
+        $perUser.Add([pscustomobject]@{
+            UserId                  = $userId
+            Name                    = $null
+            Division                = $null
+            TransitionCount         = $count
+            ActiveDays              = $activeDays
+            TransitionsPerActiveDay = $tpd
+            TotalNrSeconds          = [int]([math]::Round($totalNrMs / 1000))
+            AvgNrSeconds            = [int]([math]::Round($avgMs / 1000))
+            DailyBreakdown          = @($byDay)
+            Flag                    = if ($tpd -ge $MinTransitionsPerDay) { 'Consistent' } else { '' }
+            ConversationIds         = @()
+            NrStartTimes            = @($nrTimestamps | ForEach-Object { $_.ToString('o') })
+        }) | Out-Null
+    }
+
+    $sorted = @($perUser | Sort-Object TransitionsPerActiveDay, TransitionCount -Descending)
+
+    if ($IncludeConversations -and $sorted.Count -gt 0) {
+        $topIds = @($sorted | Select-Object -First $TopN | ForEach-Object { $_.UserId })
+        Write-Verbose "Pulling conversation-details for top $($topIds.Count) NR users"
+        $convJobBody = [ordered]@{
+            interval       = $interval
+            segmentFilters = @(
+                [ordered]@{
+                    type       = 'or'
+                    predicates = @(
+                        $topIds | ForEach-Object {
+                            [ordered]@{
+                                dimension = 'userId'
+                                operator  = 'matches'
+                                value     = $_
+                            }
+                        }
+                    )
+                }
+            )
+        }
+
+        try {
+            $conversations = @(Invoke-GenesysDataset `
+                -Dataset 'analytics-conversation-details' `
+                -DatasetParameters @{ Body = $convJobBody })
+        } catch {
+            Write-Warning "Conversation-details job failed: $($_.Exception.Message). Continuing without conversation join."
+            $conversations = @()
+        }
+
+        $convsByUser = @{}
+        foreach ($conv in $conversations) {
+            $convId = Get-PropertyValue $conv 'conversationId'
+            if (-not $convId) { continue }
+            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                if ($null -eq $p) { continue }
+                $uid = Get-PropertyValue $p 'userId'
+                if (-not $uid) { continue }
+                if (-not $convsByUser.ContainsKey($uid)) {
+                    $convsByUser[$uid] = New-Object System.Collections.Generic.HashSet[string]
+                }
+                [void]$convsByUser[$uid].Add($convId)
+            }
+        }
+        foreach ($u in $sorted) {
+            if ($convsByUser.ContainsKey($u.UserId)) {
+                $u.ConversationIds = @($convsByUser[$u.UserId] | Sort-Object)
+            }
+        }
+    }
+
+    if ($sorted.Count -gt 0) {
+        Write-Verbose 'Enriching with name/division'
+        try {
+            $roster = @(Get-GenesysAgent -State ACTIVE)
+            $nameById = @{}
+            foreach ($a in $roster) {
+                $id = Get-PropertyValue $a 'id'
+                if ($id) { $nameById[$id] = $a }
+            }
+            foreach ($u in $sorted) {
+                if ($nameById.ContainsKey($u.UserId)) {
+                    $info = $nameById[$u.UserId]
+                    $u.Name     = Get-PropertyValue $info 'name'
+                    $div        = Get-PropertyValue $info 'division'
+                    $u.Division = if ($div) { Get-PropertyValue $div 'name' } else { $null }
+                }
+            }
+        } catch {
+            Write-Warning "Name/division enrichment failed: $($_.Exception.Message)"
+        }
+    }
+
+    $flaggedCount = @($sorted | Where-Object { $_.Flag -eq 'Consistent' }).Count
+
+    $report = [pscustomobject]@{
+        GeneratedAt           = (Get-Date).ToUniversalTime().ToString('o')
+        Window                = [pscustomobject]@{
+            Since = $sinceUtc.ToString('o')
+            Until = $untilUtc.ToString('o')
+            Days  = [math]::Round(($untilUtc - $sinceUtc).TotalDays, 2)
+        }
+        Threshold             = [pscustomobject]@{
+            MinTransitionsPerDay = $MinTransitionsPerDay
+        }
+        UsersWithNotResponding = $sorted.Count
+        UsersFlaggedConsistent = $flaggedCount
+        TotalNrTransitions     = (@($sorted | Measure-Object TransitionCount -Sum).Sum)
+        TopUsers               = @($sorted | Select-Object -First $TopN |
+            Select-Object UserId, Name, Division,
+                          TransitionCount, ActiveDays, TransitionsPerActiveDay,
+                          TotalNrSeconds, AvgNrSeconds, Flag,
+                          DailyBreakdown, ConversationIds)
+        AllUsers               = @($sorted)
+    }
+
+    if ($OutputPath) {
+        $report | ConvertTo-Json -Depth 12 | Set-Content -Path $OutputPath -Encoding UTF8
+        Write-Verbose "Report saved: $OutputPath"
+    }
+
+    if ($PassThru -or -not $OutputPath) { $report }
+}
+
 #endregion
 
 # ---------------------------------------------------------------------------

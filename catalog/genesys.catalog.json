@@ -937,7 +937,7 @@
         "profile": "rateLimitAware"
       },
       "transaction": {
-        "profile": "analytics_jobs"
+        "profile": "analytics_user_jobs"
       }
     }
   },
@@ -1044,6 +1044,25 @@
         "jobLabel": "Analytics conversation details job",
         "statusEndpointRef": "analytics.get.conversation.details.job.status",
         "resultsEndpointRef": "analytics.get.conversation.details.job.results"
+      },
+      "analytics_user_jobs": {
+        "transactionIdPath": "$.jobId",
+        "pollIntervalSeconds": 2.0,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStates": [
+          "FULFILLED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "successStates": [
+          "FULFILLED"
+        ],
+        "submittedEventType": "analytics.job.submitted",
+        "pollEventType": "analytics.job.poll",
+        "jobLabel": "Analytics user details job",
+        "statusEndpointRef": "analytics.get.user.details.job.status",
+        "resultsEndpointRef": "analytics.get.user.details.job.results"
       },
       "usage_query": {
         "transactionIdPath": "$.executionId",

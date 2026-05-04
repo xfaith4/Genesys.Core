@@ -110,7 +110,7 @@ function Get-CatalogDatasets {
         $ep = if ($epKey -and ($endpointNames -contains $epKey)) { $endpoints.$epKey } else { $null }
 
         $group = ''
-        if ($null -ne $ep -and $null -ne $ep.notes) {
+        if ($null -ne $ep -and $ep.PSObject.Properties['notes'] -and $null -ne $ep.notes) {
             foreach ($n in $ep.notes) {
                 if ([string]$n -match '^\s*group:\s*(.+?)\s*$') { $group = $Matches[1]; break }
             }

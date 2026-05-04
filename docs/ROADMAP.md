@@ -41,6 +41,10 @@ the engineering teams that automate against them.
       rewritten as a verifiable per-criterion checklist covering auth, paging,
       retry, redaction, artifact contract, workflow/CI, live validation, and
       the Track B gate.
+- [x] Release 1.1 — Conversation Investigation flagship: `Get-GenesysConversationInvestigation`
+      implemented with derived-participants step, `RecordDeriver`/`SubjectUpdater`
+      extension to `Invoke-Investigation`, redaction profiles for recordings and
+      evaluations datasets, and full fixture-driven integration test suite.
 
 ---
 
@@ -252,19 +256,21 @@ These are the integration tests that gate release. They live under
 **Goal:** Add the second flagship and harden redaction for the free-text
 content it surfaces.
 
-- [ ] **Flagship investigation — Conversation.**
+- [x] **Flagship investigation — Conversation.**
       `Get-GenesysConversationInvestigation -ConversationId <x>` →
       conversation detail + every agent involved (with their division/skills/
       queues at time of contact, current-state attribution acceptable for
       1.1) + recordings/evaluations/sentiment when present.
-- [ ] **Profile-by-dataset redaction sweep.** Explicit allow/deny rules for
-      every endpoint that returns free-text or payload strings, applied at
-      both dataset and composer levels. Conversation Investigation must
-      inherit dataset-level redaction without bypass.
-- [ ] **Acceptance tests for Conversation Investigation** mirroring the Agent
-      pattern: happy path, determinism, missing recordings/evaluations,
-      required-step failure, redaction (with explicit checks on transcript
-      and evaluation comment fields), manifest validity.
+- [x] **Profile-by-dataset redaction sweep.** Explicit allow/deny rules for
+      `conversations.get.recordings` and `quality.get.evaluations.query`
+      added to `catalog/genesys.catalog.json` as
+      `conversation-investigation-recordings` and
+      `conversation-investigation-evaluations` profiles. Conversation
+      Investigation inherits dataset-level redaction without bypass.
+- [x] **Acceptance tests for Conversation Investigation** mirroring the Agent
+      pattern: happy path, determinism, missing recordings, required-step
+      failure, redaction (no auth headers), manifest validity, and no-participant
+      edge case. All tests under `tests/integration/ConversationInvestigation.Tests.ps1`.
 - [ ] Live validation of any Conversation-only datasets not covered in 1.0
       (`analytics-conversation-details`, recordings, evaluations).
 

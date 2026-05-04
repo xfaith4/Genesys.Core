@@ -581,7 +581,8 @@
       },
       "retry": {
         "profile": "default"
-      }
+      },
+      "redactionProfile": "conversation-investigation-recordings"
     },
     "oauth.post.client.usage.query": {
       "description": "Submit OAuth client usage analytics query job.",
@@ -691,7 +692,8 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "redactionProfile": "conversation-investigation-evaluations"
     },
     "quality.get.surveys": {
       "description": "Post-call customer survey results (CSAT / NPS).",
@@ -1121,6 +1123,27 @@
           "externalOrganizationId",
           "ani",
           "dnis"
+        ]
+      },
+      "conversation-investigation-recordings": {
+        "mode": "standard",
+        "description": "Applied to conversations.get.recordings in Conversation Investigation. Removes signed download URLs and media content links that should not persist in run artifacts.",
+        "removeFields": [
+          "fileState",
+          "mediaUris",
+          "estimatedTranscodeTimeMs",
+          "actualTranscodeTimeMs"
+        ]
+      },
+      "conversation-investigation-evaluations": {
+        "mode": "pii-restrictive",
+        "description": "Applied to quality.get.evaluations.query in Conversation Investigation. Removes free-text evaluation comments, calibration notes, and evaluator contact fields.",
+        "removeFields": [
+          "comments",
+          "agentComments",
+          "resourceUrl",
+          "neverRelease",
+          "assignees"
         ]
       }
     }

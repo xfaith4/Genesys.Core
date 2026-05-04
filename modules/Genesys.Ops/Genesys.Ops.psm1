@@ -5612,12 +5612,7 @@ function Get-GenesysConversationInvestigationStepDefinition {
         $cid = $r.PSObject.Properties['conversationId']
         return $cid -and [string]$cid.Value -eq $s.ConversationId
     }
-    $isParticipantAgent = { param($r, $s)
-        if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
-        $pid = $r.PSObject.Properties['id']
-        return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
-    }
-    $isParticipantDivision = { param($r, $s)
+    $isParticipantById = { param($r, $s)
         if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
         $pid = $r.PSObject.Properties['id']
         return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
@@ -5683,7 +5678,7 @@ function Get-GenesysConversationInvestigationStepDefinition {
         @{
             Name          = 'agents'
             DatasetKey    = 'users'
-            SubjectFilter = $isParticipantAgent
+            SubjectFilter = $isParticipantById
             EmitAs        = 'agents'
             Required      = $false
             JoinKind      = 'Left'
@@ -5693,7 +5688,7 @@ function Get-GenesysConversationInvestigationStepDefinition {
         @{
             Name          = 'divisions'
             DatasetKey    = 'users.division.analysis.get.users.with.division.info'
-            SubjectFilter = $isParticipantDivision
+            SubjectFilter = $isParticipantById
             EmitAs        = 'divisions'
             Required      = $false
             JoinKind      = 'Left'
@@ -5706,7 +5701,7 @@ function Get-GenesysConversationInvestigationStepDefinition {
             EmitAs        = 'skills'
             Required      = $false
             JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'participants.userId'; Right = 'userId' }
+            JoinOn        = @{ Left = 'participants.userId'; Right = $null }
             SortKey       = 'id'
         }
         @{

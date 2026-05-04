@@ -5,7 +5,7 @@
 .DESCRIPTION
     Drives Get-GenesysConversationInvestigation through its -DatasetInvoker test seam,
     so no live API calls are required. Asserts the seven acceptance criteria
-    mirroring docs/ROADMAP.md § "Acceptance tests for Agent Investigation".
+    mirroring docs/ROADMAP.md § Release 1.1 — Conversation Investigation.
 #>
 
 Describe 'Conversation Investigation flagship — fixture-driven contract' {

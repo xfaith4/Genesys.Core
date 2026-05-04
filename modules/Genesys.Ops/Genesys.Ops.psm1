@@ -5189,14 +5189,17 @@ function Invoke-Investigation {
 
     foreach ($step in $Steps) {
         $stepName    = [string]$step.Name
-        $datasetKey  = [string]$step.DatasetKey
+        $isDerived   = $step.ContainsKey('RecordDeriver') -and $step.RecordDeriver
+        $datasetKey  = if ($isDerived) { '(derived)' } else { [string]$step.DatasetKey }
         $emitAs      = if ($step.ContainsKey('EmitAs') -and $step.EmitAs) { [string]$step.EmitAs } else { $stepName }
         $required    = if ($step.ContainsKey('Required')) { [bool]$step.Required } else { $true }
         $joinKind    = if ($step.ContainsKey('JoinKind') -and $step.JoinKind) { [string]$step.JoinKind } else { 'Inner' }
         $sortKey     = if ($step.ContainsKey('SortKey') -and $step.SortKey) { [string]$step.SortKey } else { 'id' }
         $joinOn      = if ($step.ContainsKey('JoinOn')) { $step.JoinOn } else { $null }
 
-        $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
+        if (-not $isDerived) {
+            $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
+        }
 
         $leftSource = $null
         if ($joinOn -and $joinOn.ContainsKey('Source')) {
@@ -5220,28 +5223,37 @@ function Invoke-Investigation {
         }
 
         $stepResult = $null
-        try {
-            if ($DatasetInvoker) {
-                $stepResult = & $DatasetInvoker $step $Subject $Window
-            } else {
-                $invokeArgs = @{ Dataset = $datasetKey }
-                if ($step.ContainsKey('Parameters') -and $step.Parameters) {
-                    $invokeArgs['DatasetParameters'] = $step.Parameters
-                }
-                $records = Invoke-GenesysDataset @invokeArgs
-                $stepResult = @{
-                    records      = @($records)
-                    runId        = $null
-                    status       = 'ok'
-                    errorMessage = $null
-                }
+        if ($isDerived) {
+            try {
+                $derived = @(& $step.RecordDeriver $summarySections $Subject)
+                $stepResult = @{ records = $derived; runId = $null; status = 'ok'; errorMessage = $null }
+            } catch {
+                $stepResult = @{ records = @(); runId = $null; status = 'failed'; errorMessage = $_.Exception.Message }
             }
-        } catch {
-            $stepResult = @{
-                records      = @()
-                runId        = $null
-                status       = 'failed'
-                errorMessage = $_.Exception.Message
+        } else {
+            try {
+                if ($DatasetInvoker) {
+                    $stepResult = & $DatasetInvoker $step $Subject $Window
+                } else {
+                    $invokeArgs = @{ Dataset = $datasetKey }
+                    if ($step.ContainsKey('Parameters') -and $step.Parameters) {
+                        $invokeArgs['DatasetParameters'] = $step.Parameters
+                    }
+                    $records = Invoke-GenesysDataset @invokeArgs
+                    $stepResult = @{
+                        records      = @($records)
+                        runId        = $null
+                        status       = 'ok'
+                        errorMessage = $null
+                    }
+                }
+            } catch {
+                $stepResult = @{
+                    records      = @()
+                    runId        = $null
+                    status       = 'failed'
+                    errorMessage = $_.Exception.Message
+                }
             }
         }
 
@@ -5265,6 +5277,13 @@ function Invoke-Investigation {
         $dataPaths[$stepName] = $stepDataPath
 
         $summarySections[$emitAs] = $records
+
+        if ($step.ContainsKey('SubjectUpdater') -and $step.SubjectUpdater) {
+            $updates = & $step.SubjectUpdater $records $Subject
+            if ($updates) {
+                foreach ($k in $updates.Keys) { $Subject[$k] = $updates[$k] }
+            }
+        }
 
         $datasetsInvoked.Add([ordered]@{
             stepName         = $stepName
@@ -5568,6 +5587,198 @@ function Get-GenesysAgentInvestigation {
         -SubjectType      'agent' `
         -Subject          @{ SubjectId = $UserId; UserId = $UserId } `
         -Window           @{ Since = $Since; Until = $Until } `
+        -Steps            $steps `
+        -OutputRoot       $OutputRoot `
+        -RunId            $RunId `
+        -DatasetInvoker   $DatasetInvoker
+}
+
+function Get-GenesysConversationInvestigationStepDefinition {
+    <#
+    .SYNOPSIS
+        Returns the ordered step descriptors for the Conversation Investigation flagship.
+    .DESCRIPTION
+        Centralised so the public cmdlet and integration tests share the same
+        contract.  Designed for the investigation composer — each step is a
+        hashtable consumed by Invoke-Investigation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ConversationId
+    )
+
+    $isTargetConversation = { param($r, $s)
+        $cid = $r.PSObject.Properties['conversationId']
+        return $cid -and [string]$cid.Value -eq $s.ConversationId
+    }
+    $isParticipantAgent = { param($r, $s)
+        if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
+        $pid = $r.PSObject.Properties['id']
+        return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
+    }
+    $isParticipantDivision = { param($r, $s)
+        if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
+        $pid = $r.PSObject.Properties['id']
+        return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
+    }
+    $isConversationEvaluation = { param($r, $s)
+        $conv = $r.PSObject.Properties['conversation']
+        if (-not $conv) { return $false }
+        $cid = $conv.Value.PSObject.Properties['id']
+        return $cid -and [string]$cid.Value -eq $s.ConversationId
+    }
+
+    $deriveParticipants = {
+        param($sections, $subject)
+        $conversations = @($sections['conversation'])
+        if (-not $conversations -or $conversations.Count -eq 0) { return @() }
+        $seen   = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $result = [System.Collections.Generic.List[object]]::new()
+        foreach ($conv in $conversations) {
+            $partsProp = $conv.PSObject.Properties['participants']
+            if (-not $partsProp) { continue }
+            foreach ($p in @($partsProp.Value)) {
+                $uidProp = $p.PSObject.Properties['userId']
+                if (-not $uidProp -or -not $uidProp.Value) { continue }
+                $uid = [string]$uidProp.Value
+                if ($seen.Add($uid)) {
+                    $purpose = $null
+                    $purposeProp = $p.PSObject.Properties['purpose']
+                    if ($purposeProp) { $purpose = [string]$purposeProp.Value }
+                    $result.Add([pscustomobject]@{ userId = $uid; purpose = $purpose })
+                }
+            }
+        }
+        $result.ToArray()
+    }
+    $updateSubjectWithParticipants = {
+        param($records, $subject)
+        $ids = @($records | ForEach-Object { $_.userId } | Where-Object { $_ })
+        @{ ParticipantUserIds = $ids }
+    }
+
+    @(
+        @{
+            Name          = 'conversation'
+            DatasetKey    = 'analytics-conversation-details-query'
+            Parameters    = @{ conversationId = $ConversationId }
+            SubjectFilter = $isTargetConversation
+            EmitAs        = 'conversation'
+            Required      = $true
+            JoinKind      = 'Seed'
+            JoinOn        = @{ Left = $null; Right = 'conversationId' }
+            SortKey       = 'conversationId'
+        }
+        @{
+            Name           = 'participants'
+            RecordDeriver  = $deriveParticipants
+            SubjectUpdater = $updateSubjectWithParticipants
+            EmitAs         = 'participants'
+            Required       = $true
+            JoinKind       = 'Seed'
+            JoinOn         = @{ Left = $null; Right = 'userId' }
+            SortKey        = 'userId'
+        }
+        @{
+            Name          = 'agents'
+            DatasetKey    = 'users'
+            SubjectFilter = $isParticipantAgent
+            EmitAs        = 'agents'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'divisions'
+            DatasetKey    = 'users.division.analysis.get.users.with.division.info'
+            SubjectFilter = $isParticipantDivision
+            EmitAs        = 'divisions'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'skills'
+            DatasetKey    = 'routing.get.all.routing.skills'
+            EmitAs        = 'skills'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'participants.userId'; Right = 'userId' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'recordings'
+            DatasetKey    = 'conversations.get.recordings'
+            Parameters    = @{ conversationId = $ConversationId }
+            SubjectFilter = $isTargetConversation
+            EmitAs        = 'recordings'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversationId' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'evaluations'
+            DatasetKey    = 'quality.get.evaluations.query'
+            Parameters    = @{ conversationId = $ConversationId }
+            SubjectFilter = $isConversationEvaluation
+            EmitAs        = 'evaluations'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversation.id' }
+            SortKey       = 'id'
+        }
+    )
+}
+
+function Get-GenesysConversationInvestigation {
+    <#
+    .SYNOPSIS
+        Run the Conversation Investigation flagship — joins conversation detail,
+        participants, agent identities, divisions, skills, recordings, and
+        evaluations for one conversation.
+    .DESCRIPTION
+        Composes seven steps (six catalog datasets plus one derived participants
+        step) via Invoke-Investigation and emits the standard run-artifact set
+        under out/conversation-investigation/<runId>/.
+
+        Use -DatasetInvoker (a scriptblock returning fixture data) to drive
+        determinism / integration tests without touching the live API.
+    .PARAMETER ConversationId
+        Genesys conversation GUID to investigate.
+    .PARAMETER OutputRoot
+        Root for the run-artifact tree. Defaults to 'out'.
+    .PARAMETER RunId
+        Override the auto-generated run identifier. Use only for deterministic
+        tests; do not set in production.
+    .PARAMETER DatasetInvoker
+        Test seam — see Invoke-Investigation. When supplied, no live API calls
+        are made and Connect-GenesysCloud is not required.
+    .EXAMPLE
+        Get-GenesysConversationInvestigation -ConversationId 'a1b2c3...'
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ConversationId,
+
+        [string]      $OutputRoot = 'out',
+        [string]      $RunId,
+        [scriptblock] $DatasetInvoker
+    )
+
+    if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+    $steps = Get-GenesysConversationInvestigationStepDefinition -ConversationId $ConversationId
+
+    Invoke-Investigation `
+        -InvestigationKey 'conversation-investigation' `
+        -SubjectType      'conversation' `
+        -Subject          @{ SubjectId = $ConversationId; ConversationId = $ConversationId } `
+        -Window           @{ Since = $null; Until = $null } `
         -Steps            $steps `
         -OutputRoot       $OutputRoot `
         -RunId            $RunId `

@@ -158,8 +158,9 @@
         # Idea 30 — Flow Outcome KPI Correlation
         'Get-GenesysFlowOutcomeKpiCorrelation'
 
-        # Investigations (Release 1.0 Track B)
+        # Investigations (Release 1.0 Track B + Release 1.1)
         'Get-GenesysAgentInvestigation'
+        'Get-GenesysConversationInvestigation'
 
         # Dataset coverage audit
         'Test-GenesysOpsDatasetCoverage'

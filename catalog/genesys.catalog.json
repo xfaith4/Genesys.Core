@@ -39664,6 +39664,242 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "multi-conversation-batch-investigation": {
+        "description": "Batch analytics investigation for a known list of conversation IDs \u2014 up to 100 at once. Ideal for escalation clusters (caller contacted multiple times), linked transfer chains, QA sampling batches, and callback pairs. Uses the multi-ID analytics endpoint to avoid one-by-one queries, then enriches each conversation with quality and S&TA data.",
+        "subjectParam": "conversationIds (array, max 100)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "batch-analytics",
+            "dataset": "analytics.get.multiple.conversations.by.ids",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants, segments, tTalk, tHeld, tAcw, tHandle, mediaType, direction",
+            "description": "Batch analytics pull for all supplied conversation IDs \u2014 single API call returns full analytics detail for each"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "state, originatingDirection, ANI, DNIS, participantRoster",
+            "description": "Base conversation object per ID \u2014 provides ANI/DNIS and full participant roster for each call"
+          },
+          {
+            "step": "recordings",
+            "dataset": "conversations.get.recordings",
+            "joinKey": "conversationId",
+            "provides": "recordingId, downloadURL, mediaType",
+            "description": "Recording objects per conversation \u2014 confirms recording was captured and provides playback links"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "duration, archivalStatus, policyName",
+            "description": "Recording metadata per conversation \u2014 archival status and policy linkage for compliance checks"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId (iterate over batch)",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId",
+            "description": "Quality evaluations for any conversations in the batch that were scored"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
+            "description": "S&TA overview per conversation \u2014 surface sentiment outliers across the batch without listening to recordings"
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution",
+            "description": "AI-generated reason-for-contact and resolution per conversation \u2014 rapid content scan across the batch"
+          }
+        ],
+        "joinSequence": "seed (batch-analytics) \u2192 conversation-base (conversationId) \u2192 recordings \u2192 evaluations (filter per conversationId) \u2192 sta-overview",
+        "useCases": [
+          "Customer called 4 times in a week \u2014 pull all conversationIds and compare outcomes to identify resolution failure",
+          "Transfer chain \u2014 a single caller was transferred across 3 queues; investigate all legs as a batch",
+          "QA batch sample \u2014 supervisor pulls 20 random conversationIds from a queue for a calibration session",
+          "Callback pairs \u2014 original call + scheduled callback investigated together"
+        ],
+        "voiceEngineerHighlights": [
+          "batch-analytics: compare tAbandon across the batch \u2014 if caller abandoned on every attempt, check EWT trend for that queue",
+          "recordings: gaps in the batch (missing recordings) confirm a policy or edge issue affecting a subset of calls",
+          "sta-overview: sort batch by customerSentimentScore ASC to prioritise the worst CX interactions for review",
+          "conversation-base: compare ANI across batch \u2014 same ANI on multiple calls confirms repeat-caller pattern"
+        ],
+        "executiveMetrics": [
+          "batchSize (conversationCount)",
+          "recordingCoverageRate% = recordedConversations / batchSize",
+          "avgHandleTime",
+          "avgCustomerSentimentScore",
+          "avgEvaluationScore",
+          "criticalItemFailCount"
+        ]
+      },
+      "agent-skill-and-routing-profile": {
+        "description": "Complete routing-capability profile for a single agent \u2014 skills with proficiency, languages, skill group membership, per-channel utilization limits, and queue coverage. Answers the critical voice-engineering question: why did this agent receive (or not receive) a specific call type? Divisions are the org-level grouping; an agent's skills and queue memberships span divisions. Use this recipe before blaming routing configuration \u2014 the agent profile is the first thing to verify.",
+        "subjectParam": "userId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "identity",
+            "dataset": "users",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, email, state, department, station",
+            "description": "Agent identity and current routing status \u2014 confirms the agent is active and station-registered"
+          },
+          {
+            "step": "routing-skills",
+            "dataset": "users.get.user.s.routing.skills",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "skillId, proficiencyRating (1-5)",
+            "description": "Skills assigned to this agent with proficiency ratings \u2014 drives ACD routing decisions"
+          },
+          {
+            "step": "skill-catalog",
+            "dataset": "routing.get.all.routing.skills",
+            "joinKey": "id \u2192 skillId (from routing-skills)",
+            "provides": "skillName, skillDescription",
+            "description": "Org-wide skill name lookup \u2014 decode skillIds from routing-skills into human-readable names"
+          },
+          {
+            "step": "language-skills",
+            "dataset": "routing.get.all.languages",
+            "joinKey": "id \u2192 languageId (from routing-skills)",
+            "provides": "languageName, languageCode",
+            "description": "Language catalog \u2014 decode language skills from the agent's routing-skills list"
+          },
+          {
+            "step": "skill-groups",
+            "dataset": "routing.get.skill.groups",
+            "joinKey": "divisionId (from identity)",
+            "provides": "skillGroupId, skillGroupName, memberCount, skillRequirements",
+            "description": "Skill groups in the agent's division \u2014 shows which ACD routing groups include this agent's skills"
+          },
+          {
+            "step": "utilization",
+            "dataset": "routing.get.user.utilization",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "maxCapacity per mediaType (voice, chat, email, callback)",
+            "description": "Per-channel concurrency limits \u2014 how many simultaneous interactions this agent can handle per media type"
+          },
+          {
+            "step": "queue-memberships",
+            "dataset": "users.get.user.s.queue.memberships",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "queueId, queueName, joined=true/false, divisionId",
+            "description": "All queues the agent is a member of \u2014 joined=false means removed from queue but still a record"
+          }
+        ],
+        "joinSequence": "seed (identity) \u2192 routing-skills (userId) \u2192 skill-catalog (skillId) \u2192 language-skills (languageId) \u2192 skill-groups (divisionId) \u2192 utilization (userId) \u2192 queue-memberships (userId)",
+        "divisionNote": "An agent's primary division determines their default queue assignments, but agents can be members of queues in other divisions. Enumerate queue-memberships to see all queues regardless of division. Use routing.get.skill.groups filtered by divisionId to see which ACD groups the agent participates in.",
+        "voiceEngineerHighlights": [
+          "routing-skills: proficiencyRating=0 or absent on a required skill \u2192 agent will never receive that call type",
+          "utilization: maxCapacity.voice=0 \u2192 agent is excluded from voice ACD; check if intentional",
+          "queue-memberships: joined=false on all queues \u2192 agent exists but is receiving no contacts; check presence state too",
+          "skill-groups: if agent's skills don't satisfy any skill group requirements \u2192 agent is unreachable via ACD even if queue member"
+        ],
+        "executiveMetrics": [
+          "skillCount",
+          "languageCount",
+          "queueMembershipCount (joined=true)",
+          "voiceUtilizationLimit",
+          "digitalUtilizationLimit",
+          "skillGroupMembershipCount"
+        ]
+      },
+      "live-floor-view": {
+        "description": "Real-time supervisor floor view \u2014 all currently active conversations across every channel, combined with bulk agent presence snapshots. Answers 'what is happening right now' across voice, chat, email, and callbacks without navigating multiple admin screens. Use queue observations for the aggregate picture and active conversation lists for individual interaction detail. This recipe is point-in-time and has no historical window.",
+        "subjectParam": "none (org-wide snapshot) or queueId (filtered view)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "active-all",
+            "dataset": "conversations.get.active.conversations",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "conversationId, participants, mediaType, connectedTime",
+            "description": "All currently active conversations across all media types \u2014 the live conversation roster"
+          },
+          {
+            "step": "active-calls",
+            "dataset": "conversations.get.active.calls",
+            "joinKey": "id",
+            "provides": "ANI, DNIS, holdState, muted, queueId, connectedTime",
+            "description": "Voice-specific detail for active calls \u2014 hold state and mute status for live intervention decisions"
+          },
+          {
+            "step": "active-callbacks",
+            "dataset": "conversations.get.active.callbacks",
+            "joinKey": "id",
+            "provides": "callbackNumber, scheduledTime, attemptCount",
+            "description": "Scheduled and in-progress callbacks \u2014 shows callbacks waiting to be dialled or currently being handled"
+          },
+          {
+            "step": "active-chats",
+            "dataset": "conversations.get.active.chats",
+            "joinKey": "id",
+            "provides": "chatStartTime, waitTime, assignedAgent",
+            "description": "Active web chat sessions \u2014 customer and agent in live chat interaction"
+          },
+          {
+            "step": "active-emails",
+            "dataset": "conversations.get.active.emails",
+            "joinKey": "id",
+            "provides": "emailSubject, fromAddress, assignedAgent, emailAge",
+            "description": "Active email interactions \u2014 emails currently being handled by agents"
+          },
+          {
+            "step": "queue-observations",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oAlerting",
+            "description": "Real-time queue aggregate counters \u2014 waiting/interacting/alerting counts for queue-level triage"
+          },
+          {
+            "step": "agent-presences",
+            "dataset": "users.get.bulk.user.presences",
+            "joinKey": "userId \u2192 participants.userId (from active-all)",
+            "provides": "presenceDefinitionId, presenceSource, modifiedDate",
+            "description": "Current presence for all agents (bulk pull) \u2014 decode with presence definitions to see who is available vs. on-break"
+          },
+          {
+            "step": "presence-definitions",
+            "dataset": "presence.get.organization.presence.definitions",
+            "joinKey": "id \u2192 presenceDefinitionId (from agent-presences)",
+            "provides": "presenceName, systemPresence, deactivated",
+            "description": "Custom presence code definitions \u2014 decode presenceDefinitionId values from agent-presences into readable state names"
+          }
+        ],
+        "joinSequence": "seed (active-all) \u2192 active-calls (id) \u2192 active-callbacks (id) \u2192 active-chats (id) \u2192 active-emails (id) \u2192 queue-observations (queueId from participants) \u2192 agent-presences (userId) \u2192 presence-definitions (presenceDefinitionId)",
+        "voiceEngineerHighlights": [
+          "active-calls: holdState=true on many calls simultaneously \u2192 agents overwhelmed or system hold issue",
+          "queue-observations: oWaiting > 0 + oOnQueueUsers=0 \u2192 queue has no staffed agents; immediate escalation",
+          "agent-presences: cross-reference presenceDefinitionId with presence-definitions to spot custom 'available' states that exclude from ACD routing",
+          "active-callbacks: high attemptCount (>3) with no resolution \u2192 callback list hygiene issue or unreachable numbers"
+        ],
+        "executiveMetrics": [
+          "totalActiveConversations",
+          "activeCallCount",
+          "activeCallbackCount",
+          "activeChatCount",
+          "activeEmailCount",
+          "oWaiting (total across queues)",
+          "oOnQueueUsers",
+          "agentsAvailableCount"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -39874,6 +40110,107 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "platform-change-and-access-audit": {
+        "description": "Governance and compliance playbook \u2014 who changed platform configuration, which OAuth clients have access, what roles are granted, and what data is being exported. Essential for security audits, SOC2 evidence, and post-incident change review. Run weekly as part of change management hygiene or ad-hoc after a configuration-related incident.",
+        "datasetsInOrder": [
+          "audit-logs",
+          "oauth.get.clients",
+          "oauth.get.authorizations",
+          "authorization.get.roles",
+          "analytics.get.reporting.exports"
+        ],
+        "joinOn": "userId or clientId",
+        "groupBy": [
+          "userId",
+          "service",
+          "entityType",
+          "action"
+        ],
+        "granularity": "P1D (daily) or per-event for incident review",
+        "outputMetrics": [
+          "auditEventCount by service (Routing, Recording, Quality, Architect)",
+          "uniqueChangeActors (distinct userIds making config changes)",
+          "oauthClientCount (total configured clients by grantType)",
+          "activeGrantCount (unique user\u2192client authorizations)",
+          "exportJobCount and exportRecipientCount",
+          "highRiskActionCount (DELETE and bulk-update events)"
+        ],
+        "executivePresentation": "Change activity timeline grouped by service + top-changers ranked table; OAuth client inventory with grant type; export job schedule and data recipients",
+        "complianceSignals": [
+          "Audit events with action=DELETE on Recording or Quality entities \u2192 possible evidence tampering; escalate to compliance",
+          "OAuth client with grantType=client_credentials and no description \u2192 unmanaged integration; review and document or revoke",
+          "Export job recipients include external email domains \u2192 data leaving the org; confirm authorised",
+          "Role with permissions=* or division=* \u2192 overly permissive; flag for least-privilege review",
+          "High-volume config changes from a single userId in a short window \u2192 possible unauthorised access or scripted bulk change"
+        ]
+      },
+      "system-health-and-api-capacity": {
+        "description": "Platform health and capacity baseline \u2014 org limits proximity, API rate-limit pressure, and usage volume trends per client and user. Run daily for operations monitoring or after a suspected rate-limit incident. Identifies whether API consumers are approaching throttle thresholds, which OAuth clients are the heaviest API users, and whether the organisation is near any Genesys Cloud platform limits (seats, queues, recordings).",
+        "datasetsInOrder": [
+          "organization.get.organization.details",
+          "organization.get.organization.limits",
+          "analytics.query.rate.limit.aggregates",
+          "usage.get.api.usage.organization.summary",
+          "usage.get.api.usage.by.client",
+          "usage.get.api.usage.by.user"
+        ],
+        "joinOn": "N/A (org singleton for details/limits; clientId/userId for usage)",
+        "groupBy": [
+          "clientId",
+          "userId",
+          "limitName"
+        ],
+        "granularity": "P1D",
+        "outputMetrics": [
+          "rateLimitHitsPerDay (nError from rate.limit.aggregates)",
+          "apiCallsPerClient (top 10 heaviest consumers)",
+          "limitApproachPct% = currentUsage / allowedLimit per limitName",
+          "usageGrowthRate% week-over-week",
+          "peakApiCallHour (from hourly usage distribution)"
+        ],
+        "executivePresentation": "Limit proximity gauge chart (red/amber/green per limit) + rate-limit hit trend line + top API consumer table by client and user",
+        "healthSignals": [
+          "limitApproachPct > 80% on any limit \u2192 capacity planning needed; contact Genesys to increase limit or optimise usage",
+          "rateLimitHitsPerDay > 0 \u2192 API consumers are being throttled; identify offending clientId and optimise request patterns",
+          "Single clientId consuming >50% of daily API budget \u2192 single-point-of-failure risk; review integration design",
+          "Sudden spike in apiCallsPerDay without corresponding conversation volume increase \u2192 runaway script or integration loop",
+          "organization.get.organization.limits returns limits near currentValue \u2192 seats, recording storage, or queue count exhaustion risk"
+        ]
+      },
+      "journey-and-digital-cx-analysis": {
+        "description": "Digital CX measurement playbook \u2014 journey action map effectiveness, omni-channel volume breakdown, and digital interaction sentiment trends. Combines the predictive engagement layer (journey action maps) with digital conversation analytics and transcript sentiment to quantify how well the digital contact strategy is deflecting or enriching contacts. Used for quarterly digital CX strategy reviews and channel mix optimisation.",
+        "datasetsInOrder": [
+          "journey.get.action.maps",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.post.transcripts.aggregates.query",
+          "analytics.query.conversation.aggregates.abandon.metrics"
+        ],
+        "joinOn": "queueId or mediaType",
+        "groupBy": [
+          "mediaType",
+          "queueId",
+          "actionMapId"
+        ],
+        "granularity": "P1D or P7D",
+        "outputMetrics": [
+          "actionMapCount (active vs. inactive)",
+          "digitalVolumePct% = digitalConversations / totalConversations",
+          "digitalAbandonRate% per mediaType",
+          "avgDigitalHandleTime by mediaType",
+          "avgDigitalAgentSentimentScore",
+          "avgDigitalCustomerSentimentScore",
+          "chatVsEmailVsMessagingMix%"
+        ],
+        "executivePresentation": "Channel mix stacked bar (voice vs. each digital type) + sentiment vs. volume scatter plot per channel + action map active/inactive inventory table",
+        "digitalCXSignals": [
+          "digitalAbandonRate% > voiceAbandonRate% \u2192 digital channel experience is worse than voice; review chat wait times and bot quality",
+          "journey action maps with status=inactive but high historical volume \u2192 deactivated engagement trigger; confirm intentional",
+          "avgDigitalSentimentScore < -0.3 \u2192 digital interactions skewing negative; review bot failure paths and agent digital training",
+          "chat mediaType with avgHandleTime >> voice avgHandleTime \u2192 agents switching channels inefficiently; review digital utilization settings",
+          "messagingVolume growing >20% month-over-month \u2192 scale messaging queue staffing before SLA degrades"
+        ]
       }
     },
     "voiceEngineerPlaybooks": {
@@ -39994,6 +40331,88 @@
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
+      },
+      "large-window-agent-deep-audit": {
+        "description": "Long-duration agent investigation (weeks or months) using asynchronous job APIs that bypass the 7-day synchronous query limit. Use when a performance review, PIP investigation, or compliance audit requires a full quarter or more of an agent's activity. The async jobs endpoint handles large windows without 408 timeouts. Results are polled and retrieved after the job completes \u2014 build polling into the runner with exponential backoff.",
+        "subjectParam": "userId",
+        "windowRequired": true,
+        "windowNote": "Minimum 8 days \u2014 for windows \u22647 days use agent-investigation (sync queries are faster). Maximum window is typically 13 months per Genesys Cloud data retention policy.",
+        "datasetsInOrder": [
+          "analytics-conversation-details",
+          "analytics.post.users.details.jobs",
+          "analytics.query.user.aggregates.performance.metrics",
+          "workforce.get.management.unit.adherence",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "coaching.get.appointments"
+        ],
+        "diagnosticSignals": [
+          "analytics-conversation-details async job: filter by participantUserId to scope to this agent across the full window",
+          "analytics.post.users.details.jobs: submit with userId filter; poll analytics.get.user.details.job.status until status=FULFILLED; retrieve with analytics.get.user.details.job.results",
+          "Presence segment analysis over weeks: sustained tOffQueue > 40% of shift hours \u2192 chronic availability issue",
+          "evalAvgScore declining quarter-over-quarter \u2192 performance regression; correlate with coaching session frequency",
+          "Coaching sessions in the window with no score improvement \u2192 coaching effectiveness gap; escalate to training",
+          "Large window nAbandoned spike on agent's conversations \u2192 agent-specific routing or ACD issue, not org-wide"
+        ],
+        "enrichWith": [
+          "workforce.get.business.units (to locate the agent's managementUnit via businessUnitId before retrieving adherence)",
+          "workforce.get.agent.management.unit (get the agent's managementUnitId for adherence lookup)",
+          "users (agent identity and current state \u2014 confirm agent is still active before running large job)"
+        ],
+        "asyncPattern": "Submit analytics-conversation-details job \u2192 poll every 10s with exponential backoff \u2192 retrieve results when FULFILLED \u2192 submit analytics.post.users.details.jobs \u2192 repeat poll \u2192 join on userId. Total runtime for a 90-day window is typically 30\u2013120 seconds depending on conversation volume."
+      },
+      "presence-decode-and-adherence-verification": {
+        "description": "Full presence state decode combined with schedule adherence for a disputed agent availability window. Answers the question: 'Was this agent actually available and ready to take calls during this period?' Genesys Cloud uses both system presence codes (Available, Busy, Away, etc.) and organisation-defined custom codes \u2014 both tables are required for a complete decode. Adherence state shows whether the agent's actual presence matched their scheduled activity category.",
+        "subjectParam": "userId",
+        "datasetsInOrder": [
+          "presence.get.system.presence.definitions",
+          "presence.get.organization.presence.definitions",
+          "analytics.query.user.details.activity.report",
+          "workforce.get.management.unit.adherence",
+          "analytics.query.user.aggregates.login.activity"
+        ],
+        "diagnosticSignals": [
+          "systemPresence='Available' but routingStatus='NOT_RESPONDING' \u2192 agent is present but station not registered; ghost agent consuming an ACD slot without taking calls",
+          "Custom presence code overrides 'Available' systemPresence \u2192 org has configured a custom 'Training' or 'Meeting' code that still shows as Available to the system; check presenceDefinition.systemPresence carefully",
+          "adherenceState='NonAdherent' + scheduledActivityCategory='OnQueueWork' but presenceCode='Break' \u2192 agent on break during a queue shift; document time and duration",
+          "Long idle segments (tIdle > 20 min) with no tTalk or tAcw \u2192 agent on queue but receiving no contacts; cross-check queue oWaiting to determine if demand existed",
+          "routingStatusSegments show repeated 'IDLE' \u2192 'NOT_RESPONDING' \u2192 'IDLE' cycles without 'INTERACTING' \u2192 agent is declining or missing interactions (ACW avoidance or station issue)",
+          "Login events absent for a full shift \u2192 agent never logged in; no presence data to dispute",
+          "tOnQueueTime << scheduled shift hours \u2192 agent frequently going off-queue; use adherence to confirm scheduled vs. actual delta"
+        ],
+        "enrichWith": [
+          "users (confirm userId is active and not deactivated \u2014 deactivated agents appear in historical data but cannot take current contacts)",
+          "workforce.get.agent.management.unit (get managementUnitId before querying workforce.get.management.unit.adherence)",
+          "stations.get.stations (verify station registration status \u2014 unregistered station explains NOT_RESPONDING routing status)"
+        ],
+        "decodeNote": "presence.get.system.presence.definitions returns the fixed Genesys Cloud system codes (Available, Busy, Away, Break, Meal, Training, Meeting, Offline). presence.get.organization.presence.definitions returns org-created custom codes. Each custom code maps to a systemPresence \u2014 an agent showing a custom 'Team Huddle' code may still be routing-eligible if systemPresence=Available. Always resolve custom\u2192system mapping before asserting unavailability."
+      },
+      "quality-form-calibration-audit": {
+        "description": "Evaluation scoring consistency and calibration verification across a queue or group of evaluators. Identifies evaluator bias, under-evaluation (low QA coverage), score inflation, and calibration drift. Run monthly as part of the QM governance cycle or when agents dispute evaluation fairness. The form catalog is essential context \u2014 without it, scores lack the dimension weighting needed to interpret them accurately.",
+        "subjectParam": "queueId or agentUserId",
+        "datasetsInOrder": [
+          "quality.get.published.evaluation.forms",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "quality.get.surveys",
+          "analytics.query.conversation.details.by.queue"
+        ],
+        "diagnosticSignals": [
+          "evalCount << totalConnectedConversations \u2192 QM sampling rate is too low; increase evaluation frequency or enable auto-assignment",
+          "Score variance >15 points between evaluators on the same agent in the same period \u2192 calibration drift; schedule calibration session",
+          "avgEvaluationScore > 95% sustained across all agents \u2192 score inflation or form is too easy; review critical items and form design",
+          "criticalItemFailRate% > 5% \u2192 systemic compliance or process failure; trigger root-cause with recordings",
+          "Single evaluatorId accounts for >80% of evaluations \u2192 evaluation bottleneck; no cross-evaluator validation possible",
+          "quality.get.published.evaluation.forms: form with criticalItems=[] \u2192 no hard-fail criteria; non-compliant form design",
+          "Evaluation scores trending down while csatScore stable \u2192 evaluator standard may have increased, not agent quality; review form changes",
+          "Surveys with csatScore < 2 on conversations with evaluationScore > 90 \u2192 disconnect between QM scores and customer perception; revisit evaluation criteria"
+        ],
+        "enrichWith": [
+          "users (resolve evaluatorId and agentUserId to names for the audit report)",
+          "conversations.get.recordings (pull recordings for low-scoring conversations to verify evaluation accuracy)",
+          "audit-logs (filter by service=Quality to see form version changes and evaluation deletion events)"
+        ],
+        "calibrationNote": "A calibration audit requires at least 2 evaluators scoring the same set of conversations. Use quality.get.evaluations.query filtered by conversationId to retrieve multiple evaluations of the same call. Compare dimensionScores per form question \u2014 high inter-rater variability on specific questions identifies which form dimensions lack clear rubric guidance."
       }
     }
   }

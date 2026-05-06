@@ -299,10 +299,86 @@ with the composition contract.
 
 ---
 
-## Release 1.3 — Visibility extensions (tentative)
+## Release 1.3 — Visibility extensions + Division Investigation + Enrichment steps
 
-**Goal:** Add deferred visibility features once the composition layer is
-established and proven across all three flagships.
+**Goal:** Add deferred visibility features, promote the Division investigation
+from candidate to flagship, and wire the enrichment dataset steps (conversation
+voice/AI layer, agent WFM/quality layer, queue disposition/transfer layer) that
+were designed in the endpoint evaluation session (2026-05-06).
+
+### Division Investigation (new fourth flagship)
+
+- [ ] **Flagship investigation — Division.**
+      `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>` →
+      division config + scoped objects + role grants + queues in division +
+      agents in division + aggregated queue performance + agent performance +
+      quality scores. See [INVESTIGATIONS.md § 4.4](INVESTIGATIONS.md#44-division-investigation-release-13-candidate).
+- [ ] **Division as cross-queue grouping.** Division spans queues and is the
+      correct grouping boundary for agents who work across multiple queues.
+      The investigation must surface queue performance rolled up to division
+      level, not just per-queue, so executives can compare divisions without
+      knowing their individual queue IDs.
+- [ ] **Acceptance tests for Division Investigation** mirroring the Agent/
+      Conversation/Queue pattern: happy path, determinism, missing grants,
+      required-step failure, manifest validity.
+- [ ] **Live validation** of division-specific datasets: `authorization.get.division.details`,
+      `authorization.search.division.objects`, `authorization.get.division.grants`.
+
+### Enrichment dataset steps (all investigations)
+
+25 new datasets were added to the catalog in the 2026-05-06 endpoint evaluation
+session. These datasets exist as catalog entries and endpoints but are not yet
+wired as investigation steps. Release 1.3 gates each group on live validation
+before wiring.
+
+**Conversation voice/AI enrichment (8 datasets):**
+- [ ] Live validation: `conversations.get.specific.conversation.details`,
+      `conversations.get.conversation.recording.metadata`,
+      `conversations.get.conversation.summaries`,
+      `speechandtextanalytics.get.conversation.categories`,
+      `speechandtextanalytics.get.conversation.summaries.detail`,
+      `speechandtextanalytics.get.conversation.transcript.urls`,
+      `telephony.get.sip.message.for.conversation`,
+      `quality.get.conversation.surveys`.
+- [ ] Wire as optional enrichment steps in `Get-GenesysConversationInvestigation`
+      behind a `-Enriched` switch. Default off (preserves 1.1 behaviour).
+
+**Agent WFM/quality enrichment (10 datasets):**
+- [ ] Live validation: `users.get.user.details.with.full.expansion`,
+      `users.get.user.s.queue.memberships`, `users.get.user.routing.status`,
+      `routing.get.user.utilization`, `analytics.query.user.aggregates.performance.metrics`,
+      `analytics.query.user.aggregates.login.activity`, `quality.get.agents.activity`,
+      `coaching.get.appointments`, `workforce.get.agent.management.unit`,
+      `workforce.get.adherence.bulk`.
+- [ ] Wire as optional enrichment steps in `Get-GenesysAgentInvestigation`
+      behind a `-Enriched` switch.
+
+**Queue disposition/transfer enrichment (5 datasets):**
+- [ ] Live validation: `routing.get.queue.wrapup.codes`,
+      `routing.get.queue.estimated.wait.time`,
+      `analytics.query.conversation.aggregates.transfer.metrics`,
+      `analytics.query.conversation.aggregates.wrapup.distribution`,
+      `analytics.query.conversation.aggregates.agent.performance`.
+- [ ] Wire as optional enrichment steps in `Get-GenesysQueueInvestigation`
+      behind a `-Enriched` switch.
+
+**Executive snapshot datasets (5 datasets):**
+- [ ] Live validation: `analytics.query.conversation.aggregates.daily.stats`,
+      `analytics.query.conversation.activity`,
+      `analytics.post.agents.status.query`,
+      `analytics.post.agents.status.counts`,
+      `analytics.get.single.conversation.analytics`.
+- [ ] Use in `Invoke-GenesysOperationsReport` and the OpsConsole dashboard.
+
+### Investigation Recipes documentation
+
+- [x] Created `docs/INVESTIGATION_RECIPES.md` (2026-05-06) — full endpoint
+      combination reference for voice engineers, supervisors, executives, and
+      compliance reviewers. Covers single-conversation triage, queue health,
+      agent investigation, division investigation, executive rollup patterns,
+      IVR effectiveness, and a voice engineer toolbox summary.
+
+### Other visibility extensions
 
 - [ ] Idea 5 — Edge Alarms & Event Feed (catalog endpoint
       `telephony.get.edge.logs`, `Get-GenesysEdgeEvent` Ops cmdlet, NOC feed
@@ -310,9 +386,10 @@ established and proven across all three flagships.
 - [ ] Session 20 — Temporal Trend and Comparative Reporting
       (period-over-period comparisons on Core aggregate outputs and on
       investigation outputs).
-- [ ] Additional flagship investigations identified during 1.0–1.2
-      (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
-      names a concrete use case.
+- [ ] Outbound Campaign investigation — only if a stakeholder names a concrete
+      use case. Candidate datasets: `outbound.get.campaigns`,
+      `analytics.query.conversation.aggregates.queue.performance` (outbound queues),
+      `outbound.get.events`, `analytics.query.user.aggregates.performance.metrics`.
 
 ---
 

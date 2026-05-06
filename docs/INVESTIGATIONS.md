@@ -164,6 +164,8 @@ not the manifest.
 **Cmdlet:** `Get-GenesysAgentInvestigation -UserId <x> -Since <window>`
 **InvestigationKey:** `agent-investigation`
 
+**Core steps (shipped in 1.0):**
+
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
 | identity | `users` | seed | Name, email, state, manager |
@@ -174,34 +176,103 @@ not the manifest.
 | activity | `analytics.query.user.details.activity.report` | `userId` | Login/logout/on-queue |
 | conversations | `analytics-conversation-details-query` (filtered by participant) | `userId` | Conversations the agent touched |
 
+**Enrichment steps (optional, added in 1.3):**
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| profile | `users.get.user.details.with.full.expansion` | `userId` | Full profile: department, manager chain, primary station |
+| queueMemberships | `users.get.user.s.queue.memberships` | `userId` | Per-agent queue join state and alert settings |
+| routingStatus | `users.get.user.routing.status` | `userId` | Point-in-time routing status at investigation time |
+| utilization | `routing.get.user.utilization` | `userId` | Max concurrent channel capacity configuration |
+| performanceMetrics | `analytics.query.user.aggregates.performance.metrics` | `userId` | Handle time, ACW, connected count in window |
+| loginActivity | `analytics.query.user.aggregates.login.activity` | `userId` | On-queue vs. off-queue vs. idle time totals |
+| qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation scores, highest/average/lowest |
+| coaching | `coaching.get.appointments` (filtered) | `userId` | Scheduled and completed coaching sessions |
+| wfmUnit | `workforce.get.agent.management.unit` | `userId` | WFM management unit assignment |
+| adherence | `workforce.get.adherence.bulk` (filtered) | `userId` | Schedule adherence: scheduled vs. actual state |
+
+> Division is a grouping that spans queues. Agents in the same division share authorization scope and object access regardless of queue membership. The `division` + `queueMemberships` combination reveals the full cross-queue footprint of an agent within their authorization boundary.
+
 ### 4.2 Conversation investigation _(Release 1.1)_
 
 **Cmdlet:** `Get-GenesysConversationInvestigation -ConversationId <x>`
 **InvestigationKey:** `conversation-investigation`
 
+**Core steps (shipped in 1.1):**
+
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| conversation | `analytics-conversation-details` | seed | Full participant timeline |
+| conversation | `analytics-conversation-details` | seed | Full participant timeline, segments, and metrics |
 | participants | (derived from conversation) | seed | Extract participant userIds |
-| agents | `users` (per participant) | `userId` | Identity for each agent |
+| agents | `users` (per participant) | `userId` | Identity for each agent participant |
 | divisions | `users.division.analysis.get.users.with.division.info` | `userId` | Division/location at time of contact |
 | skills | `routing.get.all.routing.skills` (filtered) | `userId` | Skills at time of contact |
-| recordings | `conversations.get.recordings` | `conversationId` | Recording metadata if present |
-| evaluations | `quality.get.evaluations.query` | `conversationId` | Evaluation outcomes if present |
+| recordings | `conversations.get.recordings` | `conversationId` | Recording list with media references |
+| evaluations | `quality.get.evaluations.query` | `conversationId` | Evaluation outcomes and scores |
+
+**Enrichment steps (optional, added in 1.3):**
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| conversationState | `conversations.get.specific.conversation.details` | `conversationId` | Conversation API state: direction, media type, connected/disconnected times |
+| recordingMetadata | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording inventory without downloading media |
+| aiSummary | `conversations.get.conversation.summaries` | `conversationId` | Genesys AI: reason for call, resolution, follow-up |
+| speechCategories | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Detected topic categories (billing, complaint, escalation…) |
+| nlpSummary | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | NLP-derived resolution and sentiment from transcript |
+| transcriptUrls | `speechandtextanalytics.get.conversation.transcript.urls` | `communicationId` | Pre-signed S3 transcript URLs per leg |
+| survey | `quality.get.conversation.surveys` | `conversationId` | Post-call CSAT/NPS survey response |
+| sipTrace | `telephony.get.sip.message.for.conversation` | `conversationId` | SIP signaling trace for voice engineer diagnosis |
+
+> `sipTrace` is the key enrichment for **voice engineers**. The INVITE→180→200→BYE sequence with timestamps immediately isolates whether a call failure was SIP setup, media negotiation, or carrier. Pair with `recordingMetadata` to confirm whether audio was captured before troubleshooting further.
 
 ### 4.3 Queue investigation _(Release 1.2)_
 
 **Cmdlet:** `Get-GenesysQueueInvestigation -QueueId <x> -Since <window>`
 **InvestigationKey:** `queue-investigation`
 
+**Core steps (shipped in 1.2):**
+
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| queue | `routing-queues` (single) | seed | Config and metadata |
-| members | (queue members endpoint) | `queueId` | Current membership |
-| observations | `analytics.query.queue.observations.real.time.stats` | `queueId` | Real-time waiting/interacting |
-| sla | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | SLA window metrics |
-| abandons | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon counts |
-| activeAgents | `analytics.query.user.observations.real.time.status` | `queueId` | Agents currently on-queue |
+| queue | `routing.get.queue.details` | seed | Queue config: name, division, flow assignment, ACW settings |
+| members | `routing.get.queue.members` | `queueId` | Current agent roster with join state |
+| observations | `analytics.query.queue.observations.real.time.stats` | `queueId` | Real-time oWaiting, oInteracting, oOnQueueUsers |
+| sla | `analytics.query.queue.aggregates.service.level` | `queueId` | SLA compliance: nAnsweredIn20/30/60, tServiceLevel |
+| abandons | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon counts and tAbandoned |
+| activeAgents | `analytics.query.user.observations.real.time.status` | `queueId` | Agents currently on-queue with routing status |
+
+**Enrichment steps (optional, added in 1.3):**
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| wrapupCodes | `routing.get.queue.wrapup.codes` | `queueId` | Valid dispositions assigned to this queue |
+| estimatedWaitTime | `routing.get.queue.estimated.wait.time` | `queueId` | Real-time EWT in seconds — leading indicator of pressure |
+| transfers | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Blind and consult transfer rates |
+| wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Disposition breakdown by wrapup code |
+| agentPerformance | `analytics.query.conversation.aggregates.agent.performance` | `queueId` | Per-agent handle/talk/ACW within this queue |
+| conversations | `analytics-conversation-details-query` (filtered by queue) | `queueId` | All conversations routed through this queue in window |
+
+### 4.4 Division investigation _(Release 1.3 candidate)_
+
+**Cmdlet:** `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>`
+**InvestigationKey:** `division-investigation`
+
+A division is an authorization boundary that spans queues, flows, and users.
+Multiple queues can share a division; multiple agents can belong to the same
+division while being on different queues. This investigation answers:
+"What is the full footprint and performance of this division?"
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| division | `authorization.get.division.details` | seed | Division name, description, home-org flag |
+| objects | `authorization.search.division.objects` | `divisionId` | All resources scoped to this division (queues, flows, trunks) |
+| grants | `authorization.get.division.grants` | `divisionId` | Roles granted within the division — for access review |
+| agents | `users` (filtered by division) | `divisionId` | All agents in the division with identity |
+| queues | `routing-queues` (filtered by division) | `divisionId` | All queues in the division with config |
+| queuePerformance | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Aggregated SLA, volume, and AHT per queue in division |
+| abandons | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon metrics per queue in division |
+| agentPerformance | `analytics.query.user.aggregates.performance.metrics` | `userId` | Performance metrics for all agents in division |
+| qualityScores | `quality.get.evaluations.query` (filtered by division agents) | `userId` | Quality evaluation outcomes for agents in division |
 
 ## 5. Dependencies
 
@@ -213,7 +284,20 @@ under Track A.
 | --- | --- |
 | Agent | `users`, division-info, skills, `routing-queues`, bulk presences, user activity report, `analytics-conversation-details-query` |
 | Conversation | `analytics-conversation-details`, `users`, division-info, skills, recordings, evaluations |
-| Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
+| Queue | `routing.get.queue.details`, `routing.get.queue.members`, queue observations, queue aggregates (service level, abandons), user observations |
+| Division | `authorization.get.division.details`, `authorization.search.division.objects`, `authorization.get.division.grants`, `users`, `routing-queues`, conversation aggregates, user aggregates, evaluations |
+
+**Enrichment dataset dependencies (1.3):**
+
+Enrichment steps are optional (`Required = $false`) and their failure logs but
+does not abort the parent investigation. Each enrichment dataset still requires
+live validation before the enrichment step can be marked production-ready.
+
+| Enrichment Group | Datasets |
+| --- | --- |
+| Conversation voice/AI | `conversations.get.specific.conversation.details`, `conversations.get.conversation.recording.metadata`, `conversations.get.conversation.summaries`, `speechandtextanalytics.get.conversation.categories`, `speechandtextanalytics.get.conversation.summaries.detail`, `speechandtextanalytics.get.conversation.transcript.urls`, `telephony.get.sip.message.for.conversation`, `quality.get.conversation.surveys` |
+| Agent WFM/quality | `users.get.user.details.with.full.expansion`, `users.get.user.s.queue.memberships`, `users.get.user.routing.status`, `routing.get.user.utilization`, `analytics.query.user.aggregates.performance.metrics`, `analytics.query.user.aggregates.login.activity`, `quality.get.agents.activity`, `coaching.get.appointments`, `workforce.get.agent.management.unit`, `workforce.get.adherence.bulk` |
+| Queue disposition/transfer | `routing.get.queue.wrapup.codes`, `routing.get.queue.estimated.wait.time`, `analytics.query.conversation.aggregates.transfer.metrics`, `analytics.query.conversation.aggregates.wrapup.distribution`, `analytics.query.conversation.aggregates.agent.performance` |
 
 The mirror-catalog cutover should also land before any investigation references
 catalog keys, to avoid a double rename when the deprecated stub is removed.

@@ -3,11 +3,10 @@
 > Status: Design proposal, approved 2026-04-28; release shape refined 2026-04-29
 > Tracking: [ROADMAP.md § Release 1.0 Track B](ROADMAP.md#track-b--composition-the-value-step)
 >
-> Release shape: Agent Investigation ships in 1.0 to prove the composition
-> model. Conversation Investigation ships in 1.1 with redaction hardening.
-> Queue Investigation ships in 1.2 with reporting-contract cleanup. Their
-> designs are documented here in full so the contract is settled before
-> implementation begins.
+> Release shape: Agent Investigation shipped in 1.0 (proves the composition
+> model). Conversation Investigation shipped in 1.1 with redaction hardening.
+> Queue Investigation shipped in 1.2 with reporting-contract cleanup. Their
+> designs are documented here in full so the contract stays explicit.
 
 ## 1. Purpose
 
@@ -196,12 +195,17 @@ not the manifest.
 
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| queue | `routing-queues` (single) | seed | Config and metadata |
-| members | (queue members endpoint) | `queueId` | Current membership |
+| queue | `routing-queues` (filtered to subject) | seed | Config and metadata |
+| members | `routing-queue-members` (parameterised by queueId) | `queueId` | Current membership with routing status |
 | observations | `analytics.query.queue.observations.real.time.stats` | `queueId` | Real-time waiting/interacting |
 | sla | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | SLA window metrics |
 | abandons | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon counts |
 | activeAgents | `analytics.query.user.observations.real.time.status` | `queueId` | Agents currently on-queue |
+
+The `routing-queue-members` catalog dataset added in 1.2 wraps
+`routing.get.queue.members.with.status` (membership + presence). The
+`queue-investigation-members` redaction profile strips the deep contact
+fields carried over by user records embedded under each membership entry.
 
 ## 5. Dependencies
 
@@ -266,19 +270,19 @@ Two ad-hoc composers already exist in `Genesys.Ops`:
 - `Get-GenesysQueueHealthSnapshot` (queue observations + SLA + queue list)
 - `Invoke-GenesysOperationsReport` (multi-section daily ops report)
 
-These predate this design. Disposition is deferred to **Release 1.2** alongside
-the Queue Investigation, because that is when the join logic overlap becomes
-concrete:
+These predate this design. Disposition resolved in **Release 1.2**:
 
-- `Get-GenesysQueueHealthSnapshot` overlaps the Queue investigation. In 1.2,
-  either re-implement on top of `Invoke-Investigation` or leave in place with
-  a one-line note in source pointing to `Get-GenesysQueueInvestigation`.
-- `Invoke-GenesysOperationsReport` is a multi-subject report rather than a
-  single-subject investigation. It stays as-is through 1.2 unless its join
-  logic accumulates further.
+- `Get-GenesysQueueHealthSnapshot` is retained — it is a _multi-queue_
+  snapshot ranking, not a subject-centred investigation. Re-implementing it
+  on top of `Invoke-Investigation` would invert its shape (one investigation
+  per queue × N queues) for no operator benefit. Source carries a one-line
+  cross-reference to `Get-GenesysQueueInvestigation` for the single-queue
+  drilldown case.
+- `Invoke-GenesysOperationsReport` is retained — multi-subject daily roll-up
+  (queues + edges + alerts + WebRTC), not a single-subject investigation.
+  Source likewise carries a one-line cross-reference.
 
-Releases 1.0 and 1.1 leave both functions untouched. No other existing cmdlet
-is renamed or removed by this work.
+No existing cmdlet is renamed or removed by this work.
 
 ## 9. Open questions
 

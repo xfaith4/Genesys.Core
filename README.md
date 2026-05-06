@@ -16,7 +16,7 @@ Extracting governed, reproducible data from the Genesys Cloud REST API is harder
 
 Genesys.Core solves this with a **catalog-driven execution engine**: endpoint behavior (paging strategy, retry profile, async flow, redaction policy) lives in a single JSON catalog — not scattered across scripts. Every run produces identical, auditable output artifacts, making automation, compliance review, and CI integration straightforward.
 
-The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. The first flagship is Agent Investigation, which joins identity, division, skills, queue memberships, presence, activity, and touched conversations for one agent.
+The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. Three flagships ship today — Agent Investigation (1.0) joins identity/skills/queues/conversations for one agent, Conversation Investigation (1.1) joins one conversation with its participants/divisions/recordings/evaluations, and Queue Investigation (1.2) joins one queue with its members/observations/SLA/abandons/active agents.
 
 ---
 
@@ -27,7 +27,7 @@ The Ops layer builds on that contract with **investigations**: subject-centred c
 - **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
 - **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs
 - **Structured run output contract** — every run writes `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl` under `out/<datasetKey>/<runId>/`
-- **Investigation composition** — `Get-GenesysAgentInvestigation` emits the same artifact set for a joined, agent-centred investigation under `out/agent-investigation/<runId>/`
+- **Investigation composition** — `Get-GenesysAgentInvestigation`, `Get-GenesysConversationInvestigation`, and `Get-GenesysQueueInvestigation` emit the same artifact set for joined, subject-centred investigations under `out/<investigationKey>/<runId>/`
 - **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
 - **GitHub Actions integration** — scheduled and on-demand workflows for `audit-logs` with artifact upload and configurable retention
 - **Ready-made frontend apps** — five sample apps in `apps/` demonstrate the custom-wrapper pattern (web SPAs, WPF consoles, operator dashboards); see [Apps](#apps) below
@@ -156,8 +156,14 @@ All other keys in the catalog (27 additional) run via generic catalog-driven dis
 Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
 Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.cloud'
 
-# Resolve by name in the wrapper, then compose the investigation by UserId.
+# Agent — resolve by name in the wrapper, then compose by UserId.
 Get-GenesysAgentInvestigation -UserName 'Jane Doe' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
+
+# Conversation — single subject, no window.
+Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
+
+# Queue — subject + window for the SLA / abandons / observations steps.
+Get-GenesysQueueInvestigation -QueueId '<queue-guid>' -Since (Get-Date).AddDays(-1) -OutputRoot './out'
 ```
 
 Investigation output follows the same artifact contract as datasets, with an investigation manifest schema at `catalog/schema/investigation.manifest.schema.json`. See [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for the composition contract and release sequencing.

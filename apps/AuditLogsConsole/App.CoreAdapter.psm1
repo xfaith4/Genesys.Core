@@ -199,8 +199,8 @@ function New-AuditDatasetParameters {
 
     $startUtc = [datetime]$QuerySpec.StartUtc
     $endUtc   = [datetime]$QuerySpec.EndUtc
-    if ($endUtc -lt $startUtc) {
-        throw 'End time must be greater than or equal to start time.'
+    if ($endUtc -le $startUtc) {
+        throw 'End time must be after start time.'
     }
 
     $notes = New-Object System.Collections.Generic.List[string]
@@ -210,6 +210,14 @@ function New-AuditDatasetParameters {
         if ($windowHours -gt $maxHours) {
             $startUtc = $endUtc.AddHours(-1 * $maxHours)
             $notes.Add("Preview window clamped to the most recent $maxHours hours for faster operator feedback.")
+        }
+    }
+    else {
+        # The Genesys audit query endpoint enforces a 30-day maximum window. Reject anything beyond
+        # that here so the user gets an inline message instead of a 400 from the API.
+        $windowDays = ($endUtc - $startUtc).TotalDays
+        if ($windowDays -gt 30) {
+            throw "Full extract window is $([Math]::Round($windowDays, 1)) days. The Genesys audit query endpoint accepts a maximum of 30 days; narrow the range and retry."
         }
     }
 

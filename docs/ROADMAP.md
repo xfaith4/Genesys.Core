@@ -45,6 +45,14 @@ the engineering teams that automate against them.
       implemented with derived-participants step, `RecordDeriver`/`SubjectUpdater`
       extension to `Invoke-Investigation`, redaction profiles for recordings and
       evaluations datasets, and full fixture-driven integration test suite.
+- [x] Release 1.2 — Queue Investigation flagship: `Get-GenesysQueueInvestigation`
+      implemented over six steps (queue, members, observations, sla, abandons,
+      activeAgents); new `routing-queue-members` dataset and
+      `queue-investigation-members` redaction profile added to the catalog;
+      `Get-GenesysQueueHealthSnapshot` and `Invoke-GenesysOperationsReport`
+      retained with cross-references to the new investigation; full
+      fixture-driven integration test suite under
+      `tests/integration/QueueInvestigation.Tests.ps1`.
 
 ---
 
@@ -281,21 +289,29 @@ content it surfaces.
 **Goal:** Add the third flagship and reconcile pre-existing ad-hoc composers
 with the composition contract.
 
-- [ ] **Flagship investigation — Queue.**
+- [x] **Flagship investigation — Queue.**
       `Get-GenesysQueueInvestigation -QueueId <x> -Since <window>` →
       queue config + members + observations + SLA + abandons + agents
-      currently or recently active on the queue.
-- [ ] **Reporting-contract cleanup.** Re-implement
-      `Get-GenesysQueueHealthSnapshot` on top of `Invoke-Investigation` where
-      its join logic overlaps Queue Investigation, or explicitly leave it in
-      place with a one-line note in source pointing to
-      `Get-GenesysQueueInvestigation`. Same disposition decision for
-      `Invoke-GenesysOperationsReport`.
-- [ ] **Acceptance tests for Queue Investigation** mirroring the Agent and
-      Conversation patterns.
+      currently active on the queue. Six steps composed via
+      `Invoke-Investigation`; new `routing-queue-members` dataset wraps
+      `routing.get.queue.members.with.status`. Emits the standard run-artifact
+      set under `out/queue-investigation/<runId>/`.
+- [x] **Reporting-contract cleanup.** `Get-GenesysQueueHealthSnapshot` and
+      `Invoke-GenesysOperationsReport` are retained as-is and now carry
+      one-line cross-references in their source `.SYNOPSIS`/`.DESCRIPTION`
+      pointing operators to `Get-GenesysQueueInvestigation` for the
+      single-queue case under the run-artifact contract. They differ in
+      shape (multi-queue snapshot / multi-section daily report vs. a
+      subject-centred investigation) so a re-implementation on top of
+      `Invoke-Investigation` would have been pure churn.
+- [x] **Acceptance tests for Queue Investigation** mirroring the Agent and
+      Conversation patterns. All seven contexts (happy path, determinism,
+      missing optional step, required-step failure, redaction, manifest
+      validity, empty aggregates) pass under
+      `tests/integration/QueueInvestigation.Tests.ps1`.
 - [ ] Live validation of any Queue-only datasets not covered in 1.0/1.1
       (queue members, queue observations, queue performance, abandon
-      aggregates, user observations).
+      aggregates, user observations) — gated on live Genesys Cloud access.
 
 ---
 

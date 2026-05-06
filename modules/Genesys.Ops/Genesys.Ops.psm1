@@ -4567,6 +4567,10 @@ function Get-GenesysQueueHealthSnapshot {
     .SYNOPSIS
         Returns a multi-queue health snapshot combining observations and SLA.
     .DESCRIPTION
+        Multi-queue, no run-artifacts. For a single-queue investigation that
+        emits the standard manifest/events/summary/data set, use
+        Get-GenesysQueueInvestigation.
+
         Merges real-time queue observations (waiting, interacting, on-queue agents)
         with service level performance into a single per-queue health record.
 
@@ -4664,6 +4668,10 @@ function Invoke-GenesysOperationsReport {
     .SYNOPSIS
         Generates an enhanced operations report including abandon rate, SLA, and edge health.
     .DESCRIPTION
+        Multi-subject daily report. For a single-queue investigation under the
+        standard run-artifact contract, use Get-GenesysQueueInvestigation; this
+        cmdlet remains the cross-queue/edge/alerts roll-up.
+
         Extends the standard daily health report with new KPI sections:
           - Queue abandon rates
           - Service level (SLA) compliance
@@ -6028,6 +6036,176 @@ function Get-GenesysConversationInvestigation {
         -SubjectType      'conversation' `
         -Subject          @{ SubjectId = $ConversationId; ConversationId = $ConversationId } `
         -Window           @{ Since = $null; Until = $null } `
+        -Steps            $steps `
+        -OutputRoot       $OutputRoot `
+        -RunId            $RunId `
+        -DatasetInvoker   $DatasetInvoker
+}
+
+function Get-GenesysQueueInvestigationStepDefinition {
+    <#
+    .SYNOPSIS
+        Returns the ordered step descriptors for the Queue Investigation flagship.
+    .DESCRIPTION
+        Centralised so the public cmdlet and integration tests share the same
+        contract. Designed for the investigation composer — each step is a
+        hashtable consumed by Invoke-Investigation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $QueueId,
+
+        [datetime] $Since,
+
+        [datetime] $Until
+    )
+
+    $idMatchesQueue = { param($r, $s)
+        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.QueueId)
+    }
+    $queueIdMatches = { param($r, $s)
+        $qp = $r.PSObject.Properties['queueId']
+        $qp -and [string]$qp.Value -eq $s.QueueId
+    }
+
+    @(
+        @{
+            Name          = 'queue'
+            DatasetKey    = 'routing-queues'
+            SubjectFilter = $idMatchesQueue
+            EmitAs        = 'queue'
+            Required      = $true
+            JoinKind      = 'Seed'
+            JoinOn        = @{ Left = $null; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'members'
+            DatasetKey    = 'routing-queue-members'
+            Parameters    = @{ queueId = $QueueId }
+            EmitAs        = 'members'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'observations'
+            DatasetKey    = 'analytics.query.queue.observations.real.time.stats'
+            SubjectFilter = $queueIdMatches
+            EmitAs        = 'observations'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+            SortKey       = 'queueId'
+        }
+        @{
+            Name          = 'sla'
+            DatasetKey    = 'analytics.query.conversation.aggregates.queue.performance'
+            SubjectFilter = $queueIdMatches
+            EmitAs        = 'sla'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+            SortKey       = 'queueId'
+        }
+        @{
+            Name          = 'abandons'
+            DatasetKey    = 'analytics.query.conversation.aggregates.abandon.metrics'
+            SubjectFilter = $queueIdMatches
+            EmitAs        = 'abandons'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+            SortKey       = 'queueId'
+        }
+        @{
+            Name          = 'activeAgents'
+            DatasetKey    = 'analytics.query.user.observations.real.time.status'
+            SubjectFilter = $queueIdMatches
+            EmitAs        = 'activeAgents'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+            SortKey       = 'userId'
+        }
+    )
+}
+
+function Get-GenesysQueueInvestigation {
+    <#
+    .SYNOPSIS
+        Run the Queue Investigation flagship — joins queue config, members, real-time
+        observations, SLA / queue performance, abandon metrics, and currently-active
+        agents for one queue.
+    .DESCRIPTION
+        Composes six catalog datasets via Invoke-Investigation and emits the
+        standard run-artifact set under out/queue-investigation/<runId>/.
+
+        Resolves -QueueName to a QueueId before invoking the composer. Use
+        -DatasetInvoker (a scriptblock returning fixture data) to drive
+        determinism / integration tests without touching the live API.
+    .PARAMETER QueueId
+        Resolved Genesys queue GUID. Required if -QueueName is not supplied.
+    .PARAMETER QueueName
+        Display-name fragment used to look up a single queue via Get-GenesysQueue.
+        The first exact-name match is used; ambiguous matches throw.
+    .PARAMETER Since
+        Inclusive start of the investigation window. Defaults to 7 days ago.
+    .PARAMETER Until
+        Exclusive end of the investigation window. Defaults to now.
+    .PARAMETER OutputRoot
+        Root for the run-artifact tree. Defaults to 'out'.
+    .PARAMETER RunId
+        Override the auto-generated run identifier. Use only for deterministic
+        tests; do not set in production.
+    .PARAMETER DatasetInvoker
+        Test seam — see Invoke-Investigation. When supplied, no live API calls
+        are made and Connect-GenesysCloud is not required.
+    .EXAMPLE
+        Get-GenesysQueueInvestigation -QueueId 'q1b2c3...' -Since (Get-Date).AddDays(-7)
+    .EXAMPLE
+        Get-GenesysQueueInvestigation -QueueName 'Support'
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
+    param(
+        [Parameter(ParameterSetName = 'ById', Mandatory)]
+        [string] $QueueId,
+
+        [Parameter(ParameterSetName = 'ByName', Mandatory)]
+        [string] $QueueName,
+
+        [datetime] $Since,
+        [datetime] $Until,
+        [string]   $OutputRoot = 'out',
+        [string]   $RunId,
+        [scriptblock] $DatasetInvoker
+    )
+
+    if (-not $Until) { $Until = Get-Date }
+    if (-not $Since) { $Since = $Until.AddDays(-7) }
+
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+        $matches = @(Get-GenesysQueue | Where-Object { $_.name -eq $QueueName })
+        if ($matches.Count -eq 0) { throw "No Genesys queue matched '$QueueName'." }
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
+            throw "Ambiguous queue name '$QueueName' — $($matches.Count) matches: $ids"
+        }
+        $QueueId = $matches[0].id
+    }
+
+    if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+    $steps = Get-GenesysQueueInvestigationStepDefinition -QueueId $QueueId -Since $Since -Until $Until
+
+    Invoke-Investigation `
+        -InvestigationKey 'queue-investigation' `
+        -SubjectType      'queue' `
+        -Subject          @{ SubjectId = $QueueId; QueueId = $QueueId } `
+        -Window           @{ Since = $Since; Until = $Until } `
         -Steps            $steps `
         -OutputRoot       $OutputRoot `
         -RunId            $RunId `

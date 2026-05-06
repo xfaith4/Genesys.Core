@@ -4321,12 +4321,30 @@ function _ApplyQueryTemplate {
 }
 
 
+function _AssertGuidLike {
+    param(
+        [string]$Value,
+        [string]$Label
+    )
+    if ([string]::IsNullOrWhiteSpace($Value)) { return }
+    # Accept canonical 8-4-4-4-12 GUID (hyphenated). Genesys ids are GUIDs in this form.
+    if ($Value -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
+        throw "$Label '$Value' is not a valid GUID. Expected the 8-4-4-4-12 hyphenated form (e.g. 11111111-2222-3333-4444-555555555555)."
+    }
+}
+
 function _GetDatasetParameters {
     # Body override — when TxtQueryBody contains JSON, use it directly and skip
     # all form-filter processing.  This supports both preview and full runs.
     if ($null -ne $script:TxtQueryBody) {
         $bodyText = $script:TxtQueryBody.Text.Trim()
         if (-not [string]::IsNullOrWhiteSpace($bodyText)) {
+            if ($bodyText.Length -gt 65536) {
+                throw 'Query body is too large (max 64 KB). Trim the JSON or use form filters.'
+            }
+            # Validate it parses as JSON before forwarding.
+            try { [void]($bodyText | ConvertFrom-Json -ErrorAction Stop) }
+            catch { throw "Query body JSON is invalid: $($_.Exception.Message)" }
             return @{ Body = $bodyText }
         }
     }
@@ -4336,6 +4354,16 @@ function _GetDatasetParameters {
     $range  = _GetQueryBoundaryDateTimes
     $startUtc = $null
     $endUtc = $null
+
+    # A run cannot proceed with no time window — the conversation-details
+    # endpoint demands an interval.  Surface this inline rather than hitting a 400.
+    if ($null -eq $range.Start -or $null -eq $range.End) {
+        throw 'Both Start and End date/time must be set before starting a run.'
+    }
+    $windowDays = ($range.End - $range.Start).TotalDays
+    if ($windowDays -gt 30) {
+        throw "Conversation-details runs are limited to a 30-day window. Current selection spans $([Math]::Round($windowDays,1)) days; narrow the range."
+    }
 
     if ($null -ne $range.Start) {
         # Convert to UTC – WPF DatePicker yields DateTimeKind.Unspecified (treated as
@@ -4362,13 +4390,29 @@ function _GetDatasetParameters {
     if ($q) { $params['Queue'] = $q }
 
     $convId = $filterState.ConversationId
-    if ($convId) { $params['ConversationId'] = $convId }
+    if ($convId) {
+        _AssertGuidLike -Value $convId -Label 'Conversation ID'
+        $params['ConversationId'] = $convId
+    }
 
     $userId = $script:TxtFilterUserId.Text.Trim()
-    if ($userId) { $params['UserId'] = $userId }
+    if ($userId) {
+        _AssertGuidLike -Value $userId -Label 'User ID'
+        $params['UserId'] = $userId
+    }
 
     $divId = $filterState.DivisionId
-    if ($divId) { $params['DivisionIds'] = @($divId) }
+    if ($divId) {
+        _AssertGuidLike -Value $divId -Label 'Division ID'
+        $params['DivisionIds'] = @($divId)
+    }
+
+    # Defensive cap on free-text filter fields. These are forwarded to the API as
+    # filter values; large pastes are usually accidents.
+    $queueText = [string]$params['Queue']
+    if ($queueText.Length -gt 256)  { throw 'Queue filter is too long (max 256 chars).' }
+    $flowName  = $script:TxtFlowName.Text
+    if ($flowName.Length -gt 256)   { throw 'Flow name filter is too long (max 256 chars).' }
 
     if ($script:ChkExternalTagExists.IsChecked -eq $true) {
         $params['ConversationFilters'] = @(@{
@@ -5416,7 +5460,7 @@ $script:BtnRun.Add_Click({
         $params = _GetDatasetParameters
         _StartRunInBackground -RunType 'full' -DatasetParameters $params
     } catch {
-        _SetStatus 'Invalid date/time range'
+        _SetStatus 'Invalid run parameters'
         [System.Windows.MessageBox]::Show($_.Exception.Message, 'Validation')
     }
 })
@@ -5425,12 +5469,17 @@ $script:BtnPreviewRun.Add_Click({
     $pageSizeText = $script:TxtPreviewPageSize.Text.Trim()
     $previewSize  = 25
     if ($pageSizeText -match '^\d+$') { $previewSize = [int]$pageSizeText }
+    if ($previewSize -lt 1 -or $previewSize -gt 1000) {
+        _SetStatus 'Preview page size out of range (1..1000)'
+        [System.Windows.MessageBox]::Show('Preview page size must be between 1 and 1000.', 'Validation') | Out-Null
+        return
+    }
     try {
         $params = _GetDatasetParameters
         $params['PageSize'] = $previewSize
         _StartRunInBackground -RunType 'preview' -DatasetParameters $params
     } catch {
-        _SetStatus 'Invalid date/time range'
+        _SetStatus 'Invalid run parameters'
         [System.Windows.MessageBox]::Show($_.Exception.Message, 'Validation')
     }
 })

@@ -359,7 +359,11 @@ $controls.BtnConnect.Add_Click({
         if ([string]::IsNullOrWhiteSpace($token)) {
             throw 'Enter a bearer token or set the GENESYS_BEARER_TOKEN environment variable.'
         }
+        $token = $token.Trim()
         $region = $controls.CmbRegion.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($region)) {
+            throw 'Select a Genesys Cloud region (e.g. usw2.pure.cloud).'
+        }
         $ctx = Connect-InterrogatorSession -AccessToken $token -Region $region
         $controls.TxtConn.Text = "Connected to $($ctx.Region) (expires $($ctx.ExpiresAt.ToString('u')))"
         $controls.TxtConn.Foreground = '#34D399'
@@ -775,14 +779,14 @@ function Start-ReportRun {
     }
 
     $days = 0; $threshold = 0.0; $topN = 0
-    if (-not [int]::TryParse($controls.TxtNrDays.Text.Trim(), [ref]$days) -or $days -le 0) {
-        Set-Status 'Window (days back) must be a positive integer.' '#F87171'; return
+    if (-not [int]::TryParse($controls.TxtNrDays.Text.Trim(), [ref]$days) -or $days -le 0 -or $days -gt 90) {
+        Set-Status 'Window (days back) must be a positive integer between 1 and 90.' '#F87171'; return
     }
-    if (-not [double]::TryParse($controls.TxtNrThreshold.Text.Trim(), [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$threshold) -or $threshold -lt 0) {
-        Set-Status 'Min transitions/day must be a non-negative number.' '#F87171'; return
+    if (-not [double]::TryParse($controls.TxtNrThreshold.Text.Trim(), [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$threshold) -or $threshold -lt 0 -or $threshold -gt 1000) {
+        Set-Status 'Min transitions/day must be a non-negative number no greater than 1000.' '#F87171'; return
     }
-    if (-not [int]::TryParse($controls.TxtNrTopN.Text.Trim(), [ref]$topN) -or $topN -le 0) {
-        Set-Status 'Top N must be a positive integer.' '#F87171'; return
+    if (-not [int]::TryParse($controls.TxtNrTopN.Text.Trim(), [ref]$topN) -or $topN -le 0 -or $topN -gt 1000) {
+        Set-Status 'Top N must be a positive integer between 1 and 1000.' '#F87171'; return
     }
     $includeConv = [bool]$controls.ChkNrIncludeConv.IsChecked
 
@@ -990,8 +994,23 @@ $controls.BtnRun.Add_Click({
         return
     }
 
+    $datasetKey = [string]$script:SelectedDataset.Key
+    if ([string]::IsNullOrWhiteSpace($datasetKey)) {
+        Set-Status 'Dataset key is empty. Select a dataset from the catalog list.' '#F87171'
+        return
+    }
+    if (-not ($script:AllDatasets | Where-Object { $_.Key -eq $datasetKey })) {
+        Set-Status ("Dataset '{0}' is not in the loaded catalog." -f $datasetKey) '#F87171'
+        return
+    }
+
+    $paramsText = [string]$controls.TxtParams.Text
+    if ($paramsText.Length -gt 65536) {
+        Set-Status 'Parameters JSON is too large (max 64 KB).' '#F87171'
+        return
+    }
     $params = $null
-    try { $params = ConvertFrom-JsonToHashtable $controls.TxtParams.Text }
+    try { $params = ConvertFrom-JsonToHashtable $paramsText }
     catch {
         Set-Status ("Parameters JSON invalid: " + $_.Exception.Message) '#F87171'
         return

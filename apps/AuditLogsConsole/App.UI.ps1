@@ -314,7 +314,14 @@ function _Read-DateTimeUtc {
         throw "$Label date is required."
     }
 
-    $timeText = [string]$TimeBox.Text
+    $timeText = ([string]$TimeBox.Text).Trim()
+    if ([string]::IsNullOrWhiteSpace($timeText)) {
+        throw "$Label time is required (HH:mm or HH:mm:ss)."
+    }
+    # Reject [timespan]::TryParse fallbacks like "5" (= 5 days). Require explicit HH:mm[:ss].
+    if ($timeText -notmatch '^\s*([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?\s*$') {
+        throw "$Label time must be in HH:mm or HH:mm:ss format (24-hour)."
+    }
     $timeValue = [timespan]::Zero
     if (-not [timespan]::TryParse($timeText, [ref]$timeValue)) {
         throw "$Label time must use HH:mm format."
@@ -360,27 +367,47 @@ function _Apply-TimePreset {
 function _Build-QuerySpec {
     $startUtc = _Read-DateTimeUtc -DatePicker $script:DtpStartDate -TimeBox $script:TxtStartTime -Label 'Start'
     $endUtc = _Read-DateTimeUtc -DatePicker $script:DtpEndDate -TimeBox $script:TxtEndTime -Label 'End'
+    if ($endUtc -le $startUtc) {
+        throw 'End date/time must be after Start date/time.'
+    }
+
     $previewLimit = 0
     if (-not [int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$previewLimit)) {
         throw 'Preview result limit must be a whole number.'
     }
+    if ($previewLimit -lt 1 -or $previewLimit -gt 10000) {
+        throw 'Preview result limit must be between 1 and 10000.'
+    }
 
     $service = _Get-ComboText -Control $script:CmbService
     $action = _Get-ComboText -Control $script:CmbAction
-    $entity = [string]$script:TxtEntity.Text
+    $entity = ([string]$script:TxtEntity.Text).Trim()
+    $actor = ([string]$script:TxtActor.Text).Trim()
+    $keyword = ([string]$script:TxtKeyword.Text).Trim()
+
+    # Free-text length caps (defensive — prevents accidentally pasting megabytes of text into a filter).
+    if ($actor.Length -gt 256)   { throw 'Actor / User filter is too long (max 256 chars).' }
+    if ($entity.Length -gt 256)  { throw 'Entity filter is too long (max 256 chars).' }
+    if ($keyword.Length -gt 512) { throw 'Keyword filter is too long (max 512 chars).' }
+
     if (-not [string]::IsNullOrWhiteSpace($action) -and [string]::IsNullOrWhiteSpace($entity)) {
         throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
     }
 
+    $datasetKey = [string]$script:CmbDataset.SelectedItem
+    if ([string]::IsNullOrWhiteSpace($datasetKey)) {
+        throw 'Select a dataset before running.'
+    }
+
     return [ordered]@{
-        DatasetKey    = [string]$script:CmbDataset.SelectedItem
+        DatasetKey    = $datasetKey
         StartUtc      = $startUtc
         EndUtc        = $endUtc
         Service       = $service
         Action        = $action
-        Actor         = [string]$script:TxtActor.Text
+        Actor         = $actor
         Entity        = $entity
-        Keyword       = [string]$script:TxtKeyword.Text
+        Keyword       = $keyword
         PreviewLimit  = $previewLimit
     }
 }
@@ -817,7 +844,23 @@ function _Start-PkceLogin {
     }
 
     $redirectUri = _Get-PkceRedirectUri
-    $region = [string]$script:CmbRegion.Text
+    if ($redirectUri -notmatch '^https?://[^\s]+$') {
+        [System.Windows.MessageBox]::Show(
+            "PKCE Redirect URI is not a valid http/https URL: $redirectUri",
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+    $region = ([string]$script:CmbRegion.Text).Trim()
+    if ([string]::IsNullOrWhiteSpace($region)) {
+        [System.Windows.MessageBox]::Show(
+            'Select a Genesys Cloud region (e.g. usw2.pure.cloud).',
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
     $cts = [System.Threading.CancellationTokenSource]::new()
 
     $scriptText = @'
@@ -938,11 +981,20 @@ $script:State.PollTimer.Start()
 
 $script:BtnConnect.Add_Click({
     $accessToken = $script:PwdAccessToken.Password
-    $region      = [string]$script:CmbRegion.Text
+    $region      = ([string]$script:CmbRegion.Text).Trim()
 
     if ([string]::IsNullOrWhiteSpace($accessToken)) {
         [System.Windows.MessageBox]::Show(
             'Paste a bearer token into the access token field.',
+            'Connection',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($region)) {
+        [System.Windows.MessageBox]::Show(
+            'Select or enter a Genesys Cloud region (e.g. usw2.pure.cloud).',
             'Connection',
             [System.Windows.MessageBoxButton]::OK,
             [System.Windows.MessageBoxImage]::Warning) | Out-Null

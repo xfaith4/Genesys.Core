@@ -370,7 +370,8 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "redactionProfile": "standard"
     },
     "analytics.query.user.observations.real.time.status": {
       "description": "Query User Observations \u2014 real-time agent presence and routing status: oUserPresence, oUserRoutingStatus.",
@@ -381,7 +382,8 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "redactionProfile": "standard"
     },
     "analytics.query.user.aggregates.performance.metrics": {
       "description": "Query User Aggregates \u2014 agent performance: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered.",
@@ -403,7 +405,8 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "redactionProfile": "standard"
     },
     "analytics.query.conversation.aggregates.agent.performance": {
       "description": "Query Conversation Aggregates \u2014 per-agent handle/talk/ACW/connected metrics.",
@@ -748,7 +751,20 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "redactionProfile": "standard"
+    },
+    "routing-queue-members": {
+      "description": "Members of a single routing queue, with live routing status and presence (expand=routingStatus,presence,conversationSummary).",
+      "endpoint": "routing.get.queue.members.with.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "queue-investigation-members"
     },
     "analytics.query.queue.aggregates.service.level": {
       "description": "Service level / SLA aggregates \u2014 nAnsweredIn20/30/60, tServiceLevel grouped by queue.",
@@ -1163,6 +1179,18 @@
           "resourceUrl",
           "neverRelease",
           "assignees"
+        ]
+      },
+      "queue-investigation-members": {
+        "mode": "standard",
+        "description": "Applied to routing-queue-members in Queue Investigation. Strips deep contact fields carried by user records embedded under each membership entry.",
+        "removeFields": [
+          "addresses",
+          "images",
+          "biography",
+          "primaryContactInfo",
+          "secondaryContactInfo",
+          "chat"
         ]
       }
     }

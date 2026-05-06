@@ -129,14 +129,27 @@ They emit the same artifact set as datasets, under
 Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
 Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.cloud'
 
+# Agent — joins identity, division, skills, queue memberships, presence,
+#         activity, and the conversations the agent touched in the window.
 Get-GenesysAgentInvestigation `
     -UserId '<genesys-user-guid>' `
     -Since (Get-Date).AddDays(-7) `
     -OutputRoot './out'
+
+# Conversation — joins one conversation with its participants, divisions,
+#                skills, recordings, and evaluations.
+Get-GenesysConversationInvestigation `
+    -ConversationId '<conversation-guid>' `
+    -OutputRoot './out'
+
+# Queue — joins one queue with its members, real-time observations,
+#         SLA / queue performance, abandons, and currently-active agents.
+Get-GenesysQueueInvestigation `
+    -QueueId '<queue-guid>' `
+    -Since (Get-Date).AddDays(-1) `
+    -OutputRoot './out'
 ```
 
-Agent Investigation joins identity, division, skills, queue memberships,
-presence, activity, and conversations the agent touched in the selected window.
 For the manifest shape and release sequencing, see
 [INVESTIGATIONS.md](INVESTIGATIONS.md).
 

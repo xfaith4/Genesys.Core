@@ -160,7 +160,13 @@ Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.c
 Get-GenesysAgentInvestigation -UserName 'Jane Doe' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
 
 # Conversation — single subject, no window.
-Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
+$run = Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
+
+# Conversation investigation package — HTML, CSV, XLSX, JSON metadata, optional SIP trace parse.
+Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -SipTracePath './sip-trace.log' -OutputDirectory './out/conversation-package' -Force
+
+# Offline demo package, no Genesys login required.
+pwsh -NoProfile -File ./scripts/New-DemoConversationInvestigationPackage.ps1 -Force
 
 # Queue — subject + window for the SLA / abandons / observations steps.
 Get-GenesysQueueInvestigation -QueueId '<queue-guid>' -Since (Get-Date).AddDays(-1) -OutputRoot './out'

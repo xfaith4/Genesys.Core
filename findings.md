@@ -43,3 +43,9 @@
 - `Invoke-SmokeTests.ps1` now creates a Core-produced `analytics-conversation-details-query` fixture through `Genesys.Core Invoke-Dataset` and a mocked request invoker, then validates Analyzer contract/index/display behavior against the actual Core artifact layout.
 - Core fixture validation passes without SQLite: Analyzer validates `manifest.counts.itemCount`, `summary.totals.totalRecords`, `data/analytics-conversation-details-query.jsonl`, required `conversationId`, and can build/render index display rows from the Core-written JSONL.
 - Database import runtime tests still skip in WSL due missing native `e_sqlite3`, but the new DB import test will import the Core-produced fixture and reconcile expected/data/imported counts when SQLite is available.
+
+## Conversation Investigation Package Review
+
+- `Export-GenesysConversationInvestigationPackage` builds the expected package set from an existing investigation run folder or by running `Get-GenesysConversationInvestigation` directly: HTML, timeline CSV, SIP trace CSV, findings CSV, XLSX, and package JSON.
+- Initial sample review found a practical timeline clarity issue: conversation rows could appear out of chronological order because participant/session traversal order drove sequence, and SIP rows had blank `TimeUtc` values unless timestamps were recovered from the trace.
+- The package hardening now parses common ISO/date-time prefixes from SIP message start lines, preserves `ObservedTimeUtc` and `RawTimestamp` in the SIP CSV, strips the timestamp before SIP method/response classification, normalizes conversation end details to UTC text, sorts the combined timeline by available UTC time, and renumbers sequence values after sorting.

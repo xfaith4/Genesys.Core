@@ -31,5 +31,6 @@
     ],
     "pgsql.connections": [],
     "snyk.advanced.autoSelectOrganization": true,
-    "vscode-edge-devtools.headless": false
+    "vscode-edge-devtools.headless": false,
+    "snyk.advanced.organization": "061b93ac-d802-4306-9a45-7c424db4d7a0"
 }

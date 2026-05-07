@@ -162,6 +162,7 @@
         # Investigations (Release 1.0 Track B + Release 1.1 + Release 1.2)
         'Get-GenesysAgentInvestigation'
         'Get-GenesysConversationInvestigation'
+        'Export-GenesysConversationInvestigationPackage'
         'Get-GenesysQueueInvestigation'
 
         # Dataset coverage audit

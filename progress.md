@@ -79,3 +79,10 @@
 - Strengthened `tests/integration/AgentInvestigation.Tests.ps1` with a join-plan assertion and repaired the name-resolution mock.
 - Updated `README.md`, `docs/ONBOARDING.md`, `docs/training/Training.md`, `docs/ROADMAP.md`, `docs/READINESS_REVIEW.md`, and `docs/CHANGELOG.md` after validation.
 - Final validation passed: parser checks for `modules/Genesys.Ops/Genesys.Ops.psm1` and `tests/integration/AgentInvestigation.Tests.ps1`; `scripts/Invoke-Tests.ps1 -Path tests/unit -IncludeIntegration -Output Normal` passed 105 unit tests and 12 integration tests.
+
+## 2026-05-07
+
+- Reviewed the new conversation investigation package workflow and sample package artifacts.
+- Hardened package generation so timestamped SIP trace messages contribute `ObservedTimeUtc` to the SIP CSV and chronological combined timeline; conversation timeline rows are now sorted and sequence-renumbered after combining with SIP evidence.
+- Updated the package fixture test and demo script to use timestamped SIP traces, then regenerated `samples/demo-conversation-investigation`.
+- Validation passed: parser checks for package-related PowerShell files; `Invoke-Pester -Path ./tests/integration/ConversationInvestigationPackage.Tests.ps1 -Output Normal` passed 6 tests; `pwsh -NoProfile -File scripts/Invoke-Tests.ps1` passed 142 tests and skipped live integration because no Genesys credentials were present.

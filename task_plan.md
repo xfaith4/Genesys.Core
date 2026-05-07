@@ -22,6 +22,7 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Core contract fixture hardening | complete | Added real Core-output fixture validation, tightened importer contract checks/reconciliation, improved Analyzer/Core alignment, documented the contract gate, and ran feasible fixture/runtime tests. |
 | Session 19 roadmap phase | complete | Implemented quality evaluations/surveys/topic overlay import, case-window normalization, Quality tab UI, low-score drillthrough, and test/doc updates. |
 | Release 1.0 Agent Investigation Track B follow-up | complete | Evaluated the current roadmap pivot, hardened Agent Investigation composer edge cases, repaired fixture integration coverage, and synchronized roadmap/readiness/onboarding docs after 105 unit and 12 integration tests passed. |
+| Conversation investigation package review | complete | Hardened chronological conversation/SIP timeline generation, regenerated sample package, confirmed live command path, and reran package/full validation. |
 
 ## Current Task Scope
 
@@ -40,6 +41,7 @@ Execution strategy:
 
 - Preserve existing unrelated worktree modifications.
 - Keep changes aligned with local AuditLogsConsole patterns.
+- For the package review, keep changes scoped to package generation, tests, docs, demo script, and sample artifacts.
 
 ## Errors Encountered
 

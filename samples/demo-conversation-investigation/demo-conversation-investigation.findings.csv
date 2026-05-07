@@ -1,0 +1,4 @@
+"Severity","Source","Finding","Evidence"
+"Info","Conversation Detail","Disconnect marker present","Sequence 2: demo-customer-001 client"
+"Info","Conversation Detail","Disconnect marker present","Sequence 8: demo-agent-001 client"
+"Medium","SIP Trace","SIP error response 486","SIP/2.0 486 Busy Here"

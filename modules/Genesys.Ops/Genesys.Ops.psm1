@@ -6042,6 +6042,954 @@ function Get-GenesysConversationInvestigation {
         -DatasetInvoker   $DatasetInvoker
 }
 
+function Get-GenesysOpsPropertyValue {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][object] $InputObject,
+        [Parameter(Mandatory)][string[]] $Names,
+        [AllowNull()][object] $Default = $null
+    )
+
+    if ($null -eq $InputObject) { return $Default }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        foreach ($name in $Names) {
+            if ($InputObject.Contains($name) -and $null -ne $InputObject[$name]) {
+                return $InputObject[$name]
+            }
+        }
+        return $Default
+    }
+
+    foreach ($name in $Names) {
+        $prop = $InputObject.PSObject.Properties[$name]
+        if ($prop -and $null -ne $prop.Value) {
+            return $prop.Value
+        }
+    }
+
+    return $Default
+}
+
+function ConvertTo-GenesysOpsText {
+    [CmdletBinding()]
+    param([AllowNull()][object] $Value)
+
+    if ($null -eq $Value) { return '' }
+    if ($Value -is [string]) { return $Value }
+    if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
+    if ($Value -is [bool] -or $Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) {
+        return [string]$Value
+    }
+
+    try {
+        return ($Value | ConvertTo-Json -Depth 20 -Compress)
+    } catch {
+        return [string]$Value
+    }
+}
+
+function ConvertTo-GenesysOpsUtcText {
+    [CmdletBinding()]
+    param([AllowNull()][object] $Value)
+
+    if ($null -eq $Value) { return '' }
+    if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
+
+    $text = ConvertTo-GenesysOpsText -Value $Value
+    if ([string]::IsNullOrWhiteSpace($text)) { return '' }
+
+    $parsed = [datetime]::MinValue
+    $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+    if ([datetime]::TryParse($text, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+        return $parsed.ToUniversalTime().ToString('o')
+    }
+
+    return $text
+}
+
+function ConvertTo-GenesysOpsHtmlText {
+    [CmdletBinding()]
+    param([AllowNull()][object] $Value)
+
+    return [System.Net.WebUtility]::HtmlEncode((ConvertTo-GenesysOpsText -Value $Value))
+}
+
+function ConvertTo-GenesysOpsXmlText {
+    [CmdletBinding()]
+    param([AllowNull()][object] $Value)
+
+    return [System.Security.SecurityElement]::Escape((ConvertTo-GenesysOpsText -Value $Value))
+}
+
+function Import-GenesysOpsJsonLines {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path $Path)) { return @() }
+
+    $records = [System.Collections.Generic.List[object]]::new()
+    Get-Content -Path $Path | Where-Object { $_.Trim() } | ForEach-Object {
+        $records.Add(($_ | ConvertFrom-Json)) | Out-Null
+    }
+
+    return $records.ToArray()
+}
+
+function Get-GenesysOpsSipHeader {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines,
+        [Parameter(Mandatory)][string[]] $Names
+    )
+
+    foreach ($name in $Names) {
+        $escaped = [regex]::Escape($name)
+        $match = $Lines | Where-Object { $_ -match "^\s*$escaped\s*:" } | Select-Object -First 1
+        if ($match) {
+            return ($match -replace "^\s*$escaped\s*:\s*", '').Trim()
+        }
+    }
+
+    return $null
+}
+
+function Get-GenesysOpsSipLineTimestamp {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
+
+    $patterns = @(
+        '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\]?\s+',
+        '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\]?\s+'
+    )
+
+    foreach ($line in $Lines) {
+        foreach ($pattern in $patterns) {
+            if ($line -match $pattern) {
+                $raw = $matches['timestamp']
+                $normalized = $raw.Replace(',', '.')
+                $parsed = [datetime]::MinValue
+                $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                if ([datetime]::TryParse($normalized, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+                    return [pscustomobject]@{
+                        Raw = $raw
+                        Utc = $parsed.ToUniversalTime().ToString('o')
+                    }
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
+function Remove-GenesysOpsSipLineTimestamp {
+    [CmdletBinding()]
+    param([AllowNull()][string] $Line)
+
+    if ($null -eq $Line) { return '' }
+
+    $text = $Line.Trim()
+    $patterns = @(
+        '^\s*\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?\s+',
+        '^\s*\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?\]?\s+'
+    )
+
+    foreach ($pattern in $patterns) {
+        $text = $text -replace $pattern, ''
+    }
+
+    return $text.Trim()
+}
+
+function Get-GenesysOpsSipStartLine {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
+
+    $firstNonEmpty = $null
+    foreach ($line in $Lines) {
+        $candidate = Remove-GenesysOpsSipLineTimestamp -Line $line
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        if (-not $firstNonEmpty) { $firstNonEmpty = $candidate }
+        if ($candidate -match '^SIP/2.0\s+\d{3}\s+' -or $candidate -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
+            return $candidate
+        }
+    }
+
+    return $firstNonEmpty
+}
+
+function ConvertFrom-GenesysOpsSipTrace {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path $Path)) {
+        throw "SIP trace file not found: $Path"
+    }
+
+    $content = Get-Content -Path $Path -Raw
+    $messages = @($content -split '(?:\r?\n){2,}' | Where-Object {
+        $_ -match 'SIP/2.0|INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE'
+    })
+
+    $index = 0
+    foreach ($message in $messages) {
+        $index++
+        $lines = @($message -split '\r?\n')
+        if ($lines.Count -eq 0) { continue }
+        $startLine = Get-GenesysOpsSipStartLine -Lines $lines
+        if ([string]::IsNullOrWhiteSpace($startLine)) { continue }
+        $timestamp = Get-GenesysOpsSipLineTimestamp -Lines $lines
+
+        $messageType = 'Unknown'
+        $sipMethod = $null
+        $responseCode = $null
+        $responseText = $null
+
+        if ($startLine -match '^SIP/2.0\s+(\d{3})\s+(.*)$') {
+            $messageType = 'Response'
+            $responseCode = $matches[1]
+            $responseText = $matches[2]
+        } elseif ($startLine -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
+            $messageType = 'Request'
+            $sipMethod = $matches[1]
+        }
+
+        $connectionLine = $lines | Where-Object { $_ -match '^c=IN\s+IP[46]\s+(.+)$' } | Select-Object -First 1
+        $audioLine = $lines | Where-Object { $_ -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$' } | Select-Object -First 1
+        $directionLine = $lines | Where-Object { $_ -match '^a=(sendrecv|sendonly|recvonly|inactive)$' } | Select-Object -First 1
+
+        $mediaIp = $null
+        $audioPort = $null
+        $audioCodecs = $null
+        $mediaDirection = $null
+
+        if ($connectionLine -and $connectionLine -match '^c=IN\s+IP[46]\s+(.+)$') { $mediaIp = $matches[1].Trim() }
+        if ($audioLine -and $audioLine -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$') {
+            $audioPort = $matches[1]
+            $audioCodecs = $matches[2].Trim()
+        }
+        if ($directionLine -and $directionLine -match '^a=(sendrecv|sendonly|recvonly|inactive)$') { $mediaDirection = $matches[1] }
+
+        [pscustomobject]@{
+            MessageIndex   = $index
+            ObservedTimeUtc = if ($timestamp) { $timestamp.Utc } else { $null }
+            RawTimestamp   = if ($timestamp) { $timestamp.Raw } else { $null }
+            MessageType    = $messageType
+            StartLine      = $startLine
+            Method         = $sipMethod
+            ResponseCode   = $responseCode
+            ResponseText   = $responseText
+            CallID         = Get-GenesysOpsSipHeader -Lines $lines -Names @('Call-ID', 'i')
+            From           = Get-GenesysOpsSipHeader -Lines $lines -Names @('From', 'f')
+            To             = Get-GenesysOpsSipHeader -Lines $lines -Names @('To', 't')
+            Contact        = Get-GenesysOpsSipHeader -Lines $lines -Names @('Contact', 'm')
+            UserAgent      = Get-GenesysOpsSipHeader -Lines $lines -Names @('User-Agent', 'Server')
+            CSeq           = Get-GenesysOpsSipHeader -Lines $lines -Names @('CSeq')
+            Via            = Get-GenesysOpsSipHeader -Lines $lines -Names @('Via', 'v')
+            MediaIP        = $mediaIp
+            AudioPort      = $audioPort
+            AudioCodecs    = $audioCodecs
+            MediaDirection = $mediaDirection
+        }
+    }
+}
+
+function ConvertTo-GenesysConversationTimeline {
+    [CmdletBinding()]
+    param([object[]] $ConversationRecords)
+
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $sequence = 0
+
+    foreach ($conversation in @($ConversationRecords)) {
+        $conversationId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('conversationId', 'id'))
+        $conversationStart = Get-GenesysOpsPropertyValue $conversation @('conversationStart', 'startTime')
+        $conversationEnd = Get-GenesysOpsPropertyValue $conversation @('conversationEnd', 'endTime')
+        $mediaType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('mediaType'))
+
+        if ($conversationStart) {
+            $sequence++
+            $rows.Add([pscustomobject]@{
+                Sequence       = $sequence
+                Source         = 'Conversation Detail'
+                TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationStart
+                EventType      = 'conversation.start'
+                Participant    = ''
+                Purpose        = ''
+                MediaType      = $mediaType
+                Direction      = ''
+                Queue          = ''
+                DisconnectType = ''
+                Detail         = "Conversation $conversationId started"
+            }) | Out-Null
+        }
+
+        foreach ($participant in @(Get-GenesysOpsPropertyValue $conversation @('participants') @())) {
+            $purpose = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('purpose'))
+            $participantId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantId', 'id', 'userId'))
+            $participantName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantName', 'name', 'userId'))
+            if ([string]::IsNullOrWhiteSpace($participantName)) { $participantName = $participantId }
+
+            foreach ($session in @(Get-GenesysOpsPropertyValue $participant @('sessions') @())) {
+                $sessionMedia = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('mediaType'))
+                if ([string]::IsNullOrWhiteSpace($sessionMedia)) { $sessionMedia = $mediaType }
+                $direction = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('direction'))
+                $ani = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('ani'))
+                $dnis = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('dnis'))
+
+                foreach ($segment in @(Get-GenesysOpsPropertyValue $session @('segments') @())) {
+                    $sequence++
+                    $segmentStart = Get-GenesysOpsPropertyValue $segment @('segmentStart', 'startTime')
+                    $segmentEnd = Get-GenesysOpsPropertyValue $segment @('segmentEnd', 'endTime')
+                    $segmentType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('segmentType', 'type'))
+                    $queueName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('queueName', 'queueId'))
+                    $disconnect = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('disconnectType'))
+                    $wrapUp = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('wrapUpCode', 'wrapUpCodeName'))
+                    $errorCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('errorCode'))
+
+                    $detailParts = @()
+                    if (-not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText $segmentEnd))) { $detailParts += "end=$(ConvertTo-GenesysOpsUtcText $segmentEnd)" }
+                    if (-not [string]::IsNullOrWhiteSpace($ani)) { $detailParts += "ani=$ani" }
+                    if (-not [string]::IsNullOrWhiteSpace($dnis)) { $detailParts += "dnis=$dnis" }
+                    if (-not [string]::IsNullOrWhiteSpace($wrapUp)) { $detailParts += "wrapUp=$wrapUp" }
+                    if (-not [string]::IsNullOrWhiteSpace($errorCode)) { $detailParts += "error=$errorCode" }
+
+                    $rows.Add([pscustomobject]@{
+                        Sequence       = $sequence
+                        Source         = 'Conversation Detail'
+                        TimeUtc        = ConvertTo-GenesysOpsUtcText $segmentStart
+                        EventType      = $segmentType
+                        Participant    = $participantName
+                        Purpose        = $purpose
+                        MediaType      = $sessionMedia
+                        Direction      = $direction
+                        Queue          = $queueName
+                        DisconnectType = $disconnect
+                        Detail         = ($detailParts -join '; ')
+                    }) | Out-Null
+                }
+            }
+        }
+
+        if ($conversationEnd) {
+            $sequence++
+            $rows.Add([pscustomobject]@{
+                Sequence       = $sequence
+                Source         = 'Conversation Detail'
+                TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationEnd
+                EventType      = 'conversation.end'
+                Participant    = ''
+                Purpose        = ''
+                MediaType      = $mediaType
+                Direction      = ''
+                Queue          = ''
+                DisconnectType = ''
+                Detail         = "Conversation $conversationId ended"
+            }) | Out-Null
+        }
+    }
+
+    return $rows.ToArray()
+}
+
+function ConvertTo-GenesysSipTimeline {
+    [CmdletBinding()]
+    param(
+        [object[]] $SipRows,
+        [int] $StartingSequence = 0
+    )
+
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $sequence = $StartingSequence
+
+    foreach ($sip in @($SipRows)) {
+        $sequence++
+        $eventType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('Method'))
+        $responseCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
+        $responseText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseText'))
+        if ([string]::IsNullOrWhiteSpace($eventType)) {
+            $eventType = if ([string]::IsNullOrWhiteSpace($responseCode)) { 'sip.message' } else { "SIP $responseCode" }
+        }
+
+        $detailParts = @()
+        foreach ($name in @('StartLine', 'CallID', 'CSeq', 'UserAgent', 'MediaIP', 'AudioPort', 'MediaDirection')) {
+            $value = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @($name))
+            if (-not [string]::IsNullOrWhiteSpace($value)) { $detailParts += "$name=$value" }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($responseText)) { $detailParts += "ResponseText=$responseText" }
+
+        $rows.Add([pscustomobject]@{
+            Sequence       = $sequence
+            Source         = 'SIP Trace'
+            TimeUtc        = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $sip @('ObservedTimeUtc'))
+            EventType      = $eventType
+            Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('From'))
+            Purpose        = ''
+            MediaType      = 'voice'
+            Direction      = ''
+            Queue          = ''
+            DisconnectType = ''
+            Detail         = ($detailParts -join '; ')
+        }) | Out-Null
+    }
+
+    return $rows.ToArray()
+}
+
+function Sort-GenesysConversationPackageTimeline {
+    [CmdletBinding()]
+    param([object[]] $Rows)
+
+    $sortableRows = [System.Collections.Generic.List[object]]::new()
+    $originalIndex = 0
+    foreach ($row in @($Rows)) {
+        $originalIndex++
+        $timeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
+        $parsed = [datetime]::MinValue
+        $hasTime = $false
+        $sortTime = [datetime]::MaxValue
+        if (-not [string]::IsNullOrWhiteSpace($timeText)) {
+            $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+            if ([datetime]::TryParse($timeText, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+                $hasTime = $true
+                $sortTime = $parsed.ToUniversalTime()
+            }
+        }
+
+        $sortableRows.Add([pscustomobject]@{
+            Row           = $row
+            HasTime       = $hasTime
+            SortTime      = $sortTime
+            OriginalIndex = $originalIndex
+        }) | Out-Null
+    }
+
+    $sequence = 0
+    foreach ($entry in @($sortableRows | Sort-Object -Property @{ Expression = 'HasTime'; Descending = $true }, SortTime, OriginalIndex)) {
+        $sequence++
+        $row = $entry.Row
+        [pscustomobject]@{
+            Sequence       = $sequence
+            Source         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Source'))
+            TimeUtc        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
+            EventType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('EventType'))
+            Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Participant'))
+            Purpose        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Purpose'))
+            MediaType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('MediaType'))
+            Direction      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Direction'))
+            Queue          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Queue'))
+            DisconnectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('DisconnectType'))
+            Detail         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Detail'))
+        }
+    }
+}
+
+function New-GenesysConversationPackageFindings {
+    [CmdletBinding()]
+    param(
+        [object[]] $TimelineRows,
+        [object[]] $SipRows,
+        [object[]] $RecordingRows,
+        [object[]] $EvaluationRows
+    )
+
+    $findings = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($row in @($TimelineRows | Where-Object { -not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $_ @('DisconnectType')))) })) {
+        $findings.Add([pscustomobject]@{
+            Severity = 'Info'
+            Source   = 'Conversation Detail'
+            Finding  = 'Disconnect marker present'
+            Evidence = "Sequence $($row.Sequence): $($row.Participant) $($row.DisconnectType)"
+        }) | Out-Null
+    }
+
+    foreach ($sip in @($SipRows)) {
+        $codeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
+        $code = 0
+        if ([int]::TryParse($codeText, [ref]$code) -and $code -ge 400) {
+            $findings.Add([pscustomobject]@{
+                Severity = if ($code -ge 500) { 'High' } else { 'Medium' }
+                Source   = 'SIP Trace'
+                Finding  = "SIP error response $code"
+                Evidence = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('StartLine'))
+            }) | Out-Null
+        }
+    }
+
+    if (@($RecordingRows).Count -eq 0) {
+        $findings.Add([pscustomobject]@{
+            Severity = 'Info'
+            Source   = 'Recordings'
+            Finding  = 'No recordings returned by the investigation'
+            Evidence = 'Recordings section is empty'
+        }) | Out-Null
+    }
+
+    if (@($EvaluationRows).Count -eq 0) {
+        $findings.Add([pscustomobject]@{
+            Severity = 'Info'
+            Source   = 'Evaluations'
+            Finding  = 'No quality evaluations returned by the investigation'
+            Evidence = 'Evaluations section is empty'
+        }) | Out-Null
+    }
+
+    return $findings.ToArray()
+}
+
+function Export-GenesysOpsRowsCsv {
+    [CmdletBinding()]
+    param(
+        [object[]] $Rows,
+        [Parameter(Mandatory)][string] $Path
+    )
+
+    $rowsArray = @($Rows)
+    if ($rowsArray.Count -eq 0) {
+        [pscustomobject]@{ Message = 'No records' } | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
+        return
+    }
+
+    $rowsArray | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
+}
+
+function ConvertTo-GenesysExcelColumnName {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][int] $Index)
+
+    $name = ''
+    $value = $Index
+    while ($value -gt 0) {
+        $mod = ($value - 1) % 26
+        $name = [char](65 + $mod) + $name
+        $value = [math]::Floor(($value - $mod) / 26)
+    }
+    return $name
+}
+
+function Add-GenesysZipTextEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Zip,
+        [Parameter(Mandatory)][string] $Name,
+        [Parameter(Mandatory)][string] $Content
+    )
+
+    $entry = $Zip.CreateEntry($Name)
+    $stream = $entry.Open()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
+        $stream.Write($bytes, 0, $bytes.Length)
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function ConvertTo-GenesysWorksheetXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]] $Rows
+    )
+
+    $rowsArray = @($Rows)
+    if ($rowsArray.Count -eq 0) {
+        $rowsArray = @([pscustomobject]@{ Message = 'No records' })
+    }
+
+    $columns = [System.Collections.Generic.List[string]]::new()
+    foreach ($row in $rowsArray) {
+        foreach ($prop in $row.PSObject.Properties) {
+            if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+        }
+    }
+
+    $sb = [System.Text.StringBuilder]::new()
+    [void]$sb.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
+    [void]$sb.Append('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
+    [void]$sb.Append('<row r="1">')
+    for ($c = 0; $c -lt $columns.Count; $c++) {
+        $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))1"
+        [void]$sb.Append("<c r=`"$cellRef`" t=`"inlineStr`"><is><t>")
+        [void]$sb.Append((ConvertTo-GenesysOpsXmlText $columns[$c]))
+        [void]$sb.Append('</t></is></c>')
+    }
+    [void]$sb.Append('</row>')
+
+    $r = 1
+    foreach ($row in $rowsArray) {
+        $r++
+        [void]$sb.Append("<row r=`"$r`">")
+        for ($c = 0; $c -lt $columns.Count; $c++) {
+            $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))$r"
+            $value = Get-GenesysOpsPropertyValue $row @($columns[$c])
+            [void]$sb.Append("<c r=`"$cellRef`" t=`"inlineStr`"><is><t>")
+            [void]$sb.Append((ConvertTo-GenesysOpsXmlText $value))
+            [void]$sb.Append('</t></is></c>')
+        }
+        [void]$sb.Append('</row>')
+    }
+
+    [void]$sb.Append('</sheetData></worksheet>')
+    return $sb.ToString()
+}
+
+function Export-GenesysOpsWorkbook {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][object[]] $Sheets
+    )
+
+    Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+
+    if (Test-Path $Path) { Remove-Item -Path $Path -Force }
+
+    $fileStream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew)
+    $zip = [System.IO.Compression.ZipArchive]::new($fileStream, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Add-GenesysZipTextEntry $zip '[Content_Types].xml' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>'
+        Add-GenesysZipTextEntry $zip '_rels/.rels' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
+
+        $workbookSheets = [System.Text.StringBuilder]::new()
+        $workbookRels = [System.Text.StringBuilder]::new()
+        [void]$workbookRels.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">')
+
+        $sheetIndex = 0
+        foreach ($sheet in @($Sheets)) {
+            $sheetIndex++
+            $sheetName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sheet @('Name'))
+            if ([string]::IsNullOrWhiteSpace($sheetName)) { $sheetName = "Sheet$sheetIndex" }
+            if ($sheetName.Length -gt 31) { $sheetName = $sheetName.Substring(0, 31) }
+            $sheetRows = @(Get-GenesysOpsPropertyValue $sheet @('Rows') @())
+            $escapedName = ConvertTo-GenesysOpsXmlText $sheetName
+            [void]$workbookSheets.Append("<sheet name=`"$escapedName`" sheetId=`"$sheetIndex`" r:id=`"rId$sheetIndex`"/>")
+            [void]$workbookRels.Append("<Relationship Id=`"rId$sheetIndex`" Type=`"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet`" Target=`"worksheets/sheet$sheetIndex.xml`"/>")
+            Add-GenesysZipTextEntry $zip "xl/worksheets/sheet$sheetIndex.xml" (ConvertTo-GenesysWorksheetXml -Rows $sheetRows)
+        }
+
+        [void]$workbookRels.Append('</Relationships>')
+        Add-GenesysZipTextEntry $zip 'xl/_rels/workbook.xml.rels' $workbookRels.ToString()
+        Add-GenesysZipTextEntry $zip 'xl/workbook.xml' ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + $workbookSheets.ToString() + '</sheets></workbook>')
+    } finally {
+        $zip.Dispose()
+        $fileStream.Dispose()
+    }
+}
+
+function ConvertTo-GenesysHtmlTable {
+    [CmdletBinding()]
+    param(
+        [object[]] $Rows,
+        [int] $Limit = 100
+    )
+
+    $rowsArray = @($Rows | Select-Object -First $Limit)
+    if ($rowsArray.Count -eq 0) { return '<p class="empty">No records.</p>' }
+
+    $columns = [System.Collections.Generic.List[string]]::new()
+    foreach ($row in $rowsArray) {
+        foreach ($prop in $row.PSObject.Properties) {
+            if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+        }
+    }
+
+    $sb = [System.Text.StringBuilder]::new()
+    [void]$sb.Append('<table><thead><tr>')
+    foreach ($column in $columns) { [void]$sb.Append('<th>' + (ConvertTo-GenesysOpsHtmlText $column) + '</th>') }
+    [void]$sb.Append('</tr></thead><tbody>')
+    foreach ($row in $rowsArray) {
+        [void]$sb.Append('<tr>')
+        foreach ($column in $columns) {
+            [void]$sb.Append('<td>' + (ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $row @($column))) + '</td>')
+        }
+        [void]$sb.Append('</tr>')
+    }
+    [void]$sb.Append('</tbody></table>')
+
+    if (@($Rows).Count -gt $Limit) {
+        [void]$sb.Append('<p class="empty">Showing first ' + $Limit + ' rows.</p>')
+    }
+
+    return $sb.ToString()
+}
+
+function New-GenesysConversationPackageHtml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object] $Overview,
+        [Parameter(Mandatory)][object[]] $Findings,
+        [Parameter(Mandatory)][object[]] $TimelineRows,
+        [Parameter(Mandatory)][object[]] $SipRows,
+        [Parameter(Mandatory)][object[]] $EvidenceRows
+    )
+
+    $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+    $conversationId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('ConversationId'))
+    $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('RunId'))
+    $timelineCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('TimelineEvents'))
+    $sipCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('SipMessages'))
+    $recordingCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Recordings'))
+    $evaluationCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Evaluations'))
+
+    return @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conversation Investigation Package - $conversationId</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #17202a; background: #f7f8fa; }
+body { margin: 0; }
+header { background: #17202a; color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; letter-spacing: 0; }
+header p { margin: 0; color: #d7dee8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #dce2ea; border-radius: 8px; padding: 14px; }
+.metric .label { color: #576372; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce2ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef2f6; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.empty { color: #6b7582; font-style: italic; }
+.meta { color: #576372; font-size: 13px; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+<header>
+<h1>Conversation Investigation Package</h1>
+<p>Conversation $conversationId | Run $runId | Generated $generatedAt</p>
+</header>
+<main>
+<section>
+<h2>Investigation Summary</h2>
+<div class="grid">
+<div class="metric"><div class="label">Timeline Events</div><div class="value">$timelineCount</div></div>
+<div class="metric"><div class="label">SIP Messages</div><div class="value">$sipCount</div></div>
+<div class="metric"><div class="label">Recordings</div><div class="value">$recordingCount</div></div>
+<div class="metric"><div class="label">Evaluations</div><div class="value">$evaluationCount</div></div>
+</div>
+</section>
+<section>
+<h2>Findings</h2>
+$(ConvertTo-GenesysHtmlTable -Rows $Findings -Limit 50)
+</section>
+<section>
+<h2>Conversation and SIP Timeline</h2>
+<p class="meta">Rows combine conversation segments from Genesys analytics detail with parsed SIP trace messages when a trace file is supplied.</p>
+$(ConvertTo-GenesysHtmlTable -Rows $TimelineRows -Limit 200)
+</section>
+<section>
+<h2>SIP Trace Breakdown</h2>
+$(ConvertTo-GenesysHtmlTable -Rows $SipRows -Limit 100)
+</section>
+<section>
+<h2>Evidence Sections</h2>
+$(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200)
+</section>
+</main>
+</body>
+</html>
+"@
+}
+
+function Export-GenesysConversationInvestigationPackage {
+    <#
+    .SYNOPSIS
+        Builds an HTML/CSV/XLSX/JSON investigation package from a conversation investigation run.
+    .DESCRIPTION
+        Packages the artifact contract produced by Get-GenesysConversationInvestigation.
+        Existing run folders can be packaged offline with -RunFolder. Passing
+        -ConversationId runs the investigation first, then packages the output.
+
+        A SIP trace text file can be attached with -SipTracePath. The package
+        includes parsed SIP details, a combined conversation/SIP timeline, a
+        findings table, an HTML report, CSV exports, a workbook, and metadata.
+    .EXAMPLE
+        $run = Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
+        Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -SipTracePath './sip.log'
+    .EXAMPLE
+        Export-GenesysConversationInvestigationPackage -ConversationId '<conversation-guid>' -OutputRoot './out' -SipTracePath './sip.log'
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'FromRun')]
+    param(
+        [Parameter(Mandatory, ParameterSetName = 'FromRun')]
+        [string] $RunFolder,
+
+        [Parameter(Mandatory, ParameterSetName = 'FromConversation')]
+        [string] $ConversationId,
+
+        [Parameter(ParameterSetName = 'FromConversation')]
+        [string] $OutputRoot = 'out',
+
+        [Parameter(ParameterSetName = 'FromConversation')]
+        [string] $RunId,
+
+        [Parameter(ParameterSetName = 'FromConversation')]
+        [scriptblock] $DatasetInvoker,
+
+        [string] $SipTracePath,
+        [string] $OutputDirectory,
+        [string] $PackageName = 'conversation-investigation',
+        [switch] $Force
+    )
+
+    if ($PSCmdlet.ParameterSetName -eq 'FromConversation') {
+        $run = Get-GenesysConversationInvestigation -ConversationId $ConversationId -OutputRoot $OutputRoot -RunId $RunId -DatasetInvoker $DatasetInvoker
+        $RunFolder = $run.RunFolder
+    }
+
+    $resolvedRunFolder = (Resolve-Path -Path $RunFolder -ErrorAction Stop).Path
+    $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
+    $summaryPath = Join-Path $resolvedRunFolder 'summary.json'
+    $dataFolder = Join-Path $resolvedRunFolder 'data'
+
+    if (-not (Test-Path $manifestPath)) { throw "Conversation investigation manifest was not found: $manifestPath" }
+    if (-not (Test-Path $summaryPath)) { throw "Conversation investigation summary was not found: $summaryPath" }
+    if (-not (Test-Path $dataFolder)) { throw "Conversation investigation data folder was not found: $dataFolder" }
+
+    $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+    $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json
+
+    if (-not $OutputDirectory) {
+        $OutputDirectory = Join-Path $resolvedRunFolder 'package'
+    }
+    if ((Test-Path $OutputDirectory) -and -not $Force) {
+        throw "Output directory already exists. Use -Force to overwrite package files: $OutputDirectory"
+    }
+    New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+
+    $conversationRows = @(Get-GenesysOpsPropertyValue $summary @('conversation') @())
+    if ($conversationRows.Count -eq 0) {
+        $conversationRows = @(Import-GenesysOpsJsonLines -Path (Join-Path $dataFolder 'conversation.jsonl'))
+    }
+    $participantRows = @(Get-GenesysOpsPropertyValue $summary @('participants') @())
+    $agentRows = @(Get-GenesysOpsPropertyValue $summary @('agents') @())
+    $divisionRows = @(Get-GenesysOpsPropertyValue $summary @('divisions') @())
+    $skillRows = @(Get-GenesysOpsPropertyValue $summary @('skills') @())
+    $recordingRows = @(Get-GenesysOpsPropertyValue $summary @('recordings') @())
+    $evaluationRows = @(Get-GenesysOpsPropertyValue $summary @('evaluations') @())
+
+    $conversationTimeline = @(ConvertTo-GenesysConversationTimeline -ConversationRecords $conversationRows)
+    $sipRows = @()
+    if ($SipTracePath) {
+        $resolvedSipTracePath = (Resolve-Path -Path $SipTracePath -ErrorAction Stop).Path
+        $sipRows = @(ConvertFrom-GenesysOpsSipTrace -Path $resolvedSipTracePath)
+    } else {
+        $resolvedSipTracePath = $null
+    }
+
+    $sipTimeline = @(ConvertTo-GenesysSipTimeline -SipRows $sipRows -StartingSequence $conversationTimeline.Count)
+    $combinedTimeline = @()
+    $combinedTimeline += $conversationTimeline
+    $combinedTimeline += $sipTimeline
+    $combinedTimeline = @(Sort-GenesysConversationPackageTimeline -Rows $combinedTimeline)
+    $findings = @(New-GenesysConversationPackageFindings -TimelineRows @($combinedTimeline | Where-Object { $_.Source -eq 'Conversation Detail' }) -SipRows $sipRows -RecordingRows $recordingRows -EvaluationRows $evaluationRows)
+
+    $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
+    if ([string]::IsNullOrWhiteSpace($conversationIdValue) -and $conversationRows.Count -gt 0) {
+        $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationId', 'id'))
+    }
+
+    $overview = [pscustomobject]@{
+        GeneratedAtUtc = [DateTime]::UtcNow.ToString('o')
+        Investigation  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
+        RunId          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
+        ConversationId = $conversationIdValue
+        Participants   = $participantRows.Count
+        Agents         = $agentRows.Count
+        Divisions      = $divisionRows.Count
+        Skills         = $skillRows.Count
+        Recordings     = $recordingRows.Count
+        Evaluations    = $evaluationRows.Count
+        TimelineEvents = $combinedTimeline.Count
+        SipMessages    = $sipRows.Count
+    }
+
+    $evidenceRows = @(
+        foreach ($pair in @(
+            @{ Name = 'participants'; Rows = $participantRows },
+            @{ Name = 'agents'; Rows = $agentRows },
+            @{ Name = 'divisions'; Rows = $divisionRows },
+            @{ Name = 'skills'; Rows = $skillRows },
+            @{ Name = 'recordings'; Rows = $recordingRows },
+            @{ Name = 'evaluations'; Rows = $evaluationRows }
+        )) {
+            foreach ($row in @($pair.Rows)) {
+                [pscustomobject]@{
+                    Section = $pair.Name
+                    Json    = ConvertTo-GenesysOpsText $row
+                }
+            }
+        }
+    )
+
+    $htmlPath = Join-Path $OutputDirectory "$PackageName.html"
+    $timelineCsvPath = Join-Path $OutputDirectory "$PackageName.timeline.csv"
+    $sipCsvPath = Join-Path $OutputDirectory "$PackageName.sip-trace.csv"
+    $findingsCsvPath = Join-Path $OutputDirectory "$PackageName.findings.csv"
+    $workbookPath = Join-Path $OutputDirectory "$PackageName.xlsx"
+    $packageJsonPath = Join-Path $OutputDirectory "$PackageName.package.json"
+
+    Set-Content -Path $htmlPath -Value (New-GenesysConversationPackageHtml -Overview $overview -Findings $findings -TimelineRows $combinedTimeline -SipRows $sipRows -EvidenceRows $evidenceRows) -Encoding utf8
+    Export-GenesysOpsRowsCsv -Rows $combinedTimeline -Path $timelineCsvPath
+    Export-GenesysOpsRowsCsv -Rows $sipRows -Path $sipCsvPath
+    Export-GenesysOpsRowsCsv -Rows $findings -Path $findingsCsvPath
+    Export-GenesysOpsWorkbook -Path $workbookPath -Sheets @(
+        [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
+        [pscustomobject]@{ Name = 'Findings'; Rows = $findings }
+        [pscustomobject]@{ Name = 'Timeline'; Rows = $combinedTimeline }
+        [pscustomobject]@{ Name = 'SIP Trace'; Rows = $sipRows }
+        [pscustomobject]@{ Name = 'Evidence'; Rows = $evidenceRows }
+    )
+
+    $package = [ordered]@{
+        packageType        = 'conversation-investigation'
+        generatedAtUtc     = $overview.GeneratedAtUtc
+        conversationId     = $overview.ConversationId
+        runId              = $overview.RunId
+        sourceSipTraceName = if ($resolvedSipTracePath) { Split-Path -Path $resolvedSipTracePath -Leaf } else { $null }
+        counts             = [ordered]@{
+            participants   = $overview.Participants
+            agents         = $overview.Agents
+            recordings     = $overview.Recordings
+            evaluations    = $overview.Evaluations
+            timelineEvents = $overview.TimelineEvents
+            sipMessages    = $overview.SipMessages
+            findings       = $findings.Count
+        }
+        files              = [ordered]@{
+            html        = (Split-Path -Path $htmlPath -Leaf)
+            timelineCsv = (Split-Path -Path $timelineCsvPath -Leaf)
+            sipTraceCsv = (Split-Path -Path $sipCsvPath -Leaf)
+            findingsCsv = (Split-Path -Path $findingsCsvPath -Leaf)
+            workbook    = (Split-Path -Path $workbookPath -Leaf)
+            packageJson = (Split-Path -Path $packageJsonPath -Leaf)
+        }
+        overview           = $overview
+        findings           = $findings
+    }
+    Set-Content -Path $packageJsonPath -Value ($package | ConvertTo-Json -Depth 100) -Encoding utf8
+
+    return [pscustomobject]@{
+        RunFolder       = $resolvedRunFolder
+        OutputDirectory = (Resolve-Path -Path $OutputDirectory).Path
+        HtmlPath        = $htmlPath
+        TimelineCsvPath = $timelineCsvPath
+        SipTraceCsvPath = $sipCsvPath
+        FindingsCsvPath = $findingsCsvPath
+        WorkbookPath    = $workbookPath
+        PackageJsonPath = $packageJsonPath
+        Overview        = $overview
+    }
+}
+
 function Get-GenesysQueueInvestigationStepDefinition {
     <#
     .SYNOPSIS

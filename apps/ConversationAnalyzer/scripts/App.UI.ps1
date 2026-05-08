@@ -5192,7 +5192,7 @@ function _PollBackgroundRun {
     if ($traceText) { $diagText = $traceText + "`n" + $diagText }
     if ($healthText) { $diagText = $diagText + "`n`n" + $healthText }
     $uiDiagnosticText = if ($null -ne $script:TxtDiagnostics) { [string]$script:TxtDiagnostics.Text } else { '' }
-    if (-not [string]::IsNullOrWhiteSpace($uiDiagnosticText) -and $diagText -notlike "*$uiDiagnosticText*") {
+    if (-not [string]::IsNullOrWhiteSpace($uiDiagnosticText) -and $diagText.IndexOf($uiDiagnosticText, [System.StringComparison]::Ordinal) -lt 0) {
         $diagText = $diagText + "`n`n=== UI Display Diagnostics ===`n" + $uiDiagnosticText
     }
     _Dispatch {

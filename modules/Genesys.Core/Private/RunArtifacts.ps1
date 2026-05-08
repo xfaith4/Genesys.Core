@@ -54,6 +54,23 @@ function Write-Jsonl {
     Add-Content -Path $Path -Value $line -Encoding utf8
 }
 
+function Initialize-JsonlFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Path
+    )
+
+    $parent = Split-Path -Path $Path -Parent
+    if ($parent) {
+        New-Item -Path $parent -ItemType Directory -Force | Out-Null
+    }
+
+    $stream = [System.IO.File]::Create($Path)
+    $stream.Dispose()
+}
+
 function Write-RunEvent {
     [CmdletBinding()]
     param(

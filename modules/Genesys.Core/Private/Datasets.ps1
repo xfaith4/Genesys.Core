@@ -648,6 +648,8 @@ function Write-DatasetOutputs {
         [System.Collections.Generic.List[object]]$RunEvents,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [AllowNull()]
         [object[]]$Records,
 
         [Parameter(Mandatory = $true)]
@@ -658,6 +660,8 @@ function Write-DatasetOutputs {
     )
 
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath $DataFileName
+    if ($null -eq $Records) { [object[]]$Records = @() }
+    Initialize-JsonlFile -Path $dataPath
     foreach ($record in $Records) {
         Write-Jsonl -Path $dataPath -InputObject $record
     }
@@ -728,12 +732,13 @@ function Invoke-SimpleCollectionDataset {
     }) -InitialUri $initialUri -InitialBody $initialBody -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker
 
     $records = @($response.Items | ForEach-Object { & $Normalizer $_ })
-    $sanitizedRecords = if ($NoRedact) {
-        $records
+    [object[]]$sanitizedRecords = if ($NoRedact) {
+        @($records)
     } else {
         $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey $DatasetKey
         @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redactionProfile })
     }
+    if ($null -eq $sanitizedRecords) { [object[]]$sanitizedRecords = @() }
 
     $summary = [ordered]@{
         datasetKey = $RunContext.datasetKey
@@ -966,6 +971,7 @@ function Invoke-AnalyticsConversationDetailsDataset {
     }
 
     $dataPath = Join-Path -Path $RunContext.dataFolder -ChildPath 'analytics-conversation-details.jsonl'
+    Initialize-JsonlFile -Path $dataPath
     foreach ($record in $sanitizedRecords) {
         Write-Jsonl -Path $dataPath -InputObject $record
     }

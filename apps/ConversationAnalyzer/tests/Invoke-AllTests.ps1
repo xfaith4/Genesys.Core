@@ -254,6 +254,11 @@ ArchCheck 'ARCH-22F' 'Analyzer validates Core artifact contract before database 
     $database -match 'Import reconciliation failed'
 }
 
+ArchCheck 'ARCH-22G' 'Run diagnostic de-duplication uses literal text matching' {
+    $uiPs -match '\.IndexOf\(\$uiDiagnosticText, \[System\.StringComparison\]::Ordinal\)' -and
+    $uiPs -notmatch '-notlike "\*\$uiDiagnosticText\*"'
+}
+
 # ── Architecture: auth containment ────────────────────────────────────────────
 Write-Host "`n--- Auth containment (Genesys.Auth – sibling Core repo) ---" -ForegroundColor DarkCyan
 

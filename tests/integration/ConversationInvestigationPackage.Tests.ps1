@@ -18,6 +18,13 @@ Describe 'Conversation Investigation package export' {
         New-Item -Path $script:OutputRoot -ItemType Directory -Force | Out-Null
 
         $script:Fixture = @{
+            'conversations.get.specific.conversation.details' = @(
+                [pscustomobject]@{
+                    id        = $script:ConversationId
+                    startTime = '2026-05-01T14:00:00.000Z'
+                    endTime   = '2026-05-01T14:08:30.000Z'
+                }
+            )
             'analytics-conversation-details-query' = @(
                 [pscustomobject]@{
                     conversationId    = $script:ConversationId
@@ -84,28 +91,50 @@ Describe 'Conversation Investigation package export' {
             return @{ records = $records; runId = 'run-fixture-' + $Step.Name; status = 'ok'; errorMessage = $null }
         }
 
-        $script:SipTracePath = Join-Path $script:OutputRoot 'sip-trace.log'
-        Set-Content -Path $script:SipTracePath -Encoding utf8 -Value @'
-2026-05-01T14:00:20.000Z INVITE sip:+15559870000@example.invalid SIP/2.0
-Call-ID: package-call-001
-From: <sip:+15551230000@example.invalid>
-To: <sip:+15559870000@example.invalid>
-Contact: <sip:agent@example.invalid>
-User-Agent: Fixture UA
-CSeq: 1 INVITE
-Via: SIP/2.0/TLS edge.example.invalid
-c=IN IP4 203.0.113.10
-m=audio 19000 RTP/AVP 0 8 101
-a=sendrecv
-
-2026-05-01T14:00:25.000Z SIP/2.0 486 Busy Here
-Call-ID: package-call-001
-From: <sip:+15551230000@example.invalid>
-To: <sip:+15559870000@example.invalid>
-Server: Fixture SBC
-CSeq: 1 INVITE
-Via: SIP/2.0/TLS edge.example.invalid
-'@
+        $script:ApiRequests = [System.Collections.Generic.List[object]]::new()
+        $script:ApiInvoker = {
+            param($Request)
+            $script:ApiRequests.Add($Request) | Out-Null
+            if ($Request.Method -eq 'GET' -and $Request.Path -eq '/api/v2/telephony/siptraces') {
+                return [pscustomobject]@{
+                    data = @(
+                        [pscustomobject]@{
+                            date           = '2026-05-01T14:00:20.000Z'
+                            method         = 'INVITE'
+                            callid         = 'package-call-001'
+                            fromUser       = '+15551230000'
+                            toUser         = '+15559870000'
+                            userAgent      = 'Fixture UA'
+                            cseq           = '1 INVITE'
+                            via1           = 'SIP/2.0/TLS edge.example.invalid'
+                            conversationId = $script:ConversationId
+                        }
+                        [pscustomobject]@{
+                            date           = '2026-05-01T14:00:25.000Z'
+                            replyReason    = '486 Busy Here'
+                            callid         = 'package-call-001'
+                            fromUser       = '+15551230000'
+                            toUser         = '+15559870000'
+                            userAgent      = 'Fixture SBC'
+                            cseq           = '1 INVITE'
+                            via1           = 'SIP/2.0/TLS edge.example.invalid'
+                            conversationId = $script:ConversationId
+                        }
+                    )
+                }
+            }
+            if ($Request.Method -eq 'POST' -and $Request.Path -eq '/api/v2/telephony/siptraces/download') {
+                return [pscustomobject]@{ downloadId = 'pcap-download-001'; documentId = 'pcap-doc-001' }
+            }
+            if ($Request.Method -eq 'GET' -and $Request.Path -eq '/api/v2/telephony/siptraces/download/{downloadId}') {
+                return [pscustomobject]@{ url = 'https://signed.example.invalid/package.pcap' }
+            }
+            throw "Unexpected API request: $($Request.Method) $($Request.Path)"
+        }
+        $script:DownloadInvoker = {
+            param($Request)
+            [byte[]](0x50, 0x43, 0x41, 0x50)
+        }
 
         $script:Run = Get-GenesysConversationInvestigation `
             -ConversationId $script:ConversationId `
@@ -115,9 +144,10 @@ Via: SIP/2.0/TLS edge.example.invalid
 
         $script:Package = Export-GenesysConversationInvestigationPackage `
             -RunFolder $script:Run.RunFolder `
-            -SipTracePath $script:SipTracePath `
             -OutputDirectory (Join-Path $script:OutputRoot 'package') `
             -PackageName 'conversation-investigation' `
+            -ApiInvoker $script:ApiInvoker `
+            -DownloadInvoker $script:DownloadInvoker `
             -Force
     }
 
@@ -134,6 +164,8 @@ Via: SIP/2.0/TLS edge.example.invalid
         Test-Path $script:Package.HtmlPath        | Should -BeTrue
         Test-Path $script:Package.TimelineCsvPath | Should -BeTrue
         Test-Path $script:Package.SipTraceCsvPath | Should -BeTrue
+        Test-Path $script:Package.PcapMetadataCsvPath | Should -BeTrue
+        Test-Path $script:Package.PcapPath        | Should -BeTrue
         Test-Path $script:Package.FindingsCsvPath | Should -BeTrue
         Test-Path $script:Package.WorkbookPath    | Should -BeTrue
         Test-Path $script:Package.PackageJsonPath | Should -BeTrue
@@ -166,7 +198,19 @@ Via: SIP/2.0/TLS edge.example.invalid
     It 'captures SIP errors as findings' {
         $packageJson = Get-Content -Path $script:Package.PackageJsonPath -Raw | ConvertFrom-Json
         $packageJson.counts.sipMessages | Should -Be 2
+        $packageJson.files.pcap | Should -Be 'conversation-investigation.pcap'
+        $packageJson.files.pcapMetadataCsv | Should -Be 'conversation-investigation.pcap-metadata.csv'
         @($packageJson.findings | Where-Object { $_.Finding -match '486' }).Count | Should -Be 1
+    }
+
+    It 'requests SIP metadata and PCAP using the conversation start/end window' {
+        $metadataRequest = $script:ApiRequests | Where-Object { $_.Method -eq 'GET' -and $_.Path -eq '/api/v2/telephony/siptraces' } | Select-Object -First 1
+        $metadataRequest.Query.conversationId | Should -Be $script:ConversationId
+        $metadataRequest.Query.dateStart | Should -Be '2026-05-01T14:00:00.0000000Z'
+        $metadataRequest.Query.dateEnd | Should -Be '2026-05-01T14:08:30.0000000Z'
+
+        $downloadRequest = $script:ApiRequests | Where-Object { $_.Method -eq 'POST' -and $_.Path -eq '/api/v2/telephony/siptraces/download' } | Select-Object -First 1
+        ($downloadRequest.Body | ConvertFrom-Json).conversationId | Should -Be $script:ConversationId
     }
 
     It 'creates a real XLSX zip container' {

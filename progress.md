@@ -86,3 +86,9 @@
 - Hardened package generation so timestamped SIP trace messages contribute `ObservedTimeUtc` to the SIP CSV and chronological combined timeline; conversation timeline rows are now sorted and sequence-renumbered after combining with SIP evidence.
 - Updated the package fixture test and demo script to use timestamped SIP traces, then regenerated `samples/demo-conversation-investigation`.
 - Validation passed: parser checks for package-related PowerShell files; `Invoke-Pester -Path ./tests/integration/ConversationInvestigationPackage.Tests.ps1 -Output Normal` passed 6 tests; `pwsh -NoProfile -File scripts/Invoke-Tests.ps1` passed 142 tests and skipped live integration because no Genesys credentials were present.
+
+- Hardened the live conversation package workflow so `Export-GenesysConversationInvestigationPackage` no longer needs `-SipTracePath` for live use. It now queries SIP metadata, requests the PCAP export, polls for the signed URL, writes the `.pcap`, and includes PCAP metadata in CSV/XLSX/JSON outputs.
+- Updated `Get-GenesysConversationInvestigation` to run `conversations.get.specific.conversation.details` first and derive the required `analytics-conversation-details-query` interval from the conversation start/end times.
+- Added `docs/CONVERSATION_INVESTIGATION_PACKAGE.md` with the exact live command, API sequence, package outputs, and telephony PCAP permissions.
+- Regenerated `samples/demo-conversation-investigation` with `.pcap` and `.pcap-metadata.csv`; package JSON now shows `pcapDownloadId`, `PcapDownloaded = true`, 3 SIP messages, and 3 PCAP metadata rows.
+- Validation passed: parser checks for package-related PowerShell files; `ConversationInvestigation.Tests.ps1` passed 17 tests; `ConversationInvestigationPackage.Tests.ps1` passed 7 tests; `pwsh -NoProfile -File scripts/Invoke-Tests.ps1` passed 142 tests.

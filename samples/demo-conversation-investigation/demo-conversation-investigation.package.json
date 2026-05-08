@@ -1,9 +1,11 @@
 {
   "packageType": "conversation-investigation",
-  "generatedAtUtc": "2026-05-07T17:15:17.1851141Z",
+  "generatedAtUtc": "2026-05-07T17:45:46.2239290Z",
   "conversationId": "demo-conversation-001",
   "runId": "demo-run",
-  "sourceSipTraceName": "demo-sip-trace.log",
+  "sourceSipTraceName": null,
+  "pcapDownloadId": "demo-pcap-download",
+  "warnings": [],
   "counts": {
     "participants": 2,
     "agents": 1,
@@ -11,18 +13,21 @@
     "evaluations": 1,
     "timelineEvents": 9,
     "sipMessages": 3,
+    "pcapMetadataRows": 3,
     "findings": 3
   },
   "files": {
     "html": "demo-conversation-investigation.html",
     "timelineCsv": "demo-conversation-investigation.timeline.csv",
     "sipTraceCsv": "demo-conversation-investigation.sip-trace.csv",
+    "pcapMetadataCsv": "demo-conversation-investigation.pcap-metadata.csv",
+    "pcap": "demo-conversation-investigation.pcap",
     "findingsCsv": "demo-conversation-investigation.findings.csv",
     "workbook": "demo-conversation-investigation.xlsx",
     "packageJson": "demo-conversation-investigation.package.json"
   },
   "overview": {
-    "GeneratedAtUtc": "2026-05-07T17:15:17.1851141Z",
+    "GeneratedAtUtc": "2026-05-07T17:45:46.2239290Z",
     "Investigation": "conversation-investigation",
     "RunId": "demo-run",
     "ConversationId": "demo-conversation-001",
@@ -33,7 +38,8 @@
     "Recordings": 1,
     "Evaluations": 1,
     "TimelineEvents": 9,
-    "SipMessages": 3
+    "SipMessages": 3,
+    "PcapDownloaded": true
   },
   "findings": [
     {

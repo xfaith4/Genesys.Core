@@ -1510,9 +1510,9 @@
     "conversations.get.specific.conversation.details": {
       "method": "GET",
       "path": "/api/v2/conversations/{conversationId}",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "conversationId": "conversation-id-goes-here"
       },

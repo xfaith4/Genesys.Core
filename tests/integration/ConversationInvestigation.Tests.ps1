@@ -4,7 +4,7 @@
     Fixture-driven integration tests for the Conversation Investigation flagship.
 .DESCRIPTION
     Drives Get-GenesysConversationInvestigation through its -DatasetInvoker test seam,
-    so no live API calls are required. Asserts the seven acceptance criteria
+    so no live API calls are required. Asserts the eight acceptance criteria
     mirroring docs/ROADMAP.md § Release 1.1 — Conversation Investigation.
 #>
 
@@ -17,10 +17,23 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
         $script:KnownConversationId = 'conv-fixture-001'
         $script:ParticipantUserId1  = 'agent-fixture-001'
         $script:ParticipantUserId2  = 'agent-fixture-002'
+        $script:Capture = @{}
 
         # Fixture data. Records intentionally include rows for OTHER conversations/agents
         # so SubjectFilter and participant-derived filtering logic is exercised.
         $script:Fixture = @{
+            'conversations.get.specific.conversation.details' = @(
+                [pscustomobject]@{
+                    id        = 'conv-fixture-001'
+                    startTime = '2026-05-01T14:00:00.000Z'
+                    endTime   = '2026-05-01T14:08:30.000Z'
+                }
+                [pscustomobject]@{
+                    id        = 'conv-fixture-999'
+                    startTime = '2026-05-01T13:00:00.000Z'
+                    endTime   = '2026-05-01T13:05:00.000Z'
+                }
+            )
             'analytics-conversation-details-query' = @(
                 [pscustomobject]@{
                     conversationId = 'conv-fixture-001'
@@ -73,9 +86,13 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
         $script:MakeInvoker = {
             param($overrides = @{})
             $fixture = $script:Fixture
+            $capture = $script:Capture
             return {
                 param($Step, $Subject, $Window)
                 $key = [string]$Step.DatasetKey
+                if ($key -eq 'analytics-conversation-details-query' -and $Step.ContainsKey('DatasetParameters')) {
+                    $capture['AnalyticsParameters'] = $Step.DatasetParameters
+                }
                 if ($overrides.ContainsKey($key)) {
                     $entry = $overrides[$key]
                     if ($entry -is [hashtable] -and $entry.ContainsKey('Throw')) {
@@ -103,6 +120,7 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
 
     Context '1. Happy path' {
         BeforeAll {
+            $script:Capture['AnalyticsParameters'] = $null
             $invoker = & $script:MakeInvoker @{}
             $script:HappyResult = Get-GenesysConversationInvestigation `
                 -ConversationId $script:KnownConversationId `
@@ -117,9 +135,9 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             Test-Path $script:HappyResult.SummaryPath  | Should -BeTrue
         }
 
-        It 'manifest records exactly seven datasetsInvoked entries' {
+        It 'manifest records exactly eight datasetsInvoked entries' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
-            @($m.datasetsInvoked).Count | Should -Be 7
+            @($m.datasetsInvoked).Count | Should -Be 8
         }
 
         It 'manifest contains every required field' {
@@ -134,11 +152,19 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             $m.window.until     | Should -BeNullOrEmpty
         }
 
-        It 'summary contains the seven expected sections' {
+        It 'summary contains the eight expected sections' {
             $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
-            foreach ($section in @('conversation','participants','agents','divisions','skills','recordings','evaluations')) {
+            foreach ($section in @('conversationLookup','conversation','participants','agents','divisions','skills','recordings','evaluations')) {
                 $s.PSObject.Properties.Name | Should -Contain $section
             }
+        }
+
+        It 'derives analytics query interval from the conversation lookup step' {
+            $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
+            $conversationEntry = $m.datasetsInvoked | Where-Object { $_.stepName -eq 'conversation' }
+            $conversationEntry.recordCount | Should -Be 1
+            $script:Capture['AnalyticsParameters'].Interval | Should -Be '2026-05-01T14:00:00.0000000Z/2026-05-01T14:08:30.0000000Z'
+            $script:Capture['AnalyticsParameters'].ConversationId | Should -Be $script:KnownConversationId
         }
 
         It 'seed conversation row is filtered to the subject' {

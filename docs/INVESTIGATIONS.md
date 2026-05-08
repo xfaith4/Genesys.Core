@@ -180,7 +180,8 @@ not the manifest.
 
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| conversation | `analytics-conversation-details` | seed | Full participant timeline |
+| conversationLookup | `conversations.get.specific.conversation.details` | seed | Get conversation start/end times for the required analytics interval |
+| conversation | `analytics-conversation-details-query` | `conversationId` | Full participant timeline using the interval derived from `conversationLookup` |
 | participants | (derived from conversation) | seed | Extract participant userIds |
 | agents | `users` (per participant) | `userId` | Identity for each agent |
 | divisions | `users.division.analysis.get.users.with.division.info` | `userId` | Division/location at time of contact |
@@ -216,7 +217,7 @@ under Track A.
 | Investigation | Datasets that must pass `Live Invoke-Dataset acceptance passed` first |
 | --- | --- |
 | Agent | `users`, division-info, skills, `routing-queues`, bulk presences, user activity report, `analytics-conversation-details-query` |
-| Conversation | `analytics-conversation-details`, `users`, division-info, skills, recordings, evaluations |
+| Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
 
 The mirror-catalog cutover should also land before any investigation references

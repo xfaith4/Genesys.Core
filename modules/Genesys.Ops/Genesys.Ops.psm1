@@ -5484,6 +5484,16 @@ function Invoke-Investigation {
             required   = $required
         }
 
+        $resolvedDatasetParameters = $null
+        if (-not $isDerived -and $step.ContainsKey('Parameters') -and $step.Parameters) {
+            $parameterSource = $step.Parameters
+            if ($parameterSource -is [scriptblock]) {
+                $resolvedDatasetParameters = & $parameterSource $Subject $summarySections $Window
+            } else {
+                $resolvedDatasetParameters = $parameterSource
+            }
+        }
+
         $stepResult = $null
         if ($isDerived) {
             try {
@@ -5495,11 +5505,16 @@ function Invoke-Investigation {
         } else {
             try {
                 if ($DatasetInvoker) {
-                    $stepResult = & $DatasetInvoker $step $Subject $Window
+                    $stepForInvoker = @{}
+                    foreach ($key in $step.Keys) { $stepForInvoker[$key] = $step[$key] }
+                    if ($null -ne $resolvedDatasetParameters) {
+                        $stepForInvoker['DatasetParameters'] = $resolvedDatasetParameters
+                    }
+                    $stepResult = & $DatasetInvoker $stepForInvoker $Subject $Window
                 } else {
                     $invokeArgs = @{ Dataset = $datasetKey }
-                    if ($step.ContainsKey('Parameters') -and $step.Parameters) {
-                        $invokeArgs['DatasetParameters'] = $step.Parameters
+                    if ($null -ne $resolvedDatasetParameters) {
+                        $invokeArgs['DatasetParameters'] = $resolvedDatasetParameters
                     }
                     $records = Invoke-GenesysDataset @invokeArgs
                     $stepResult = @{
@@ -5872,6 +5887,7 @@ function Get-GenesysConversationInvestigationStepDefinition {
 
     $isTargetConversation = { param($r, $s)
         $cid = $r.PSObject.Properties['conversationId']
+        if (-not $cid) { $cid = $r.PSObject.Properties['id'] }
         return $cid -and [string]$cid.Value -eq $s.ConversationId
     }
     $isParticipantById = { param($r, $s)
@@ -5914,12 +5930,71 @@ function Get-GenesysConversationInvestigationStepDefinition {
         $ids = @($records | ForEach-Object { $_.userId } | Where-Object { $_ })
         @{ ParticipantUserIds = $ids }
     }
+    $updateSubjectWithConversationWindow = {
+        param($records, $subject)
+        $conversation = @($records | Select-Object -First 1)
+        if ($conversation.Count -eq 0) { return @{} }
+
+        $start = $null
+        foreach ($name in @('conversationStart', 'startTime', 'startTimeUtc', 'start')) {
+            $prop = $conversation[0].PSObject.Properties[$name]
+            if ($prop -and $prop.Value) { $start = $prop.Value; break }
+        }
+
+        $end = $null
+        foreach ($name in @('conversationEnd', 'endTime', 'endTimeUtc', 'end')) {
+            $prop = $conversation[0].PSObject.Properties[$name]
+            if ($prop -and $prop.Value) { $end = $prop.Value; break }
+        }
+
+        if (-not $start) { throw "Conversation '$($subject.ConversationId)' did not include a start time required for analytics interval derivation." }
+        if (-not $end) { $end = [DateTime]::UtcNow }
+
+        $startUtc = ([DateTime]::Parse([string]$start)).ToUniversalTime()
+        $endUtc = ([DateTime]::Parse([string]$end)).ToUniversalTime()
+        if ($endUtc -le $startUtc) {
+            $endUtc = $startUtc.AddSeconds(1)
+        }
+
+        @{
+            ConversationStartUtc = $startUtc.ToString('o')
+            ConversationEndUtc   = $endUtc.ToString('o')
+            AnalyticsInterval    = "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
+        }
+    }
+    $conversationLookupParameters = {
+        param($subject, $sections, $window)
+        @{ Query = @{ conversationId = $subject.ConversationId } }
+    }
+    $analyticsConversationParameters = {
+        param($subject, $sections, $window)
+        if (-not $subject.ContainsKey('AnalyticsInterval') -or [string]::IsNullOrWhiteSpace([string]$subject.AnalyticsInterval)) {
+            throw "Conversation '$($subject.ConversationId)' does not have a derived analytics interval. The conversation lookup step must run first."
+        }
+
+        @{
+            ConversationId = $subject.ConversationId
+            Interval       = $subject.AnalyticsInterval
+        }
+    }
 
     @(
         @{
+            Name          = 'conversationLookup'
+            DatasetKey    = 'conversations.get.specific.conversation.details'
+            Parameters    = $conversationLookupParameters
+            SubjectFilter = $isTargetConversation
+            SubjectUpdater = $updateSubjectWithConversationWindow
+            EmitAs        = 'conversationLookup'
+            Required      = $true
+            JoinKind      = 'Seed'
+            JoinOn        = @{ Left = $null; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
             Name          = 'conversation'
             DatasetKey    = 'analytics-conversation-details-query'
-            Parameters    = @{ conversationId = $ConversationId }
+            Parameters    = $analyticsConversationParameters
             SubjectFilter = $isTargetConversation
             EmitAs        = 'conversation'
             Required      = $true
@@ -6219,6 +6294,243 @@ function Get-GenesysOpsSipStartLine {
     return $firstNonEmpty
 }
 
+function New-GenesysOpsApiUri {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [hashtable] $RouteValues,
+        [hashtable] $Query
+    )
+
+    $base = $script:GC.BaseUri.TrimEnd('/')
+    $resolvedPath = $Path
+    if ($RouteValues) {
+        foreach ($key in $RouteValues.Keys) {
+            $resolvedPath = $resolvedPath.Replace("{$key}", [uri]::EscapeDataString([string]$RouteValues[$key]))
+        }
+    }
+
+    $uriBuilder = [System.Text.StringBuilder]::new()
+    [void]$uriBuilder.Append($base)
+    if (-not $resolvedPath.StartsWith('/')) { [void]$uriBuilder.Append('/') }
+    [void]$uriBuilder.Append($resolvedPath)
+
+    if ($Query -and $Query.Count -gt 0) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($key in ($Query.Keys | Sort-Object)) {
+            $value = $Query[$key]
+            if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) { continue }
+            $parts.Add(('{0}={1}' -f [uri]::EscapeDataString([string]$key), [uri]::EscapeDataString([string]$value))) | Out-Null
+        }
+        if ($parts.Count -gt 0) {
+            [void]$uriBuilder.Append('?')
+            [void]$uriBuilder.Append(($parts.ToArray() -join '&'))
+        }
+    }
+
+    return $uriBuilder.ToString()
+}
+
+function Invoke-GenesysOpsApiJson {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateSet('GET', 'POST')][string] $Method,
+        [Parameter(Mandatory)][string] $Path,
+        [hashtable] $RouteValues,
+        [hashtable] $Query,
+        [AllowNull()][object] $Body,
+        [scriptblock] $ApiInvoker
+    )
+
+    $uri = New-GenesysOpsApiUri -Path $Path -RouteValues $RouteValues -Query $Query
+    $bodyJson = $null
+    if ($null -ne $Body) {
+        $bodyJson = if ($Body -is [string]) { $Body } else { $Body | ConvertTo-Json -Depth 100 }
+    }
+
+    $request = [pscustomobject]@{
+        Method  = $Method
+        Uri     = $uri
+        Path    = $Path
+        Query   = $Query
+        Body    = $bodyJson
+        Headers = $script:GC.Headers
+    }
+
+    if ($ApiInvoker) {
+        return & $ApiInvoker $request
+    }
+
+    Assert-GenesysConnected
+    $invokeParams = @{
+        Method      = $Method
+        Uri         = $uri
+        Headers     = $script:GC.Headers
+        ErrorAction = 'Stop'
+    }
+    if ($null -ne $bodyJson) {
+        $invokeParams['Body'] = $bodyJson
+        $invokeParams['ContentType'] = 'application/json'
+    }
+
+    Invoke-RestMethod @invokeParams
+}
+
+function Get-GenesysOpsResponseRows {
+    [CmdletBinding()]
+    param([AllowNull()][object] $Response)
+
+    if ($null -eq $Response) { return @() }
+    foreach ($name in @('data', 'entities', 'results', 'items')) {
+        $prop = $Response.PSObject.Properties[$name]
+        if ($prop -and $null -ne $prop.Value) {
+            return @($prop.Value)
+        }
+    }
+
+    return @($Response)
+}
+
+function Save-GenesysOpsBinaryDownload {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Uri,
+        [Parameter(Mandatory)][string] $Path,
+        [scriptblock] $DownloadInvoker
+    )
+
+    if ($DownloadInvoker) {
+        $result = & $DownloadInvoker ([pscustomobject]@{ Uri = $Uri; Path = $Path })
+        if ($result -is [byte[]]) {
+            [System.IO.File]::WriteAllBytes($Path, $result)
+            return
+        }
+        if ($result -is [string]) {
+            [System.IO.File]::WriteAllText($Path, $result)
+            return
+        }
+        if ($result -is [System.Array]) {
+            $byteValues = @($result | Where-Object { $_ -is [byte] })
+            if ($byteValues.Count -eq $result.Count) {
+                [System.IO.File]::WriteAllBytes($Path, [byte[]]$byteValues)
+                return
+            }
+        }
+        if (Test-Path $Path) { return }
+    }
+
+    Invoke-WebRequest -Uri $Uri -OutFile $Path -UseBasicParsing -ErrorAction Stop | Out-Null
+}
+
+function ConvertFrom-GenesysOpsSipMetadata {
+    [CmdletBinding()]
+    param([object[]] $Rows)
+
+    $index = 0
+    foreach ($row in @($Rows)) {
+        $index++
+        $method = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('method'))
+        $replyReason = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('replyReason', 'reason'))
+        $responseCode = $null
+        $responseText = $null
+        if ($replyReason -match '^\s*(\d{3})\s*(.*)$') {
+            $responseCode = $matches[1]
+            $responseText = $matches[2].Trim()
+        }
+
+        $startLine = if (-not [string]::IsNullOrWhiteSpace($method)) {
+            $method
+        } elseif ($responseCode) {
+            "SIP/2.0 $responseCode $responseText".Trim()
+        } else {
+            ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('msg', 'type'))
+        }
+
+        [pscustomobject]@{
+            MessageIndex   = $index
+            ObservedTimeUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $row @('date'))
+            RawTimestamp   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('date'))
+            MessageType    = if ($responseCode) { 'Response' } else { 'Metadata' }
+            StartLine      = $startLine
+            Method         = $method
+            ResponseCode   = $responseCode
+            ResponseText   = $responseText
+            CallID         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('callid', 'callId'))
+            From           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('fromUser'))
+            To             = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('toUser'))
+            Contact        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('contactUser'))
+            UserAgent      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('userAgent'))
+            CSeq           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('cseq'))
+            Via            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('via1'))
+            MediaIP        = ''
+            AudioPort      = ''
+            AudioCodecs    = ''
+            MediaDirection = ''
+            SourceIP       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourceIp'))
+            SourcePort     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourcePort'))
+            DestinationIP  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationIp'))
+            DestinationPort = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationPort'))
+            CorrelationID  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('correlationId'))
+            ConversationId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('conversationId'))
+        }
+    }
+}
+
+function Export-GenesysOpsConversationPcap {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $ConversationId,
+        [Parameter(Mandatory)][string] $StartUtc,
+        [Parameter(Mandatory)][string] $EndUtc,
+        [Parameter(Mandatory)][string] $OutputDirectory,
+        [Parameter(Mandatory)][string] $PackageName,
+        [scriptblock] $ApiInvoker,
+        [scriptblock] $DownloadInvoker,
+        [int] $MaxSignedUrlPolls = 10,
+        [int] $SignedUrlPollSeconds = 2
+    )
+
+    $query = @{
+        conversationId = $ConversationId
+        dateStart      = $StartUtc
+        dateEnd        = $EndUtc
+    }
+
+    $metadataResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces' -Query $query -ApiInvoker $ApiInvoker
+    $metadataRows = @(Get-GenesysOpsResponseRows -Response $metadataResponse)
+
+    $downloadResponse = Invoke-GenesysOpsApiJson -Method POST -Path '/api/v2/telephony/siptraces/download' -Body $query -ApiInvoker $ApiInvoker
+    $downloadId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $downloadResponse @('downloadId', 'documentId', 'id'))
+    $signedUrlResponse = $null
+    $signedUrl = $null
+    $pcapPath = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($downloadId)) {
+        for ($attempt = 1; $attempt -le $MaxSignedUrlPolls; $attempt++) {
+            $signedUrlResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces/download/{downloadId}' -RouteValues @{ downloadId = $downloadId } -ApiInvoker $ApiInvoker
+            $signedUrl = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $signedUrlResponse @('url', 'downloadUrl', 'href'))
+            if (-not [string]::IsNullOrWhiteSpace($signedUrl)) { break }
+            if (-not $ApiInvoker -and $attempt -lt $MaxSignedUrlPolls) {
+                Start-Sleep -Seconds $SignedUrlPollSeconds
+            }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($signedUrl)) {
+            $pcapPath = Join-Path $OutputDirectory "$PackageName.pcap"
+            Save-GenesysOpsBinaryDownload -Uri $signedUrl -Path $pcapPath -DownloadInvoker $DownloadInvoker
+        }
+    }
+
+    [pscustomobject]@{
+        MetadataRows      = $metadataRows
+        SipRows           = @(ConvertFrom-GenesysOpsSipMetadata -Rows $metadataRows)
+        DownloadId        = $downloadId
+        SignedUrlReceived = -not [string]::IsNullOrWhiteSpace($signedUrl)
+        PcapPath          = $pcapPath
+        Request           = [pscustomobject]$query
+    }
+}
+
 function ConvertFrom-GenesysOpsSipTrace {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string] $Path)
@@ -6396,7 +6708,7 @@ function ConvertTo-GenesysConversationTimeline {
 function ConvertTo-GenesysSipTimeline {
     [CmdletBinding()]
     param(
-        [object[]] $SipRows,
+        [AllowEmptyCollection()][object[]] $SipRows,
         [int] $StartingSequence = 0
     )
 
@@ -6413,7 +6725,7 @@ function ConvertTo-GenesysSipTimeline {
         }
 
         $detailParts = @()
-        foreach ($name in @('StartLine', 'CallID', 'CSeq', 'UserAgent', 'MediaIP', 'AudioPort', 'MediaDirection')) {
+        foreach ($name in @('StartLine', 'CallID', 'CSeq', 'UserAgent', 'MediaIP', 'AudioPort', 'MediaDirection', 'SourceIP', 'SourcePort', 'DestinationIP', 'DestinationPort', 'CorrelationID')) {
             $value = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @($name))
             if (-not [string]::IsNullOrWhiteSpace($value)) { $detailParts += "$name=$value" }
         }
@@ -6439,7 +6751,7 @@ function ConvertTo-GenesysSipTimeline {
 
 function Sort-GenesysConversationPackageTimeline {
     [CmdletBinding()]
-    param([object[]] $Rows)
+    param([AllowEmptyCollection()][object[]] $Rows)
 
     $sortableRows = [System.Collections.Generic.List[object]]::new()
     $originalIndex = 0
@@ -6488,10 +6800,10 @@ function Sort-GenesysConversationPackageTimeline {
 function New-GenesysConversationPackageFindings {
     [CmdletBinding()]
     param(
-        [object[]] $TimelineRows,
-        [object[]] $SipRows,
-        [object[]] $RecordingRows,
-        [object[]] $EvaluationRows
+        [AllowEmptyCollection()][object[]] $TimelineRows,
+        [AllowEmptyCollection()][object[]] $SipRows,
+        [AllowEmptyCollection()][object[]] $RecordingRows,
+        [AllowEmptyCollection()][object[]] $EvaluationRows
     )
 
     $findings = [System.Collections.Generic.List[object]]::new()
@@ -6590,7 +6902,7 @@ function Add-GenesysZipTextEntry {
 function ConvertTo-GenesysWorksheetXml {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][object[]] $Rows
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Rows
     )
 
     $rowsArray = @($Rows)
@@ -6720,10 +7032,10 @@ function New-GenesysConversationPackageHtml {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][object[]] $Findings,
-        [Parameter(Mandatory)][object[]] $TimelineRows,
-        [Parameter(Mandatory)][object[]] $SipRows,
-        [Parameter(Mandatory)][object[]] $EvidenceRows
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Findings,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $TimelineRows,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $SipRows,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $EvidenceRows
     )
 
     $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
@@ -6733,6 +7045,7 @@ function New-GenesysConversationPackageHtml {
     $sipCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('SipMessages'))
     $recordingCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Recordings'))
     $evaluationCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Evaluations'))
+    $pcapDownloaded = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('PcapDownloaded'))
 
     return @"
 <!doctype html>
@@ -6774,6 +7087,7 @@ tr:last-child td { border-bottom: 0; }
 <div class="metric"><div class="label">SIP Messages</div><div class="value">$sipCount</div></div>
 <div class="metric"><div class="label">Recordings</div><div class="value">$recordingCount</div></div>
 <div class="metric"><div class="label">Evaluations</div><div class="value">$evaluationCount</div></div>
+<div class="metric"><div class="label">PCAP Downloaded</div><div class="value">$pcapDownloaded</div></div>
 </div>
 </section>
 <section>
@@ -6808,14 +7122,18 @@ function Export-GenesysConversationInvestigationPackage {
         Existing run folders can be packaged offline with -RunFolder. Passing
         -ConversationId runs the investigation first, then packages the output.
 
-        A SIP trace text file can be attached with -SipTracePath. The package
-        includes parsed SIP details, a combined conversation/SIP timeline, a
-        findings table, an HTML report, CSV exports, a workbook, and metadata.
+        When connected to Genesys Cloud, the package automatically queries SIP
+        trace metadata and requests the matching PCAP download using the
+        conversation start/end window. A SIP trace text file can still be
+        attached with -SipTracePath for offline/manual packaging. The package
+        includes SIP details, a combined conversation/SIP timeline, a findings
+        table, an HTML report, CSV exports, a workbook, PCAP output when
+        available, and metadata.
     .EXAMPLE
         $run = Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
-        Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -SipTracePath './sip.log'
+        Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -OutputDirectory './out/conversation-package' -Force
     .EXAMPLE
-        Export-GenesysConversationInvestigationPackage -ConversationId '<conversation-guid>' -OutputRoot './out' -SipTracePath './sip.log'
+        Export-GenesysConversationInvestigationPackage -ConversationId '<conversation-guid>' -OutputRoot './out' -OutputDirectory './out/conversation-package' -Force
     #>
     [CmdletBinding(DefaultParameterSetName = 'FromRun')]
     param(
@@ -6837,6 +7155,9 @@ function Export-GenesysConversationInvestigationPackage {
         [string] $SipTracePath,
         [string] $OutputDirectory,
         [string] $PackageName = 'conversation-investigation',
+        [scriptblock] $ApiInvoker,
+        [scriptblock] $DownloadInvoker,
+        [switch] $SkipPcapDownload,
         [switch] $Force
     )
 
@@ -6875,14 +7196,63 @@ function Export-GenesysConversationInvestigationPackage {
     $skillRows = @(Get-GenesysOpsPropertyValue $summary @('skills') @())
     $recordingRows = @(Get-GenesysOpsPropertyValue $summary @('recordings') @())
     $evaluationRows = @(Get-GenesysOpsPropertyValue $summary @('evaluations') @())
+    $conversationLookupRows = @(Get-GenesysOpsPropertyValue $summary @('conversationLookup') @())
 
     $conversationTimeline = @(ConvertTo-GenesysConversationTimeline -ConversationRecords $conversationRows)
     $sipRows = @()
+    $pcapInfo = $null
+    $pcapMetadataRows = @()
+    $packageWarnings = [System.Collections.Generic.List[string]]::new()
     if ($SipTracePath) {
         $resolvedSipTracePath = (Resolve-Path -Path $SipTracePath -ErrorAction Stop).Path
         $sipRows = @(ConvertFrom-GenesysOpsSipTrace -Path $resolvedSipTracePath)
     } else {
         $resolvedSipTracePath = $null
+    }
+
+    $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
+    if ([string]::IsNullOrWhiteSpace($conversationIdValue) -and $conversationRows.Count -gt 0) {
+        $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationId', 'id'))
+    }
+
+    if (-not $SipTracePath -and -not $SkipPcapDownload) {
+        $windowRecord = $null
+        if ($conversationLookupRows.Count -gt 0) {
+            $windowRecord = $conversationLookupRows[0]
+        } elseif ($conversationRows.Count -gt 0) {
+            $windowRecord = $conversationRows[0]
+        }
+
+        $pcapStartUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationStart', 'startTime', 'startTimeUtc', 'start'))
+        $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
+
+        if ([string]::IsNullOrWhiteSpace($pcapEndUtc) -and $conversationRows.Count -gt 0) {
+            $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
+        }
+
+        if ([string]::IsNullOrWhiteSpace($conversationIdValue) -or [string]::IsNullOrWhiteSpace($pcapStartUtc) -or [string]::IsNullOrWhiteSpace($pcapEndUtc)) {
+            $packageWarnings.Add('PCAP download skipped because conversationId, start time, or end time was not available in the run artifacts.') | Out-Null
+        } elseif (-not $ApiInvoker -and -not $script:GC.Connected) {
+            $packageWarnings.Add('PCAP download skipped because no Genesys Cloud session is connected. Run Connect-GenesysCloud or pass -SipTracePath for offline packaging.') | Out-Null
+        } else {
+            try {
+                $pcapInfo = Export-GenesysOpsConversationPcap `
+                    -ConversationId $conversationIdValue `
+                    -StartUtc $pcapStartUtc `
+                    -EndUtc $pcapEndUtc `
+                    -OutputDirectory $OutputDirectory `
+                    -PackageName $PackageName `
+                    -ApiInvoker $ApiInvoker `
+                    -DownloadInvoker $DownloadInvoker
+                $pcapMetadataRows = @($pcapInfo.MetadataRows)
+                $sipRows = @($pcapInfo.SipRows)
+                if (-not $pcapInfo.PcapPath) {
+                    $packageWarnings.Add('PCAP download was requested but no signed download URL was returned before polling completed.') | Out-Null
+                }
+            } catch {
+                $packageWarnings.Add("PCAP download failed: $($_.Exception.Message)") | Out-Null
+            }
+        }
     }
 
     $sipTimeline = @(ConvertTo-GenesysSipTimeline -SipRows $sipRows -StartingSequence $conversationTimeline.Count)
@@ -6891,11 +7261,6 @@ function Export-GenesysConversationInvestigationPackage {
     $combinedTimeline += $sipTimeline
     $combinedTimeline = @(Sort-GenesysConversationPackageTimeline -Rows $combinedTimeline)
     $findings = @(New-GenesysConversationPackageFindings -TimelineRows @($combinedTimeline | Where-Object { $_.Source -eq 'Conversation Detail' }) -SipRows $sipRows -RecordingRows $recordingRows -EvaluationRows $evaluationRows)
-
-    $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
-    if ([string]::IsNullOrWhiteSpace($conversationIdValue) -and $conversationRows.Count -gt 0) {
-        $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationId', 'id'))
-    }
 
     $overview = [pscustomobject]@{
         GeneratedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -6910,10 +7275,12 @@ function Export-GenesysConversationInvestigationPackage {
         Evaluations    = $evaluationRows.Count
         TimelineEvents = $combinedTimeline.Count
         SipMessages    = $sipRows.Count
+        PcapDownloaded = ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath))
     }
 
     $evidenceRows = @(
         foreach ($pair in @(
+            @{ Name = 'conversationLookup'; Rows = $conversationLookupRows },
             @{ Name = 'participants'; Rows = $participantRows },
             @{ Name = 'agents'; Rows = $agentRows },
             @{ Name = 'divisions'; Rows = $divisionRows },
@@ -6933,6 +7300,7 @@ function Export-GenesysConversationInvestigationPackage {
     $htmlPath = Join-Path $OutputDirectory "$PackageName.html"
     $timelineCsvPath = Join-Path $OutputDirectory "$PackageName.timeline.csv"
     $sipCsvPath = Join-Path $OutputDirectory "$PackageName.sip-trace.csv"
+    $pcapMetadataCsvPath = Join-Path $OutputDirectory "$PackageName.pcap-metadata.csv"
     $findingsCsvPath = Join-Path $OutputDirectory "$PackageName.findings.csv"
     $workbookPath = Join-Path $OutputDirectory "$PackageName.xlsx"
     $packageJsonPath = Join-Path $OutputDirectory "$PackageName.package.json"
@@ -6940,14 +7308,21 @@ function Export-GenesysConversationInvestigationPackage {
     Set-Content -Path $htmlPath -Value (New-GenesysConversationPackageHtml -Overview $overview -Findings $findings -TimelineRows $combinedTimeline -SipRows $sipRows -EvidenceRows $evidenceRows) -Encoding utf8
     Export-GenesysOpsRowsCsv -Rows $combinedTimeline -Path $timelineCsvPath
     Export-GenesysOpsRowsCsv -Rows $sipRows -Path $sipCsvPath
+    if ($pcapMetadataRows.Count -gt 0) {
+        Export-GenesysOpsRowsCsv -Rows $pcapMetadataRows -Path $pcapMetadataCsvPath
+    }
     Export-GenesysOpsRowsCsv -Rows $findings -Path $findingsCsvPath
-    Export-GenesysOpsWorkbook -Path $workbookPath -Sheets @(
+    $workbookSheets = @(
         [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
         [pscustomobject]@{ Name = 'Findings'; Rows = $findings }
         [pscustomobject]@{ Name = 'Timeline'; Rows = $combinedTimeline }
         [pscustomobject]@{ Name = 'SIP Trace'; Rows = $sipRows }
         [pscustomobject]@{ Name = 'Evidence'; Rows = $evidenceRows }
     )
+    if ($pcapMetadataRows.Count -gt 0) {
+        $workbookSheets += [pscustomobject]@{ Name = 'PCAP Metadata'; Rows = $pcapMetadataRows }
+    }
+    Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
 
     $package = [ordered]@{
         packageType        = 'conversation-investigation'
@@ -6955,6 +7330,8 @@ function Export-GenesysConversationInvestigationPackage {
         conversationId     = $overview.ConversationId
         runId              = $overview.RunId
         sourceSipTraceName = if ($resolvedSipTracePath) { Split-Path -Path $resolvedSipTracePath -Leaf } else { $null }
+        pcapDownloadId     = if ($pcapInfo) { $pcapInfo.DownloadId } else { $null }
+        warnings           = $packageWarnings.ToArray()
         counts             = [ordered]@{
             participants   = $overview.Participants
             agents         = $overview.Agents
@@ -6962,12 +7339,15 @@ function Export-GenesysConversationInvestigationPackage {
             evaluations    = $overview.Evaluations
             timelineEvents = $overview.TimelineEvents
             sipMessages    = $overview.SipMessages
+            pcapMetadataRows = $pcapMetadataRows.Count
             findings       = $findings.Count
         }
         files              = [ordered]@{
             html        = (Split-Path -Path $htmlPath -Leaf)
             timelineCsv = (Split-Path -Path $timelineCsvPath -Leaf)
             sipTraceCsv = (Split-Path -Path $sipCsvPath -Leaf)
+            pcapMetadataCsv = if (Test-Path $pcapMetadataCsvPath) { Split-Path -Path $pcapMetadataCsvPath -Leaf } else { $null }
+            pcap        = if ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath)) { Split-Path -Path $pcapInfo.PcapPath -Leaf } else { $null }
             findingsCsv = (Split-Path -Path $findingsCsvPath -Leaf)
             workbook    = (Split-Path -Path $workbookPath -Leaf)
             packageJson = (Split-Path -Path $packageJsonPath -Leaf)
@@ -6986,6 +7366,8 @@ function Export-GenesysConversationInvestigationPackage {
         FindingsCsvPath = $findingsCsvPath
         WorkbookPath    = $workbookPath
         PackageJsonPath = $packageJsonPath
+        PcapPath        = if ($pcapInfo) { $pcapInfo.PcapPath } else { $null }
+        PcapMetadataCsvPath = if (Test-Path $pcapMetadataCsvPath) { $pcapMetadataCsvPath } else { $null }
         Overview        = $overview
     }
 }

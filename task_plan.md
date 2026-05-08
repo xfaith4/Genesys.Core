@@ -23,6 +23,7 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Session 19 roadmap phase | complete | Implemented quality evaluations/surveys/topic overlay import, case-window normalization, Quality tab UI, low-score drillthrough, and test/doc updates. |
 | Release 1.0 Agent Investigation Track B follow-up | complete | Evaluated the current roadmap pivot, hardened Agent Investigation composer edge cases, repaired fixture integration coverage, and synchronized roadmap/readiness/onboarding docs after 105 unit and 12 integration tests passed. |
 | Conversation investigation package review | complete | Hardened chronological conversation/SIP timeline generation, regenerated sample package, confirmed live command path, and reran package/full validation. |
+| Conversation package API PCAP export | complete | Removed the live `-SipTracePath` requirement, derived the analytics interval from `GET /api/v2/conversations/{conversationId}`, added SIP metadata/PCAP API export, regenerated the sample package, and reran targeted/full validation. |
 
 ## Current Task Scope
 
@@ -51,3 +52,4 @@ Execution strategy:
 | SQLite smoke path skipped native database runtime | Invoke-AllTests | Existing environment lacks `e_sqlite3` native library; test runner marked SMK-10 SKIP while overall suite passed. |
 | In-place LF normalization failed inside sandbox with read-only temp-file error | Line-ending cleanup | Reran the mechanical normalization command with escalation; `git diff --check` is now clean on touched files. |
 | Persisted `C:\Users\...` paths resolved as app-relative paths under WSL | Config/output investigation | Added config and Core output-root normalization so Windows drive paths map to `/mnt/<drive>/...` and relative backslash paths resolve correctly. |
+| Offline demo PCAP hook still attempted signed URL DNS lookup | Demo package rerun | Fixed binary download handling so PowerShell-enumerated byte arrays from test/demo download hooks are written as `.pcap` bytes instead of falling through to `Invoke-WebRequest`. |

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-07
+
+### Changed
+
+- **Conversation Investigation package hardening:**
+  - `Get-GenesysConversationInvestigation` now starts with
+    `GET /api/v2/conversations/{conversationId}` to derive the conversation
+    start/end window before calling `analytics-conversation-details-query`.
+  - `Export-GenesysConversationInvestigationPackage` no longer requires
+    `-SipTracePath` for live use; it queries SIP metadata, requests the PCAP
+    download, polls the signed URL, and writes the `.pcap` into the package.
+  - Added `docs/CONVERSATION_INVESTIGATION_PACKAGE.md` with the exact live
+    command, API sequence, output files, and PCAP permissions.
+
 ## 2026-04-30
 
 ### Changed

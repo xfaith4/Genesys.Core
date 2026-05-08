@@ -162,8 +162,8 @@ Get-GenesysAgentInvestigation -UserName 'Jane Doe' -Since (Get-Date).AddDays(-7)
 # Conversation — single subject, no window.
 $run = Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
 
-# Conversation investigation package — HTML, CSV, XLSX, JSON metadata, optional SIP trace parse.
-Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -SipTracePath './sip-trace.log' -OutputDirectory './out/conversation-package' -Force
+# Conversation investigation package — HTML, CSV, XLSX, JSON metadata, SIP metadata, and PCAP.
+Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -OutputDirectory './out/conversation-package' -Force
 
 # Offline demo package, no Genesys login required.
 pwsh -NoProfile -File ./scripts/New-DemoConversationInvestigationPackage.ps1 -Force
@@ -172,7 +172,7 @@ pwsh -NoProfile -File ./scripts/New-DemoConversationInvestigationPackage.ps1 -Fo
 Get-GenesysQueueInvestigation -QueueId '<queue-guid>' -Since (Get-Date).AddDays(-1) -OutputRoot './out'
 ```
 
-Investigation output follows the same artifact contract as datasets, with an investigation manifest schema at `catalog/schema/investigation.manifest.schema.json`. See [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for the composition contract and release sequencing.
+Investigation output follows the same artifact contract as datasets, with an investigation manifest schema at `catalog/schema/investigation.manifest.schema.json`. See [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for the composition contract and release sequencing, and [docs/CONVERSATION_INVESTIGATION_PACKAGE.md](docs/CONVERSATION_INVESTIGATION_PACKAGE.md) for the package export workflow.
 
 ### Standalone script invocation (dry runs / CI bootstrap)
 

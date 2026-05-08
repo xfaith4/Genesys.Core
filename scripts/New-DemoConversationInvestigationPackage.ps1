@@ -30,6 +30,13 @@ New-Item -Path $tempRoot -ItemType Directory -Force | Out-Null
 
 try {
     $fixture = @{
+        'conversations.get.specific.conversation.details' = @(
+            [pscustomobject]@{
+                id        = $conversationId
+                startTime = '2026-05-01T14:00:00.000Z'
+                endTime   = '2026-05-01T14:12:45.000Z'
+            }
+        )
         'analytics-conversation-details-query' = @(
             [pscustomobject]@{
                 conversationId    = $conversationId
@@ -123,36 +130,63 @@ try {
         return @{ records = $records; runId = 'demo-' + $Step.Name; status = 'ok'; errorMessage = $null }
     }.GetNewClosure()
 
-    $sipTracePath = Join-Path $tempRoot 'demo-sip-trace.log'
-    Set-Content -Path $sipTracePath -Encoding utf8 -Value @'
-2026-05-01T14:00:20.000Z INVITE sip:+15559870000@example.invalid SIP/2.0
-Call-ID: demo-call-001
-From: <sip:+15551230000@example.invalid>
-To: <sip:+15559870000@example.invalid>
-Contact: <sip:demo.agent@example.invalid>
-User-Agent: Demo WebRTC Client
-CSeq: 1 INVITE
-Via: SIP/2.0/TLS edge.example.invalid
-c=IN IP4 203.0.113.10
-m=audio 19000 RTP/AVP 0 8 101
-a=sendrecv
+    $apiInvoker = {
+        param($Request)
+        if ($Request.Method -eq 'GET' -and $Request.Path -eq '/api/v2/telephony/siptraces') {
+            return [pscustomobject]@{
+                data = @(
+                    [pscustomobject]@{
+                        date           = '2026-05-01T14:00:20.000Z'
+                        method         = 'INVITE'
+                        callid         = 'demo-call-001'
+                        fromUser       = '+15551230000'
+                        toUser         = '+15559870000'
+                        contactUser    = 'demo.agent@example.invalid'
+                        userAgent      = 'Demo WebRTC Client'
+                        cseq           = '1 INVITE'
+                        via1           = 'SIP/2.0/TLS edge.example.invalid'
+                        sourceIp       = '203.0.113.10'
+                        sourcePort     = '19000'
+                        conversationId = $conversationId
+                    }
+                    [pscustomobject]@{
+                        date           = '2026-05-01T14:00:25.000Z'
+                        replyReason    = '180 Ringing'
+                        callid         = 'demo-call-001'
+                        fromUser       = '+15551230000'
+                        toUser         = '+15559870000'
+                        userAgent      = 'Demo Edge'
+                        cseq           = '1 INVITE'
+                        via1           = 'SIP/2.0/TLS edge.example.invalid'
+                        conversationId = $conversationId
+                    }
+                    [pscustomobject]@{
+                        date           = '2026-05-01T14:00:30.000Z'
+                        replyReason    = '486 Busy Here'
+                        callid         = 'demo-call-001'
+                        fromUser       = '+15551230000'
+                        toUser         = '+15559870000'
+                        userAgent      = 'Demo SBC'
+                        cseq           = '1 INVITE'
+                        via1           = 'SIP/2.0/TLS edge.example.invalid'
+                        conversationId = $conversationId
+                    }
+                )
+            }
+        }
+        if ($Request.Method -eq 'POST' -and $Request.Path -eq '/api/v2/telephony/siptraces/download') {
+            return [pscustomobject]@{ downloadId = 'demo-pcap-download'; documentId = 'demo-pcap-document' }
+        }
+        if ($Request.Method -eq 'GET' -and $Request.Path -eq '/api/v2/telephony/siptraces/download/{downloadId}') {
+            return [pscustomobject]@{ url = 'https://signed.example.invalid/demo-conversation-investigation.pcap' }
+        }
+        throw "Unexpected demo API request: $($Request.Method) $($Request.Path)"
+    }.GetNewClosure()
 
-2026-05-01T14:00:25.000Z SIP/2.0 180 Ringing
-Call-ID: demo-call-001
-From: <sip:+15551230000@example.invalid>
-To: <sip:+15559870000@example.invalid>
-Server: Demo Edge
-CSeq: 1 INVITE
-Via: SIP/2.0/TLS edge.example.invalid
-
-2026-05-01T14:00:30.000Z SIP/2.0 486 Busy Here
-Call-ID: demo-call-001
-From: <sip:+15551230000@example.invalid>
-To: <sip:+15559870000@example.invalid>
-Server: Demo SBC
-CSeq: 1 INVITE
-Via: SIP/2.0/TLS edge.example.invalid
-'@
+    $downloadInvoker = {
+        param($Request)
+        [byte[]](0x50, 0x43, 0x41, 0x50, 0x2d, 0x44, 0x45, 0x4d, 0x4f)
+    }
 
     $run = Get-GenesysConversationInvestigation `
         -ConversationId $conversationId `
@@ -162,9 +196,10 @@ Via: SIP/2.0/TLS edge.example.invalid
 
     Export-GenesysConversationInvestigationPackage `
         -RunFolder $run.RunFolder `
-        -SipTracePath $sipTracePath `
         -OutputDirectory $OutputDirectory `
         -PackageName 'demo-conversation-investigation' `
+        -ApiInvoker $apiInvoker `
+        -DownloadInvoker $downloadInvoker `
         -Force:$Force
 } finally {
     if (Test-Path $tempRoot) {

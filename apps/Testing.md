@@ -54,7 +54,7 @@ pwsh .\scripts\Invoke-ValidationMenu.ps1
 
 ```powershell
 # Example: different region, show 10 rows
-pwsh .\scripts\Invoke-ValidationMenu.ps1 -Region mypurecloud.com -PreviewRows 10
+pwsh .\scripts\Invoke-ValidationMenu.ps1 -Region usw2.pure.cloud -PreviewRows 10
 ```
 
 ---
@@ -69,7 +69,7 @@ Genesys Cloud directly. It only reads Core run artifacts from disk.
 ```powershell
 pwsh .\scripts\Get-ConversationAnalysis.ps1 `
   -Region 'usw2.pure.cloud' `
-  -LookbackHours 24
+  -LookbackHours 1
 ```
 
 The script prints a run folder and data folder when it completes.

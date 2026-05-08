@@ -3,6 +3,18 @@ Describe 'Audit logs dataset' {
         Import-Module "$PSScriptRoot/../../modules/Genesys.Core/Genesys.Core.psd1" -Force
     }
 
+    It 'catalog wires audit query submit, status, results, and service mapping endpoints' {
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+        $catalog = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json -Depth 100
+
+        $catalog.datasets.'audit-logs'.endpoint | Should -Be 'audits.query.submit'
+        $catalog.datasets.'audit-logs'.transaction.profile | Should -Be 'audit_query_transaction_then_results'
+        $catalog.endpoints.'getAuditsQueryServicemapping'.path | Should -Be '/api/v2/audits/query/servicemapping'
+        $catalog.endpoints.'audits.query.submit'.path | Should -Be '/api/v2/audits/query'
+        $catalog.endpoints.'audit_query_transaction_then_results.status'.path | Should -Be '/api/v2/audits/query/{transactionId}'
+        $catalog.endpoints.'audit_query_transaction_then_results.results'.path | Should -Be '/api/v2/audits/query/{transactionId}/results'
+    }
+
     It 'runs submit->poll->results flow and writes audit outputs' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out'
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
@@ -82,8 +94,23 @@ Describe 'Audit logs dataset' {
 
         $eventsPath = Join-Path -Path $runFolder.FullName -ChildPath 'events.jsonl'
         $events = @(Get-Content -Path $eventsPath | ForEach-Object { $_ | ConvertFrom-Json })
+        (@($events | Where-Object { $_.eventType -eq 'audit.servicemapping.loaded' })).Count | Should -Be 1
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.submitted' })).Count | Should -Be 1
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.transactionId.received' })).Count | Should -Be 1
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.status.poll' })).Count | Should -Be 2
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.status.complete' })).Count | Should -Be 1
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.results.page.requested' })).Count | Should -Be 2
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.results.page.written' })).Count | Should -Be 2
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.results.complete' })).Count | Should -Be 1
         (@($events | Where-Object { $_.eventType -eq 'audit.transaction.poll' })).Count | Should -Be 2
         (@($events | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 0
+
+        $transactionEvent = $events | Where-Object { $_.eventType -eq 'audit.query.transactionId.received' } | Select-Object -First 1
+        $transactionEvent.payload.transactionId | Should -Be 'tx-123'
+        $statusEvent = $events | Where-Object { $_.eventType -eq 'audit.query.status.poll' } | Select-Object -First 1
+        $statusEvent.payload.endpointPath | Should -Be '/api/v2/audits/query/{transactionId}'
+        $resultsEvent = $events | Where-Object { $_.eventType -eq 'audit.query.results.page.written' } | Select-Object -First 1
+        $resultsEvent.payload.endpointPath | Should -Be '/api/v2/audits/query/{transactionId}/results'
     }
 
 
@@ -97,6 +124,10 @@ Describe 'Audit logs dataset' {
 
             $uri = [string]$request.Uri
             $method = [string]$request.Method
+
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/audits/query/servicemapping') {
+                return [pscustomobject]@{ Result = @('routing') }
+            }
 
             if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/audits/query') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{ transactionId = 'tx-legacy' } }
@@ -167,6 +198,11 @@ Describe 'Audit logs dataset' {
         @($script:capturedSubmitBody.sort).Count | Should -Be 1
         $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'serviceName'
         $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'action'
+
+        $datasetFolder = Join-Path -Path $outputRoot -ChildPath 'audit-logs'
+        $runFolder = Get-ChildItem -Path $datasetFolder -Directory | Select-Object -First 1
+        $events = @(Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.no_results' })).Count | Should -Be 1
     }
 
     It 'supports dataset parameter overrides for interval, service name, entity type, and action' {
@@ -282,6 +318,10 @@ Describe 'Audit logs dataset' {
         {
             Invoke-Dataset -Dataset 'audit-logs' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker
         } | Should -Throw "*Audit transaction ended in state 'FAILED'.*"
+
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'audit-logs') -Directory | Sort-Object CreationTimeUtc -Descending | Select-Object -First 1
+        $events = @(Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        (@($events | Where-Object { $_.eventType -eq 'audit.query.failed' })).Count | Should -BeGreaterThan 0
     }
 
     It 'fails when transaction reaches CANCELLED terminal state' {

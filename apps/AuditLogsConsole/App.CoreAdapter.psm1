@@ -267,6 +267,9 @@ function _StartAuditRun {
 
     $resolved = New-AuditDatasetParameters -QuerySpec $QuerySpec -Mode $Mode
     $datasetKey = if ($Mode -eq 'Preview') { $script:CoreState.DatasetKeys.Preview } else { $script:CoreState.DatasetKeys.Full }
+    if ($QuerySpec.ContainsKey('DatasetKey') -and -not [string]::IsNullOrWhiteSpace([string]$QuerySpec.DatasetKey)) {
+        $datasetKey = [string]$QuerySpec.DatasetKey
+    }
 
     $invokeParams = @{
         Dataset           = $datasetKey

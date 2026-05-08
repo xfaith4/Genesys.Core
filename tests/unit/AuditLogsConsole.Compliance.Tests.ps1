@@ -61,4 +61,21 @@ Describe 'AuditLogsConsole — Core-First Compliance' {
         $ui | Should -Match 'VisualTreeHelper'
         $ui | Should -Match "Required UI control"
     }
+
+    It 'tracks the active dataset key instead of polling only the default dataset root' {
+        $uiPath = Join-Path $PSScriptRoot '../../apps/AuditLogsConsole/App.UI.ps1'
+        $ui = Get-Content -Path $uiPath -Raw
+
+        $ui | Should -Match 'CurrentDatasetKey'
+        $ui | Should -Match 'activeDatasetKey'
+        $ui | Should -Not -Match 'Join-Path\s+\$script:AppContext\.Settings\.OutputRoot\s+\$script:AppContext\.Settings\.DatasetKeys\.Default'
+    }
+
+    It 'honors QuerySpec.DatasetKey when starting the core run' {
+        $adapterPath = Join-Path $PSScriptRoot '../../apps/AuditLogsConsole/App.CoreAdapter.psm1'
+        $adapter = Get-Content -Path $adapterPath -Raw
+
+        $adapter | Should -Match "QuerySpec\.ContainsKey\('DatasetKey'\)"
+        $adapter | Should -Match '\$datasetKey = \[string\]\$QuerySpec\.DatasetKey'
+    }
 }

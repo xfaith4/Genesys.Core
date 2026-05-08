@@ -117,6 +117,7 @@ $script:TxtDiagnosticsPreview = _Ctrl 'TxtDiagnosticsPreview'
 $script:State = [ordered]@{
     CurrentRunFolder = $null
     CurrentRunMode   = ''
+    CurrentDatasetKey = ''
     CurrentQuerySpec = $null
     FilteredIndex    = @()
     CurrentPage      = 1
@@ -521,6 +522,7 @@ function _Refresh-CurrentRunSummary {
 
     if ($null -ne $summaryInfo.Request) {
         $script:State.CurrentRunMode = [string]$summaryInfo.Request.mode
+        $script:State.CurrentDatasetKey = [string]$summaryInfo.Request.datasetKey
         $script:TxtCurrentViewMode.Text = "$($summaryInfo.Request.mode)  |  dataset $($summaryInfo.Request.datasetKey)"
     }
     else {
@@ -619,7 +621,18 @@ function _Refresh-Results {
         $script:State.FilteredIndex = @(Search-AuditRun -RunFolder $script:State.CurrentRunFolder -Service $filters.Service -Action $filters.Action -Actor $filters.Actor -Entity $filters.Entity -Keyword $filters.Keyword -Limit $limit)
         $page = Get-AuditResultPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $script:State.FilteredIndex -PageNumber $script:State.CurrentPage -PageSize $script:State.PageSize
         $script:DgAuditResults.ItemsSource = $page.Rows
-        $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
+        if ($page.TotalCount -eq 0) {
+            $runStatus = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+            if ($runStatus -eq 'Completed') {
+                $script:TxtPageInfo.Text = 'Completed - zero audit records matched the query.'
+            }
+            else {
+                $script:TxtPageInfo.Text = "$runStatus - no audit records indexed yet."
+            }
+        }
+        else {
+            $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
+        }
         $script:BtnPrevPage.IsEnabled = $page.PageNumber -gt 1
         $script:BtnNextPage.IsEnabled = $page.PageNumber -lt $page.TotalPages
         $script:TxtCurrentRunStatus.Text = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
@@ -648,6 +661,7 @@ function _Load-Run {
             $request = Get-RunRequestMetadata -RunFolder $RunFolder
             if ($null -ne $request) {
                 $script:State.CurrentRunMode = [string]$request.mode
+                $script:State.CurrentDatasetKey = [string]$request.datasetKey
             }
         }
 
@@ -710,6 +724,7 @@ function _Start-Run {
 
     $script:State.CurrentRunMode = $Mode
     $script:State.CurrentQuerySpec = $querySpec
+    $script:State.CurrentDatasetKey = [string]$querySpec.DatasetKey
     $script:State.RunLastError = ''
     $script:State.CurrentRunFolder = $null
     $script:State.RunStartedAtUtc = [datetime]::UtcNow
@@ -756,7 +771,20 @@ function _Poll-BackgroundRun {
     }
 
     if ([string]::IsNullOrWhiteSpace([string]$script:State.CurrentRunFolder) -and $script:AppContext.StartupValidation.Ready) {
-        $datasetRoot = Join-Path $script:AppContext.Settings.OutputRoot $script:AppContext.Settings.DatasetKeys.Default
+        $activeDatasetKey = [string]$script:State.CurrentDatasetKey
+        if ([string]::IsNullOrWhiteSpace($activeDatasetKey)) {
+            $activeDatasetKey = if ($script:State.CurrentRunMode -eq 'Preview') {
+                [string]$script:AppContext.Settings.DatasetKeys.Preview
+            }
+            elseif ($script:State.CurrentRunMode -eq 'Full') {
+                [string]$script:AppContext.Settings.DatasetKeys.Full
+            }
+            else {
+                [string]$script:AppContext.Settings.DatasetKeys.Default
+            }
+        }
+
+        $datasetRoot = Join-Path $script:AppContext.Settings.OutputRoot $activeDatasetKey
         if ([System.IO.Directory]::Exists($datasetRoot)) {
             $candidates = Get-ChildItem -Path $datasetRoot -Directory | Sort-Object CreationTimeUtc -Descending
             foreach ($candidate in $candidates) {
@@ -788,6 +816,7 @@ function _Poll-BackgroundRun {
         $finalResult = $result | Select-Object -Last 1
         if ($null -ne $finalResult -and $finalResult.RunContext -and $finalResult.RunContext.runFolder) {
             $script:State.CurrentRunFolder = [string]$finalResult.RunContext.runFolder
+            $script:State.CurrentDatasetKey = [string]$finalResult.DatasetKey
             Save-RunRequestMetadata -RunFolder $script:State.CurrentRunFolder -QuerySpec $script:State.CurrentQuerySpec -Mode $script:State.CurrentRunMode -DatasetKey $finalResult.DatasetKey -Effective $finalResult.Effective | Out-Null
         }
 

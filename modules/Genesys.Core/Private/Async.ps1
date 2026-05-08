@@ -104,6 +104,105 @@ function Resolve-AsyncJobRouteValues {
     return $resolved
 }
 
+function Get-AsyncDiagnosticPrefix {
+    [CmdletBinding()]
+    param(
+        [psobject]$AsyncProfile
+    )
+
+    if ($null -ne $AsyncProfile -and $AsyncProfile.PSObject.Properties.Name -contains 'diagnosticPrefix' -and [string]::IsNullOrWhiteSpace([string]$AsyncProfile.diagnosticPrefix) -eq $false) {
+        return [string]$AsyncProfile.diagnosticPrefix
+    }
+
+    return ''
+}
+
+function Get-AsyncEndpointPath {
+    [CmdletBinding()]
+    param(
+        [psobject]$EndpointSpec
+    )
+
+    if ($null -ne $EndpointSpec -and $EndpointSpec.PSObject.Properties.Name -contains 'path') {
+        return [string]$EndpointSpec.path
+    }
+
+    return ''
+}
+
+function Get-RunEventsSince {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][System.Collections.Generic.List[object]]$RunEvents,
+        [int]$StartIndex = 0
+    )
+
+    if ($null -eq $RunEvents -or $RunEvents.Count -le $StartIndex) {
+        return @()
+    }
+
+    $events = New-Object System.Collections.Generic.List[object]
+    for ($i = $StartIndex; $i -lt $RunEvents.Count; $i++) {
+        $events.Add($RunEvents[$i]) | Out-Null
+    }
+
+    return $events.ToArray()
+}
+
+function Get-LastAsyncRequestEvent {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][System.Collections.Generic.List[object]]$RunEvents,
+        [string]$EndpointKey
+    )
+
+    if ($null -eq $RunEvents -or [string]::IsNullOrWhiteSpace([string]$EndpointKey)) {
+        return $null
+    }
+
+    for ($i = $RunEvents.Count - 1; $i -ge 0; $i--) {
+        $event = $RunEvents[$i]
+        if ($null -eq $event) {
+            continue
+        }
+
+        if ($event.PSObject.Properties.Name -contains 'eventType' -and
+            $event.PSObject.Properties.Name -contains 'endpointKey' -and
+            [string]$event.endpointKey -eq [string]$EndpointKey -and
+            @('request.completed', 'request.failed') -contains [string]$event.eventType) {
+            return $event
+        }
+    }
+
+    return $null
+}
+
+function Add-AsyncDiagnosticEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$RunEvents,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$EventType,
+
+        [hashtable]$Payload = @{}
+    )
+
+    $event = [ordered]@{
+        eventType = $EventType
+        timestampUtc = [DateTime]::UtcNow.ToString('o')
+    }
+
+    foreach ($key in $Payload.Keys) {
+        $event[$key] = $Payload[$key]
+    }
+
+    $RunEvents.Add([pscustomobject]$event) | Out-Null
+}
+
 function Submit-AsyncJob {
     [CmdletBinding()]
     param(
@@ -176,6 +275,22 @@ function Submit-AsyncJob {
         jobId = $jobId
         timestampUtc = [DateTime]::UtcNow.ToString('o')
     })
+
+    $diagnosticPrefix = Get-AsyncDiagnosticPrefix -AsyncProfile $AsyncProfile
+    if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix)) {
+        $requestEvent = Get-LastAsyncRequestEvent -RunEvents $RunEvents -EndpointKey $SubmitEndpointSpec.key
+        Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.submitted" -Payload @{
+            transactionId = $jobId
+            endpointPath = Get-AsyncEndpointPath -EndpointSpec $SubmitEndpointSpec
+            httpStatusCode = if ($null -ne $requestEvent) { $requestEvent.statusCode } else { $null }
+            elapsedMs = if ($null -ne $requestEvent) { $requestEvent.durationMs } else { $null }
+        }
+        Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.transactionId.received" -Payload @{
+            transactionId = $jobId
+            transactionIdPath = $jobIdPath
+            endpointPath = Get-AsyncEndpointPath -EndpointSpec $SubmitEndpointSpec
+        }
+    }
 
     return [pscustomobject]@{
         JobId = $jobId
@@ -392,6 +507,19 @@ function Invoke-AsyncJob {
             timestampUtc = [DateTime]::UtcNow.ToString('o')
         })
 
+        $diagnosticPrefix = Get-AsyncDiagnosticPrefix -AsyncProfile $AsyncProfile
+        if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix)) {
+            $requestEvent = Get-LastAsyncRequestEvent -RunEvents $RunEvents -EndpointKey $StatusEndpointSpec.key
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.status.poll" -Payload @{
+                transactionId = $jobId
+                status = $currentState
+                pollCount = $poll
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $StatusEndpointSpec
+                httpStatusCode = if ($null -ne $requestEvent) { $requestEvent.statusCode } else { $null }
+                elapsedMs = if ($null -ne $requestEvent) { $requestEvent.durationMs } else { $null }
+            }
+        }
+
         Write-GcProgressMessage -Message "$($jobLabel) poll $($poll)/$($MaxPolls): state '$($currentState)'."
 
         if ($latestStatus.IsTerminal) {
@@ -401,7 +529,25 @@ function Invoke-AsyncJob {
         & $SleepAction $PollIntervalSeconds
     }
 
+    $diagnosticPrefix = Get-AsyncDiagnosticPrefix -AsyncProfile $AsyncProfile
+    if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix) -and $null -ne $latestStatus -and $latestStatus.IsTerminal) {
+        Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.status.complete" -Payload @{
+            transactionId = $jobId
+            status = $currentState
+            isSuccess = [bool]$latestStatus.IsSuccess
+            endpointPath = Get-AsyncEndpointPath -EndpointSpec $StatusEndpointSpec
+        }
+    }
+
     if ($null -ne $latestStatus -and $latestStatus.IsTerminal -and -not $latestStatus.IsSuccess) {
+        if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix)) {
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.failed" -Payload @{
+                transactionId = $jobId
+                status = $currentState
+                reason = "$($jobLabel) ended in state '$($currentState)'."
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $StatusEndpointSpec
+            }
+        }
         throw "$($jobLabel) ended in state '$($currentState)'."
     }
 
@@ -411,10 +557,64 @@ function Invoke-AsyncJob {
     }
 
     if ($null -eq $latestStatus -or -not $latestStatus.IsTerminal) {
+        if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix)) {
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.failed" -Payload @{
+                transactionId = $jobId
+                status = $currentState
+                reason = "$($jobLabel) did not reach terminal $($successStateLabel) state after $($MaxPolls) polls."
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $StatusEndpointSpec
+            }
+        }
         throw "$($jobLabel) did not reach terminal $($successStateLabel) state after $($MaxPolls) polls."
     }
 
+    $beforeResultsEventCount = $RunEvents.Count
     $results = Get-AsyncJobResults -ResultsEndpointSpec $ResultsEndpointSpec -JobId $jobId -AsyncProfile $AsyncProfile -BaseUri $BaseUri -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+    if (-not [string]::IsNullOrWhiteSpace($diagnosticPrefix)) {
+        $resultEvents = @(Get-RunEventsSince -RunEvents $RunEvents -StartIndex $beforeResultsEventCount)
+        $requestEvents = @($resultEvents | Where-Object { $_.eventType -in @('request.completed', 'request.failed') -and $_.endpointKey -eq $ResultsEndpointSpec.key })
+        $pagingEvents = @($resultEvents | Where-Object { $_.eventType -eq 'paging.progress' })
+
+        for ($i = 0; $i -lt $requestEvents.Count; $i++) {
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.results.page.requested" -Payload @{
+                transactionId = $jobId
+                page = $i + 1
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $ResultsEndpointSpec
+                httpStatusCode = $requestEvents[$i].statusCode
+                elapsedMs = $requestEvents[$i].durationMs
+                pageSize = $null
+            }
+        }
+
+        foreach ($pageEvent in $pagingEvents) {
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.results.page.written" -Payload @{
+                transactionId = $jobId
+                page = $pageEvent.page
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $ResultsEndpointSpec
+                recordsWritten = $pageEvent.itemCount
+                cursorPresent = -not [string]::IsNullOrWhiteSpace([string]$pageEvent.cursor)
+                nextUriPresent = -not [string]::IsNullOrWhiteSpace([string]$pageEvent.nextUri)
+            }
+        }
+
+        $resultCount = @($results.Items).Count
+        if ($resultCount -eq 0) {
+            Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.no_results" -Payload @{
+                transactionId = $jobId
+                status = $currentState
+                recordsWritten = 0
+                reason = 'No matching audits were returned by the results endpoint.'
+                endpointPath = Get-AsyncEndpointPath -EndpointSpec $ResultsEndpointSpec
+            }
+        }
+
+        Add-AsyncDiagnosticEvent -RunEvents $RunEvents -EventType "$diagnosticPrefix.results.complete" -Payload @{
+            transactionId = $jobId
+            status = $currentState
+            recordsWritten = $resultCount
+            endpointPath = Get-AsyncEndpointPath -EndpointSpec $ResultsEndpointSpec
+        }
+    }
     Write-GcProgressMessage -Message "$($jobLabel) results received. Items: $(@($results.Items).Count)."
 
     return [pscustomobject]@{
@@ -483,6 +683,7 @@ function Invoke-AuditTransaction {
         submittedEventType = 'audit.transaction.submitted'
         pollEventType = 'audit.transaction.poll'
         jobLabel = 'Audit transaction'
+        diagnosticPrefix = 'audit.query'
         maxPolls = $resolvedMaxPolls
         pollIntervalSeconds = $resolvedPollIntervalSeconds
     }

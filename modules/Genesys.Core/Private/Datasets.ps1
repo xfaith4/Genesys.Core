@@ -190,6 +190,82 @@ function Resolve-AuditTransactionEndpoints {
     }
 }
 
+function Write-AuditDatasetRunEvents {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$RunContext,
+
+        [AllowNull()]
+        [System.Collections.Generic.List[object]]$RunEvents
+    )
+
+    if ($null -eq $RunEvents) {
+        return
+    }
+
+    foreach ($event in @($RunEvents)) {
+        if ($null -eq $event -or -not ($event.PSObject.Properties.Name -contains 'eventType')) {
+            continue
+        }
+
+        Write-RunEvent -RunContext $RunContext -EventType $event.eventType -Payload $event | Out-Null
+    }
+}
+
+function Invoke-AuditServiceMappingStep {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Catalog,
+
+        [string]$BaseUri = 'https://api.mypurecloud.com',
+
+        [hashtable]$Headers,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$RunEvents,
+
+        [scriptblock]$RequestInvoker
+    )
+
+    $mappingEndpoint = Get-CatalogEndpointByKey -Catalog $Catalog -Key 'getAuditsQueryServicemapping'
+    $mappingUri = Join-EndpointUri -BaseUri $BaseUri -Path $mappingEndpoint.path
+
+    $mappingResult = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+        key = $mappingEndpoint.key
+        method = $mappingEndpoint.method
+        itemsPath = $mappingEndpoint.itemsPath
+        paging = $mappingEndpoint.paging
+        retry = $mappingEndpoint.retry
+    }) -InitialUri $mappingUri -Headers $Headers -RunEvents $RunEvents -RequestInvoker $RequestInvoker
+
+    $requestEvent = $null
+    for ($i = $RunEvents.Count - 1; $i -ge 0; $i--) {
+        $candidate = $RunEvents[$i]
+        if ($candidate.PSObject.Properties.Name -contains 'eventType' -and
+            $candidate.PSObject.Properties.Name -contains 'endpointKey' -and
+            $candidate.eventType -eq 'request.completed' -and
+            $candidate.endpointKey -eq $mappingEndpoint.key) {
+            $requestEvent = $candidate
+            break
+        }
+    }
+
+    $RunEvents.Add([pscustomobject]@{
+        eventType = 'audit.servicemapping.loaded'
+        datasetKey = 'audit-logs'
+        endpointPath = [string]$mappingEndpoint.path
+        serviceCount = @($mappingResult.Items).Count
+        httpStatusCode = if ($null -ne $requestEvent) { $requestEvent.statusCode } else { $null }
+        elapsedMs = if ($null -ne $requestEvent) { $requestEvent.durationMs } else { $null }
+        timestampUtc = [DateTime]::UtcNow.ToString('o')
+    }) | Out-Null
+
+    return $mappingResult
+}
+
 function Invoke-AuditLogsDataset {
     [CmdletBinding()]
     param(
@@ -245,7 +321,21 @@ function Invoke-AuditLogsDataset {
     Add-AuditBodyFilter -Filters $filters -Property 'Action' -Value $action
     $body.filters = @($filters.ToArray())
 
-    $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    try {
+        Invoke-AuditServiceMappingStep -Catalog $Catalog -BaseUri $BaseUri -Headers $Headers -RunEvents $runEvents -RequestInvoker $RequestInvoker | Out-Null
+        $transactionResult = Invoke-AuditTransaction -SubmitEndpointSpec $submitEndpoint -StatusEndpointSpec $statusEndpoint -ResultsEndpointSpec $resultsEndpoint -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $runEvents -RequestInvoker $RequestInvoker
+    }
+    catch {
+        $runEvents.Add([pscustomobject]@{
+            eventType = 'audit.query.failed'
+            datasetKey = $RunContext.datasetKey
+            endpointPath = '/api/v2/audits/query'
+            reason = $_.Exception.Message
+            timestampUtc = [DateTime]::UtcNow.ToString('o')
+        }) | Out-Null
+        Write-AuditDatasetRunEvents -RunContext $RunContext -RunEvents $runEvents
+        throw
+    }
 
     $records = @($transactionResult.Items)
     $sanitizedRecords = if ($NoRedact) {
@@ -260,9 +350,7 @@ function Invoke-AuditLogsDataset {
         Write-Jsonl -Path $dataPath -InputObject $record
     }
 
-    foreach ($event in @($runEvents)) {
-        Write-RunEvent -RunContext $RunContext -EventType $event.eventType -Payload $event | Out-Null
-    }
+    Write-AuditDatasetRunEvents -RunContext $RunContext -RunEvents $runEvents
 
     $summary = [ordered]@{
         datasetKey = $RunContext.datasetKey

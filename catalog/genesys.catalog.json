@@ -40,7 +40,7 @@
         "profile": "rateLimitAware"
       },
       "transaction": {
-        "profile": "auditTransaction"
+        "profile": "audit_query_transaction_then_results"
       }
     },
     "users": {

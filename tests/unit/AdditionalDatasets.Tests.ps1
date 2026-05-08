@@ -267,6 +267,67 @@ Describe 'Additional dataset implementations' {
         $records.Count | Should -Be 1
         $records[0].id | Should -Be 'u-override'
     }
+
+    It 'applies DatasetParameters.Interval overrides to generic POST default bodies' {
+        $catalogPath = Join-Path -Path $TestDrive -ChildPath 'interval-override.catalog.json'
+        $catalog = [ordered]@{
+            version = '1.0.0'
+            datasets = [ordered]@{
+                'dynamic-body-interval' = [ordered]@{
+                    endpoint = 'dynamic.body.interval'
+                    itemsPath = '$.results'
+                    paging = [ordered]@{ profile = 'none' }
+                    retry = [ordered]@{ profile = 'default' }
+                }
+            }
+            profiles = [ordered]@{
+                paging = [ordered]@{
+                    none = [ordered]@{ type = 'none' }
+                }
+                retry = [ordered]@{
+                    default = [ordered]@{
+                        mode = 'rateLimitAware'
+                        maxRetries = 1
+                        baseDelaySeconds = 0
+                        maxDelaySeconds = 0
+                        jitterSeconds = 0
+                        retryOnStatusCodes = @(429)
+                        retryOnMethods = @('POST')
+                    }
+                }
+            }
+            endpoints = [ordered]@{
+                'dynamic.body.interval' = [ordered]@{
+                    method = 'POST'
+                    path = '/api/v2/analytics/conversations/aggregates/query'
+                    pagingProfile = 'none'
+                    retryProfile = 'default'
+                    itemsPath = '$.results'
+                    defaultBody = [ordered]@{
+                        interval = '2025-01-01T00:00:00.000Z/2025-01-01T01:00:00.000Z'
+                        groupBy = @('queueId')
+                        metrics = @('nOffered')
+                        filter = [ordered]@{ type = 'and'; predicates = @() }
+                    }
+                }
+            }
+        }
+        $catalog | ConvertTo-Json -Depth 100 | Set-Content -Path $catalogPath
+
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-interval-override'
+        $script:capturedIntervalBody = $null
+        $requestInvoker = {
+            param($request)
+            $script:capturedIntervalBody = $request.Body | ConvertFrom-Json
+            return [pscustomobject]@{ Result = [pscustomobject]@{ results = @([pscustomobject]@{ id = 'r-interval' }) } }
+        }
+
+        Invoke-Dataset -Dataset 'dynamic-body-interval' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -DatasetParameters @{ Interval = '2026-04-01T00:00:00Z/2026-04-02T00:00:00Z' } -RequestInvoker $requestInvoker | Out-Null
+
+        $script:capturedIntervalBody.interval | Should -Be '2026-04-01T00:00:00Z/2026-04-02T00:00:00Z'
+        $script:capturedIntervalBody.groupBy[0] | Should -Be 'queueId'
+        @($script:capturedIntervalBody.filter.predicates).Count | Should -Be 0
+    }
 }
 
 

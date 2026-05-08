@@ -341,6 +341,7 @@ Write-Host "`n--- Transfer and escalation reporting ---" -ForegroundColor DarkCy
 ArchCheck 'ARCH-40' 'CoreAdapter exposes transfer aggregate pull without UI direct dataset access' {
     $adapter -match 'function Get-TransferReport' -and
     $adapter -match 'analytics\.query\.conversation\.aggregates\.transfer\.metrics' -and
+    $adapter -match 'New-AnalyticsAggregateBody -Interval \$interval -GroupBy @\(''queueId'', ''mediaType''\)' -and
     $uiPs -notmatch 'Invoke-Dataset'
 }
 
@@ -367,6 +368,7 @@ Write-Host "`n--- Flow and IVR containment reporting ---" -ForegroundColor DarkC
 ArchCheck 'ARCH-43' 'CoreAdapter exposes flow containment pulls without UI direct dataset access' {
     $adapter -match 'function Get-FlowContainmentReport' -and
     $adapter -match 'analytics\.query\.flow\.aggregates\.execution\.metrics' -and
+    $adapter -match 'New-AnalyticsAggregateBody -Interval \$interval -GroupBy @\(''flowId'', ''flowType''\)' -and
     $adapter -match 'flows\.get\.all\.flows' -and
     $uiPs -notmatch 'Invoke-Dataset'
 }

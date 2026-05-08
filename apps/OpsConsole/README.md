@@ -24,7 +24,9 @@ active alerts, and WebRTC disconnect errors.
 
 ```powershell
 # Generate with Genesys.Ops
-Invoke-GenesysOperationsReport -OutputPath "ops-report.json"
+$since = (Get-Date).AddHours(-4)
+$until = Get-Date
+Invoke-GenesysOperationsReport -Since $since -Until $until -QueueId '<queue-guid>' -MediaType voice -OutputPath "ops-report.json"
 ```
 
 Shows:
@@ -43,7 +45,9 @@ Per-queue GREEN / AMBER / RED health snapshot combining real-time observations
 with SLA performance.
 
 ```powershell
-Get-GenesysQueueHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "queue-health.json"
+Get-GenesysQueueHealthSnapshot -Since $since -Until $until -QueueId '<queue-guid>' -MediaType voice |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "queue-health.json"
 ```
 
 Shows:
@@ -60,7 +64,9 @@ Per-queue abandon rate dashboard combining historical aggregates with real-time
 waiting counts.
 
 ```powershell
-Get-GenesysAbandonRateDashboard | ConvertTo-Json -Depth 5 | Set-Content "abandon-dashboard.json"
+Get-GenesysAbandonRateDashboard -Since $since -Until $until -QueueId '<queue-guid>' -MediaType voice |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "abandon-dashboard.json"
 ```
 
 Shows:
@@ -76,7 +82,9 @@ Shows:
 Per-agent KPI leaderboard for handle time, talk time, and ACW.
 
 ```powershell
-Get-GenesysAgentQualitySnapshot | ConvertTo-Json -Depth 5 | Set-Content "agent-quality.json"
+Get-GenesysAgentQualitySnapshot -Since $since -Until $until -UserId '<agent-user-guid>' -MediaType voice |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "agent-quality.json"
 ```
 
 Shows:
@@ -109,14 +117,20 @@ Shows:
 Risk-classified feed of admin configuration changes.
 
 ```powershell
-# All changes in the last hour (catalog default window)
-Get-GenesysChangeAuditFeed | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"
+# Scoped changes in a specific window
+Get-GenesysChangeAuditFeed -Since $since -Until $until |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "change-audit.json"
 
 # High-risk only
-Get-GenesysChangeAuditFeed -Risk HIGH | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"
+Get-GenesysChangeAuditFeed -Since $since -Until $until -Risk HIGH |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "change-audit.json"
 
 # Filter by entity type
-Get-GenesysChangeAuditFeed -EntityType FLOW | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"
+Get-GenesysChangeAuditFeed -Since $since -Until $until -EntityType FLOW |
+    ConvertTo-Json -Depth 5 |
+    Set-Content "change-audit.json"
 ```
 
 Shows:
@@ -132,13 +146,21 @@ Shows:
 ```powershell
 # Run all exports in a single session after connecting to Genesys Cloud
 
-Invoke-GenesysOperationsReport -OutputPath "ops-report.json"
+$since = (Get-Date).AddHours(-4)
+$until = Get-Date
+$queueId = '<queue-guid>'
 
-Get-GenesysQueueHealthSnapshot  | ConvertTo-Json -Depth 5 | Set-Content "queue-health.json"
-Get-GenesysAbandonRateDashboard | ConvertTo-Json -Depth 5 | Set-Content "abandon-dashboard.json"
-Get-GenesysAgentQualitySnapshot | ConvertTo-Json -Depth 5 | Set-Content "agent-quality.json"
+Invoke-GenesysOperationsReport -Since $since -Until $until -QueueId $queueId -MediaType voice -OutputPath "ops-report.json"
+
+Get-GenesysQueueHealthSnapshot -Since $since -Until $until -QueueId $queueId -MediaType voice |
+    ConvertTo-Json -Depth 5 | Set-Content "queue-health.json"
+Get-GenesysAbandonRateDashboard -Since $since -Until $until -QueueId $queueId -MediaType voice |
+    ConvertTo-Json -Depth 5 | Set-Content "abandon-dashboard.json"
+Get-GenesysAgentQualitySnapshot -Since $since -Until $until -MediaType voice |
+    ConvertTo-Json -Depth 5 | Set-Content "agent-quality.json"
 Get-GenesysEdgeHealthSnapshot   | ConvertTo-Json -Depth 5 | Set-Content "edge-health.json"
-Get-GenesysChangeAuditFeed      | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"
+Get-GenesysChangeAuditFeed -Since $since -Until $until |
+    ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"
 ```
 
 ---

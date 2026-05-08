@@ -357,6 +357,30 @@ function Refresh-ReferenceData {
     return $folderMap
 }
 
+function New-AnalyticsAggregateBody {
+    param(
+        [Parameter(Mandatory)][string] $Interval,
+        [Parameter(Mandatory)][string[]] $GroupBy,
+        [Parameter(Mandatory)][string[]] $Metrics,
+        [string] $Granularity = 'PT1H',
+        [object[]] $Predicates = @()
+    )
+
+    $body = [ordered]@{
+        interval = $Interval
+        groupBy  = @($GroupBy)
+        metrics  = @($Metrics)
+        filter   = [ordered]@{
+            type       = 'and'
+            predicates = @($Predicates)
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+        $body.granularity = $Granularity
+    }
+    return $body
+}
+
 function Get-QueuePerformanceReport {
     <#
     .SYNOPSIS
@@ -412,7 +436,18 @@ function Get-QueuePerformanceReport {
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
         try {
-            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            $body = switch ($key) {
+                'analytics.query.conversation.aggregates.queue.performance' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound')
+                }
+                'analytics.query.conversation.aggregates.abandon.metrics' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned')
+                }
+                'analytics.query.queue.aggregates.service.level' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60')
+                }
+            }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-QueuePerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
         }
@@ -482,7 +517,18 @@ function Get-AgentPerformanceReport {
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
         try {
-            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            $body = switch ($key) {
+                'analytics.query.conversation.aggregates.agent.performance' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered')
+                }
+                'analytics.query.user.aggregates.performance.metrics' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'nOffered', 'tAnswered')
+                }
+                'analytics.query.user.aggregates.login.activity' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId') -Metrics @('tAgentRoutingStatus', 'tSystemPresence', 'tOrganizationPresence')
+                }
+            }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-AgentPerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
         }
@@ -552,7 +598,8 @@ function Get-TransferReport {
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
         try {
-            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Interval = $interval } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            $body = New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nTransferred', 'nBlindTransferred', 'nConsultTransferred', 'nConnected')
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-TransferReport: dataset '$key' failed — $($_.Exception.Message)"
         }
@@ -617,7 +664,11 @@ function Get-FlowContainmentReport {
         [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
 
         try {
-            $params = if ($key -eq 'analytics.query.flow.aggregates.execution.metrics') { @{ Interval = $interval } } else { $null }
+            $params = if ($key -eq 'analytics.query.flow.aggregates.execution.metrics') {
+                @{
+                    Body = (New-AnalyticsAggregateBody -Interval $interval -GroupBy @('flowId', 'flowType') -Metrics @('nFlow', 'nFlowOutcome', 'nFlowOutcomeFailed', 'nFlowMilestone') -Granularity '')
+                }
+            } else { $null }
             Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri | Out-Null
         } catch {
             Write-Warning "Get-FlowContainmentReport: dataset '$key' failed — $($_.Exception.Message)"

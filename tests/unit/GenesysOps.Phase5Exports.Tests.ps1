@@ -50,4 +50,27 @@ Describe 'Genesys.Ops Phase 5 export surface' {
             [regex]::IsMatch($moduleSource, "(?m)^function\s+$([regex]::Escape($fn))\s*\{") | Should -BeTrue
         }
     }
+
+    It 'keeps Ops Console dashboard commands parameterised for scoped API pulls' {
+        $expectedParameters = @{
+            'Get-GenesysAbandonRateDashboard' = @('QueueId', 'MediaType', 'Since', 'Until')
+            'Get-GenesysQueueHealthSnapshot'  = @('QueueId', 'MediaType', 'Since', 'Until')
+            'Get-GenesysAgentQualitySnapshot' = @('UserId', 'MediaType', 'Since', 'Until')
+            'Get-GenesysChangeAuditFeed'      = @('EntityType', 'Since', 'Until', 'Risk')
+            'Get-GenesysAuditEvent'           = @('EntityId', 'UserId', 'Since', 'Until')
+            'Invoke-GenesysOperationsReport'  = @('Since', 'Until', 'QueueId', 'MediaType')
+            'Get-GenesysConversationDetail'   = @('Since', 'Until', 'QueueId', 'UserId', 'MediaType', 'ConversationId', 'DivisionId')
+            'Get-GenesysAgentVoiceQuality'    = @('Since', 'Until', 'QueueId', 'UserId', 'MediaType')
+            'Get-GenesysSentimentTrend'       = @('Since', 'Until', 'QueueId', 'UserId', 'MediaType')
+            'Get-GenesysLongHandleConversation' = @('Since', 'Until', 'QueueId', 'UserId', 'MediaType')
+            'Get-GenesysRepeatCaller'         = @('Since', 'Until', 'QueueId', 'UserId', 'MediaType')
+        }
+
+        foreach ($entry in $expectedParameters.GetEnumerator()) {
+            $cmd = Get-Command -Name $entry.Key -Module $module.Name -ErrorAction Stop
+            foreach ($parameterName in $entry.Value) {
+                $cmd.Parameters.Keys | Should -Contain $parameterName
+            }
+        }
+    }
 }

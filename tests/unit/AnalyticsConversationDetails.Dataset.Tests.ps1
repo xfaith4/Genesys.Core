@@ -217,6 +217,44 @@ Describe 'Analytics conversation details dataset' {
         ($script:capturedBodyDiv.conversationFilters[0].predicates | Where-Object { $_.value -eq 'div-id-2' }) | Should -Not -BeNullOrEmpty
     }
 
+    It 'sends user segment filters and media conversation filters from DatasetParameters' {
+        $outputRoot  = Join-Path -Path $TestDrive -ChildPath 'out-user-media-filter'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedBodyUserMedia = $null
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                $script:capturedBodyUserMedia = $request.Body | ConvertFrom-Json
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-umf' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-umf') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -like '*/jobs/job-umf/results*') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @([pscustomobject]@{ conversationId = 'umf-conv' }); cursor = $null } }
+            }
+            throw "Unexpected: $method $uri"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath `
+            -OutputRoot $outputRoot -BaseUri 'https://api.test.local' `
+            -RequestInvoker $requestInvoker `
+            -DatasetParameters @{ UserIds = @('user-id-1', 'user-id-2'); MediaTypes = @('voice') } | Out-Null
+
+        $script:capturedBodyUserMedia | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.segmentFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.segmentFilters[0].predicates.Count | Should -Be 2
+        $script:capturedBodyUserMedia.segmentFilters[0].predicates[0].dimension | Should -Be 'userId'
+        ($script:capturedBodyUserMedia.segmentFilters[0].predicates | Where-Object { $_.value -eq 'user-id-1' }) | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.conversationFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.conversationFilters[0].predicates[0].dimension | Should -Be 'mediaType'
+        $script:capturedBodyUserMedia.conversationFilters[0].predicates[0].value | Should -Be 'voice'
+    }
+
     It 'runs analytics-conversation-details-query with body paging via generic dispatch' {
         $catalogPath = Join-Path -Path $TestDrive -ChildPath 'query.catalog.json'
         $catalog = [ordered]@{
@@ -295,5 +333,4 @@ Describe 'Analytics conversation details dataset' {
         $script:queryPageCount | Should -Be 2
     }
 }
-
 

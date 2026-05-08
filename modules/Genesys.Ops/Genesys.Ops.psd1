@@ -111,6 +111,7 @@
         'Get-GenesysTransferAnalysis'
         'Get-GenesysWrapupDistribution'
         'Get-GenesysDigitalChannelVolume'
+        'Export-GenesysMonthlyChannelVolume'
 
         # Quality & CSAT  (Roadmap ideas 11–13)
         'Get-GenesysEvaluation'

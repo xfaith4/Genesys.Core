@@ -248,6 +248,98 @@ Describe 'ConvertFrom-AggregateResult — StrictMode safety' {
 }
 
 # ---------------------------------------------------------------------------
+Describe 'Export-GenesysMonthlyChannelVolume' {
+
+    It 'queries monthly conversation aggregates grouped by media type and originating direction' {
+        $path = Join-Path $TestDrive 'monthly-channel-volume.csv'
+
+        InModuleScope 'Genesys.Ops' {
+            param($path)
+
+            Set-StrictMode -Version Latest
+            $script:GC = @{ Connected = $true; CatalogPath = $null }
+            $script:CapturedDataset = $null
+            $script:CapturedBody = $null
+
+            function script:Invoke-GenesysDataset {
+                param(
+                    [string] $Dataset,
+                    [hashtable] $DatasetParameters
+                )
+
+                $script:CapturedDataset = $Dataset
+                $script:CapturedBody = $DatasetParameters.Body
+
+                @(
+                    [PSCustomObject]@{
+                        group = [PSCustomObject]@{ mediaType = 'voice'; originatingDirection = 'inbound' }
+                        data  = @(
+                            [PSCustomObject]@{
+                                interval = '2026-01-01T00:00:00.0000000Z/2026-02-01T00:00:00.0000000Z'
+                                metrics  = @(
+                                    [PSCustomObject]@{ metric = 'nOffered';   stats = [PSCustomObject]@{ count = 42 } }
+                                    [PSCustomObject]@{ metric = 'nConnected'; stats = [PSCustomObject]@{ count = 40 } }
+                                    [PSCustomObject]@{ metric = 'nAbandoned'; stats = [PSCustomObject]@{ count = 2 } }
+                                )
+                            }
+                        )
+                    }
+                    [PSCustomObject]@{
+                        group = [PSCustomObject]@{ mediaType = 'message'; originatingDirection = 'outbound' }
+                        data  = @(
+                            [PSCustomObject]@{
+                                interval = '2026-01-01T00:00:00.0000000Z/2026-02-01T00:00:00.0000000Z'
+                                metrics  = @(
+                                    [PSCustomObject]@{ metric = 'nOutbound';  stats = [PSCustomObject]@{ count = 7 } }
+                                    [PSCustomObject]@{ metric = 'nConnected'; stats = [PSCustomObject]@{ count = 6 } }
+                                )
+                            }
+                        )
+                    }
+                )
+            }
+
+            $rows = @(Export-GenesysMonthlyChannelVolume `
+                -Since ([datetime]'2026-01-01T00:00:00Z') `
+                -Until ([datetime]'2026-02-01T00:00:00Z') `
+                -OutputPath $path `
+                -MediaType voice,message `
+                -OriginatingDirection inbound,outbound `
+                -QueueId 'queue-1' `
+                -PassThru)
+
+            $script:CapturedDataset | Should -Be 'analytics.query.conversation.aggregates.queue.performance'
+            $script:CapturedBody.granularity | Should -Be 'P1M'
+            $script:CapturedBody.groupBy | Should -Contain 'mediaType'
+            $script:CapturedBody.groupBy | Should -Contain 'originatingDirection'
+            $script:CapturedBody.metrics | Should -Contain 'nOffered'
+            $script:CapturedBody.metrics | Should -Contain 'nConnected'
+            $script:CapturedBody.metrics | Should -Contain 'nOutbound'
+            $script:CapturedBody.metrics | Should -Contain 'nAbandoned'
+
+            $filterJson = $script:CapturedBody.filter | ConvertTo-Json -Depth 8
+            $filterJson | Should -Match '"dimension":\s*"mediaType"'
+            $filterJson | Should -Match '"dimension":\s*"originatingDirection"'
+            $filterJson | Should -Match '"dimension":\s*"queueId"'
+
+            $rows.Count | Should -Be 2
+            $rows[0].Month | Should -Be '2026-01'
+            $rows[0].MediaType | Should -Be 'voice'
+            $rows[0].OriginatingDirection | Should -Be 'inbound'
+            $rows[0].Volume | Should -Be 42
+            $rows[1].MediaType | Should -Be 'message'
+            $rows[1].OriginatingDirection | Should -Be 'outbound'
+            $rows[1].Volume | Should -Be 7
+
+            Test-Path $path | Should -BeTrue
+            $csv = @(Import-Csv -Path $path)
+            $csv.Count | Should -Be 2
+            $csv[0].MediaType | Should -Be 'voice'
+        } -Parameters @{ path = $path }
+    }
+}
+
+# ---------------------------------------------------------------------------
 Describe 'Invoke-GenesysOpsDataset — catalog pre-validation' {
 
     It 'returns Status=Unsupported when catalog key is missing' {

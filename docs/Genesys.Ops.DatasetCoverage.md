@@ -98,6 +98,7 @@ are not supplied, a 24-hour default lookback is computed via
 | `Get-GenesysTransferAnalysis` | `-QueueId`, `-Since`, `-Until` | `queueId` | Low |
 | `Get-GenesysWrapupDistribution` | `-QueueId`, `-WrapupCodeId`, `-Since`, `-Until` | `queueId`, `wrapUpCode` | Low |
 | `Get-GenesysDigitalChannelVolume` | `-MediaType`, `-Since`, `-Until` | `mediaType` | Low |
+| `Export-GenesysMonthlyChannelVolume` | `-Since`, `-Until`, `-OutputPath`, `-MediaType`, `-OriginatingDirection`, `-QueueId`, `-PassThru` | `mediaType`, `originatingDirection`, `queueId` | Low |
 
 ---
 

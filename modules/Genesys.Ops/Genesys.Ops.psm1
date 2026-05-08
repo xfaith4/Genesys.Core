@@ -3448,6 +3448,160 @@ function Get-GenesysDigitalChannelVolume {
       ConvertFrom-AggregateResult)
 }
 
+function Export-GenesysMonthlyChannelVolume {
+    <#
+    .SYNOPSIS
+        Exports monthly conversation volume by media type and originating direction.
+    .DESCRIPTION
+        Uses the conversations aggregates endpoint with monthly granularity and
+        groups results by mediaType and originatingDirection.  The CSV includes
+        offered, connected, outbound, and abandoned counts plus a normalized
+        Volume field suitable for monthly inbound/outbound channel reporting.
+
+        For inbound rows, Volume prefers nOffered_count.  For outbound rows,
+        Volume prefers nOutbound_count and falls back to nOffered_count or
+        nConnected_count when Genesys does not return nOutbound for that media.
+    .PARAMETER Since
+        Inclusive start of the reporting interval.
+    .PARAMETER Until
+        Exclusive end of the reporting interval.
+    .PARAMETER OutputPath
+        CSV path to write.  Parent folders are created when missing.
+    .PARAMETER MediaType
+        Optional media type filter, for example voice or message.
+    .PARAMETER OriginatingDirection
+        Optional originating direction filter, for example inbound or outbound.
+    .PARAMETER QueueId
+        Optional queue GUID filter.
+    .PARAMETER PassThru
+        Emit the exported row objects in addition to writing the CSV.
+    .EXAMPLE
+        Export-GenesysMonthlyChannelVolume -Since '2026-01-01' -Until '2026-05-01' `
+            -OutputPath '.\exports\monthly-channel-volume.csv' -MediaType voice,message
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [Nullable[datetime]] $Since,
+
+        [Parameter(Mandatory)]
+        [Nullable[datetime]] $Until,
+
+        [Parameter(Mandatory)]
+        [string] $OutputPath,
+
+        [string[]] $MediaType,
+
+        [ValidateSet('inbound', 'outbound')]
+        [string[]] $OriginatingDirection,
+
+        [string[]] $QueueId,
+
+        [switch] $PassThru
+    )
+
+    Assert-GenesysConnected
+
+    $sinceDate = [datetime]$Since
+    $untilDate = [datetime]$Until
+
+    if ($sinceDate -ge $untilDate) {
+        throw 'Until must be later than Since.'
+    }
+
+    $body = [ordered]@{
+        interval    = "$($sinceDate.ToUniversalTime().ToString('o'))/$($untilDate.ToUniversalTime().ToString('o'))"
+        granularity = 'P1M'
+        groupBy     = @('mediaType', 'originatingDirection')
+        metrics     = @('nOffered', 'nConnected', 'nOutbound', 'nAbandoned')
+    }
+
+    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+        mediaType            = $MediaType
+        originatingDirection = $OriginatingDirection
+        queueId              = $QueueId
+    }
+    if ($null -ne $filter) {
+        $body.filter = $filter
+    }
+
+    $aggregateRows = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
+                                             -DatasetParameters @{ Body = $body } |
+                       ConvertFrom-AggregateResult)
+
+    $rows = @($aggregateRows | ForEach-Object {
+        $interval = [string](Get-PropertyValue $_ 'Interval' '')
+        $intervalStart = ''
+        $month = ''
+        if (-not [string]::IsNullOrWhiteSpace($interval)) {
+            $intervalStart = @($interval -split '/', 2)[0]
+            try {
+                $month = ([datetime]::Parse(
+                    $intervalStart,
+                    [System.Globalization.CultureInfo]::InvariantCulture,
+                    [System.Globalization.DateTimeStyles]::AssumeUniversal
+                )).ToUniversalTime().ToString('yyyy-MM')
+            } catch {
+                $month = if ($intervalStart.Length -ge 7) { $intervalStart.Substring(0, 7) } else { $intervalStart }
+            }
+        }
+
+        $media = [string](Get-PropertyValue $_ 'mediaType' '')
+        $direction = [string](Get-PropertyValue $_ 'originatingDirection' '')
+        $offered = [long](Get-PropertyValue $_ 'nOffered_count' 0)
+        $connected = [long](Get-PropertyValue $_ 'nConnected_count' 0)
+        $outbound = [long](Get-PropertyValue $_ 'nOutbound_count' 0)
+        $abandoned = [long](Get-PropertyValue $_ 'nAbandoned_count' 0)
+        $volume = if ($direction -eq 'outbound' -and $outbound -gt 0) {
+            $outbound
+        } elseif ($offered -gt 0) {
+            $offered
+        } else {
+            $connected
+        }
+
+        [PSCustomObject]@{
+            Month                = $month
+            IntervalStartUtc     = $intervalStart
+            Interval             = $interval
+            MediaType            = $media
+            OriginatingDirection = $direction
+            Volume               = $volume
+            Offered              = $offered
+            Connected            = $connected
+            Outbound             = $outbound
+            Abandoned            = $abandoned
+        }
+    })
+
+    $resolvedPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+        [System.IO.Path]::GetFullPath($OutputPath)
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+    }
+
+    if ($PSCmdlet.ShouldProcess($resolvedPath, 'Export monthly Genesys channel volume CSV')) {
+        $parent = Split-Path -Parent $resolvedPath
+        if ($parent -and -not (Test-Path $parent)) {
+            $null = New-Item -ItemType Directory -Path $parent -Force
+        }
+
+        Export-GenesysOpsRowsCsv -Rows $rows -Path $resolvedPath
+    }
+
+    if ($PassThru) {
+        return $rows
+    }
+
+    [PSCustomObject]@{
+        OutputPath  = $resolvedPath
+        RecordCount = $rows.Count
+        Since       = $sinceDate.ToUniversalTime()
+        Until       = $untilDate.ToUniversalTime()
+        DatasetKey  = 'analytics.query.conversation.aggregates.queue.performance'
+    }
+}
+
 #endregion
 
 # ---------------------------------------------------------------------------
@@ -5269,6 +5423,7 @@ function Test-GenesysOpsDatasetCoverage {
         @{ Function = 'Get-GenesysTransferAnalysis';        Dataset = 'analytics.query.conversation.aggregates.transfer.metrics'; DefaultBody = $true }
         @{ Function = 'Get-GenesysWrapupDistribution';      Dataset = 'analytics.query.conversation.aggregates.wrapup.distribution'; DefaultBody = $true }
         @{ Function = 'Get-GenesysDigitalChannelVolume';    Dataset = 'analytics.query.conversation.aggregates.digital.channels'; DefaultBody = $true }
+        @{ Function = 'Export-GenesysMonthlyChannelVolume'; Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
         @{ Function = 'Get-GenesysEvaluation';              Dataset = 'quality.get.evaluations.query' }
         @{ Function = 'Get-GenesysSurvey';                  Dataset = 'quality.get.surveys' }
         @{ Function = 'Get-GenesysAlertingRule';            Dataset = 'alerting.get.rules' }

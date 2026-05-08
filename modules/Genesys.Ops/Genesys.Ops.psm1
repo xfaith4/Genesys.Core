@@ -253,6 +253,29 @@ function New-GenesysAnalyticsFilter {
     }
 }
 
+function New-GenesysConversationDetailDatasetParameters {
+    [CmdletBinding()]
+    param(
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [string] $ConversationId,
+        [string[]] $DivisionId
+    )
+
+    $datasetParameters = @{}
+    if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
+    if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
+    if ($QueueId) { $datasetParameters['QueueIds'] = @($QueueId) }
+    if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
+    if (-not [string]::IsNullOrWhiteSpace($MediaType)) { $datasetParameters['MediaTypes'] = @($MediaType) }
+    if (-not [string]::IsNullOrWhiteSpace($ConversationId)) { $datasetParameters['ConversationId'] = $ConversationId }
+    if ($DivisionId) { $datasetParameters['DivisionIds'] = @($DivisionId) }
+    return $datasetParameters
+}
+
 #endregion
 
 # ---------------------------------------------------------------------------
@@ -288,6 +311,28 @@ function Get-NestedPropertyValue {
         $current = $prop.Value
     }
     if ($null -ne $current) { $current } else { $Default }
+}
+
+function Test-AnyNestedPropertyValue {
+    param(
+        [object]$InputObject,
+        [string[]]$Paths,
+        [object]$Expected,
+        [switch]$KeepWhenMissing
+    )
+
+    $foundValue = $false
+    foreach ($path in @($Paths)) {
+        $value = Get-NestedPropertyValue $InputObject $path
+        if ($null -eq $value) { continue }
+
+        $foundValue = $true
+        if ([string]$value -eq [string]$Expected) {
+            return $true
+        }
+    }
+
+    return ($KeepWhenMissing -and -not $foundValue)
 }
 
 #endregion
@@ -1190,15 +1235,27 @@ function Get-GenesysConversationDetail {
     #>
     [CmdletBinding()]
     param(
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [string] $ConversationId,
+        [string[]] $DivisionId,
         [switch] $KeepArtifacts,
         [string] $ArtifactPath
     )
 
     Assert-GenesysConnected
-    $keep = $KeepArtifacts -or ($ArtifactPath -ne '')
-    Invoke-GenesysDataset -Dataset 'analytics-conversation-details' `
-        -KeepArtifacts:$keep `
-        -ArtifactPath  $ArtifactPath
+    $keep = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
+    $datasetParameters = New-GenesysConversationDetailDatasetParameters -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -ConversationId $ConversationId -DivisionId $DivisionId
+    $invokeParams = @{
+        Dataset       = 'analytics-conversation-details'
+        KeepArtifacts = $keep
+        ArtifactPath  = $ArtifactPath
+    }
+    if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
+    Invoke-GenesysDataset @invokeParams
 }
 
 #endregion
@@ -1251,17 +1308,33 @@ function Get-GenesysAuditEvent {
     param(
         [string] $Action,
         [string] $Username,
-        [string] $EntityType
+        [string] $EntityType,
+        [string] $EntityId,
+        [string] $UserId,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
     )
 
     Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'audit-logs'
+    $datasetParameters = @{}
+    if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
+    if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
+    if ($EntityType) { $datasetParameters['EntityTypes'] = @($EntityType) }
+    if ($EntityId) { $datasetParameters['EntityIds'] = @($EntityId) }
+    if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
+    if ($Action -and $EntityType -and $Action -notmatch '[*?]') { $datasetParameters['Actions'] = @($Action) }
+
+    $invokeParams = @{ Dataset = 'audit-logs' }
+    if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
+    $results = Invoke-GenesysDataset @invokeParams
 
     # Use safe nested property access to avoid StrictMode failures when
     # user or serviceContext sub-objects are absent from a record.
     if ($Action)     { $results = $results | Where-Object { (Get-PropertyValue $_ 'action')                                -like $Action     } }
     if ($Username)   { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'user.email')                     -like $Username   } }
-    if ($EntityType) { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'serviceContext.entityType')      -eq   $EntityType } }
+    if ($EntityType) { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityType', 'entity.type', 'entityType') $EntityType -KeepWhenMissing } }
+    if ($EntityId)   { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $EntityId -KeepWhenMissing } }
+    if ($UserId)     { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('user.id', 'userId', 'actor.id') $UserId -KeepWhenMissing } }
 
     $results
 }
@@ -2771,6 +2844,12 @@ function Get-GenesysAgentVoiceQuality {
         [Parameter(ValueFromPipeline)]
         [object[]] $InputObject,
 
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType = 'voice',
+        [string[]] $DivisionId,
         [switch] $KeepArtifacts,
         [string] $ArtifactPath
     )
@@ -2792,9 +2871,8 @@ function Get-GenesysAgentVoiceQuality {
         }
         else {
             Assert-GenesysConnected
-            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details' `
-                -KeepArtifacts:($KeepArtifacts -or ($ArtifactPath -ne '')) `
-                -ArtifactPath $ArtifactPath)
+            $keepArtifactsForFetch = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
+            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId -KeepArtifacts:$keepArtifactsForFetch -ArtifactPath $ArtifactPath)
         }
 
         foreach ($conv in $conversations) {
@@ -3474,11 +3552,18 @@ function Get-GenesysSentimentTrend {
         Get-GenesysSentimentTrend | Sort-Object OverallScore | Select-Object -First 10 | Format-Table
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [string[]] $DivisionId
+    )
 
     Assert-GenesysConnected
 
-    $conversations = @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+    $conversations = @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
 
     foreach ($conv in $conversations) {
         # Collect sentiment scores across all participants using safe property access.
@@ -3668,6 +3753,12 @@ function Get-GenesysLongHandleConversation {
     [CmdletBinding()]
     param(
         [int] $ThresholdSeconds = 600,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [string[]] $DivisionId,
 
         [Parameter(ValueFromPipeline)]
         [object[]] $InputObject
@@ -3686,7 +3777,7 @@ function Get-GenesysLongHandleConversation {
             $buffer.ToArray()
         } else {
             Assert-GenesysConnected
-            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
         }
 
         foreach ($conv in $conversations) {
@@ -3767,6 +3858,12 @@ function Get-GenesysRepeatCaller {
     [CmdletBinding()]
     param(
         [int] $MinCallCount = 2,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [string[]] $DivisionId,
 
         [Parameter(ValueFromPipeline)]
         [object[]] $InputObject
@@ -3785,7 +3882,7 @@ function Get-GenesysRepeatCaller {
             $buffer.ToArray()
         } else {
             Assert-GenesysConnected
-            @(Invoke-GenesysDataset -Dataset 'analytics-conversation-details')
+            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
         }
 
         # Extract ANI from customer participants using safe property access.
@@ -4228,6 +4325,8 @@ function Get-GenesysChangeAuditFeed {
     [CmdletBinding()]
     param(
         [string] $EntityType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
         [ValidateSet('HIGH','MEDIUM','LOW')]
         [string] $Risk
     )
@@ -4236,6 +4335,8 @@ function Get-GenesysChangeAuditFeed {
 
     $filterParams = @{}
     if ($EntityType) { $filterParams['EntityType'] = $EntityType }
+    if ($Since.HasValue) { $filterParams['Since'] = $Since }
+    if ($Until.HasValue) { $filterParams['Until'] = $Until }
 
     $events = @(Get-GenesysAuditEvent @filterParams)
     if ($events.Count -eq 0) { return }
@@ -4525,12 +4626,17 @@ function Get-GenesysAbandonRateDashboard {
             ForEach-Object { Write-Warning "HIGH ABANDON: $($_.QueueName) — $($_.AbandonRate)%" }
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]] $QueueId,
+        [string] $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
 
-    $abandonData  = @(Get-GenesysQueueAbandonRate)
-    $observations = @(Get-GenesysQueueObservation)
+    $abandonData  = @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
+    $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
     $queues       = @(Get-GenesysQueue)
 
     # Index observations by queueId+mediaType
@@ -4593,12 +4699,17 @@ function Get-GenesysQueueHealthSnapshot {
         Get-GenesysQueueHealthSnapshot | Where-Object HealthStatus -eq 'RED' | Format-Table QueueName, oWaiting, ServiceLevel30Pct
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [string[]] $QueueId,
+        [string] $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until
+    )
 
     Assert-GenesysConnected
 
-    $observations = @(Get-GenesysQueueObservation)
-    $sla          = @(Get-GenesysQueueServiceLevel)
+    $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
+    $sla          = @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
     $queues       = @(Get-GenesysQueue)
 
     $queueNames = @{}
@@ -4657,10 +4768,17 @@ function Get-GenesysAgentQualitySnapshot {
         Get-GenesysAgentQualitySnapshot | Export-Csv .\agent-quality-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [int] $MinConversations = 0,
+        [string[]] $UserId,
+        [string] $MediaType,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string] $Granularity
+    )
 
     Assert-GenesysConnected
-    @(Get-GenesysAgentPerformance)
+    @(Get-GenesysAgentPerformance -MinConversations $MinConversations -UserId $UserId -MediaType $MediaType -Since $Since -Until $Until -Granularity $Granularity)
 }
 
 function Invoke-GenesysOperationsReport {
@@ -4698,6 +4816,10 @@ function Invoke-GenesysOperationsReport {
     [CmdletBinding()]
     param(
         [string] $OutputPath,
+        [Nullable[datetime]] $Since,
+        [Nullable[datetime]] $Until,
+        [string[]] $QueueId,
+        [string] $MediaType,
         [switch] $PassThru,
         [switch] $FailFast
     )
@@ -4728,10 +4850,10 @@ function Invoke-GenesysOperationsReport {
     $ccStatus = Invoke-OpsSection 'ContactCentre' { Get-GenesysContactCentreStatus }
 
     Write-Verbose 'Collecting queue abandon rates...'
-    $abandon = Invoke-OpsSection 'AbandonRate' { @(Get-GenesysQueueAbandonRate) }
+    $abandon = Invoke-OpsSection 'AbandonRate' { @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
 
     Write-Verbose 'Collecting queue service levels...'
-    $sla = Invoke-OpsSection 'ServiceLevel' { @(Get-GenesysQueueServiceLevel) }
+    $sla = Invoke-OpsSection 'ServiceLevel' { @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
 
     Write-Verbose 'Collecting edge health...'
     $edgeSnap = Invoke-OpsSection 'EdgeHealth' { Get-GenesysEdgeHealthSnapshot }
@@ -5450,14 +5572,14 @@ function Invoke-Investigation {
     $abortReason     = $null
 
     foreach ($step in $Steps) {
-        $stepName    = [string]$step.Name
-        $isDerived   = $step.ContainsKey('RecordDeriver') -and $step.RecordDeriver
-        $datasetKey  = if ($isDerived) { '(derived)' } else { [string]$step.DatasetKey }
-        $emitAs      = if ($step.ContainsKey('EmitAs') -and $step.EmitAs) { [string]$step.EmitAs } else { $stepName }
-        $required    = if ($step.ContainsKey('Required')) { [bool]$step.Required } else { $true }
-        $joinKind    = if ($step.ContainsKey('JoinKind') -and $step.JoinKind) { [string]$step.JoinKind } else { 'Inner' }
-        $sortKey     = if ($step.ContainsKey('SortKey') -and $step.SortKey) { [string]$step.SortKey } else { 'id' }
-        $joinOn      = if ($step.ContainsKey('JoinOn')) { $step.JoinOn } else { $null }
+        $stepName    = [string]$step['Name']
+        $isDerived   = $step.ContainsKey('RecordDeriver') -and $step['RecordDeriver']
+        $datasetKey  = if ($isDerived) { '(derived)' } else { [string]$step['DatasetKey'] }
+        $emitAs      = if ($step.ContainsKey('EmitAs') -and $step['EmitAs']) { [string]$step['EmitAs'] } else { $stepName }
+        $required    = if ($step.ContainsKey('Required')) { [bool]$step['Required'] } else { $true }
+        $joinKind    = if ($step.ContainsKey('JoinKind') -and $step['JoinKind']) { [string]$step['JoinKind'] } else { 'Inner' }
+        $sortKey     = if ($step.ContainsKey('SortKey') -and $step['SortKey']) { [string]$step['SortKey'] } else { 'id' }
+        $joinOn      = if ($step.ContainsKey('JoinOn')) { $step['JoinOn'] } else { $null }
 
         if (-not $isDerived) {
             $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
@@ -5485,8 +5607,8 @@ function Invoke-Investigation {
         }
 
         $resolvedDatasetParameters = $null
-        if (-not $isDerived -and $step.ContainsKey('Parameters') -and $step.Parameters) {
-            $parameterSource = $step.Parameters
+        if (-not $isDerived -and $step.ContainsKey('Parameters') -and $step['Parameters']) {
+            $parameterSource = $step['Parameters']
             if ($parameterSource -is [scriptblock]) {
                 $resolvedDatasetParameters = & $parameterSource $Subject $summarySections $Window
             } else {
@@ -5497,7 +5619,7 @@ function Invoke-Investigation {
         $stepResult = $null
         if ($isDerived) {
             try {
-                $derived = @(& $step.RecordDeriver $summarySections $Subject)
+                $derived = @(& $step['RecordDeriver'] $summarySections $Subject)
                 $stepResult = @{ records = $derived; runId = $null; status = 'ok'; errorMessage = $null }
             } catch {
                 $stepResult = @{ records = @(); runId = $null; status = 'failed'; errorMessage = $_.Exception.Message }
@@ -5536,8 +5658,8 @@ function Invoke-Investigation {
 
         $records = if ($stepResult -and $stepResult.records) { @($stepResult.records) } else { @() }
 
-        if ($step.ContainsKey('SubjectFilter') -and $step.SubjectFilter -and $stepResult.status -eq 'ok') {
-            $filter = [scriptblock]$step.SubjectFilter
+        if ($step.ContainsKey('SubjectFilter') -and $step['SubjectFilter'] -and $stepResult.status -eq 'ok') {
+            $filter = [scriptblock]$step['SubjectFilter']
             $records = @($records | Where-Object { & $filter $_ $Subject })
         }
 
@@ -5555,8 +5677,8 @@ function Invoke-Investigation {
 
         $summarySections[$emitAs] = $records
 
-        if ($step.ContainsKey('SubjectUpdater') -and $step.SubjectUpdater) {
-            $updates = & $step.SubjectUpdater $records $Subject
+        if ($step.ContainsKey('SubjectUpdater') -and $step['SubjectUpdater']) {
+            $updates = & $step['SubjectUpdater'] $records $Subject
             if ($updates) {
                 foreach ($k in $updates.Keys) { $Subject[$k] = $updates[$k] }
             }
@@ -5706,23 +5828,104 @@ function Get-GenesysAgentInvestigationStepDefinition {
         [datetime] $Until
     )
 
-    $idMatchesUser  = { param($r, $s) ($r.PSObject.Properties['id']     -and $r.id     -eq $s.UserId) }
-    $userIdMatches  = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s.UserId) }
-    $userMembership = { param($r, $s)
-        if ($r.PSObject.Properties['memberCount'] -and $r.PSObject.Properties['members']) {
-            return @($r.members | Where-Object { $_.id -eq $s.UserId }).Count -gt 0
-        }
-        $true
-    }
+    $idMatchesUser  = { param($r, $s) ($r.PSObject.Properties['id']     -and $r.id     -eq $s['UserId']) }
+    $userIdMatches  = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s['UserId']) }
     $participantMatchesUser = { param($r, $s)
         if (-not $r.PSObject.Properties['participants']) { return $false }
-        return @($r.participants | Where-Object { $_.userId -eq $s.UserId }).Count -gt 0
+        return @($r.participants | Where-Object { $_.userId -eq $s['UserId'] }).Count -gt 0
+    }
+    $singleUserRouteParameters = {
+        param($subject, $sections, $window)
+        @{ Query = @{ userId = [string]$subject['UserId'] } }
+    }
+    $singleUserPresenceParameters = {
+        param($subject, $sections, $window)
+        @{ Query = @{ id = [string]$subject['UserId'] } }
+    }
+    $deriveDivisionFromIdentity = {
+        param($sections, $subject)
+
+        $agent = @($sections['agent'] | Select-Object -First 1)
+        if ($agent.Count -eq 0) { return @() }
+
+        $divisionProp = $agent[0].PSObject.Properties['division']
+        if (-not $divisionProp -or -not $divisionProp.Value) { return @() }
+
+        [pscustomobject]@{
+            id       = [string]$subject['UserId']
+            userId   = [string]$subject['UserId']
+            division = $divisionProp.Value
+        }
+    }
+    $userDetailsActivityParameters = {
+        param($subject, $sections, $window)
+
+        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+        @{
+            Body = [ordered]@{
+                interval    = "$sinceIso/$untilIso"
+                order       = 'asc'
+                orderBy     = 'userId'
+                paging      = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                userFilters = @(
+                    [ordered]@{
+                        type       = 'or'
+                        predicates = @(
+                            [ordered]@{
+                                type      = 'dimension'
+                                dimension = 'userId'
+                                operator  = 'matches'
+                                value     = [string]$subject['UserId']
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+    $conversationDetailsParameters = {
+        param($subject, $sections, $window)
+
+        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+        @{
+            Body = [ordered]@{
+                interval       = "$sinceIso/$untilIso"
+                order          = 'asc'
+                orderBy        = 'conversationStart'
+                paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'or'
+                        predicates = @(
+                            [ordered]@{
+                                type      = 'dimension'
+                                dimension = 'userId'
+                                operator  = 'matches'
+                                value     = [string]$subject['UserId']
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+    $auditAccountChangeParameters = {
+        param($subject, $sections, $window)
+        @{
+            StartUtc    = ConvertTo-IsoUtcTimestamp $window['Since']
+            EndUtc      = ConvertTo-IsoUtcTimestamp $window['Until']
+            EntityTypes = @('User')
+            EntityIds   = @([string]$subject['UserId'])
+        }
     }
 
     @(
         @{
             Name          = 'identity'
-            DatasetKey    = 'users'
+            DatasetKey    = 'users.get.user.details.with.full.expansion'
+            Parameters    = $singleUserRouteParameters
             SubjectFilter = $idMatchesUser
             EmitAs        = 'agent'
             Required      = $true
@@ -5732,17 +5935,17 @@ function Get-GenesysAgentInvestigationStepDefinition {
         }
         @{
             Name          = 'division'
-            DatasetKey    = 'users.division.analysis.get.users.with.division.info'
-            SubjectFilter = $idMatchesUser
+            RecordDeriver = $deriveDivisionFromIdentity
             EmitAs        = 'division'
-            Required      = $true
-            JoinKind      = 'Inner'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'id' }
-            SortKey       = 'id'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+            SortKey       = 'userId'
         }
         @{
             Name          = 'skills'
-            DatasetKey    = 'routing.get.all.routing.skills'
+            DatasetKey    = 'users.get.user.routing.skills'
+            Parameters    = $singleUserRouteParameters
             EmitAs        = 'skills'
             Required      = $false
             JoinKind      = 'Left'
@@ -5751,17 +5954,18 @@ function Get-GenesysAgentInvestigationStepDefinition {
         }
         @{
             Name          = 'queues'
-            DatasetKey    = 'routing-queues'
-            SubjectFilter = $userMembership
+            DatasetKey    = 'users.get.user.queue.memberships'
+            Parameters    = $singleUserRouteParameters
             EmitAs        = 'queues'
             Required      = $false
             JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'members.id' }
+            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
             SortKey       = 'id'
         }
         @{
             Name          = 'presence'
             DatasetKey    = 'users.get.bulk.user.presences'
+            Parameters    = $singleUserPresenceParameters
             SubjectFilter = $userIdMatches
             EmitAs        = 'presence'
             Required      = $false
@@ -5772,6 +5976,7 @@ function Get-GenesysAgentInvestigationStepDefinition {
         @{
             Name          = 'activity'
             DatasetKey    = 'analytics.query.user.details.activity.report'
+            Parameters    = $userDetailsActivityParameters
             SubjectFilter = $userIdMatches
             EmitAs        = 'activity'
             Required      = $false
@@ -5782,6 +5987,7 @@ function Get-GenesysAgentInvestigationStepDefinition {
         @{
             Name          = 'conversations'
             DatasetKey    = 'analytics-conversation-details-query'
+            Parameters    = $conversationDetailsParameters
             SubjectFilter = $participantMatchesUser
             EmitAs        = 'conversations'
             Required      = $false
@@ -5789,16 +5995,27 @@ function Get-GenesysAgentInvestigationStepDefinition {
             JoinOn        = @{ Left = 'agent.id'; Right = 'participants.userId' }
             SortKey       = 'conversationId'
         }
+        @{
+            Name          = 'auditAccountChanges'
+            DatasetKey    = 'audit-logs'
+            Parameters    = $auditAccountChangeParameters
+            EmitAs        = 'auditAccountChanges'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'agent.id'; Right = 'entity.id' }
+            SortKey       = 'timestamp'
+        }
     )
 }
 
 function Get-GenesysAgentInvestigation {
     <#
     .SYNOPSIS
-        Run the Agent Investigation flagship — joins identity, division, skills,
-        queue memberships, presence, activity, and conversations for one agent.
+        Run the Agent Investigation flagship — joins identity, derived division,
+        skills, queue memberships, presence, activity, conversations, and audit
+        account changes for one agent.
     .DESCRIPTION
-        Composes seven catalog datasets via Invoke-Investigation and emits the
+        Composes scoped catalog datasets via Invoke-Investigation and emits the
         standard run-artifact set under out/agent-investigation/<runId>/.
 
         Resolves -UserName to a UserId before invoking the composer. Use

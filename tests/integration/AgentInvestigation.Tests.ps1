@@ -18,29 +18,20 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
         $script:KnownUserId = 'agent-fixture-001'
 
         # Build a fixture invoker keyed on dataset key. Records intentionally
-        # contain rows for OTHER users so we exercise SubjectFilter logic.
+        # contain rows for OTHER users where the live API can still return them,
+        # so we exercise SubjectFilter logic without masking scoped parameters.
         $script:Fixture = @{
-            'users' = @(
-                [pscustomobject]@{ id = 'agent-fixture-001'; name = 'Jane Doe';  email = 'jane@x.com';  state = 'ACTIVE' }
+            'users.get.user.details.with.full.expansion' = @(
+                [pscustomobject]@{ id = 'agent-fixture-001'; name = 'Jane Doe';  email = 'jane@x.com';  state = 'ACTIVE'; division = [pscustomobject]@{ id = 'div-1'; name = 'CustomerCare' } }
                 [pscustomobject]@{ id = 'agent-fixture-999'; name = 'Other Agt'; email = 'other@x.com'; state = 'ACTIVE' }
             )
-            'users.division.analysis.get.users.with.division.info' = @(
-                [pscustomobject]@{ id = 'agent-fixture-001'; division = [pscustomobject]@{ id = 'div-1'; name = 'CustomerCare' } }
-                [pscustomobject]@{ id = 'agent-fixture-999'; division = [pscustomobject]@{ id = 'div-2'; name = 'Sales' } }
+            'users.get.user.routing.skills' = @(
+                [pscustomobject]@{ id = 'sk-1'; userId = 'agent-fixture-001'; name = 'English'; state = 'active' }
+                [pscustomobject]@{ id = 'sk-2'; userId = 'agent-fixture-001'; name = 'French';  state = 'active' }
             )
-            'routing.get.all.routing.skills' = @(
-                [pscustomobject]@{ id = 'sk-1'; name = 'English'; state = 'active' }
-                [pscustomobject]@{ id = 'sk-2'; name = 'French';  state = 'active' }
-            )
-            'routing-queues' = @(
-                [pscustomobject]@{
-                    id = 'q-1'; name = 'Support'; memberCount = 1
-                    members = @([pscustomobject]@{ id = 'agent-fixture-001' })
-                }
-                [pscustomobject]@{
-                    id = 'q-2'; name = 'Billing'; memberCount = 1
-                    members = @([pscustomobject]@{ id = 'agent-fixture-999' })
-                }
+            'users.get.user.queue.memberships' = @(
+                [pscustomobject]@{ id = 'q-1'; userId = 'agent-fixture-001'; name = 'Support'; joined = $true }
+                [pscustomobject]@{ id = 'q-2'; userId = 'agent-fixture-001'; name = 'Billing'; joined = $true }
             )
             'users.get.bulk.user.presences' = @(
                 [pscustomobject]@{ userId = 'agent-fixture-001'; presence = 'AVAILABLE' }
@@ -63,23 +54,38 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
                     participants = @([pscustomobject]@{ userId = 'agent-fixture-999'; role = 'agent' })
                 }
             )
+            'audit-logs' = @(
+                [pscustomobject]@{ id = 'audit-1'; entityId = 'agent-fixture-001'; entityType = 'User'; action = 'update'; serviceName = 'directory'; timestamp = '2026-04-02T01:00:00Z' }
+            )
         }
 
         $script:MakeInvoker = {
             param($overrides = @{})
+            if ($null -eq $overrides) { $overrides = @{} }
             $fixture = $script:Fixture
+            $script:CapturedInvocations = [System.Collections.Generic.List[object]]::new()
             return {
                 param($Step, $Subject, $Window)
-                $key = [string]$Step.DatasetKey
-                if ($overrides.ContainsKey($key)) {
+                if ($null -eq $script:CapturedInvocations) {
+                    $script:CapturedInvocations = [System.Collections.Generic.List[object]]::new()
+                }
+                $capturedDatasetParameters = if ($Step.ContainsKey('DatasetParameters')) { $Step['DatasetParameters'] } else { $null }
+                $script:CapturedInvocations.Add([pscustomobject]@{
+                    Name              = [string]$Step['Name']
+                    DatasetKey        = [string]$Step['DatasetKey']
+                    DatasetParameters = $capturedDatasetParameters
+                    Window            = $Window
+                }) | Out-Null
+                $key = [string]$Step['DatasetKey']
+                if ($null -ne $overrides -and $overrides.ContainsKey($key)) {
                     $entry = $overrides[$key]
                     if ($entry -is [hashtable] -and $entry.ContainsKey('Throw')) {
-                        return @{ records = @(); runId = 'run-fixture-' + $Step.Name; status = 'failed'; errorMessage = [string]$entry['Throw'] }
+                        return @{ records = @(); runId = 'run-fixture-' + $Step['Name']; status = 'failed'; errorMessage = [string]$entry['Throw'] }
                     }
-                    return @{ records = @($entry); runId = 'run-fixture-' + $Step.Name; status = 'ok'; errorMessage = $null }
+                    return @{ records = @($entry); runId = 'run-fixture-' + $Step['Name']; status = 'ok'; errorMessage = $null }
                 }
-                $records = if ($fixture.ContainsKey($key)) { @($fixture[$key]) } else { @() }
-                return @{ records = $records; runId = 'run-fixture-' + $Step.Name; status = 'ok'; errorMessage = $null }
+                $records = if ($null -ne $fixture -and $fixture.ContainsKey($key)) { @($fixture[$key]) } else { @() }
+                return @{ records = $records; runId = 'run-fixture-' + $Step['Name']; status = 'ok'; errorMessage = $null }
             }.GetNewClosure()
         }
 
@@ -114,9 +120,9 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             Test-Path $script:HappyResult.SummaryPath | Should -BeTrue
         }
 
-        It 'manifest records exactly seven datasetsInvoked entries' {
+        It 'manifest records the scoped dataset and derived-section entries' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
-            @($m.datasetsInvoked).Count | Should -Be 7
+            @($m.datasetsInvoked).Count | Should -Be 8
         }
 
         It 'manifest contains every required field' {
@@ -130,12 +136,12 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             $divisionJoin = $m.joinPlan | Where-Object { $_.stepName -eq 'division' }
             $divisionJoin.leftSource | Should -Be 'identity'
             $divisionJoin.leftKey    | Should -Be 'agent.id'
-            $divisionJoin.rightKey   | Should -Be 'id'
+            $divisionJoin.rightKey   | Should -Be 'userId'
         }
 
-        It 'summary contains the seven expected sections' {
+        It 'summary contains the expected scoped sections' {
             $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
-            foreach ($section in @('agent','division','skills','queues','presence','activity','conversations')) {
+            foreach ($section in @('agent','division','skills','queues','presence','activity','conversations','auditAccountChanges')) {
                 $s.PSObject.Properties.Name | Should -Contain $section
             }
         }
@@ -145,6 +151,60 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             @($s.agent).Count    | Should -Be 1
             $s.agent[0].id       | Should -Be $script:KnownUserId
             @($s.division).Count | Should -Be 1
+        }
+
+        It 'builds user and window scoped DatasetParameters for live dataset invocations' {
+            $getMapValue = {
+                param($InputObject, [string]$Name)
+                if ($null -eq $InputObject) { return $null }
+                if ($InputObject -is [System.Collections.IDictionary]) { return $InputObject[$Name] }
+                $prop = $InputObject.PSObject.Properties[$Name]
+                if ($prop) { return $prop.Value }
+                return $null
+            }
+
+            $parametersByStep = InModuleScope -ModuleName $script:OpsModule.Name -Parameters @{ KnownUserId = $script:KnownUserId } -ScriptBlock {
+                param($KnownUserId)
+                $subject = @{ SubjectId = $KnownUserId; UserId = $KnownUserId }
+                $window = @{
+                    Since = [datetime]'2026-04-01T00:00:00Z'
+                    Until = [datetime]'2026-04-08T00:00:00Z'
+                }
+                $steps = Get-GenesysAgentInvestigationStepDefinition -UserId $KnownUserId -Since $window.Since -Until $window.Until
+                $result = [ordered]@{}
+                foreach ($stepName in @('identity','skills','queues','presence','activity','conversations','auditAccountChanges')) {
+                    $step = $steps | Where-Object { $_['Name'] -eq $stepName } | Select-Object -First 1
+                    $result[$stepName] = & $step['Parameters'] $subject @{} $window
+                }
+                [pscustomobject]$result
+            }
+
+            $identityQuery = & $getMapValue $parametersByStep.identity 'Query'
+            $skillsQuery = & $getMapValue $parametersByStep.skills 'Query'
+            $queuesQuery = & $getMapValue $parametersByStep.queues 'Query'
+            $presenceQuery = & $getMapValue $parametersByStep.presence 'Query'
+
+            (& $getMapValue $identityQuery 'userId') | Should -Be $script:KnownUserId
+            (& $getMapValue $skillsQuery 'userId') | Should -Be $script:KnownUserId
+            (& $getMapValue $queuesQuery 'userId') | Should -Be $script:KnownUserId
+            (& $getMapValue $presenceQuery 'id') | Should -Be $script:KnownUserId
+
+            $activityBody = & $getMapValue $parametersByStep.activity 'Body'
+            (& $getMapValue $activityBody 'interval') | Should -Be '2026-04-01T00:00:00.0000000Z/2026-04-08T00:00:00.0000000Z'
+            $activityPredicate = @((& $getMapValue (@((& $getMapValue $activityBody 'userFilters'))[0]) 'predicates'))[0]
+            (& $getMapValue $activityPredicate 'dimension') | Should -Be 'userId'
+            (& $getMapValue $activityPredicate 'value') | Should -Be $script:KnownUserId
+
+            $conversationBody = & $getMapValue $parametersByStep.conversations 'Body'
+            (& $getMapValue $conversationBody 'interval') | Should -Be '2026-04-01T00:00:00.0000000Z/2026-04-08T00:00:00.0000000Z'
+            $conversationPredicate = @((& $getMapValue (@((& $getMapValue $conversationBody 'segmentFilters'))[0]) 'predicates'))[0]
+            (& $getMapValue $conversationPredicate 'dimension') | Should -Be 'userId'
+            (& $getMapValue $conversationPredicate 'value') | Should -Be $script:KnownUserId
+
+            @((& $getMapValue $parametersByStep.auditAccountChanges 'EntityTypes'))[0] | Should -Be 'User'
+            @((& $getMapValue $parametersByStep.auditAccountChanges 'EntityIds'))[0] | Should -Be $script:KnownUserId
+            (& $getMapValue $parametersByStep.auditAccountChanges 'StartUtc') | Should -Be '2026-04-01T00:00:00.0000000Z'
+            (& $getMapValue $parametersByStep.auditAccountChanges 'EndUtc') | Should -Be '2026-04-08T00:00:00.0000000Z'
         }
 
         It 'data/*.jsonl line counts match manifest recordCount per step' {
@@ -194,7 +254,7 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
 
     Context '4. Required step failure aborts' {
         It 'throws, writes failure event, and does not write summary.json' {
-            $invoker = & $script:MakeInvoker @{ 'users' = @{ Throw = 'fixture: 401 unauthorized' } }
+            $invoker = & $script:MakeInvoker @{ 'users.get.user.details.with.full.expansion' = @{ Throw = 'fixture: 401 unauthorized' } }
             { Get-GenesysAgentInvestigation -UserId $script:KnownUserId -OutputRoot $script:OutputRoot -RunId 'fail-required' -DatasetInvoker $invoker } | Should -Throw
 
             $runFolder  = Join-Path (Join-Path $script:OutputRoot 'agent-investigation') 'fail-required'

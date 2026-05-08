@@ -16,7 +16,7 @@ Extracting governed, reproducible data from the Genesys Cloud REST API is harder
 
 Genesys.Core solves this with a **catalog-driven execution engine**: endpoint behavior (paging strategy, retry profile, async flow, redaction policy) lives in a single JSON catalog — not scattered across scripts. Every run produces identical, auditable output artifacts, making automation, compliance review, and CI integration straightforward.
 
-The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. Three flagships ship today — Agent Investigation (1.0) joins identity/skills/queues/conversations for one agent, Conversation Investigation (1.1) joins one conversation with its participants/divisions/recordings/evaluations, and Queue Investigation (1.2) joins one queue with its members/observations/SLA/abandons/active agents.
+The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. Three flagships ship today — Agent Investigation (1.0) uses scoped single-agent datasets and user/window analytics filters for identity/skills/queues/presence/activity/conversations/audit account changes, Conversation Investigation (1.1) joins one conversation with its participants/divisions/recordings/evaluations, and Queue Investigation (1.2) joins one queue with its members/observations/SLA/abandons/active agents.
 
 ---
 
@@ -80,6 +80,8 @@ Connect-GenesysCloud -AccessToken $authResponse.access_token -Region $region
 
 Get-GenesysAgentInvestigation -UserId '<genesys-user-guid>' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
 ```
+
+Agent Investigation is designed for production use against one user at a time. It avoids broad users/queues/skills enumeration by passing the selected user ID and time window into the catalog-backed datasets.
 
 ### 4 — Inspect run output
 

@@ -205,7 +205,7 @@ Describe 'Audit logs dataset' {
         (@($events | Where-Object { $_.eventType -eq 'audit.query.no_results' })).Count | Should -Be 1
     }
 
-    It 'supports dataset parameter overrides for interval, service name, entity type, and action' {
+    It 'supports dataset parameter overrides for interval, service name, entity type, entity id, user id, and action' {
         $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-parameterized'
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
 
@@ -244,6 +244,8 @@ Describe 'Audit logs dataset' {
             EndUtc = '2026-02-20T01:00:00Z'
             ServiceNames = @('routing')
             EntityTypes = @('Queue')
+            EntityIds = @('queue-123')
+            UserIds = @('user-456')
             Actions = @('delete')
         }
 
@@ -251,9 +253,11 @@ Describe 'Audit logs dataset' {
 
         $script:capturedSubmitBody.interval | Should -Be '2026-02-20T00:00:00.0000000Z/2026-02-20T01:00:00.0000000Z'
         $script:capturedSubmitBody.serviceName | Should -Be 'routing'
-        @($script:capturedSubmitBody.filters).Count | Should -Be 2
+        @($script:capturedSubmitBody.filters).Count | Should -Be 4
         ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'EntityType' }).value | Should -Be 'Queue'
         ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'Action' }).value | Should -Be 'delete'
+        ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'EntityId' }).value | Should -Be 'queue-123'
+        ($script:capturedSubmitBody.filters | Where-Object { $_.property -eq 'UserId' }).value | Should -Be 'user-456'
         $script:capturedSubmitBody.PSObject.Properties.Name | Should -Not -Contain 'action'
     }
 

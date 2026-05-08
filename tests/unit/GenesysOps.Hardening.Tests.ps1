@@ -469,9 +469,60 @@ Describe 'Agent investigation step definitions — catalog key validation' {
         }
 
         foreach ($step in $steps) {
+            if ($step.ContainsKey('RecordDeriver') -and $step.RecordDeriver) {
+                continue
+            }
             $key = $step.DatasetKey
             $catalogKeys | Should -Contain $key `
                 -Because "step '$($step.Name)' uses dataset key '$($key)' which must be in the catalog"
+        }
+    }
+
+    It 'Invoke-Investigation forwards resolved step DatasetParameters to DatasetInvoker' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'parameter-forwarding'
+
+        InModuleScope 'Genesys.Ops' -Parameters @{ outputRoot = $outputRoot } -ScriptBlock {
+            param($outputRoot)
+
+            $script:SeenInvestigationParameters = $null
+            $invoker = {
+                param($Step, $Subject, $Window)
+                $script:SeenInvestigationParameters = $Step['DatasetParameters']
+                @{
+                    records      = @([pscustomobject]@{ id = 'agent-forwarding-001' })
+                    runId        = 'fixture-forwarding'
+                    status       = 'ok'
+                    errorMessage = $null
+                }
+            }
+
+            $steps = @(
+                @{
+                    Name       = 'identity'
+                    DatasetKey = 'users.get.user.details.with.full.expansion'
+                    Parameters = {
+                        param($subject, $sections, $window)
+                        @{ Query = @{ userId = [string]$subject['UserId'] } }
+                    }
+                    EmitAs     = 'agent'
+                    Required   = $true
+                    JoinKind   = 'Seed'
+                    JoinOn     = @{ Left = $null; Right = 'id' }
+                    SortKey    = 'id'
+                }
+            )
+
+            Invoke-Investigation `
+                -InvestigationKey 'agent-investigation' `
+                -SubjectType 'agent' `
+                -Subject @{ SubjectId = 'agent-forwarding-001'; UserId = 'agent-forwarding-001' } `
+                -Window @{ Since = [datetime]'2026-04-01T00:00:00Z'; Until = [datetime]'2026-04-08T00:00:00Z' } `
+                -Steps $steps `
+                -OutputRoot $outputRoot `
+                -RunId 'parameter-forwarding' `
+                -DatasetInvoker $invoker | Out-Null
+
+            $script:SeenInvestigationParameters['Query']['userId'] | Should -Be 'agent-forwarding-001'
         }
     }
 }

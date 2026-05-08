@@ -41,7 +41,48 @@
       },
       "transaction": {
         "profile": "audit_query_transaction_then_results"
-      }
+      },
+      "redactionProfile": "agent-investigation-audit",
+      "validationStatus": "unvalidated"
+    },
+    "users.get.user.details.with.full.expansion": {
+      "description": "Agent Investigation - single user details with expansion.",
+      "endpoint": "users.get.user.details.with.full.expansion",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "users.get.user.routing.skills": {
+      "description": "Agent Investigation - routing skills assigned to one user.",
+      "endpoint": "users.get.user.routing.skills",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "users.get.user.queue.memberships": {
+      "description": "Agent Investigation - queue memberships for one user.",
+      "endpoint": "users.get.user.s.queue.memberships",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
     },
     "users": {
       "description": "Users with presence and routing status.",
@@ -1158,6 +1199,18 @@
           "externalOrganizationId",
           "ani",
           "dnis"
+        ]
+      },
+      "agent-investigation-audit": {
+        "mode": "pii-restrictive",
+        "description": "Applied to audit-logs when used in Agent Investigation. Removes token-shaped and operator-entered free-text fields that are not required for account-change review.",
+        "removeFields": [
+          "authorization",
+          "token",
+          "access_token",
+          "refresh_token",
+          "message",
+          "description"
         ]
       },
       "conversation-investigation-recordings": {
@@ -39350,23 +39403,23 @@
         "steps": [
           {
             "step": "identity",
-            "dataset": "users",
+            "dataset": "users.get.user.details.with.full.expansion",
             "role": "seed",
             "joinKey": "id",
             "provides": "name, email, state, department, manager, station",
-            "description": "Agent identity with presence, routing status, and conversation summary"
+            "description": "Single-agent identity lookup with expanded presence, routing status, and conversation summary"
           },
           {
             "step": "division",
-            "dataset": "users.division.analysis.get.users.with.division.info",
+            "dataset": "(derived)",
             "filterBy": "userId",
-            "joinKey": "id",
+            "joinKey": "userId",
             "provides": "division.id, division.name, location.name",
-            "description": "Division assignment \u2014 the primary cross-queue grouping for this agent"
+            "description": "Division assignment derived from the scoped identity response"
           },
           {
             "step": "skills",
-            "dataset": "users.get.user.s.routing.skills",
+            "dataset": "users.get.user.routing.skills",
             "filterBy": "userId",
             "joinKey": "userId",
             "provides": "skillName, proficiencyRating",
@@ -39374,7 +39427,7 @@
           },
           {
             "step": "queue-memberships",
-            "dataset": "users.get.user.s.queue.memberships",
+            "dataset": "users.get.user.queue.memberships",
             "filterBy": "userId",
             "joinKey": "userId",
             "provides": "queueId, queueName, joined, divisionId",
@@ -39391,7 +39444,7 @@
           {
             "step": "presence-activity",
             "dataset": "analytics.query.user.details.activity.report",
-            "filterBy": "userId",
+            "filterBy": "userId + investigation window",
             "joinKey": "userId",
             "provides": "presenceSegments, routingStatusSegments, loginEvents, tOnQueue, tOffQueue",
             "description": "Presence and routing-status segments over the investigation window"
@@ -39407,10 +39460,18 @@
           {
             "step": "conversations",
             "dataset": "analytics-conversation-details-query",
-            "filterBy": "participantUserId",
+            "filterBy": "participantUserId + investigation window",
             "joinKey": "userId",
             "provides": "conversationId, queueId, wrapUpCode, tTalk, tHandle, mediaType",
             "description": "All conversations the agent participated in during the window"
+          },
+          {
+            "step": "audit-account-changes",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=User + EntityId=userId + investigation window",
+            "joinKey": "userId",
+            "provides": "timestamp, action, serviceName, actor, changed entity",
+            "description": "Audit records for changes made to the agent account"
           },
           {
             "step": "real-time-status",

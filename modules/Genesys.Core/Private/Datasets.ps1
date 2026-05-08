@@ -82,6 +82,75 @@ function Resolve-DatasetInterval {
     return "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
 }
 
+function ConvertTo-DatasetRequestBodyJson {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$BodyValue,
+
+        [hashtable]$DatasetParameters
+    )
+
+    if ($null -eq $BodyValue) {
+        return $null
+    }
+
+    $bodyObject = $null
+    if ($BodyValue -is [string]) {
+        if ([string]::IsNullOrWhiteSpace($BodyValue)) {
+            return $BodyValue
+        }
+
+        try {
+            $bodyObject = $BodyValue | ConvertFrom-Json
+        } catch {
+            return $BodyValue
+        }
+    } else {
+        $bodyObject = $BodyValue
+    }
+
+    if ($null -ne $DatasetParameters -and (
+            $DatasetParameters.ContainsKey('Interval') -or
+            $DatasetParameters.ContainsKey('StartUtc') -or
+            $DatasetParameters.ContainsKey('EndUtc') -or
+            $DatasetParameters.ContainsKey('LookbackHours'))) {
+        $interval = Resolve-DatasetInterval -DatasetParameters $DatasetParameters -DefaultLookbackHours 24
+        if ($bodyObject -is [System.Collections.IDictionary]) {
+            $bodyObject['interval'] = $interval
+        } else {
+            $intervalProp = $bodyObject.PSObject.Properties['interval']
+            if ($intervalProp) {
+                $intervalProp.Value = $interval
+            } else {
+                $bodyObject | Add-Member -NotePropertyName 'interval' -NotePropertyValue $interval -Force
+            }
+        }
+    }
+
+    return ($bodyObject | ConvertTo-Json -Depth 100)
+}
+
+function Resolve-DatasetParameterValues {
+    [CmdletBinding()]
+    param(
+        [hashtable]$DatasetParameters,
+        [Parameter(Mandatory = $true)]
+        [string]$ParameterName
+    )
+
+    if ($null -eq $DatasetParameters -or -not $DatasetParameters.ContainsKey($ParameterName)) {
+        return @()
+    }
+
+    $rawValues = $DatasetParameters[$ParameterName]
+    if ($rawValues -is [array]) {
+        return @($rawValues | ForEach-Object { [string]$_ } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    }
+
+    return @([string]$rawValues -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+}
+
 function Resolve-SingleAuditFilterValue {
     [CmdletBinding()]
     param(
@@ -312,6 +381,8 @@ function Invoke-AuditLogsDataset {
 
     $action = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'Actions' -DisplayName 'Action'
     $entityType = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'EntityTypes' -DisplayName 'EntityType'
+    $entityId = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'EntityIds' -DisplayName 'EntityId'
+    $userId = Resolve-SingleAuditFilterValue -DatasetParameters $DatasetParameters -ParameterName 'UserIds' -DisplayName 'UserId'
     if (-not [string]::IsNullOrWhiteSpace($action) -and [string]::IsNullOrWhiteSpace($entityType)) {
         throw 'Genesys Audit API requires an EntityType filter when Action is supplied.'
     }
@@ -319,6 +390,8 @@ function Invoke-AuditLogsDataset {
     $filters = [System.Collections.Generic.List[object]]::new()
     Add-AuditBodyFilter -Filters $filters -Property 'EntityType' -Value $entityType
     Add-AuditBodyFilter -Filters $filters -Property 'Action' -Value $action
+    Add-AuditBodyFilter -Filters $filters -Property 'EntityId' -Value $entityId
+    Add-AuditBodyFilter -Filters $filters -Property 'UserId' -Value $userId
     $body.filters = @($filters.ToArray())
 
     try {
@@ -637,11 +710,10 @@ function Invoke-SimpleCollectionDataset {
     $initialUri = Resolve-EndpointInitialUri -BaseUri $BaseUri -Endpoint $endpoint -DatasetParameters $DatasetParameters
     $initialBody = $null
     if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')) {
-        $bodyValue = $DatasetParameters['Body']
-        $initialBody = if ($bodyValue -is [string]) { $bodyValue } else { $bodyValue | ConvertTo-Json -Depth 100 }
+        $initialBody = ConvertTo-DatasetRequestBodyJson -BodyValue $DatasetParameters['Body'] -DatasetParameters $DatasetParameters
     }
     elseif ($endpoint.PSObject.Properties.Name -contains 'defaultBody' -and $null -ne $endpoint.defaultBody) {
-        $initialBody = if ($endpoint.defaultBody -is [string]) { $endpoint.defaultBody } else { $endpoint.defaultBody | ConvertTo-Json -Depth 100 }
+        $initialBody = ConvertTo-DatasetRequestBodyJson -BodyValue $endpoint.defaultBody -DatasetParameters $DatasetParameters
     }
 
     $response = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
@@ -789,24 +861,30 @@ function Invoke-AnalyticsConversationDetailsDataset {
         $body.orderBy = [string]$DatasetParameters['OrderBy']
     }
 
-    # Queue filter — segment-level attribute, passed as segmentFilters
-    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('QueueIds')) {
-        $rawQueueIds = $DatasetParameters['QueueIds']
-        $queueIds = if ($rawQueueIds -is [array]) {
-            @($rawQueueIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-        } else {
-            @([string]$rawQueueIds -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-        }
-        if ($queueIds.Count -gt 0) {
-            $body.segmentFilters = @(
-                [ordered]@{
-                    type       = 'or'
-                    predicates = @($queueIds | ForEach-Object {
-                        [ordered]@{ type = 'dimension'; dimension = 'queueId'; operator = 'matches'; value = [string]$_ }
-                    })
-                }
-            )
-        }
+    $segmentFilters = [System.Collections.Generic.List[object]]::new()
+
+    $queueIds = @(Resolve-DatasetParameterValues -DatasetParameters $DatasetParameters -ParameterName 'QueueIds')
+    if ($queueIds.Count -gt 0) {
+        $segmentFilters.Add([ordered]@{
+            type       = 'or'
+            predicates = @($queueIds | ForEach-Object {
+                [ordered]@{ type = 'dimension'; dimension = 'queueId'; operator = 'matches'; value = [string]$_ }
+            })
+        })
+    }
+
+    $userIds = @(Resolve-DatasetParameterValues -DatasetParameters $DatasetParameters -ParameterName 'UserIds')
+    if ($userIds.Count -gt 0) {
+        $segmentFilters.Add([ordered]@{
+            type       = 'or'
+            predicates = @($userIds | ForEach-Object {
+                [ordered]@{ type = 'dimension'; dimension = 'userId'; operator = 'matches'; value = [string]$_ }
+            })
+        })
+    }
+
+    if ($segmentFilters.Count -gt 0) {
+        $body.segmentFilters = $segmentFilters.ToArray()
     }
 
     # Conversation-level filters: conversationId and/or divisionIds
@@ -822,21 +900,24 @@ function Invoke-AnalyticsConversationDetailsDataset {
         }
     }
 
-    if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('DivisionIds')) {
-        $rawDivisionIds = $DatasetParameters['DivisionIds']
-        $divisionIds = if ($rawDivisionIds -is [array]) {
-            @($rawDivisionIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-        } else {
-            @([string]$rawDivisionIds -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-        }
-        if ($divisionIds.Count -gt 0) {
-            $conversationFilters.Add([ordered]@{
-                type       = 'or'
-                predicates = @($divisionIds | ForEach-Object {
-                    [ordered]@{ type = 'dimension'; dimension = 'divisionId'; operator = 'matches'; value = [string]$_ }
-                })
+    $divisionIds = @(Resolve-DatasetParameterValues -DatasetParameters $DatasetParameters -ParameterName 'DivisionIds')
+    if ($divisionIds.Count -gt 0) {
+        $conversationFilters.Add([ordered]@{
+            type       = 'or'
+            predicates = @($divisionIds | ForEach-Object {
+                [ordered]@{ type = 'dimension'; dimension = 'divisionId'; operator = 'matches'; value = [string]$_ }
             })
-        }
+        })
+    }
+
+    $mediaTypes = @(Resolve-DatasetParameterValues -DatasetParameters $DatasetParameters -ParameterName 'MediaTypes')
+    if ($mediaTypes.Count -gt 0) {
+        $conversationFilters.Add([ordered]@{
+            type       = 'or'
+            predicates = @($mediaTypes | ForEach-Object {
+                [ordered]@{ type = 'dimension'; dimension = 'mediaType'; operator = 'matches'; value = [string]$_ }
+            })
+        })
     }
 
     if ($conversationFilters.Count -gt 0) {

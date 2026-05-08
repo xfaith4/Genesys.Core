@@ -165,13 +165,14 @@ not the manifest.
 
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| identity | `users` | seed | Name, email, state, manager |
-| division | `users.division.analysis.get.users.with.division.info` | `userId` | Division + location |
-| skills | `routing.get.all.routing.skills` (filtered) | `userId` | Skill assignments + proficiency |
-| queues | `routing-queues` (filtered to memberships) | `userId` | Queue memberships |
-| presence | `users.get.bulk.user.presences` | `userId` | Presence in window |
-| activity | `analytics.query.user.details.activity.report` | `userId` | Login/logout/on-queue |
-| conversations | `analytics-conversation-details-query` (filtered by participant) | `userId` | Conversations the agent touched |
+| identity | `users.get.user.details.with.full.expansion` | seed | Name, email, state, manager, expanded user details |
+| division | `(derived)` | `userId` | Division details carried by the scoped identity response |
+| skills | `users.get.user.routing.skills` | `userId` | Skill assignments + proficiency |
+| queues | `users.get.user.queue.memberships` | `userId` | Queue memberships |
+| presence | `users.get.bulk.user.presences` (single-user query) | `userId` | Current PureCloud presence for the user |
+| activity | `analytics.query.user.details.activity.report` (user/window body filter) | `userId` | Login/logout/on-queue activity in the requested window |
+| conversations | `analytics-conversation-details-query` (user/window segment filter) | `userId` | Conversations the agent touched |
+| auditAccountChanges | `audit-logs` (EntityType=`User`, EntityId=`userId`) | `userId` | Audit changes made to the agent account |
 
 ### 4.2 Conversation investigation _(Release 1.1)_
 
@@ -216,7 +217,7 @@ under Track A.
 
 | Investigation | Datasets that must pass `Live Invoke-Dataset acceptance passed` first |
 | --- | --- |
-| Agent | `users`, division-info, skills, `routing-queues`, bulk presences, user activity report, `analytics-conversation-details-query` |
+| Agent | `users.get.user.details.with.full.expansion`, `users.get.user.routing.skills`, `users.get.user.queue.memberships`, bulk presences with one-user query parameters, user activity report with a user/window body, `analytics-conversation-details-query` with a user/window body, `audit-logs` with EntityType/EntityId filters |
 | Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
 

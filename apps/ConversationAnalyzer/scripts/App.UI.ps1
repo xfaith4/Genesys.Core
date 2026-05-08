@@ -145,6 +145,32 @@ $script:TxtMosQuality          = _Ctrl 'TxtMosQuality'
 $script:TxtRawJson             = _Ctrl 'TxtRawJson'
 $script:BtnExpandJson          = _Ctrl 'BtnExpandJson'
 
+# Timeline Analysis tab
+$script:TxtTimelineAgentId          = _Ctrl 'TxtTimelineAgentId'
+$script:DpTimelineStart             = _Ctrl 'DpTimelineStart'
+$script:DpTimelineEnd               = _Ctrl 'DpTimelineEnd'
+$script:ChkTimelinePreview          = _Ctrl 'ChkTimelinePreview'
+$script:ChkTimelineRecording        = _Ctrl 'ChkTimelineRecording'
+$script:ChkTimelineSpeech           = _Ctrl 'ChkTimelineSpeech'
+$script:ChkTimelineSuggestions      = _Ctrl 'ChkTimelineSuggestions'
+$script:ChkTimelineCustomAttrs      = _Ctrl 'ChkTimelineCustomAttrs'
+$script:BtnStartTimelineRun         = _Ctrl 'BtnStartTimelineRun'
+$script:BtnCancelTimelineRun        = _Ctrl 'BtnCancelTimelineRun'
+$script:LblTimelineConvCount        = _Ctrl 'LblTimelineConvCount'
+$script:LblTimelineEventCount       = _Ctrl 'LblTimelineEventCount'
+$script:LblTimelineWithRecording    = _Ctrl 'LblTimelineWithRecording'
+$script:LblTimelineWithSpeech       = _Ctrl 'LblTimelineWithSpeech'
+$script:LblTimelineWithSuggestions  = _Ctrl 'LblTimelineWithSuggestions'
+$script:LblTimelineErrors           = _Ctrl 'LblTimelineErrors'
+$script:DgTimelineConversations     = _Ctrl 'DgTimelineConversations'
+$script:ColTimelineDetail           = _Ctrl 'ColTimelineDetail'
+$script:TxtTimelineDetailId         = _Ctrl 'TxtTimelineDetailId'
+$script:TxtTimelineDetailSummary    = _Ctrl 'TxtTimelineDetailSummary'
+$script:CanvasTimelineLanes         = _Ctrl 'CanvasTimelineLanes'
+$script:DgTimelineEvents            = _Ctrl 'DgTimelineEvents'
+$script:DgTimelineAttributes        = _Ctrl 'DgTimelineAttributes'
+$script:DgTimelineEnrichment        = _Ctrl 'DgTimelineEnrichment'
+
 # Run Console tab
 $script:TxtConsoleStatus       = _Ctrl 'TxtConsoleStatus'
 $script:DgRunEvents            = _Ctrl 'DgRunEvents'
@@ -229,6 +255,11 @@ $script:State = @{
     AutoImportJob      = $null  # background Import-RunFolderToCase job
     AutoImportRunspace = $null
     AutoImportTimer    = $null
+    TimelineJob        = $null  # background timeline analysis job
+    TimelineRunspace   = $null
+    TimelineTimer      = $null
+    TimelineRunFolder  = $null  # run folder for the current/last timeline run
+    TimelineRunCancelled = $false
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -3256,6 +3287,379 @@ function _ImportCurrentRunToCase {
         -FromButton
 }
 
+function _StartTimelineRun {
+    <#
+    .SYNOPSIS
+        Launches a background runspace that calls Start-TimelineRun and polls
+        conversations.jsonl / summary.json progressively while the run executes.
+    #>
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys.Core is not initialized. Open Settings to configure paths.', 'Timeline')
+        return
+    }
+
+    $agentId = [string]$script:TxtTimelineAgentId.Text
+    $startDt = $script:DpTimelineStart.SelectedDate
+    $endDt   = $script:DpTimelineEnd.SelectedDate
+
+    if ([string]::IsNullOrWhiteSpace($agentId)) {
+        [System.Windows.MessageBox]::Show('Agent ID is required.', 'Timeline')
+        return
+    }
+    if ($null -eq $startDt -or $null -eq $endDt) {
+        [System.Windows.MessageBox]::Show('Start and end dates are required.', 'Timeline')
+        return
+    }
+    if ($startDt -ge $endDt) {
+        [System.Windows.MessageBox]::Show('Start date must be before end date.', 'Timeline')
+        return
+    }
+
+    $interval    = "$($startDt.ToUniversalTime().ToString('o'))/$($endDt.ToUniversalTime().ToString('o'))"
+    $previewMode = $script:ChkTimelinePreview.IsChecked -eq $true
+    $inclRec     = $script:ChkTimelineRecording.IsChecked -eq $true
+    $inclSpeech  = $script:ChkTimelineSpeech.IsChecked -eq $true
+    $inclSug     = $script:ChkTimelineSuggestions.IsChecked -eq $true
+    $inclCustom  = $script:ChkTimelineCustomAttrs.IsChecked -eq $true
+
+    $cfg         = Get-AppConfig
+    $coreModPath = [string]$cfg.CoreModulePath
+    $catalogPath = [string]$cfg.CatalogPath
+    $outputRoot  = [string]$cfg.OutputRoot
+    $headers     = $script:State.AuthHeaders
+    $baseUri     = [string]$cfg.BaseUri
+
+    $script:State.TimelineRunFolder   = $null
+    $script:State.TimelineRunCancelled = $false
+
+    # Clear KPI bar
+    _Dispatch {
+        if ($script:LblTimelineConvCount)       { $script:LblTimelineConvCount.Text       = '...' }
+        if ($script:LblTimelineEventCount)      { $script:LblTimelineEventCount.Text      = '...' }
+        if ($script:LblTimelineWithRecording)   { $script:LblTimelineWithRecording.Text   = '...' }
+        if ($script:LblTimelineWithSpeech)      { $script:LblTimelineWithSpeech.Text      = '...' }
+        if ($script:LblTimelineWithSuggestions) { $script:LblTimelineWithSuggestions.Text = '...' }
+        if ($script:LblTimelineErrors)          { $script:LblTimelineErrors.Text          = '...' }
+        if ($script:DgTimelineConversations)    { $script:DgTimelineConversations.ItemsSource = $null }
+        if ($script:BtnStartTimelineRun)        { $script:BtnStartTimelineRun.IsEnabled   = $false }
+        if ($script:BtnCancelTimelineRun)       { $script:BtnCancelTimelineRun.IsEnabled  = $true }
+    }
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+
+    [void]$ps.AddScript({
+        param($coreModPath, $catalogPath, $outputRoot, $agentId, $interval, $headers, $baseUri,
+              $previewMode, $inclRec, $inclSpeech, $inclSug, $inclCustom)
+
+        Import-Module $coreModPath -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $coreModPath -CatalogPath $catalogPath -OutputRoot $outputRoot
+
+        $result = Start-TimelineRun `
+            -AgentId  $agentId `
+            -Interval $interval `
+            -PreviewMode             $previewMode `
+            -IncludeRecordingMetadata $inclRec `
+            -IncludeSpeechTextAnalytics $inclSpeech `
+            -IncludeSuggestions      $inclSug `
+            -IncludeCustomAttributes $inclCustom `
+            -Headers  $headers `
+            -BaseUri  $baseUri
+
+        return $result
+    })
+
+    [void]$ps.AddParameters(@{
+        coreModPath  = $coreModPath;  catalogPath = $catalogPath;  outputRoot = $outputRoot
+        agentId      = $agentId;      interval    = $interval;     headers     = $headers
+        baseUri      = $baseUri;      previewMode = $previewMode;  inclRec     = $inclRec
+        inclSpeech   = $inclSpeech;   inclSug     = $inclSug;      inclCustom  = $inclCustom
+    })
+
+    $async = $ps.BeginInvoke()
+    $startedUtc = [datetime]::UtcNow
+    $script:State.TimelineJob      = [pscustomobject]@{ Ps = $ps; Async = $async; StartedUtc = $startedUtc }
+    $script:State.TimelineRunspace = $rs
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromSeconds(2)
+
+    $timer.Add_Tick({
+        param($sender, $e)
+
+        if ($script:State.TimelineRunCancelled) {
+            $sender.Stop()
+            _Dispatch {
+                if ($script:BtnStartTimelineRun)  { $script:BtnStartTimelineRun.IsEnabled  = $true }
+                if ($script:BtnCancelTimelineRun) { $script:BtnCancelTimelineRun.IsEnabled = $false }
+            }
+            _SetStatus 'Timeline run cancelled'
+            return
+        }
+
+        $job = $script:State.TimelineJob
+        if ($null -eq $job) { $sender.Stop(); return }
+
+        # Discover the run folder as soon as the dataset run creates it
+        if ($null -eq $script:State.TimelineRunFolder) {
+            $discovered = _FindInProgressRunFolder `
+                -OutputRoot $outputRoot `
+                -DatasetKey 'analytics-conversation-timeline-analysis' `
+                -StartedAfterUtc $job.StartedUtc
+            if ($null -ne $discovered) {
+                $script:State.TimelineRunFolder = $discovered
+            }
+        }
+
+        # Progressively load conversations.jsonl while run is in flight
+        $runFolder = $script:State.TimelineRunFolder
+        if ($null -ne $runFolder -and [System.IO.File]::Exists([System.IO.Path]::Combine($runFolder, 'conversations.jsonl'))) {
+            _RenderTimelineConversationGrid -RunFolder $runFolder
+            _UpdateTimelineSummaryBar -RunFolder $runFolder
+        }
+
+        if (-not $job.Async.IsCompleted) { return }
+
+        # Run completed
+        $sender.Stop()
+        $script:State.TimelineTimer = $null
+        $endFailure = $null
+
+        try {
+            $result = $job.Ps.EndInvoke($job.Async)
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() }                           catch {}
+            try { $script:State.TimelineRunspace.Close() }     catch {}
+            try { $script:State.TimelineRunspace.Dispose() }   catch {}
+            $script:State.TimelineJob      = $null
+            $script:State.TimelineRunspace = $null
+        }
+
+        _Dispatch {
+            if ($script:BtnStartTimelineRun)  { $script:BtnStartTimelineRun.IsEnabled  = $true }
+            if ($script:BtnCancelTimelineRun) { $script:BtnCancelTimelineRun.IsEnabled = $false }
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus "Timeline run failed: $endFailure"
+            return
+        }
+
+        # Final render pass
+        if ($null -ne $script:State.TimelineRunFolder) {
+            _RenderTimelineConversationGrid -RunFolder $script:State.TimelineRunFolder
+            _UpdateTimelineSummaryBar -RunFolder $script:State.TimelineRunFolder
+        }
+        _SetStatus 'Timeline analysis run complete'
+    })
+
+    $script:State.TimelineTimer = $timer
+    $timer.Start()
+    _SetStatus 'Timeline analysis run started...'
+}
+
+function _UpdateTimelineSummaryBar {
+    param([string]$RunFolder)
+    $summaryPath = [System.IO.Path]::Combine($RunFolder, 'summary.json')
+    if (-not [System.IO.File]::Exists($summaryPath)) { return }
+    try {
+        $s = [System.IO.File]::ReadAllText($summaryPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        _Dispatch {
+            if ($script:LblTimelineConvCount)       { $script:LblTimelineConvCount.Text       = [string]$s.conversationCount }
+            if ($script:LblTimelineEventCount)      { $script:LblTimelineEventCount.Text      = [string]$s.timelineEventCount }
+            if ($script:LblTimelineWithRecording)   { $script:LblTimelineWithRecording.Text   = [string]$s.conversationsWithRecording }
+            if ($script:LblTimelineWithSpeech)      { $script:LblTimelineWithSpeech.Text      = [string]$s.conversationsWithSpeechAnalytics }
+            if ($script:LblTimelineWithSuggestions) { $script:LblTimelineWithSuggestions.Text = [string]$s.conversationsWithSuggestions }
+            if ($script:LblTimelineErrors)          { $script:LblTimelineErrors.Text          = [string]$s.errorCount }
+        }
+    } catch { }
+}
+
+function _RenderTimelineConversationGrid {
+    param([string]$RunFolder)
+    if ([string]::IsNullOrWhiteSpace($RunFolder)) { return }
+
+    try {
+        $convRows = @(Get-TimelineConversations -RunFolder $RunFolder -MaxRows 2000)
+    } catch { return }
+
+    $displayRows = [System.Collections.Generic.List[object]]::new()
+    foreach ($c in $convRows) {
+        $startStr = [string]$c.conversationStart
+        $endStr   = [string]$c.conversationEnd
+        $durLabel = ''
+        try {
+            if (-not [string]::IsNullOrWhiteSpace($startStr) -and -not [string]::IsNullOrWhiteSpace($endStr)) {
+                $durSec = [int]([datetime]::Parse($endStr) - [datetime]::Parse($startStr)).TotalSeconds
+                $durLabel = '{0}:{1:D2}:{2:D2}' -f [int]($durSec / 3600), [int](($durSec % 3600) / 60), ($durSec % 60)
+            }
+        } catch { }
+
+        $displayRows.Add([pscustomobject]@{
+            conversationId       = [string]$c.conversationId
+            conversationStart    = $startStr
+            durationLabel        = $durLabel
+            originatingDirection = [string]$c.originatingDirection
+            mediaTypesLabel      = @([string[]]$c.mediaTypes) -join ', '
+            agentIdsLabel        = @([string[]]$c.agentIds | ForEach-Object { $_.Substring(0, [Math]::Min(8, $_.Length)) }) -join ', '
+            queueIdsLabel        = @([string[]]$c.queueIds | ForEach-Object { $_.Substring(0, [Math]::Min(8, $_.Length)) }) -join ', '
+            recordingLabel       = if ($c.hasRecording) { 'Yes' } else { 'No' }
+            speechLabel          = if ($c.hasSpeechAnalytics) { 'Yes' } else { 'No' }
+            suggestionsLabel     = if ($c.hasSuggestions) { 'Yes' } else { 'No' }
+            warningsLabel        = ''
+            _raw                 = $c
+        }) | Out-Null
+    }
+
+    _Dispatch {
+        if ($null -ne $script:DgTimelineConversations) {
+            $script:DgTimelineConversations.ItemsSource = $displayRows.ToArray()
+        }
+    }
+}
+
+function _RenderTimelineDetailPane {
+    param([string]$ConversationId, [string]$RunFolder)
+    if ([string]::IsNullOrWhiteSpace($ConversationId) -or [string]::IsNullOrWhiteSpace($RunFolder)) { return }
+
+    try { $events  = @(Get-TimelineEvents  -RunFolder $RunFolder -ConversationId $ConversationId) } catch { $events  = @() }
+    try { $errors  = @(Get-TimelineErrors  -RunFolder $RunFolder -ConversationId $ConversationId) } catch { $errors  = @() }
+
+    # Header
+    $startStr  = ($events | Where-Object { [string]$_.eventType -eq 'conversation.start' } | Select-Object -First 1).eventTime
+    $endStr    = ($events | Where-Object { [string]$_.eventType -eq 'conversation.end'   } | Select-Object -First 1).eventTime
+    $summaryTxt = "Start: $startStr  |  End: $endStr  |  Events: $($events.Count)"
+
+    _Dispatch {
+        if ($script:TxtTimelineDetailId)      { $script:TxtTimelineDetailId.Text      = $ConversationId }
+        if ($script:TxtTimelineDetailSummary) { $script:TxtTimelineDetailSummary.Text = $summaryTxt }
+
+        # Expand detail pane column
+        if ($null -ne $script:ColTimelineDetail) { $script:ColTimelineDetail.Width = [System.Windows.GridLength]::new(480) }
+
+        # Events grid
+        if ($null -ne $script:DgTimelineEvents) {
+            $script:DgTimelineEvents.ItemsSource = $events
+        }
+
+        # Attributes grid (filter to attribute event types)
+        if ($null -ne $script:DgTimelineAttributes) {
+            $attrRows = @($events | Where-Object { [string]$_.eventType -like 'attribute.*' } | ForEach-Object {
+                [pscustomobject]@{
+                    eventType = [string]$_.eventType
+                    attrName  = [string]$_.details.name
+                    attrValue = [string]$_.details.value
+                }
+            })
+            $script:DgTimelineAttributes.ItemsSource = $attrRows
+        }
+
+        # Enrichment errors grid
+        if ($null -ne $script:DgTimelineEnrichment) {
+            $script:DgTimelineEnrichment.ItemsSource = $errors
+        }
+    }
+
+    # Draw lane visualization
+    _DrawTimelineLanes -Events $events
+}
+
+function _DrawTimelineLanes {
+    param([object[]]$Events)
+    if ($null -eq $script:CanvasTimelineLanes) { return }
+
+    $laneNames = @('conversation','customer','ivr','queue','agent','recording','speech','suggestions','attributes','warnings')
+    $laneHeight = 15.0
+    $laneGap    = 2.0
+    $leftMargin = 90.0
+    $topMargin  = 5.0
+
+    # Determine time bounds
+    $allTimes = @($Events | ForEach-Object {
+        try { [datetime]::Parse([string]$_.eventTime) } catch { }
+    } | Where-Object { $_ })
+
+    $minTime = if ($allTimes.Count -gt 0) { $allTimes | Sort-Object | Select-Object -First 1 } else { [datetime]::UtcNow }
+    $maxTime = if ($allTimes.Count -gt 0) { $allTimes | Sort-Object | Select-Object -Last  1 } else { $minTime.AddSeconds(60) }
+    $totalMs = [math]::Max(1, ($maxTime - $minTime).TotalMilliseconds)
+    $canvasWidth = 800.0
+    $drawWidth   = $canvasWidth - $leftMargin - 10
+
+    _Dispatch {
+        if ($null -eq $script:CanvasTimelineLanes) { return }
+        $script:CanvasTimelineLanes.Children.Clear()
+        $script:CanvasTimelineLanes.Width = $canvasWidth
+
+        $laneMap = @{
+            'conversation.start' = 'conversation'; 'conversation.end' = 'conversation'
+            'segment.ivr'  = 'ivr';   'segment.flow' = 'ivr';  'segment.routing' = 'queue'
+            'segment.alert' = 'queue'; 'segment.talk' = 'agent'; 'segment.hold' = 'agent'
+            'segment.acw'  = 'agent'; 'segment.transfer' = 'agent'; 'segment.consult' = 'agent'
+            'recording.available' = 'recording'
+            'speech.sentiment' = 'speech'; 'speech.topic' = 'speech'
+            'suggestion.offered' = 'suggestions'
+            'attribute.custom' = 'attributes'; 'attribute.participant' = 'attributes'
+            'enrichment.warning' = 'warnings'
+        }
+
+        for ($li = 0; $li -lt $laneNames.Count; $li++) {
+            $laneName = $laneNames[$li]
+            $laneY    = $topMargin + $li * ($laneHeight + $laneGap)
+
+            # Lane label
+            $lbl = New-Object System.Windows.Controls.TextBlock
+            $lbl.Text = $laneName
+            $lbl.FontSize = 9
+            $lbl.Foreground = [System.Windows.Media.Brushes]::Gray
+            $lbl.Width  = $leftMargin - 4
+            $lbl.TextAlignment = [System.Windows.TextAlignment]::Right
+            [System.Windows.Controls.Canvas]::SetLeft($lbl, 0)
+            [System.Windows.Controls.Canvas]::SetTop($lbl, $laneY + 2)
+            $script:CanvasTimelineLanes.Children.Add($lbl) | Out-Null
+
+            # Lane background strip
+            $strip = New-Object System.Windows.Shapes.Rectangle
+            $strip.Width  = $drawWidth
+            $strip.Height = $laneHeight
+            $strip.Fill   = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(20,100,150,200))
+            [System.Windows.Controls.Canvas]::SetLeft($strip, $leftMargin)
+            [System.Windows.Controls.Canvas]::SetTop($strip,  $laneY)
+            $script:CanvasTimelineLanes.Children.Add($strip) | Out-Null
+        }
+
+        # Event markers
+        foreach ($evt in $Events) {
+            $targetLane = $null
+            foreach ($pair in $laneMap.GetEnumerator()) {
+                if ([string]$evt.eventType -like "$($pair.Key)*") { $targetLane = $pair.Value; break }
+            }
+            if ($null -eq $targetLane) { $targetLane = 'conversation' }
+
+            $li = [array]::IndexOf($laneNames, $targetLane)
+            if ($li -lt 0) { continue }
+
+            $evtTime = try { [datetime]::Parse([string]$evt.eventTime) } catch { continue }
+            $pct     = ($evtTime - $minTime).TotalMilliseconds / $totalMs
+            $x       = $leftMargin + $pct * $drawWidth
+            $laneY   = $topMargin + $li * ($laneHeight + $laneGap)
+
+            $marker = New-Object System.Windows.Shapes.Rectangle
+            $marker.Width  = 4
+            $marker.Height = $laneHeight
+            $marker.Fill   = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(200,0,200,180))
+            $marker.ToolTip = "$($evt.eventType): $($evt.label)"
+            [System.Windows.Controls.Canvas]::SetLeft($marker, $x - 2)
+            [System.Windows.Controls.Canvas]::SetTop($marker,  $laneY)
+            $script:CanvasTimelineLanes.Children.Add($marker) | Out-Null
+        }
+    }
+}
+
 function _StartAutoImportInBackground {
     <#
     .SYNOPSIS
@@ -5425,6 +5829,31 @@ if ($null -ne $script:BtnPullQualityReport) {
 
 if ($null -ne $script:DgLowScoreConversations) {
     $script:DgLowScoreConversations.Add_SelectionChanged({ _OpenLowScoreConversation })
+}
+
+# ── Timeline Analysis event handlers ──────────────────────────────────────────
+
+if ($null -ne $script:BtnStartTimelineRun) {
+    $script:BtnStartTimelineRun.Add_Click({ _StartTimelineRun })
+}
+
+if ($null -ne $script:BtnCancelTimelineRun) {
+    $script:BtnCancelTimelineRun.Add_Click({
+        $script:State.TimelineRunCancelled = $true
+        _SetStatus 'Cancelling timeline run...'
+    })
+}
+
+if ($null -ne $script:DgTimelineConversations) {
+    $script:DgTimelineConversations.Add_SelectionChanged({
+        $selected = $script:DgTimelineConversations.SelectedItem
+        if ($null -eq $selected) { return }
+        $cId      = [string]$selected.conversationId
+        $runFolder = $script:State.TimelineRunFolder
+        if (-not [string]::IsNullOrWhiteSpace($cId) -and -not [string]::IsNullOrWhiteSpace($runFolder)) {
+            _RenderTimelineDetailPane -ConversationId $cId -RunFolder $runFolder
+        }
+    })
 }
 
 # ── Query Template event handlers ─────────────────────────────────────────────

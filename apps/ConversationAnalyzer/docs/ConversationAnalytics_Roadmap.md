@@ -366,6 +366,15 @@ All calls are made with `Invoke-Dataset -Dataset <key> -CatalogPath $catalogPath
 | `quality.get.evaluations.query` | Evaluation scores, form names, agents, calibration status |
 | `quality.get.surveys` | Post-call survey results — CSAT, NPS, customer verbatim |
 | `speechandtextanalytics.get.topics` | Speech and text analytics topic definitions |
+| `conversations.get.conversation.object` | Single canonical conversation object — participants, sessions, attributes |
+| `conversations.get.conversation.customattributes` | Per-conversation custom attributes (fallback/single-conversation enrichment) |
+| `conversations.search.customattributes` | Bulk custom attribute search across conversations |
+| `conversations.search.participant.attributes` | Bulk historical participant attribute search (IVR/Architect data) |
+| `conversations.get.conversation.suggestions` | Agent assist / suggestion listing for a conversation |
+| `conversations.get.conversation.suggestion.detail` | Full detail for a single suggestion |
+| `conversations.get.conversation.recording.metadata` | Recording metadata — IDs, media type, timing |
+| `conversations.get.speech.text.analytics` | Speech and text analytics summary for a conversation |
+| `analytics-conversation-timeline-analysis` | Compound dataset — async details job + enrichment fan-out + normalized timeline events |
 
 ---
 
@@ -611,6 +620,237 @@ Task: add a composite "Incident Impact Summary" that assembles data already in t
 Validation: pull two windows around a known configuration change in a test org and verify the delta calculations are correct, the regression ranking identifies the expected queues, and the Incident Impact Summary exports cleanly.
 
 Documentation: document the two-window model, explain that Window A is typically the baseline and Window B is the incident or post-change window, and describe how to configure the windows from the case date range controls.
+
+---
+
+## Timeline Analysis Release (Sessions 21–24)
+
+> **Purpose:** These sessions implement the Conversation Timeline Analysis capability described in the
+> technical design document `genesys_conversation_timeline_analysis_technical_design.md`. The goal is
+> a compound dataset that combines analytics conversation details (existing) with six per-conversation
+> enrichment endpoints (new) to produce a normalized, engineer-readable event stream per conversation.
+>
+> **Non-negotiable constraints:**
+> - No Genesys API calls from the UI. All calls go through `Invoke-Dataset` via `App.CoreAdapter.psm1`.
+> - The new `analytics-conversation-timeline-analysis` dataset is the single entry point for the UI.
+> - Analytics extraction failure fails the run; enrichment failures produce warnings only.
+> - `timeline-events.jsonl` is the canonical UI event stream.
+> - Raw source responses persist under `data/` before normalization for audit.
+
+---
+
+## Session 21: Catalog Enrichment Endpoints and Dataset Contract — **COMPLETE**
+
+> **What was delivered:** Seven new dataset entries added to `genesys.catalog.json` backed by endpoints
+> already present in the catalog's endpoint registry. A new compound dataset key
+> `analytics-conversation-timeline-analysis` registered in the catalog and in `Get-DatasetRegistry`.
+>
+> New catalog dataset keys:
+> - `conversations.get.conversation.object` — `GET /api/v2/conversations/{conversationId}`
+> - `conversations.get.conversation.customattributes` — `GET /api/v2/conversations/{conversationId}/customattributes`
+> - `conversations.search.customattributes` — `POST /api/v2/conversations/customattributes/search`
+> - `conversations.search.participant.attributes` — `POST /api/v2/conversations/participants/attributes/search`
+> - `conversations.get.conversation.suggestions` — `GET /api/v2/conversations/{conversationId}/suggestions`
+> - `conversations.get.conversation.suggestion.detail` — `GET /api/v2/conversations/{conversationId}/suggestions/{suggestionId}`
+> - `conversations.get.conversation.recording.metadata` — `GET /api/v2/conversations/{conversationId}/recordingmetadata`
+> - `conversations.get.speech.text.analytics` — `GET /api/v2/speechandtextanalytics/conversations/{conversationId}`
+> - `analytics-conversation-timeline-analysis` — compound dataset key registered in `Get-DatasetRegistry`
+
+Scope: establish the catalog contract for all enrichment endpoints required by the timeline analysis
+technical design so Core validation, compliance tests, and dataset dispatch can resolve every endpoint key
+before the compound handler is implemented.
+
+Task: add eight simple dataset entries to the `datasets` section of `genesys.catalog.json`, each backed
+by an endpoint key already present in the `endpoints` registry. Use `paging.profile: "none"` for single-object
+GET endpoints. Use appropriate `itemsPath` per endpoint.
+
+Task: add `analytics-conversation-timeline-analysis` to `genesys.catalog.json` datasets with a
+`description`, a compound `mode` field, and no simple `endpoint` reference — the handler is registered
+directly in `Get-DatasetRegistry`.
+
+Task: register `analytics-conversation-timeline-analysis` → `Invoke-ConversationTimelineAnalysisDataset`
+in `Get-DatasetRegistry` in `Datasets.ps1` (the function stub can throw "not yet implemented" until Session 22).
+
+Validation: `Assert-Catalog` passes. All new dataset keys resolve without error. Existing dataset
+tests continue to pass.
+
+Documentation: the dataset reference table in this roadmap is updated to include all nine new keys.
+
+---
+
+## Session 22: Timeline Analysis Core Dataset Handler — **COMPLETE**
+
+> **What was delivered:** `Invoke-ConversationTimelineAnalysisDataset` implemented in `Datasets.ps1`.
+> The handler orchestrates:
+> 1. Async analytics details job (existing engine) → persists `data/analytics-details.jsonl`
+> 2. Per-conversation enrichment fan-out for all six enrichment types (with partial-failure tolerance)
+> 3. Timeline event normalization from every source into the stable event schema
+> 4. Multi-artifact output: `manifest.json`, `summary.json`, `conversations.jsonl`, `timeline-events.jsonl`,
+>    `errors.jsonl`, `timeline-index.json`, `data/` subfolder with per-source raw files
+
+Scope: implement the compound dataset handler that is the single Genesys.Core entry point for
+conversation timeline analysis. The handler owns all API calls, pagination, job polling, enrichment
+fan-out, normalization, and artifact emission.
+
+Task: implement `Invoke-ConversationTimelineAnalysisDataset` in `Datasets.ps1`. Structure:
+
+```text
+Phase 1 — Analytics extraction
+  If preview mode (IncludePreviewMode param):
+    POST /analytics/conversations/details/query → data/analytics-details-preview.jsonl
+  Else (default):
+    POST /analytics/conversations/details/jobs → jobId
+    GET  /analytics/conversations/details/jobs/{jobId} → poll status
+    GET  /analytics/conversations/details/jobs/{jobId}/results → data/analytics-details.jsonl
+
+Phase 2 — Build conversation index
+  Extract conversation IDs → timeline-index.json with initial enrichment status
+
+Phase 3 — Enrichment fan-out (per conversation, failures are non-fatal)
+  For each conversationId:
+    GET /conversations/{conversationId}                            → data/conversation-objects.jsonl
+    GET /conversations/{conversationId}/customattributes          → data/custom-attributes.jsonl
+    GET /conversations/{conversationId}/recordingmetadata         → data/recording-metadata.jsonl
+    GET /speechandtextanalytics/conversations/{conversationId}    → data/speech-text-analytics.jsonl
+    GET /conversations/{conversationId}/suggestions               → data/suggestions.jsonl
+  Bulk enrichment where practical:
+    POST /conversations/customattributes/search                   → data/custom-attributes.jsonl
+    POST /conversations/participants/attributes/search            → data/participant-attributes.jsonl
+
+Phase 4 — Timeline event normalization
+  Normalize all sources into stable event schema
+  Sort by eventTime asc → eventPriority asc → participantPurpose → source → ingestion order
+  Write to timeline-events.jsonl
+
+Phase 5 — Aggregate outputs
+  Write conversations.jsonl (one row per conversation with enrichment status)
+  Write summary.json (conversation count, media types, disconnect types, coverage counts)
+  Write errors.jsonl (per-enrichment failure records)
+  Update manifest.json with final status, counts, and source endpoints
+```
+
+Task: define and implement the stable timeline event schema with fields: `conversationId`, `eventTime`,
+`eventType`, `source`, `participantId`, `sessionId`, `communicationId`, `sequence`, `label`, `details`, `rawRef`.
+
+Task: implement event generators for all event types from the document:
+`conversation.start`, `conversation.end`, `segment.ivr`, `segment.alert`, `segment.talk`, `segment.hold`,
+`segment.acw`, `segment.transfer`, `recording.available`, `speech.sentiment`, `speech.topic`,
+`suggestion.offered`, `attribute.custom`, `attribute.participant`, `enrichment.warning`.
+
+Task: implement event priority ordering per the design document table (priority 10–900).
+
+Task: enrichment failures must be written to `errors.jsonl` with `conversationId`, `sourceEndpoint`,
+`httpStatus`, and `message`. The overall run must still complete if analytics extraction succeeded.
+
+Validation: run the dataset against a test org with a known set of conversations. Confirm:
+- `timeline-events.jsonl` is populated and sorted.
+- All expected `data/` files are present.
+- A conversation with failed speech-analytics enrichment still appears in `conversations.jsonl`.
+- `summary.json` accurately counts recording coverage, speech analytics coverage, suggestion usage.
+- No direct Genesys API calls appear in any file outside `Datasets.ps1`.
+
+Documentation: update `Get-DatasetRegistry` comment with the full compound dataset key and mode description.
+
+---
+
+## Session 23: CoreAdapter Timeline Functions and Preview/Full Dispatch — **COMPLETE**
+
+> **What was delivered:** Three new functions added to `App.CoreAdapter.psm1`:
+> - `Start-TimelineRun` — invokes `analytics-conversation-timeline-analysis` with enrichment parameters
+> - `Get-TimelineConversations` — reads `conversations.jsonl` from a timeline run folder
+> - `Get-TimelineEvents` — reads `timeline-events.jsonl` for a specific conversation
+
+Scope: extend `App.CoreAdapter.psm1` with timeline-specific functions that mirror the existing
+`Start-PreviewRun` / `Start-FullRun` pattern and add timeline artifact readers.
+
+Task: add `Start-TimelineRun` to `App.CoreAdapter.psm1`. Parameters:
+  - `AgentId` (optional), `ConversationId` (optional), `QueueId` (optional)
+  - `Interval` (required ISO-8601)
+  - `MediaTypes` (optional array)
+  - `IncludeConversationObject` ($true default)
+  - `IncludeCustomAttributes` ($true default)
+  - `IncludeParticipantAttributes` ($true default)
+  - `IncludeSuggestions` ($true default)
+  - `IncludeRecordingMetadata` ($true default)
+  - `IncludeSpeechTextAnalytics` ($true default)
+  - `PreviewMode` ($false default — if $true, uses sync query instead of async job)
+
+Task: add `Get-TimelineConversations` to read `conversations.jsonl` from a timeline run folder using
+a `FileStream` + `StreamReader` (shared-write safe, no `Get-Content`). Return an array of conversation
+summary objects.
+
+Task: add `Get-TimelineEvents` to read `timeline-events.jsonl` for a specific `ConversationId` from
+a timeline run folder. Filter by `conversationId` field as lines are streamed. Return sorted event array.
+
+Task: add `Get-TimelineErrors` to read `errors.jsonl` from a timeline run folder for surfacing
+enrichment warnings in the UI.
+
+Task: export all new functions from `App.CoreAdapter.psm1`.
+
+Validation: unit tests confirm `Start-TimelineRun` calls `Invoke-Dataset` with key
+`analytics-conversation-timeline-analysis` and correct parameter mapping. `Get-TimelineEvents` returns
+only events for the specified conversationId.
+
+Documentation: update the Gate B comment block in `App.CoreAdapter.psm1` to include the timeline dataset key.
+
+---
+
+## Session 24: Timeline Analysis UI — Conversation Grid, Detail Pane, and Lane View — **COMPLETE**
+
+> **What was delivered:** "Timeline Analysis" tab added to `MainWindow.xaml`. `App.UI.ps1` wired with
+> `_StartTimelineRun`, `_RenderTimelineConversationGrid`, `_RenderTimelineDetailPane`, and
+> `_RenderTimelineLanes`. The tab shows a conversation grid that populates from `conversations.jsonl`
+> before enrichment completes, a right-hand detail pane, and a lane-based timeline visualization per
+> the design document spec.
+
+Scope: build the UI layer that consumes timeline artifacts without issuing any direct Genesys Cloud API calls.
+
+Task: add a "Timeline Analysis" `TabItem` to `MainWindow.xaml`. Controls:
+
+```text
+Input bar:
+  AgentId text field, Interval date pickers (start/end), Preview/Full Run toggle,
+  enrichment checkboxes (ConvObject, CustomAttrs, ParticipantAttrs, Suggestions, Recording, SpeechAnalytics),
+  Run button, Cancel button
+
+Main grid (DgTimelineConversations):
+  Start | Duration | Agent | Queue | Direction | Media | Disconnect |
+  Recording | SpeechAnalytics | Suggestions | Attributes | Flags
+
+Right-hand detail pane (initially collapsed):
+  Header summary
+  Timeline lane view (Canvas-based lanes per design document)
+  Segments tab | Attributes tab | Recording tab | SpeechAnalytics tab | Suggestions tab | Raw tabs
+```
+
+Task: add `_StartTimelineRun` to `App.UI.ps1`. Launches background runspace calling `Start-TimelineRun`.
+Polls run folder every 2 seconds. Populates conversation grid as soon as `conversations.jsonl` exists
+(before enrichment completes). Updates enrichment status columns incrementally.
+
+Task: add `_RenderTimelineConversationGrid` to bind `DgTimelineConversations` from `Get-TimelineConversations`.
+Flag columns (Recording, SpeechAnalytics, Suggestions, Attributes) use icon or color cell templates.
+Warnings/errors column highlights conversations with partial enrichment.
+
+Task: add `_RenderTimelineDetailPane` to open the right-hand pane when a conversation is selected.
+Reads `timeline-events.jsonl` via `Get-TimelineEvents` for the selected conversation. Populates each tab.
+
+Task: add `_RenderTimelineLanes` to render the lane-based timeline visualization using WPF `Canvas` or
+`ItemsControl`. Lanes per design document: Conversation, Customer, IVR/Flow, Queue/Routing, Agent,
+Recording, Speech Analytics, Suggestions, Metadata/Attributes, Warnings. Each event becomes a positioned
+rectangle/label on its lane, scaled to the conversation duration. No charting library dependency.
+
+Task: add `_ExportTimeline` to export the selected conversation's timeline events to CSV and the full
+run summary to a one-page text report.
+
+Validation:
+- Load a timeline run folder and confirm the conversation grid populates before enrichment completes.
+- Select a conversation and confirm all detail pane tabs populate from artifacts only (no API calls).
+- Confirm lane view renders events at approximately correct positions for a conversation ≥ 2 minutes.
+- Confirm conversations with missing enrichment data show warnings, not empty panes.
+- Architecture compliance tests pass with no new direct REST paths in any UI file.
+
+Documentation: update `README.md` to describe the Timeline Analysis tab, its inputs, and the artifact
+model it consumes.
 
 ---
 

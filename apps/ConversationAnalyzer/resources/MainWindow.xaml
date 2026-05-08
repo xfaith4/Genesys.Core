@@ -2123,6 +2123,303 @@
                                 </Grid>
                             </TabItem>
 
+                            <TabItem Header="Timeline Analysis" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Header card with inputs -->
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="CONVERSATION TIMELINE ANALYSIS"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Normalized per-conversation event timelines from analytics details plus optional enrichment (recording metadata, speech analytics, suggestions, custom attributes)."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,0,0,10"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="140"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="140"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Agent ID" Foreground="{StaticResource BrushSubtext}" FontSize="10" Margin="0,0,0,2"/>
+                                                        <TextBox x:Name="TxtTimelineAgentId"
+                                                                 Style="{StaticResource TxtBase}"
+                                                                 Width="220" Height="28"
+                                                                 ToolTip="Genesys Cloud user ID (UUID). Leave blank to use ConversationId or QueueId instead."/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Start Date (UTC)" Foreground="{StaticResource BrushSubtext}" FontSize="10" Margin="0,0,0,2"/>
+                                                        <DatePicker x:Name="DpTimelineStart"
+                                                                    Height="28"
+                                                                    Background="#1A2329"
+                                                                    Foreground="{StaticResource BrushText}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="4">
+                                                        <TextBlock Text="End Date (UTC)" Foreground="{StaticResource BrushSubtext}" FontSize="10" Margin="0,0,0,2"/>
+                                                        <DatePicker x:Name="DpTimelineEnd"
+                                                                    Height="28"
+                                                                    Background="#1A2329"
+                                                                    Foreground="{StaticResource BrushText}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                                        <CheckBox x:Name="ChkTimelinePreview"
+                                                                  Content="Preview mode"
+                                                                  Foreground="{StaticResource BrushText}"
+                                                                  Margin="0,0,12,0"
+                                                                  VerticalAlignment="Center"
+                                                                  ToolTip="Uses synchronous details query (fast, small sets). Uncheck for full async job."/>
+                                                        <CheckBox x:Name="ChkTimelineRecording"
+                                                                  Content="Recording"
+                                                                  Foreground="{StaticResource BrushText}"
+                                                                  IsChecked="True"
+                                                                  Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                        <CheckBox x:Name="ChkTimelineSpeech"
+                                                                  Content="Speech"
+                                                                  Foreground="{StaticResource BrushText}"
+                                                                  IsChecked="True"
+                                                                  Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                        <CheckBox x:Name="ChkTimelineSuggestions"
+                                                                  Content="Suggestions"
+                                                                  Foreground="{StaticResource BrushText}"
+                                                                  IsChecked="True"
+                                                                  Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                        <CheckBox x:Name="ChkTimelineCustomAttrs"
+                                                                  Content="Custom Attrs"
+                                                                  Foreground="{StaticResource BrushText}"
+                                                                  IsChecked="True"
+                                                                  Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                                <Button x:Name="BtnStartTimelineRun"
+                                                        Content="Run Timeline"
+                                                        Style="{StaticResource BtnAccent}"
+                                                        Height="30" Width="110" Margin="0,0,8,0"
+                                                        ToolTip="Start a timeline analysis run using the async analytics job plus enrichment fan-out."/>
+                                                <Button x:Name="BtnCancelTimelineRun"
+                                                        Content="Cancel"
+                                                        Style="{StaticResource BtnBase}"
+                                                        Height="30" Width="70"
+                                                        IsEnabled="False"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Summary KPI bar -->
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="CONVERSATIONS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineConvCount" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="TIMELINE EVENTS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineEventCount" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="W/ RECORDING" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineWithRecording" Text="—"
+                                                           Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="W/ SPEECH" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineWithSpeech" Text="—"
+                                                           Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="W/ SUGGESTIONS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineWithSuggestions" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="ENRICHMENT ERRORS" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTimelineErrors" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Main area: conversation grid + right-hand detail pane -->
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition x:Name="ColTimelineDetail" Width="0"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Conversation grid -->
+                                        <Border Grid.Column="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgTimelineConversations"
+                                                      Style="{StaticResource DgBase}"
+                                                      Margin="2"
+                                                      SelectionMode="Single"
+                                                      IsReadOnly="True">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Start" Binding="{Binding conversationStart}" Width="160"/>
+                                                    <DataGridTextColumn Header="Duration" Binding="{Binding durationLabel}" Width="80"/>
+                                                    <DataGridTextColumn Header="Direction" Binding="{Binding originatingDirection}" Width="80"/>
+                                                    <DataGridTextColumn Header="Media" Binding="{Binding mediaTypesLabel}" Width="80"/>
+                                                    <DataGridTextColumn Header="Agent(s)" Binding="{Binding agentIdsLabel}" Width="140"/>
+                                                    <DataGridTextColumn Header="Queue(s)" Binding="{Binding queueIdsLabel}" Width="140"/>
+                                                    <DataGridTextColumn Header="Recording" Binding="{Binding recordingLabel}" Width="80"/>
+                                                    <DataGridTextColumn Header="Speech" Binding="{Binding speechLabel}" Width="60"/>
+                                                    <DataGridTextColumn Header="Suggestions" Binding="{Binding suggestionsLabel}" Width="80"/>
+                                                    <DataGridTextColumn Header="Warnings" Binding="{Binding warningsLabel}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <!-- Right-hand detail pane (collapses until a row is selected) -->
+                                        <Border Grid.Column="2"
+                                                Background="{StaticResource BrushHero}"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="10">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+
+                                                <!-- Conversation header -->
+                                                <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                                    <TextBlock Text="CONVERSATION DETAIL"
+                                                               Style="{StaticResource LblSection}"
+                                                               Margin="0,0,0,4"/>
+                                                    <TextBlock x:Name="TxtTimelineDetailId"
+                                                               Text=""
+                                                               Foreground="{StaticResource BrushSubtext}"
+                                                               FontFamily="Consolas"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock x:Name="TxtTimelineDetailSummary"
+                                                               Text=""
+                                                               Foreground="{StaticResource BrushText}"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Lane visualization canvas -->
+                                                <Border Grid.Row="1"
+                                                        Background="#0A1218"
+                                                        BorderBrush="{StaticResource BrushLine}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Height="180"
+                                                        Margin="0,0,0,8">
+                                                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                                  VerticalScrollBarVisibility="Disabled">
+                                                        <Canvas x:Name="CanvasTimelineLanes"
+                                                                Height="170"
+                                                                MinWidth="600"/>
+                                                    </ScrollViewer>
+                                                </Border>
+
+                                                <!-- Detail tabs -->
+                                                <TabControl Grid.Row="2"
+                                                            Style="{StaticResource {x:Type TabControl}}"
+                                                            Background="Transparent">
+                                                    <TabItem Header="Events" Foreground="{StaticResource BrushText}">
+                                                        <Border Background="#0F161B"
+                                                                BorderBrush="{StaticResource BrushLine}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="2">
+                                                            <DataGrid x:Name="DgTimelineEvents"
+                                                                      Style="{StaticResource DgBase}"
+                                                                      Margin="2"
+                                                                      IsReadOnly="True">
+                                                                <DataGrid.Columns>
+                                                                    <DataGridTextColumn Header="Time" Binding="{Binding eventTime}" Width="160"/>
+                                                                    <DataGridTextColumn Header="Type" Binding="{Binding eventType}" Width="140"/>
+                                                                    <DataGridTextColumn Header="Source" Binding="{Binding source}" Width="120"/>
+                                                                    <DataGridTextColumn Header="Label" Binding="{Binding label}" Width="*"/>
+                                                                    <DataGridTextColumn Header="Seq" Binding="{Binding sequence}" Width="50"/>
+                                                                </DataGrid.Columns>
+                                                            </DataGrid>
+                                                        </Border>
+                                                    </TabItem>
+                                                    <TabItem Header="Attributes" Foreground="{StaticResource BrushText}">
+                                                        <Border Background="#0F161B"
+                                                                BorderBrush="{StaticResource BrushLine}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="2">
+                                                            <DataGrid x:Name="DgTimelineAttributes"
+                                                                      Style="{StaticResource DgBase}"
+                                                                      Margin="2"
+                                                                      IsReadOnly="True">
+                                                                <DataGrid.Columns>
+                                                                    <DataGridTextColumn Header="Type" Binding="{Binding eventType}" Width="120"/>
+                                                                    <DataGridTextColumn Header="Name" Binding="{Binding attrName}" Width="160"/>
+                                                                    <DataGridTextColumn Header="Value" Binding="{Binding attrValue}" Width="*"/>
+                                                                </DataGrid.Columns>
+                                                            </DataGrid>
+                                                        </Border>
+                                                    </TabItem>
+                                                    <TabItem Header="Enrichment" Foreground="{StaticResource BrushText}">
+                                                        <Border Background="#0F161B"
+                                                                BorderBrush="{StaticResource BrushLine}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="2">
+                                                            <DataGrid x:Name="DgTimelineEnrichment"
+                                                                      Style="{StaticResource DgBase}"
+                                                                      Margin="2"
+                                                                      IsReadOnly="True">
+                                                                <DataGrid.Columns>
+                                                                    <DataGridTextColumn Header="Endpoint" Binding="{Binding sourceEndpoint}" Width="*"/>
+                                                                    <DataGridTextColumn Header="Status" Binding="{Binding status}" Width="80"/>
+                                                                    <DataGridTextColumn Header="Message" Binding="{Binding message}" Width="280"/>
+                                                                </DataGrid.Columns>
+                                                            </DataGrid>
+                                                        </Border>
+                                                    </TabItem>
+                                                </TabControl>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+
                             <TabItem Header="Run Console" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>

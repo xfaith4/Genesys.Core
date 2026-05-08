@@ -8,8 +8,9 @@ Set-StrictMode -Version Latest
 #   - Call Invoke-Dataset
 #
 # Dataset keys (fixed by spec):
-#   Preview : analytics-conversation-details-query
-#   Full run: analytics-conversation-details
+#   Preview       : analytics-conversation-details-query
+#   Full run      : analytics-conversation-details
+#   Timeline run  : analytics-conversation-timeline-analysis
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:Initialized  = $false
@@ -884,11 +885,174 @@ function Get-QualityOverlayReport {
     }
 }
 
+function Start-TimelineRun {
+    <#
+    .SYNOPSIS
+        Gate B – invokes the compound timeline analysis dataset (analytics-conversation-timeline-analysis).
+    .PARAMETER AgentId
+        Genesys Cloud user ID to filter by. At least one of AgentId, ConversationId, or QueueId is required.
+    .PARAMETER ConversationId
+        Single conversation ID to analyze.
+    .PARAMETER QueueId
+        Queue ID to filter by.
+    .PARAMETER Interval
+        ISO-8601 interval string, e.g. "2026-04-30T00:00:00.000Z/2026-05-07T00:00:00.000Z".
+    .PARAMETER MediaTypes
+        Optional array of media types to filter: voice, callback, message, email.
+    .PARAMETER PreviewMode
+        If $true, uses the synchronous details query (fast, small result sets) instead of the async job.
+    .PARAMETER IncludeConversationObject
+        Fetch the canonical conversation object for each conversation. Default $true.
+    .PARAMETER IncludeCustomAttributes
+        Fetch per-conversation custom attributes. Default $true.
+    .PARAMETER IncludeParticipantAttributes
+        Fetch participant attributes (IVR/Architect data). Default $true.
+    .PARAMETER IncludeSuggestions
+        Fetch agent assist suggestions per conversation. Default $true.
+    .PARAMETER IncludeRecordingMetadata
+        Fetch recording metadata per conversation. Default $true.
+    .PARAMETER IncludeSpeechTextAnalytics
+        Fetch speech and text analytics per conversation. Default $true.
+    #>
+    param(
+        [string]$AgentId = '',
+        [string]$ConversationId = '',
+        [string]$QueueId = '',
+        [Parameter(Mandatory)][string]$Interval,
+        [string[]]$MediaTypes = @(),
+        [bool]$PreviewMode = $false,
+        [bool]$IncludeConversationObject = $true,
+        [bool]$IncludeCustomAttributes = $true,
+        [bool]$IncludeParticipantAttributes = $true,
+        [bool]$IncludeSuggestions = $true,
+        [bool]$IncludeRecordingMetadata = $true,
+        [bool]$IncludeSpeechTextAnalytics = $true,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    $params = @{
+        Interval                  = $Interval
+        PreviewMode               = $PreviewMode
+        IncludeConversationObject = $IncludeConversationObject
+        IncludeCustomAttributes   = $IncludeCustomAttributes
+        IncludeParticipantAttributes = $IncludeParticipantAttributes
+        IncludeSuggestions        = $IncludeSuggestions
+        IncludeRecordingMetadata  = $IncludeRecordingMetadata
+        IncludeSpeechTextAnalytics = $IncludeSpeechTextAnalytics
+    }
+    if (-not [string]::IsNullOrWhiteSpace($AgentId))        { $params['UserIds']        = $AgentId }
+    if (-not [string]::IsNullOrWhiteSpace($ConversationId)) { $params['ConversationId'] = $ConversationId }
+    if (-not [string]::IsNullOrWhiteSpace($QueueId))        { $params['QueueIds']       = $QueueId }
+    if ($MediaTypes.Count -gt 0)                            { $params['MediaTypes']     = $MediaTypes }
+
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-timeline-analysis' `
+        -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri
+}
+
+function Get-TimelineConversations {
+    <#
+    .SYNOPSIS
+        Reads conversations.jsonl from a timeline run folder using shared-read FileStream.
+        Returns an array of conversation summary objects.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [int]$MaxRows = 5000
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'conversations.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream -and $result.Count -lt $MaxRows) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try { $result.Add(($line | ConvertFrom-Json)) } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
+function Get-TimelineEvents {
+    <#
+    .SYNOPSIS
+        Reads timeline-events.jsonl for a specific ConversationId using shared-read FileStream.
+        Returns sorted event array for that conversation.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [Parameter(Mandatory)][string]$ConversationId
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'timeline-events.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json
+                if ([string]$obj.conversationId -eq $ConversationId) {
+                    $result.Add($obj)
+                }
+            } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
+function Get-TimelineErrors {
+    <#
+    .SYNOPSIS
+        Reads errors.jsonl from a timeline run folder for surfacing enrichment warnings in the UI.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [string]$ConversationId = ''
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'errors.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json
+                if ([string]::IsNullOrWhiteSpace($ConversationId) -or [string]$obj.conversationId -eq $ConversationId) {
+                    $result.Add($obj)
+                }
+            } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
 Export-ModuleMember -Function `
     Initialize-CoreAdapter, Test-CoreInitialized, `
-    Start-PreviewRun, Start-FullRun, `
+    Start-PreviewRun, Start-FullRun, Start-TimelineRun, `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
+    Get-TimelineConversations, Get-TimelineEvents, Get-TimelineErrors, `
     Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
     Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport, `
     Get-QualityOverlayReport

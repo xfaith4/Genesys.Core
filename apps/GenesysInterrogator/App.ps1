@@ -667,24 +667,27 @@ function Complete-Run {
             Set-Status ("Completed '{0}'. Loading results…" -f $run.DatasetKey) '#34D399'
             [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
 
-            $capturedRunFolder  = $runFolder
-            $capturedDatasetKey = $run.DatasetKey
-            $capturedMaxRows    = $settings.Ui.PreviewRows
-            $capturedCorePath   = $corePath
+            $capturedRunFolder   = $runFolder
+            $capturedDatasetKey  = $run.DatasetKey
+            $capturedMaxRows     = $settings.Ui.PreviewRows
+            $capturedAdapterPath = (Join-Path $appRoot 'App.CoreAdapter.psm1')
 
             $rsRes = [runspacefactory]::CreateRunspace()
             $rsRes.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
             $rsRes.Open()
             $psRes = [powershell]::Create()
             $psRes.Runspace = $rsRes
+            # Get-RunResults / ConvertTo-FlatRows live in App.CoreAdapter.psm1, NOT in
+            # Genesys.Core. Importing only the Core module here would fail with
+            # CommandNotFoundException — load the adapter so its readers are in scope.
             [void]$psRes.AddScript({
-                param($CoreModulePath, $RunFolder, $MaxRows)
-                Import-Module $CoreModulePath -Force -ErrorAction Stop
+                param($AdapterModulePath, $RunFolder, $MaxRows)
+                Import-Module $AdapterModulePath -Force -ErrorAction Stop
                 $results = Get-RunResults -RunFolder $RunFolder -MaxRows $MaxRows
                 $flat    = ConvertTo-FlatRows -Rows $results.Rows
                 return [pscustomobject]@{ Results = $results; FlatRows = $flat }
             })
-            [void]$psRes.AddArgument($capturedCorePath)
+            [void]$psRes.AddArgument($capturedAdapterPath)
             [void]$psRes.AddArgument($capturedRunFolder)
             [void]$psRes.AddArgument($capturedMaxRows)
             $asyncRes = $psRes.BeginInvoke()
@@ -1144,7 +1147,9 @@ $controls.BtnCancel.Add_Click({
     Set-Status "Cancelling run..." '#FBBF24'
     $controls.BtnCancel.IsEnabled = $false
     try { [void]$run.PsInstance.BeginStop($null, $null) } catch {}
-    $isReport = ($run.PSObject.Properties['Mode'] -and $run.Mode -eq 'report')
+    # $run is a hashtable — PSObject.Properties on a hashtable does NOT enumerate keys,
+    # it enumerates the hashtable's CLR properties (Count, Keys, etc).  Use ContainsKey.
+    $isReport = ($run.ContainsKey('Mode') -and $run.Mode -eq 'report')
     if ($isReport) {
         if ($run.Timer) { try { $run.Timer.Stop() } catch {} }
         try { $run.PsInstance.Dispose() } catch {}

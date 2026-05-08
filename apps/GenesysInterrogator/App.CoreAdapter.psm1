@@ -90,6 +90,87 @@ function Get-InterrogatorSession {
     return $null
 }
 
+# Map raw service prefixes (segment 3 of /api/v2/<service>/...) to display group names
+# that match the existing `group:` notes in the catalog. Anything missing here falls
+# through to the prefix verbatim, so an unmapped service still beats 'Uncategorised'.
+$script:ServicePrefixGroupMap = @{
+    'analytics'              = 'Analytics'
+    'alerting'               = 'Alerting'
+    'audits'                 = 'Audits'
+    'authorization'          = 'Authorization'
+    'coaching'               = 'Coaching'
+    'conversations'          = 'Conversations'
+    'flows'                  = 'Flows'
+    'journey'                = 'Journey'
+    'notifications'          = 'Notifications'
+    'oauth'                  = 'OAuth'
+    'organizations'          = 'Organization'
+    'outbound'               = 'Outbound'
+    'presence'               = 'Presence'
+    'quality'                = 'Quality'
+    'routing'                = 'Routing'
+    'speechandtextanalytics' = 'Speech and Text Analytics'
+    'stations'               = 'Stations'
+    'telephony'              = 'Telephony'
+    'usage'                  = 'Usage'
+    'users'                  = 'Users'
+    'workforcemanagement'    = 'WorkforceManagement'
+}
+
+function Get-DatasetGroup {
+    [CmdletBinding()]
+    param([AllowNull()][object]$Endpoint)
+
+    if ($null -eq $Endpoint) { return 'Uncategorised' }
+
+    # 1. Honour explicit `group: X` note if present.
+    if ($Endpoint.PSObject.Properties['notes'] -and $null -ne $Endpoint.notes) {
+        foreach ($n in $Endpoint.notes) {
+            if ([string]$n -match '^\s*group:\s*(.+?)\s*$') { return $Matches[1] }
+        }
+    }
+
+    # 2. Fall back to the first OpenAPI tag (auto-populated by the catalog generator).
+    if ($Endpoint.PSObject.Properties['tags'] -and $null -ne $Endpoint.tags) {
+        foreach ($t in $Endpoint.tags) {
+            $tagText = [string]$t
+            if (-not [string]::IsNullOrWhiteSpace($tagText)) { return $tagText }
+        }
+    }
+
+    # 3. Final fallback: derive from URL path service segment (/api/v2/<service>/...).
+    if ($Endpoint.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$Endpoint.path)) {
+        if ([string]$Endpoint.path -match '^/api/v2/([^/]+)') {
+            $svc = $Matches[1].ToLowerInvariant()
+            if ($script:ServicePrefixGroupMap.ContainsKey($svc)) { return $script:ServicePrefixGroupMap[$svc] }
+            # Title-case the bare service segment if we don't have a friendly mapping.
+            return [System.Globalization.CultureInfo]::InvariantCulture.TextInfo.ToTitleCase($svc)
+        }
+    }
+
+    return 'Uncategorised'
+}
+
+function _GetPSPropertyText {
+    param([object]$Object, [string]$Property)
+    if ($null -eq $Object) { return '' }
+    if (-not $Object.PSObject.Properties[$Property]) { return '' }
+    $v = $Object.$Property
+    if ($null -eq $v) { return '' }
+    return [string]$v
+}
+
+function _GetNestedProfile {
+    param([object]$Object, [string]$Branch)
+    if ($null -eq $Object) { return '' }
+    if (-not $Object.PSObject.Properties[$Branch]) { return '' }
+    $branch = $Object.$Branch
+    if ($null -eq $branch -or -not $branch.PSObject.Properties['profile']) { return '' }
+    $p = $branch.profile
+    if ($null -eq $p) { return '' }
+    return [string]$p
+}
+
 function Get-CatalogDatasets {
     [CmdletBinding()]
     param()
@@ -97,6 +178,10 @@ function Get-CatalogDatasets {
     if (-not $script:Core.Initialized) { throw 'Core integration has not been initialized.' }
 
     $cat = $script:Core.CatalogObject
+    if ($null -eq $cat -or -not $cat.PSObject.Properties['datasets'] -or -not $cat.PSObject.Properties['endpoints']) {
+        throw 'Catalog object is missing datasets or endpoints sections.'
+    }
+
     $datasets  = $cat.datasets
     $endpoints = $cat.endpoints
 
@@ -105,29 +190,23 @@ function Get-CatalogDatasets {
 
     foreach ($prop in $datasets.PSObject.Properties) {
         $key = $prop.Name
-        $ds = $prop.Value
-        $epKey = [string]$ds.endpoint
+        $ds  = $prop.Value
+        $epKey = _GetPSPropertyText -Object $ds -Property 'endpoint'
         $ep = if ($epKey -and ($endpointNames -contains $epKey)) { $endpoints.$epKey } else { $null }
 
-        $group = ''
-        if ($null -ne $ep -and $ep.PSObject.Properties['notes'] -and $null -ne $ep.notes) {
-            foreach ($n in $ep.notes) {
-                if ([string]$n -match '^\s*group:\s*(.+?)\s*$') { $group = $Matches[1]; break }
-            }
-        }
-        if ([string]::IsNullOrWhiteSpace($group)) { $group = 'Uncategorised' }
+        $group = Get-DatasetGroup -Endpoint $ep
 
         $list.Add([pscustomobject]@{
             Key           = $key
-            Description   = [string]$ds.description
+            Description   = _GetPSPropertyText -Object $ds -Property 'description'
             Endpoint      = $epKey
-            Method        = if ($ep) { [string]$ep.method } else { '' }
-            Path          = if ($ep) { [string]$ep.path }   else { '' }
+            Method        = if ($ep) { _GetPSPropertyText -Object $ep -Property 'method' } else { '' }
+            Path          = if ($ep) { _GetPSPropertyText -Object $ep -Property 'path' }   else { '' }
             Group         = $group
-            PagingProfile = if ($ds.paging -and $ds.paging.PSObject.Properties['profile']) { [string]$ds.paging.profile } else { '' }
-            RetryProfile  = if ($ds.retry  -and $ds.retry.PSObject.Properties['profile'])  { [string]$ds.retry.profile }  else { '' }
-            Transaction   = if ($ds.PSObject.Properties['transaction'] -and $ds.transaction.PSObject.Properties['profile']) { [string]$ds.transaction.profile } else { '' }
-            ItemsPath     = [string]$ds.itemsPath
+            PagingProfile = _GetNestedProfile -Object $ds -Branch 'paging'
+            RetryProfile  = _GetNestedProfile -Object $ds -Branch 'retry'
+            Transaction   = _GetNestedProfile -Object $ds -Branch 'transaction'
+            ItemsPath     = _GetPSPropertyText -Object $ds -Property 'itemsPath'
             EndpointDef   = $ep
             DatasetDef    = $ds
         })
@@ -281,5 +360,5 @@ function ConvertTo-FlatRows {
 Export-ModuleMember -Function `
     Initialize-CoreIntegration, `
     Connect-InterrogatorSession, Connect-InterrogatorSessionPkce, Get-InterrogatorSession, `
-    Get-CatalogDatasets, Get-DefaultDatasetParameters, `
+    Get-CatalogDatasets, Get-DatasetGroup, Get-DefaultDatasetParameters, `
     Invoke-InterrogatorRun, Get-RunResults, ConvertTo-FlatRows

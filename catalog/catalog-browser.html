@@ -574,7 +574,22 @@ function renderTable() {
         return;
     }
 
-    let html = '';
+    const frag = document.createDocumentFragment();
+    const makeEl = (tag, className, text) => {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+    };
+    const makeBadge = (text, colors) => {
+        const border = colors.border || colors.bg;
+        const span = makeEl('span', 'badge', text);
+        span.style.background = colors.bg;
+        span.style.color = colors.text;
+        span.style.border = `1px solid ${border}`;
+        return span;
+    };
+
     for (const d of rows) {
         const dc = domainColor(d.domain);
         const pc = pagingColor(d.paging);
@@ -582,49 +597,97 @@ function renderTable() {
         const isExp = state.expanded === d.key;
 
         /* Main row */
-        html += `<tr class="${isExp ? 'expanded' : ''}" data-key="${esc(d.key)}">
-            <td class="key-cell"><span class="expand-icon">${isExp ? '▼' : '▶'}</span>${esc(d.key)}</td>
-            <td>${badgeHtml(d.domain, dc)}</td>
-            <td class="desc-cell"><div class="desc-text">${esc(d.description)}</div></td>
-            <td>${badgeHtml(d.paging, pc)}</td>
-            <td>${badgeHtml(d.retry, rc)}</td>
-            <td style="text-align:center">
-                ${d.transaction
-                    ? `<span class="badge" title="${esc(d.transaction)}"
-                           style="background:#d1fae5;color:#065f46;border:1px solid #a7f3d0">&#10003; ${esc(d.transaction)}</span>`
-                    : `<span style="color:#d1d5db">—</span>`}
-            </td>
-            <td><code style="font-size:11.5px;font-family:Consolas,monospace;color:#374151">${esc(d.itemsPath)}</code></td>
-        </tr>`;
+        const tr = document.createElement('tr');
+        if (isExp) tr.classList.add('expanded');
+        tr.dataset.key = d.key;
+
+        const keyTd = makeEl('td', 'key-cell');
+        const icon = makeEl('span', 'expand-icon', isExp ? '▼' : '▶');
+        keyTd.append(icon, document.createTextNode(d.key));
+        tr.appendChild(keyTd);
+
+        const domainTd = document.createElement('td');
+        domainTd.appendChild(makeBadge(d.domain, dc));
+        tr.appendChild(domainTd);
+
+        const descTd = makeEl('td', 'desc-cell');
+        const descDiv = makeEl('div', 'desc-text', d.description);
+        descTd.appendChild(descDiv);
+        tr.appendChild(descTd);
+
+        const pagingTd = document.createElement('td');
+        pagingTd.appendChild(makeBadge(d.paging, pc));
+        tr.appendChild(pagingTd);
+
+        const retryTd = document.createElement('td');
+        retryTd.appendChild(makeBadge(d.retry, rc));
+        tr.appendChild(retryTd);
+
+        const txTd = document.createElement('td');
+        txTd.style.textAlign = 'center';
+        if (d.transaction) {
+            const txSpan = makeEl('span', 'badge', `✓ ${d.transaction}`);
+            txSpan.title = d.transaction;
+            txSpan.style.background = '#d1fae5';
+            txSpan.style.color = '#065f46';
+            txSpan.style.border = '1px solid #a7f3d0';
+            txTd.appendChild(txSpan);
+        } else {
+            const dash = makeEl('span', null, '—');
+            dash.style.color = '#d1d5db';
+            txTd.appendChild(dash);
+        }
+        tr.appendChild(txTd);
+
+        const itemsTd = document.createElement('td');
+        const code = makeEl('code', null, d.itemsPath);
+        code.style.fontSize = '11.5px';
+        code.style.fontFamily = 'Consolas,monospace';
+        code.style.color = '#374151';
+        itemsTd.appendChild(code);
+        tr.appendChild(itemsTd);
+
+        frag.appendChild(tr);
 
         /* Detail row */
         if (isExp) {
-            html += `<tr class="detail-row">
-                <td colspan="7" style="padding:0 14px 12px">
-                    <div class="detail-inner">
-                        <div class="detail-grid">
-                            <div class="detail-field">
-                                <label>Endpoint Reference</label>
-                                <span class="val">${esc(d.endpoint)}</span>
-                            </div>
-                            <div class="detail-field">
-                                <label>Items Path (JSON)</label>
-                                <span class="val">${esc(d.itemsPath)}</span>
-                            </div>
-                            ${d.transaction ? `<div class="detail-field">
-                                <label>Transaction Profile</label>
-                                <span class="val tx-badge">${esc(d.transaction)}</span>
-                            </div>` : ''}
-                        </div>
-                        <div class="ps-label">PowerShell — Invoke-Dataset</div>
-                        <div class="code-block">${psSnippet(d)}</div>
-                    </div>
-                </td>
-            </tr>`;
+            const dtr = makeEl('tr', 'detail-row');
+            const dtd = document.createElement('td');
+            dtd.colSpan = 7;
+            dtd.style.padding = '0 14px 12px';
+
+            const inner = makeEl('div', 'detail-inner');
+            const grid = makeEl('div', 'detail-grid');
+
+            const field1 = makeEl('div', 'detail-field');
+            field1.append(makeEl('label', null, 'Endpoint Reference'), makeEl('span', 'val', d.endpoint));
+            grid.appendChild(field1);
+
+            const field2 = makeEl('div', 'detail-field');
+            field2.append(makeEl('label', null, 'Items Path (JSON)'), makeEl('span', 'val', d.itemsPath));
+            grid.appendChild(field2);
+
+            if (d.transaction) {
+                const field3 = makeEl('div', 'detail-field');
+                const txVal = makeEl('span', 'val tx-badge', d.transaction);
+                field3.append(makeEl('label', null, 'Transaction Profile'), txVal);
+                grid.appendChild(field3);
+            }
+
+            inner.appendChild(grid);
+            inner.appendChild(makeEl('div', 'ps-label', 'PowerShell — Invoke-Dataset'));
+
+            const codeBlock = makeEl('div', 'code-block');
+            codeBlock.innerHTML = psSnippet(d);
+            inner.appendChild(codeBlock);
+
+            dtd.appendChild(inner);
+            dtr.appendChild(dtd);
+            frag.appendChild(dtr);
         }
     }
 
-    tbody.innerHTML = html;
+    tbody.replaceChildren(frag);
 
     /* Row click → expand */
     tbody.querySelectorAll('tr[data-key]:not(.detail-row)').forEach(tr => {

@@ -6323,7 +6323,7 @@ function _WriteDemoRunArtifacts {
     }
 
     $datasetKey = 'analytics-conversation-details-query'
-    $runId = "demo-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ'))"
+    $runId = "demo-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff'))"
     $runFolder = [System.IO.Path]::Combine($outputRoot, $datasetKey, $runId)
     $dataDir = [System.IO.Path]::Combine($runFolder, 'data')
     [System.IO.Directory]::CreateDirectory($dataDir) | Out-Null

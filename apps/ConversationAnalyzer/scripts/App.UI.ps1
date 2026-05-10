@@ -15,6 +15,7 @@ $script:TabWorkspace           = _Ctrl 'TabWorkspace'
 $script:TabDrilldownWorkspace  = _Ctrl 'TabDrilldownWorkspace'
 $script:ElpConnStatus          = _Ctrl 'ElpConnStatus'
 $script:LblConnectionStatus    = _Ctrl 'LblConnectionStatus'
+$script:BtnDemoRun             = _Ctrl 'BtnDemoRun'
 $script:BtnConnect             = _Ctrl 'BtnConnect'
 $script:BtnSettings            = _Ctrl 'BtnSettings'
 
@@ -260,6 +261,9 @@ $script:State = @{
     TimelineTimer      = $null
     TimelineRunFolder  = $null  # run folder for the current/last timeline run
     TimelineRunCancelled = $false
+    DemoModeEnabled    = $false
+    DemoData           = @{}
+    DemoRunFolder      = ''
 }
 
 # Maps display-row property names (SortMemberPath) → index entry property names
@@ -1784,6 +1788,23 @@ function _PopulateQueuePerfDivisionFilter {
         active case.  Preserves the current selection if still valid.
     #>
     if ($null -eq $script:CmbQueuePerfDivision) { return }
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('QueuePerfRows')) {
+        $rows = @($script:State.DemoData['QueuePerfRows'])
+        $divRows = $rows |
+            Where-Object { $_.division_id -and $_.division_name } |
+            Select-Object @{n='DivisionId';e={$_.division_id}}, @{n='Name';e={$_.division_name}} |
+            Sort-Object Name -Unique
+
+        $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+        foreach ($d in $divRows) { $items.Add($d) }
+        $script:CmbQueuePerfDivision.ItemsSource = $items
+        $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
+        $script:CmbQueuePerfDivision.SelectedIndex = 0
+        return
+    }
+
     if (-not (Test-DatabaseInitialized))        { return }
     $caseId = $script:State.ActiveCaseId
     if ([string]::IsNullOrEmpty($caseId))       { return }
@@ -1829,11 +1850,6 @@ function _RenderQueuePerfGrid {
         Reads report_queue_perf rows for the active case (with optional division filter),
         populates the DgQueuePerf DataGrid, and updates the summary bar labels.
     #>
-    if (-not (Test-DatabaseInitialized)) { return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { return }
-
-    # Resolve selected division filter
     $divisionId = ''
     if ($null -ne $script:CmbQueuePerfDivision) {
         $sel = $script:CmbQueuePerfDivision.SelectedItem
@@ -1842,11 +1858,50 @@ function _RenderQueuePerfGrid {
         }
     }
 
-    try {
-        $rows    = @(Get-QueuePerfRows -CaseId $caseId -DivisionId $divisionId)
-        $summary = Get-QueuePerfSummary -CaseId $caseId -DivisionId $divisionId
-    } catch {
-        _SetStatus "Queue perf read failed: $_"
+    $rows = @()
+    $summary = $null
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('QueuePerfRows')) {
+        $allRows = @($script:State.DemoData['QueuePerfRows'])
+        $rows = if ([string]::IsNullOrWhiteSpace($divisionId)) {
+            $allRows
+        } else {
+            @($allRows | Where-Object { [string]$_.division_id -eq $divisionId })
+        }
+
+        $totalQueues = @($rows | Where-Object { $_.queue_id } | Select-Object -ExpandProperty queue_id -Unique).Count
+        $totalOffered = [int](($rows | Measure-Object -Property n_offered -Sum).Sum)
+        $totalAbandoned = [int](($rows | Measure-Object -Property n_abandoned -Sum).Sum)
+        $avgAbandon = 0.0
+        $avgSla = 0.0
+        $avgHandle = 0.0
+        if ($rows.Count -gt 0) {
+            $avgAbandon = [double](($rows | Measure-Object -Property abandon_rate_pct -Average).Average)
+            $avgSla = [double](($rows | Measure-Object -Property service_level_pct -Average).Average)
+            $avgHandle = [double](($rows | Measure-Object -Property t_handle_avg_sec -Average).Average)
+        }
+        $summary = [pscustomobject]@{
+            TotalQueues   = $totalQueues
+            TotalOffered  = $totalOffered
+            TotalAbandoned = $totalAbandoned
+            AvgAbandonPct = $avgAbandon
+            AvgSL30sPct   = $avgSla
+            AvgHandleSec  = $avgHandle
+        }
+    } else {
+        if (-not (Test-DatabaseInitialized)) { return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { return }
+        try {
+            $rows    = @(Get-QueuePerfRows -CaseId $caseId -DivisionId $divisionId)
+            $summary = Get-QueuePerfSummary -CaseId $caseId -DivisionId $divisionId
+        } catch {
+            _SetStatus "Queue perf read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) {
         return
     }
 
@@ -2028,6 +2083,23 @@ function _PopulateAgentPerfDivisionFilter {
         active case.  Preserves the current selection if still valid.
     #>
     if ($null -eq $script:CmbAgentPerfDivision) { return }
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('AgentPerfRows')) {
+        $rows = @($script:State.DemoData['AgentPerfRows'])
+        $divRows = $rows |
+            Where-Object { $_.division_id -and $_.division_name } |
+            Select-Object @{n='DivisionId';e={$_.division_id}}, @{n='Name';e={$_.division_name}} |
+            Sort-Object Name -Unique
+
+        $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+        foreach ($d in $divRows) { $items.Add($d) }
+        $script:CmbAgentPerfDivision.ItemsSource = $items
+        $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
+        $script:CmbAgentPerfDivision.SelectedIndex = 0
+        return
+    }
+
     if (-not (Test-DatabaseInitialized))         { return }
     $caseId = $script:State.ActiveCaseId
     if ([string]::IsNullOrEmpty($caseId))        { return }
@@ -2070,10 +2142,6 @@ function _RenderAgentPerfGrid {
         populates the DgAgentPerf DataGrid, and updates the summary bar labels.
         Rows with talk_ratio_pct < 50 % or acw_ratio_pct > 30 % are flagged with ⚠.
     #>
-    if (-not (Test-DatabaseInitialized)) { return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { return }
-
     $divisionId = ''
     if ($null -ne $script:CmbAgentPerfDivision) {
         $sel = $script:CmbAgentPerfDivision.SelectedItem
@@ -2082,11 +2150,51 @@ function _RenderAgentPerfGrid {
         }
     }
 
-    try {
-        $rows    = @(Get-AgentPerfRows    -CaseId $caseId -DivisionId $divisionId)
-        $summary = Get-AgentPerfSummary   -CaseId $caseId -DivisionId $divisionId
-    } catch {
-        _SetStatus "Agent perf read failed: $_"
+    $rows = @()
+    $summary = $null
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('AgentPerfRows')) {
+        $allRows = @($script:State.DemoData['AgentPerfRows'])
+        $rows = if ([string]::IsNullOrWhiteSpace($divisionId)) {
+            $allRows
+        } else {
+            @($allRows | Where-Object { [string]$_.division_id -eq $divisionId })
+        }
+
+        $totalAgents = @($rows | Where-Object { $_.user_id } | Select-Object -ExpandProperty user_id -Unique).Count
+        $totalConnected = [int](($rows | Measure-Object -Property n_connected -Sum).Sum)
+        $avgHandle = 0.0
+        $avgTalk = 0.0
+        $avgAcw = 0.0
+        $avgIdle = 0.0
+        if ($rows.Count -gt 0) {
+            $avgHandle = [double](($rows | Measure-Object -Property t_handle_avg_sec -Average).Average)
+            $avgTalk   = [double](($rows | Measure-Object -Property talk_ratio_pct -Average).Average)
+            $avgAcw    = [double](($rows | Measure-Object -Property acw_ratio_pct -Average).Average)
+            $avgIdle   = [double](($rows | Measure-Object -Property idle_ratio_pct -Average).Average)
+        }
+        $summary = [pscustomobject]@{
+            TotalAgents    = $totalAgents
+            TotalConnected = $totalConnected
+            AvgHandleSec   = $avgHandle
+            AvgTalkPct     = $avgTalk
+            AvgAcwPct      = $avgAcw
+            AvgIdlePct     = $avgIdle
+        }
+    } else {
+        if (-not (Test-DatabaseInitialized)) { return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { return }
+        try {
+            $rows    = @(Get-AgentPerfRows    -CaseId $caseId -DivisionId $divisionId)
+            $summary = Get-AgentPerfSummary   -CaseId $caseId -DivisionId $divisionId
+        } catch {
+            _SetStatus "Agent perf read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) {
         return
     }
 
@@ -2301,9 +2409,6 @@ function _RenderTransferGrid {
         blind/consult filter to the flow grids, and updates summary labels.
     #>
     _EnsureTransferTypeFilter
-    if (-not (Test-DatabaseInitialized)) { _ClearTransferGrid; return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { _ClearTransferGrid; return }
 
     $transferType = ''
     if ($null -ne $script:CmbTransferType) {
@@ -2313,13 +2418,49 @@ function _RenderTransferGrid {
         }
     }
 
-    try {
-        $flows  = @(Get-TransferFlowRows  -CaseId $caseId -TransferType $transferType)
-        $chains = @(Get-TransferChainRows -CaseId $caseId -MinHops 2)
-        $summary = Get-TransferSummary -CaseId $caseId
-    } catch {
-        _SetStatus "Transfer report read failed: $_"
-        return
+    $flows = @()
+    $chains = @()
+    $summary = $null
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('TransferFlows')) {
+        $allFlows = @($script:State.DemoData['TransferFlows'])
+        $flows = if ([string]::IsNullOrWhiteSpace($transferType)) {
+            $allFlows
+        } else {
+            @($allFlows | Where-Object { [string]$_.transfer_type -eq $transferType })
+        }
+        $chains = @($script:State.DemoData['TransferChains'])
+
+        $allTransfers = [int](($allFlows | Measure-Object -Property n_transfers -Sum).Sum)
+        $blind = [int](($allFlows | Where-Object { $_.transfer_type -eq 'blind' } | Measure-Object -Property n_transfers -Sum).Sum)
+        $consult = [int](($allFlows | Where-Object { $_.transfer_type -eq 'consult' } | Measure-Object -Property n_transfers -Sum).Sum)
+        $summary = [pscustomobject]@{
+            TotalFlows       = $allFlows.Count
+            TotalTransfers   = $allTransfers
+            BlindTransfers   = $blind
+            ConsultTransfers = $consult
+            BlindPct         = if ($allTransfers -gt 0) { ($blind / [double]$allTransfers) * 100.0 } else { 0.0 }
+            MultiHopChains   = @($chains | Where-Object { [int]$_.hop_count -ge 2 }).Count
+        }
+    } else {
+        if (-not (Test-DatabaseInitialized)) { _ClearTransferGrid; return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { _ClearTransferGrid; return }
+
+        try {
+            $flows  = @(Get-TransferFlowRows  -CaseId $caseId -TransferType $transferType)
+            $chains = @(Get-TransferChainRows -CaseId $caseId -MinHops 2)
+            $summary = Get-TransferSummary -CaseId $caseId
+        } catch {
+            _SetStatus "Transfer report read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) { return }
+
+    if ($null -eq $flows) {
+        $flows = @()
     }
 
     $flowRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
@@ -2570,9 +2711,6 @@ function _RenderFlowContainmentGrid {
         filter, updates the summary bar, and refreshes selected-flow details.
     #>
     _EnsureFlowTypeFilter
-    if (-not (Test-DatabaseInitialized)) { _ClearFlowContainmentGrid; return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { _ClearFlowContainmentGrid; return }
 
     $flowType = ''
     if ($null -ne $script:CmbFlowType) {
@@ -2582,11 +2720,45 @@ function _RenderFlowContainmentGrid {
         }
     }
 
-    try {
-        $rows    = @(Get-FlowPerfRows -CaseId $caseId -FlowType $flowType)
-        $summary = Get-FlowContainmentSummary -CaseId $caseId
-    } catch {
-        _SetStatus "Flow containment read failed: $_"
+    $rows = @()
+    $summary = $null
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('FlowPerfRows')) {
+        $allRows = @($script:State.DemoData['FlowPerfRows'])
+        $rows = if ([string]::IsNullOrWhiteSpace($flowType)) {
+            $allRows
+        } else {
+            @($allRows | Where-Object { [string]$_.flow_type -eq $flowType })
+        }
+        $entries = [int](($allRows | Measure-Object -Property n_flow -Sum).Sum)
+        $avgContainment = 0.0
+        $avgFailure = 0.0
+        if ($allRows.Count -gt 0) {
+            $avgContainment = [double](($allRows | Measure-Object -Property containment_rate_pct -Average).Average)
+            $avgFailure     = [double](($allRows | Measure-Object -Property failure_rate_pct -Average).Average)
+        }
+        $summary = [pscustomobject]@{
+            TotalFlows           = $allRows.Count
+            TotalEntries         = $entries
+            AvgContainmentPct    = $avgContainment
+            AvgFailurePct        = $avgFailure
+            LowContainmentFlows  = @($allRows | Where-Object { [double]$_.containment_rate_pct -lt 50.0 }).Count
+        }
+    } else {
+        if (-not (Test-DatabaseInitialized)) { _ClearFlowContainmentGrid; return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { _ClearFlowContainmentGrid; return }
+
+        try {
+            $rows    = @(Get-FlowPerfRows -CaseId $caseId -FlowType $flowType)
+            $summary = Get-FlowContainmentSummary -CaseId $caseId
+        } catch {
+            _SetStatus "Flow containment read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) {
+        _ClearFlowContainmentGrid
         return
     }
 
@@ -2638,6 +2810,44 @@ function _RenderFlowContainmentGrid {
 }
 
 function _RenderSelectedFlowDetail {
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('FlowMilestonesByFlowId')) {
+        if ($null -eq $script:DgFlowPerf -or $null -eq $script:DgFlowPerf.SelectedItem) {
+            if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+            if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+            return
+        }
+
+        $flowId = [string]$script:DgFlowPerf.SelectedItem.FlowId
+        $milestones = @()
+        $queues = @()
+        if ($script:State.DemoData['FlowMilestonesByFlowId'].ContainsKey($flowId)) {
+            $milestones = @($script:State.DemoData['FlowMilestonesByFlowId'][$flowId])
+        }
+        if ($script:State.DemoData['FlowQueuesByFlowId'].ContainsKey($flowId)) {
+            $queues = @($script:State.DemoData['FlowQueuesByFlowId'][$flowId])
+        }
+
+        $milestoneRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        foreach ($m in $milestones) {
+            $milestoneRows.Add([pscustomobject]@{
+                MilestoneName = [string]($m.milestone_name)
+                NHit          = [int]   ($m.n_hit)
+                PctOfEntries  = [string]("{0:F1}" -f [double]($m.pct_of_entries))
+            })
+        }
+        if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = $milestoneRows }
+
+        $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        foreach ($q in $queues) {
+            $queueRows.Add([pscustomobject]@{
+                QueueName         = [string]($q.QueueName)
+                ConversationCount = [int]   ($q.ConversationCount)
+            })
+        }
+        if ($null -ne $script:DgFlowQueues) { $script:DgFlowQueues.ItemsSource = $queueRows }
+        return
+    }
+
     if (-not (Test-DatabaseInitialized)) {
         if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
         if ($null -ne $script:DgFlowQueues)     { $script:DgFlowQueues.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
@@ -2856,18 +3066,49 @@ function _RenderWrapupGrid {
         Reads contact reason rows for the active case, updates summary KPIs,
         renders the hourly heat-map table, and refreshes selected-code detail.
     #>
-    if (-not (Test-DatabaseInitialized)) { _ClearWrapupGrid; return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { _ClearWrapupGrid; return }
+    $rows = @()
+    $summary = $null
+    $hourRows = @()
+    $insights = @()
+    $crossRef = @()
 
-    try {
-        $rows     = @(Get-WrapupCodeRows -CaseId $caseId)
-        $summary  = Get-WrapupSummary -CaseId $caseId
-        $hourRows = @(Get-WrapupByHourRows -CaseId $caseId -TopCodes 10)
-        $insights = @(Get-WrapupConcentrationInsights -CaseId $caseId -Top 5)
-        $crossRef = @(Get-WrapupHandleTimeCrossRef -CaseId $caseId -TopCodes 10)
-    } catch {
-        _SetStatus "Wrapup report read failed: $_"
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('WrapupCodeRows')) {
+        $rows = @($script:State.DemoData['WrapupCodeRows'])
+        $hourRows = @($script:State.DemoData['WrapupByHourRows'])
+        $insights = @($script:State.DemoData['WrapupInsights'])
+        $crossRef = @($script:State.DemoData['WrapupCrossRef'])
+        if ($script:State.DemoData.ContainsKey('WrapupSummary')) {
+            $summary = $script:State.DemoData['WrapupSummary']
+        } else {
+            $totalConnected = [int](($rows | Measure-Object -Property n_connected -Sum).Sum)
+            $top = $rows | Sort-Object @{ Expression = { [int]$_.n_connected }; Descending = $true } | Select-Object -First 1
+            $summary = [pscustomobject]@{
+                TotalCodes      = $rows.Count
+                TotalConnected  = $totalConnected
+                TotalQueues     = @($rows | Where-Object { $_.queue_count } | Select-Object -ExpandProperty queue_count | Measure-Object -Maximum).Maximum
+                TopReasonName   = if ($null -ne $top) { [string]$top.wrapup_code_name } else { '' }
+                TopReasonCount  = if ($null -ne $top) { [int]$top.n_connected } else { 0 }
+            }
+        }
+    } else {
+        if (-not (Test-DatabaseInitialized)) { _ClearWrapupGrid; return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { _ClearWrapupGrid; return }
+
+        try {
+            $rows     = @(Get-WrapupCodeRows -CaseId $caseId)
+            $summary  = Get-WrapupSummary -CaseId $caseId
+            $hourRows = @(Get-WrapupByHourRows -CaseId $caseId -TopCodes 10)
+            $insights = @(Get-WrapupConcentrationInsights -CaseId $caseId -Top 5)
+            $crossRef = @(Get-WrapupHandleTimeCrossRef -CaseId $caseId -TopCodes 10)
+        } catch {
+            _SetStatus "Wrapup report read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) {
+        _ClearWrapupGrid
         return
     }
 
@@ -2970,6 +3211,33 @@ function _RenderWrapupGrid {
 }
 
 function _RenderSelectedWrapupDetail {
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('WrapupByQueueByCodeId')) {
+        if ($null -eq $script:DgWrapupCodes -or $null -eq $script:DgWrapupCodes.SelectedItem) {
+            if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+            return
+        }
+        $wrapupCodeId = [string]$script:DgWrapupCodes.SelectedItem.WrapupCodeId
+        if ([string]::IsNullOrWhiteSpace($wrapupCodeId)) {
+            if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+            return
+        }
+        $queues = @()
+        if ($script:State.DemoData['WrapupByQueueByCodeId'].ContainsKey($wrapupCodeId)) {
+            $queues = @($script:State.DemoData['WrapupByQueueByCodeId'][$wrapupCodeId])
+        }
+        $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        foreach ($q in $queues) {
+            $queueRows.Add([pscustomobject]@{
+                QueueName       = [string]($q.queue_name)
+                NConnected      = [int]   ($q.n_connected)
+                PctOfQueueTotal = [string]("{0:F1}" -f [double]($q.pct_of_queue_total))
+                PctOfOrgTotal   = [string]("{0:F1}" -f [double]($q.pct_of_org_total))
+            })
+        }
+        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
+        return
+    }
+
     if (-not (Test-DatabaseInitialized)) {
         if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
         return
@@ -3161,19 +3429,40 @@ function _StartQualityOverlayReportJob {
 }
 
 function _RenderQualityGrid {
-    if (-not (Test-DatabaseInitialized)) { _ClearQualityGrid; return }
-    $caseId = $script:State.ActiveCaseId
-    if ([string]::IsNullOrEmpty($caseId)) { _ClearQualityGrid; return }
+    $summary = $null
+    $agentRows = @()
+    $queueRows = @()
+    $lowRows = @()
+    $corr = $null
+    $topicRows = @()
 
-    try {
-        $summary      = Get-QualitySummary -CaseId $caseId
-        $agentRows    = @(Get-QualityAgentScoreRows -CaseId $caseId)
-        $queueRows    = @(Get-QualitySurveyQueueRows -CaseId $caseId)
-        $lowRows      = @(Get-LowScoreConversationRows -CaseId $caseId)
-        $corr         = Get-QualityCorrelationSummary -CaseId $caseId
-        $topicRows    = @(Get-LowScoreTopicRows -CaseId $caseId -Top 5)
-    } catch {
-        _SetStatus "Quality report read failed: $_"
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('QualitySummary')) {
+        $summary   = $script:State.DemoData['QualitySummary']
+        $agentRows = @($script:State.DemoData['QualityAgentRows'])
+        $queueRows = @($script:State.DemoData['QualityQueueRows'])
+        $lowRows   = @($script:State.DemoData['QualityLowRows'])
+        $corr      = $script:State.DemoData['QualityCorrelation']
+        $topicRows = @($script:State.DemoData['QualityTopicRows'])
+    } else {
+        if (-not (Test-DatabaseInitialized)) { _ClearQualityGrid; return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { _ClearQualityGrid; return }
+
+        try {
+            $summary      = Get-QualitySummary -CaseId $caseId
+            $agentRows    = @(Get-QualityAgentScoreRows -CaseId $caseId)
+            $queueRows    = @(Get-QualitySurveyQueueRows -CaseId $caseId)
+            $lowRows      = @(Get-LowScoreConversationRows -CaseId $caseId)
+            $corr         = Get-QualityCorrelationSummary -CaseId $caseId
+            $topicRows    = @(Get-LowScoreTopicRows -CaseId $caseId -Top 5)
+        } catch {
+            _SetStatus "Quality report read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary -or $null -eq $corr) {
+        _ClearQualityGrid
         return
     }
 
@@ -3942,6 +4231,8 @@ function _LoadRunAndRefreshGrid {
     $script:State.CurrentRunFolder  = $RunFolder
     $script:State.DiagnosticsContext = $RunFolder
     $script:State.DataSource = 'index'
+    $script:State.DemoModeEnabled = $false
+    $script:State.DemoData = @{}
 
     # Clear stale run-specific filters for manually-loaded runs, but preserve the
     # filter that just produced a completed run so its detail pane can open.
@@ -5761,9 +6052,391 @@ function _FilterAttributes {
     $script:DgAttributes.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($filtered)
 }
 
+function _GetDemoConversationRecords {
+    $records = @(
+        [pscustomobject]@{
+            conversationId    = 'demo-conv-001'
+            conversationStart = '2026-05-09T14:00:00.000Z'
+            conversationEnd   = '2026-05-09T14:18:40.000Z'
+            divisionIds       = @('division-sales')
+            participants      = @(
+                [pscustomobject]@{
+                    purpose  = 'customer'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType  = 'voice'
+                            direction  = 'inbound'
+                            segments   = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T14:00:10.000Z'; segmentEnd = '2026-05-09T14:06:00.000Z'; queueName = 'Billing Support'; queueId = 'queue-billing'; disconnectType = 'client' }
+                                [pscustomobject]@{ segmentType = 'hold'; segmentStart = '2026-05-09T14:06:00.000Z'; segmentEnd = '2026-05-09T14:07:30.000Z'; queueName = 'Billing Support'; queueId = 'queue-billing' }
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T14:07:30.000Z'; segmentEnd = '2026-05-09T14:18:40.000Z'; queueName = 'Billing Support'; queueId = 'queue-billing'; disconnectType = 'client' }
+                            )
+                        }
+                    )
+                }
+                [pscustomobject]@{
+                    purpose = 'agent'
+                    userId  = 'agent-101'
+                    name    = 'Jamie Carter'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType = 'voice'
+                            metrics   = @([pscustomobject]@{ name = 'minMos'; stats = [pscustomobject]@{ min = 3.2; max = 3.9; sum = 7.1; count = 2 } })
+                            segments  = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T14:00:20.000Z'; segmentEnd = '2026-05-09T14:18:20.000Z'; queueName = 'Billing Support'; queueId = 'queue-billing'; disconnectType = 'client' }
+                                [pscustomobject]@{ segmentType = 'wrapup'; segmentStart = '2026-05-09T14:18:20.000Z'; segmentEnd = '2026-05-09T14:18:40.000Z'; queueName = 'Billing Support'; queueId = 'queue-billing'; wrapUpCode = 'BILLING_ISSUE'; wrapUpCodeName = 'Billing Issue' }
+                            )
+                        }
+                    )
+                }
+            )
+            attributes = [pscustomobject]@{
+                ContactReason = 'Billing question'
+                Sentiment     = 'Neutral'
+                DemoScenario  = 'Hold then resolution'
+            }
+        }
+        [pscustomobject]@{
+            conversationId    = 'demo-conv-002'
+            conversationStart = '2026-05-09T15:10:00.000Z'
+            conversationEnd   = '2026-05-09T15:32:15.000Z'
+            divisionIds       = @('division-sales')
+            participants      = @(
+                [pscustomobject]@{
+                    purpose  = 'customer'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType  = 'voice'
+                            direction  = 'inbound'
+                            segments   = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T15:10:05.000Z'; segmentEnd = '2026-05-09T15:18:00.000Z'; queueName = 'Customer Care'; queueId = 'queue-care'; disconnectType = 'transfer' }
+                                [pscustomobject]@{ segmentType = 'transfer'; segmentStart = '2026-05-09T15:18:00.000Z'; segmentEnd = '2026-05-09T15:18:10.000Z'; queueName = 'Retention Team'; queueId = 'queue-retention'; disconnectType = 'transfer' }
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T15:18:10.000Z'; segmentEnd = '2026-05-09T15:32:15.000Z'; queueName = 'Retention Team'; queueId = 'queue-retention'; disconnectType = 'client' }
+                            )
+                        }
+                    )
+                }
+                [pscustomobject]@{
+                    purpose = 'agent'
+                    userId  = 'agent-202'
+                    name    = 'Morgan Lee'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType = 'voice'
+                            metrics   = @([pscustomobject]@{ name = 'minMos'; stats = [pscustomobject]@{ min = 2.8; max = 3.4; sum = 6.2; count = 2 } })
+                            segments  = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T15:10:20.000Z'; segmentEnd = '2026-05-09T15:32:00.000Z'; queueName = 'Customer Care'; queueId = 'queue-care'; disconnectType = 'client' }
+                                [pscustomobject]@{ segmentType = 'wrapup'; segmentStart = '2026-05-09T15:32:00.000Z'; segmentEnd = '2026-05-09T15:32:15.000Z'; queueName = 'Retention Team'; queueId = 'queue-retention'; wrapUpCode = 'CANCEL_SAVE'; wrapUpCodeName = 'Retention Save Attempt' }
+                            )
+                        }
+                    )
+                }
+            )
+            attributes = [pscustomobject]@{
+                ContactReason = 'Cancellation request'
+                Sentiment     = 'Negative'
+                DemoScenario  = 'Transfer escalation path'
+            }
+        }
+        [pscustomobject]@{
+            conversationId    = 'demo-conv-003'
+            conversationStart = '2026-05-09T16:45:00.000Z'
+            conversationEnd   = '2026-05-09T16:57:30.000Z'
+            divisionIds       = @('division-digital')
+            participants      = @(
+                [pscustomobject]@{
+                    purpose  = 'customer'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType = 'chat'
+                            direction = 'inbound'
+                            segments  = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T16:45:10.000Z'; segmentEnd = '2026-05-09T16:57:20.000Z'; queueName = 'Digital Support'; queueId = 'queue-digital'; disconnectType = 'client' }
+                            )
+                        }
+                    )
+                }
+                [pscustomobject]@{
+                    purpose = 'agent'
+                    userId  = 'agent-303'
+                    name    = 'Taylor Nguyen'
+                    sessions = @(
+                        [pscustomobject]@{
+                            mediaType = 'chat'
+                            segments  = @(
+                                [pscustomobject]@{ segmentType = 'interact'; segmentStart = '2026-05-09T16:45:20.000Z'; segmentEnd = '2026-05-09T16:57:15.000Z'; queueName = 'Digital Support'; queueId = 'queue-digital'; disconnectType = 'client' }
+                                [pscustomobject]@{ segmentType = 'wrapup'; segmentStart = '2026-05-09T16:57:15.000Z'; segmentEnd = '2026-05-09T16:57:30.000Z'; queueName = 'Digital Support'; queueId = 'queue-digital'; wrapUpCode = 'RESOLVED_CHAT'; wrapUpCodeName = 'Resolved in Chat' }
+                            )
+                        }
+                    )
+                }
+            )
+            attributes = [pscustomobject]@{
+                ContactReason = 'Order status'
+                Sentiment     = 'Positive'
+                DemoScenario  = 'Digital resolution'
+            }
+        }
+    )
+
+    return @($records)
+}
+
+function _GetDemoReportData {
+    return @{
+        QueuePerfRows = @(
+            [pscustomobject]@{ queue_id='queue-billing'; queue_name='Billing Support'; division_id='division-sales'; division_name='Sales'; interval_start='2026-05-09T14:00:00.000Z'; n_offered=24; n_connected=22; n_abandoned=2; abandon_rate_pct=8.3; t_handle_avg_sec=512.1; t_talk_avg_sec=412.0; t_acw_avg_sec=45.0; n_answered_in_20=18; n_answered_in_30=20; service_level_pct=83.3 }
+            [pscustomobject]@{ queue_id='queue-care'; queue_name='Customer Care'; division_id='division-sales'; division_name='Sales'; interval_start='2026-05-09T15:00:00.000Z'; n_offered=31; n_connected=26; n_abandoned=5; abandon_rate_pct=16.1; t_handle_avg_sec=601.7; t_talk_avg_sec=498.0; t_acw_avg_sec=62.4; n_answered_in_20=17; n_answered_in_30=21; service_level_pct=67.7 }
+            [pscustomobject]@{ queue_id='queue-digital'; queue_name='Digital Support'; division_id='division-digital'; division_name='Digital'; interval_start='2026-05-09T16:00:00.000Z'; n_offered=18; n_connected=17; n_abandoned=1; abandon_rate_pct=5.6; t_handle_avg_sec=312.4; t_talk_avg_sec=0.0; t_acw_avg_sec=38.2; n_answered_in_20=16; n_answered_in_30=17; service_level_pct=94.4 }
+        )
+        AgentPerfRows = @(
+            [pscustomobject]@{ user_id='agent-101'; user_name='Jamie Carter'; division_id='division-sales'; division_name='Sales'; department='Billing'; queue_ids='queue-billing'; n_connected=22; n_offered=24; t_handle_avg_sec=512.1; t_talk_avg_sec=412.0; t_acw_avg_sec=45.0; t_on_queue_sec=28400; t_off_queue_sec=3200; t_idle_sec=4100; talk_ratio_pct=80.5; acw_ratio_pct=8.8; idle_ratio_pct=14.4 }
+            [pscustomobject]@{ user_id='agent-202'; user_name='Morgan Lee'; division_id='division-sales'; division_name='Sales'; department='Retention'; queue_ids='queue-care,queue-retention'; n_connected=19; n_offered=25; t_handle_avg_sec=601.7; t_talk_avg_sec=398.0; t_acw_avg_sec=126.3; t_on_queue_sec=30100; t_off_queue_sec=4400; t_idle_sec=6200; talk_ratio_pct=46.0; acw_ratio_pct=31.2; idle_ratio_pct=20.6 }
+            [pscustomobject]@{ user_id='agent-303'; user_name='Taylor Nguyen'; division_id='division-digital'; division_name='Digital'; department='Digital CX'; queue_ids='queue-digital'; n_connected=17; n_offered=18; t_handle_avg_sec=312.4; t_talk_avg_sec=0.0; t_acw_avg_sec=38.2; t_on_queue_sec=21600; t_off_queue_sec=2600; t_idle_sec=2900; talk_ratio_pct=64.5; acw_ratio_pct=12.2; idle_ratio_pct=13.4 }
+        )
+        TransferFlows = @(
+            [pscustomobject]@{ queue_name_from='Customer Care'; queue_name_to='Retention Team'; queue_id_to='queue-retention'; transfer_type='blind'; n_transfers=7; pct_of_total_offered=12.5 }
+            [pscustomobject]@{ queue_name_from='Billing Support'; queue_name_to='Retention Team'; queue_id_to='queue-retention'; transfer_type='consult'; n_transfers=3; pct_of_total_offered=5.4 }
+            [pscustomobject]@{ queue_name_from='Customer Care'; queue_name_to='Supervisor Queue'; queue_id_to='queue-supervisor'; transfer_type='consult'; n_transfers=2; pct_of_total_offered=3.6 }
+        )
+        TransferChains = @(
+            [pscustomobject]@{ conversation_id='demo-conv-002'; transfer_sequence='Customer Care → Retention Team'; hop_count=2; final_queue_name='Retention Team'; final_disconnect_type='client'; has_blind_transfer=1; has_consult_transfer=0 }
+            [pscustomobject]@{ conversation_id='demo-conv-001'; transfer_sequence='Billing Support → Supervisor Queue'; hop_count=2; final_queue_name='Supervisor Queue'; final_disconnect_type='client'; has_blind_transfer=0; has_consult_transfer=1 }
+        )
+        FlowPerfRows = @(
+            [pscustomobject]@{ flow_id='flow-billing'; flow_name='Billing IVR'; flow_type='inboundcall'; division_name='Sales'; n_flow=28; n_flow_outcome_success=21; n_flow_outcome_failed=4; n_flow_milestone_hit=19; containment_rate_pct=75.0; failure_rate_pct=14.3 }
+            [pscustomobject]@{ flow_id='flow-retention'; flow_name='Retention Router'; flow_type='inqueuecall'; division_name='Sales'; n_flow=14; n_flow_outcome_success=8; n_flow_outcome_failed=3; n_flow_milestone_hit=7; containment_rate_pct=57.1; failure_rate_pct=21.4 }
+            [pscustomobject]@{ flow_id='flow-digital'; flow_name='Digital Bot'; flow_type='bot'; division_name='Digital'; n_flow=22; n_flow_outcome_success=19; n_flow_outcome_failed=1; n_flow_milestone_hit=20; containment_rate_pct=86.4; failure_rate_pct=4.5 }
+        )
+        FlowMilestonesByFlowId = @{
+            'flow-billing' = @(
+                [pscustomobject]@{ milestone_name='Authenticated'; n_hit=23; pct_of_entries=82.1 }
+                [pscustomobject]@{ milestone_name='Intent Captured'; n_hit=21; pct_of_entries=75.0 }
+            )
+            'flow-retention' = @(
+                [pscustomobject]@{ milestone_name='Save Offer Presented'; n_hit=9; pct_of_entries=64.3 }
+                [pscustomobject]@{ milestone_name='Supervisor Routed'; n_hit=4; pct_of_entries=28.6 }
+            )
+            'flow-digital' = @(
+                [pscustomobject]@{ milestone_name='Bot Intent Match'; n_hit=20; pct_of_entries=90.9 }
+                [pscustomobject]@{ milestone_name='Self-Service Resolved'; n_hit=16; pct_of_entries=72.7 }
+            )
+        }
+        FlowQueuesByFlowId = @{
+            'flow-billing' = @(
+                [pscustomobject]@{ QueueName='Billing Support'; ConversationCount=21 }
+                [pscustomobject]@{ QueueName='Supervisor Queue'; ConversationCount=3 }
+            )
+            'flow-retention' = @(
+                [pscustomobject]@{ QueueName='Retention Team'; ConversationCount=8 }
+                [pscustomobject]@{ QueueName='Customer Care'; ConversationCount=3 }
+            )
+            'flow-digital' = @(
+                [pscustomobject]@{ QueueName='Digital Support'; ConversationCount=19 }
+            )
+        }
+        WrapupCodeRows = @(
+            [pscustomobject]@{ wrapup_code_id='BILLING_ISSUE'; wrapup_code_name='Billing Issue'; n_connected=22; queue_count=2; pct_of_org_total=37.9 }
+            [pscustomobject]@{ wrapup_code_id='CANCEL_SAVE'; wrapup_code_name='Retention Save Attempt'; n_connected=19; queue_count=2; pct_of_org_total=32.8 }
+            [pscustomobject]@{ wrapup_code_id='RESOLVED_CHAT'; wrapup_code_name='Resolved in Chat'; n_connected=17; queue_count=1; pct_of_org_total=29.3 }
+        )
+        WrapupByHourRows = @(
+            [pscustomobject]@{ wrapup_code_id='BILLING_ISSUE'; wrapup_code_name='Billing Issue'; hour_of_day=14; n_connected=12 }
+            [pscustomobject]@{ wrapup_code_id='BILLING_ISSUE'; wrapup_code_name='Billing Issue'; hour_of_day=15; n_connected=10 }
+            [pscustomobject]@{ wrapup_code_id='CANCEL_SAVE'; wrapup_code_name='Retention Save Attempt'; hour_of_day=15; n_connected=11 }
+            [pscustomobject]@{ wrapup_code_id='CANCEL_SAVE'; wrapup_code_name='Retention Save Attempt'; hour_of_day=16; n_connected=8 }
+            [pscustomobject]@{ wrapup_code_id='RESOLVED_CHAT'; wrapup_code_name='Resolved in Chat'; hour_of_day=16; n_connected=9 }
+            [pscustomobject]@{ wrapup_code_id='RESOLVED_CHAT'; wrapup_code_name='Resolved in Chat'; hour_of_day=17; n_connected=8 }
+        )
+        WrapupInsights = @(
+            [pscustomobject]@{ WrapupCodeName='Retention Save Attempt'; TopQueueName='Retention Team'; ConcentrationIndex=0.73; NConnectedTotal=19 }
+            [pscustomobject]@{ WrapupCodeName='Billing Issue'; TopQueueName='Billing Support'; ConcentrationIndex=0.69; NConnectedTotal=22 }
+        )
+        WrapupCrossRef = @(
+            [pscustomobject]@{ WrapupCodeName='Retention Save Attempt'; ConversationCount=19; MedianHandleSec=642.3; MedianSegmentCount=7.0 }
+            [pscustomobject]@{ WrapupCodeName='Billing Issue'; ConversationCount=22; MedianHandleSec=518.8; MedianSegmentCount=5.0 }
+            [pscustomobject]@{ WrapupCodeName='Resolved in Chat'; ConversationCount=17; MedianHandleSec=304.2; MedianSegmentCount=3.0 }
+        )
+        WrapupByQueueByCodeId = @{
+            'BILLING_ISSUE' = @(
+                [pscustomobject]@{ queue_name='Billing Support'; n_connected=18; pct_of_queue_total=81.8; pct_of_org_total=31.0 }
+                [pscustomobject]@{ queue_name='Supervisor Queue'; n_connected=4; pct_of_queue_total=18.2; pct_of_org_total=6.9 }
+            )
+            'CANCEL_SAVE' = @(
+                [pscustomobject]@{ queue_name='Retention Team'; n_connected=15; pct_of_queue_total=78.9; pct_of_org_total=25.9 }
+                [pscustomobject]@{ queue_name='Customer Care'; n_connected=4; pct_of_queue_total=21.1; pct_of_org_total=6.9 }
+            )
+            'RESOLVED_CHAT' = @(
+                [pscustomobject]@{ queue_name='Digital Support'; n_connected=17; pct_of_queue_total=100.0; pct_of_org_total=29.3 }
+            )
+        }
+        WrapupSummary = [pscustomobject]@{
+            TotalCodes = 3
+            TotalConnected = 58
+            TotalQueues = 5
+            TopReasonName = 'Billing Issue'
+            TopReasonCount = 22
+        }
+        QualitySummary = [pscustomobject]@{
+            EvaluationCount = 9
+            SurveyCount = 14
+            AvgEvaluationScore = 78.6
+            AvgCsat = 3.84
+            LowConversationCount = 2
+        }
+        QualityAgentRows = @(
+            [pscustomobject]@{ AgentName='Jamie Carter'; EvaluationCount=3; MinScore=72.0; P25Score=74.0; MedianScore=79.0; P75Score=84.0; MaxScore=86.0; AvgScore=79.6 }
+            [pscustomobject]@{ AgentName='Morgan Lee'; EvaluationCount=4; MinScore=58.0; P25Score=62.0; MedianScore=69.0; P75Score=74.0; MaxScore=81.0; AvgScore=68.5 }
+            [pscustomobject]@{ AgentName='Taylor Nguyen'; EvaluationCount=2; MinScore=85.0; P25Score=86.0; MedianScore=88.0; P75Score=90.0; MaxScore=91.0; AvgScore=88.5 }
+        )
+        QualityQueueRows = @(
+            [pscustomobject]@{ QueueName='Billing Support'; SurveyCount=5; AvgNps=35.4; MedianNps=38.0; AvgCsat=3.92; MedianCsat=4.00; DetractorCount=1 }
+            [pscustomobject]@{ QueueName='Customer Care'; SurveyCount=4; AvgNps=11.2; MedianNps=10.0; AvgCsat=3.11; MedianCsat=3.00; DetractorCount=2 }
+            [pscustomobject]@{ QueueName='Digital Support'; SurveyCount=5; AvgNps=48.7; MedianNps=50.0; AvgCsat=4.37; MedianCsat=4.50; DetractorCount=0 }
+        )
+        QualityLowRows = @(
+            [pscustomobject]@{ ConversationId='demo-conv-002'; QueueName='Customer Care'; AgentName='Morgan Lee'; EvaluationScore=58.0; NpsScore='0'; CsatScore=2.10; Issues='Long hold, transfer friction'; CompletedAt='2026-05-09T15:33:00.000Z' }
+            [pscustomobject]@{ ConversationId='demo-conv-001'; QueueName='Billing Support'; AgentName='Jamie Carter'; EvaluationScore=72.0; NpsScore='3'; CsatScore=3.20; Issues='Hold duration exceeded target'; CompletedAt='2026-05-09T14:19:00.000Z' }
+        )
+        QualityCorrelation = [pscustomobject]@{
+            ConversationCount = 9
+            HandleScoreCorrelation = -0.52
+            WrapupScoreCorrelation = -0.33
+            WrapupOrdinalNote = 'Wrapup ordering treats escalation codes as higher-friction outcomes.'
+        }
+        QualityTopicRows = @(
+            [pscustomobject]@{ TopicName='Transfer request'; TopicHits=12; ConversationCount=7 }
+            [pscustomobject]@{ TopicName='Cancellation'; TopicHits=9; ConversationCount=5 }
+            [pscustomobject]@{ TopicName='Long hold'; TopicHits=6; ConversationCount=4 }
+        )
+    }
+}
+
+function _WriteDemoRunArtifacts {
+    param([Parameter(Mandatory)][object[]]$Records)
+
+    $cfg = Get-AppConfig
+    $outputRoot = if (-not [string]::IsNullOrWhiteSpace([string]$cfg.OutputRoot)) {
+        [string]$cfg.OutputRoot
+    } else {
+        [System.IO.Path]::Combine($script:UIAppDir, 'out')
+    }
+
+    $datasetKey = 'analytics-conversation-details-query'
+    $runId = "demo-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ'))"
+    $runFolder = [System.IO.Path]::Combine($outputRoot, $datasetKey, $runId)
+    $dataDir = [System.IO.Path]::Combine($runFolder, 'data')
+    [System.IO.Directory]::CreateDirectory($dataDir) | Out-Null
+    [System.IO.Directory]::CreateDirectory($runFolder) | Out-Null
+
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    $dataPath = [System.IO.Path]::Combine($dataDir, "$datasetKey.jsonl")
+    $writer = [System.IO.StreamWriter]::new($dataPath, $false, $utf8NoBom)
+    try {
+        foreach ($record in @($Records)) {
+            $writer.WriteLine(($record | ConvertTo-Json -Depth 30 -Compress))
+        }
+    } finally {
+        $writer.Close()
+        $writer.Dispose()
+    }
+
+    $startUtc = '2026-05-09T14:00:00.000Z'
+    $endUtc   = '2026-05-09T16:57:30.000Z'
+    $count    = @($Records).Count
+    $manifest = [ordered]@{
+        datasetKey           = $datasetKey
+        runId                = $runId
+        status               = 'completed'
+        extractionStart      = $startUtc
+        extractionEnd        = $endUtc
+        schemaVersion        = '1.0'
+        normalizationVersion = '1.0'
+        counts               = @{ itemCount = $count }
+    }
+    $summary = [ordered]@{
+        datasetKey           = $datasetKey
+        runId                = $runId
+        status               = 'completed'
+        extractionStart      = $startUtc
+        extractionEnd        = $endUtc
+        schemaVersion        = '1.0'
+        normalizationVersion = '1.0'
+        itemCount            = $count
+        totals               = @{ totalConversations = $count }
+    }
+
+    [System.IO.File]::WriteAllText(
+        [System.IO.Path]::Combine($runFolder, 'manifest.json'),
+        ($manifest | ConvertTo-Json -Depth 10),
+        $utf8NoBom)
+    [System.IO.File]::WriteAllText(
+        [System.IO.Path]::Combine($runFolder, 'summary.json'),
+        ($summary | ConvertTo-Json -Depth 10),
+        $utf8NoBom)
+
+    $events = @(
+        ([ordered]@{ eventType = 'demo.started'; createdAtUtc = $startUtc; payload = @{ source = 'built-in-demo' } } | ConvertTo-Json -Compress)
+        ([ordered]@{ eventType = 'demo.completed'; createdAtUtc = $endUtc; payload = @{ recordCount = $count } } | ConvertTo-Json -Compress)
+    )
+    [System.IO.File]::WriteAllText(
+        [System.IO.Path]::Combine($runFolder, 'events.jsonl'),
+        ($events -join [Environment]::NewLine),
+        $utf8NoBom)
+
+    return $runFolder
+}
+
+function _RunDemoScenario {
+    try {
+        _SetStatus 'Loading demo run…'
+        $records = @(_GetDemoConversationRecords)
+        $runFolder = _WriteDemoRunArtifacts -Records $records
+        $loadResult = _LoadRunAndRefreshGrid -RunFolder $runFolder -PreserveRunFilters
+        if ($null -eq $loadResult -or -not $loadResult.Succeeded) {
+            throw "Demo run could not be loaded from $runFolder"
+        }
+
+        Add-RecentRun -RunFolder $runFolder
+        _RefreshRecentRuns
+        $script:State.DemoRunFolder = $runFolder
+        $script:State.DemoModeEnabled = $true
+        $script:State.DemoData = _GetDemoReportData
+
+        _PopulateQueuePerfDivisionFilter
+        _PopulateAgentPerfDivisionFilter
+        _RenderQueuePerfGrid
+        _RenderAgentPerfGrid
+        _RenderTransferGrid
+        _RenderFlowContainmentGrid
+        _RenderWrapupGrid
+        _RenderQualityGrid
+
+        if ($null -ne $script:TxtRunStatus)     { $script:TxtRunStatus.Text = 'Demo run complete' }
+        if ($null -ne $script:TxtConsoleStatus) { $script:TxtConsoleStatus.Text = 'Demo loaded' }
+        if ($null -ne $script:TxtDiagnostics) {
+            $script:TxtDiagnostics.Text = @(
+                'Demo mode loaded successfully.'
+                "Run folder: $runFolder"
+                'Authentication was not required.'
+                'Conversation results: 3'
+                'Breakout tabs loaded: Queue Performance, Agent Performance, Transfer & Escalation, Flow & IVR, Contact Reasons, Quality.'
+            ) -join [Environment]::NewLine
+        }
+        _SetStatus 'Demo data loaded (3 conversations)'
+    } catch {
+        _SetStatus "Demo load failed: $($_.Exception.Message)"
+        [System.Windows.MessageBox]::Show("Demo load failed: $($_.Exception.Message)", 'Demo')
+    }
+}
+
 # ── Event wire-up ─────────────────────────────────────────────────────────────
 
 $script:BtnConnect.Add_Click({ _ShowConnectDialog })
+
+if ($null -ne $script:BtnDemoRun) {
+    $script:BtnDemoRun.Add_Click({ _RunDemoScenario })
+}
 
 $script:BtnSettings.Add_Click({ _ShowSettingsDialog })
 

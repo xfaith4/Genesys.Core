@@ -6,11 +6,28 @@ and requires **no server, no build step, and no direct Genesys API access**.
 
 ---
 
+## Live demo
+
+A read-only, synthetic-data version is published to GitHub Pages:
+
+**<https://xfaith4.github.io/Genesys.Core/>**
+
+The published page auto-loads the built-in demo dataset on open and shows a "DEMO MODE"
+banner at the top. It is **not** connected to any live Genesys Cloud organisation. The
+deploy is driven by [`.github/workflows/pages.yml`](../../.github/workflows/pages.yml),
+which copies this `index.html` into the Pages artifact and injects the banner + autoload
+hook at build time — the in-tree file remains usable for loading real JSON exports.
+
+> First-time setup (repo owner only): in GitHub **Settings → Pages**, set
+> **Source = GitHub Actions**, then push to `main` (or run the workflow manually).
+
+---
+
 ## Quick start
 
 1. Run the PowerShell export commands below to generate JSON files.
 2. Open `index.html` in Chrome, Edge, Firefox, or Safari.
-3. Click ** Demo Data** to preview all dashboards instantly with sample data, or drag-and-drop
+3. Click **📊 Demo Data** to preview all dashboards instantly with sample data, or drag-and-drop
    your JSON files onto the appropriate tab's load zone.
 
 ---

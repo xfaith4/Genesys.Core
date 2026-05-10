@@ -1,0 +1,90 @@
+name: Deploy OpsConsole demo to GitHub Pages
+
+# Publishes apps/OpsConsole/index.html as a strictly-demo site at
+# https://xfaith4.github.io/Genesys.Core/. The build step injects a
+# DEMO banner and an auto-load hook so visitors land on a fully-rendered
+# dashboard powered by the in-file synthetic data — no live API access.
+#
+# One-time setup: in GitHub repo Settings → Pages, set Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/OpsConsole/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one in-progress deploy at a time; don't cancel a run mid-deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble demo site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp apps/OpsConsole/index.html _site/index.html
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('_site/index.html')
+          html = path.read_text(encoding='utf-8')
+
+          banner = (
+            '<div id="demo-banner" role="status" '
+            'style="background:linear-gradient(90deg,#c8860a,#e05d2b);'
+            'color:#fff;text-align:center;padding:8px 14px;'
+            'font:600 .82rem \'Segoe UI\',system-ui,sans-serif;'
+            'letter-spacing:.04em;text-transform:uppercase;'
+            'box-shadow:0 1px 0 rgba(0,0,0,.15);">'
+            '⚠ Demo mode — synthetic data only. '
+            'Not connected to a live Genesys Cloud organisation.'
+            '</div>\n'
+          )
+          html = html.replace('<body>', '<body>\n' + banner, 1)
+
+          autoload = (
+            '<script>'
+            'window.addEventListener("DOMContentLoaded", () => {'
+            '  try { loadDemo(); }'
+            '  catch (err) { console.error("Demo autoload failed:", err); }'
+            '});'
+            '</script>\n</body>'
+          )
+          html = html.replace('</body>', autoload, 1)
+
+          path.write_text(html, encoding='utf-8')
+          PY
+
+          # Disable Jekyll so files starting with _ are served as-is.
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

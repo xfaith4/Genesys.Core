@@ -40024,6 +40024,255 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "call-history-and-customer-journey": {
+        "description": "Reconstruct a customer's full interaction history across multiple conversations using their ANI, external contact ID, or call-history records. Reveals repeat-contact patterns, unresolved issues, and channel-switching behaviour. Used by supervisors and CX analysts investigating chronic callers, escalation chains, or NPS detractor journeys.",
+        "subjectParam": "ANI or externalContactId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "call-history",
+            "dataset": "conversations.get.call.history",
+            "role": "seed",
+            "joinKey": "ANI",
+            "provides": "conversationId list ordered by startTime",
+            "description": "Historical call list for the customer's number \u2014 ordered list of conversation IDs across the window"
+          },
+          {
+            "step": "batch-analytics",
+            "dataset": "analytics.get.multiple.conversations.by.ids",
+            "joinKey": "conversationId",
+            "provides": "tTalk, tAcw, tHandle, queueId, wrapUpCode, agentId per conversation",
+            "description": "Batch analytics lookup for all conversation IDs from call-history \u2014 efficient multi-conversation enrichment"
+          },
+          {
+            "step": "timeline-analysis",
+            "dataset": "analytics-conversation-timeline-analysis",
+            "joinKey": "conversationId",
+            "provides": "normalized timeline-events.jsonl with IVR/ACD/agent segment overlay",
+            "description": "Compound timeline dataset producing per-conversation segment events \u2014 reveals routing path changes across repeat contacts"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR variables, intent labels, data-action outcomes per conversation",
+            "description": "Participant-level flow variables across all conversations \u2014 reveals whether IVR captured consistent intent or if customer had to re-explain"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.search.customattributes",
+            "joinKey": "conversationId",
+            "provides": "per-conversation custom attributes set by Architect flows",
+            "description": "Bulk custom-attribute lookup across all conversations \u2014 surfaces CRM case IDs, escalation flags, and automation outcomes"
+          },
+          {
+            "step": "journey-triggers",
+            "dataset": "journey.get.action.maps",
+            "joinKey": "(reference \u2014 no direct join)",
+            "provides": "predictive engagement action map definitions and trigger conditions",
+            "description": "Journey action map catalogue \u2014 cross-reference to understand whether predictive engagement was offered during any customer web session alongside these voice contacts"
+          },
+          {
+            "step": "recordings",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus per conversation",
+            "description": "Recording metadata for each historical conversation \u2014 enables spot-review of prior calls for complaint context"
+          }
+        ],
+        "joinSequence": "call-history (ANI) \u2192 batch-analytics (conversationId list) \u2192 participant-attributes (conversationId) \u2192 custom-attributes (conversationId) \u2192 recording-metadata (conversationId)",
+        "analyticalQuestionsAnswered": [
+          "How many times has this customer called in the window?",
+          "Were their issues resolved (wrapup codes across conversations)?",
+          "Did they switch channels (voice \u2192 chat \u2192 callback)?",
+          "Did each call reach the correct queue, or were transfers required repeatedly?",
+          "Were recordings captured for all prior calls (for complaint evidence)?",
+          "What IVR intent was captured \u2014 did it change across calls indicating unclear self-service?"
+        ],
+        "executiveMetrics": [
+          "repeatContactCount",
+          "totalHandleTime",
+          "queueTraversalCount",
+          "transferRateAcrossJourney",
+          "firstCallResolutionEstimate (wrapUpCode = resolved on first contact)"
+        ]
+      },
+      "agent-assist-and-copilot-effectiveness": {
+        "description": "Measure Copilot and Agent Assist suggestion uptake, content quality, and correlation with QM evaluation scores. Identifies whether AI-suggested responses are improving handle time or quality outcomes. Used by CX technology teams, QM managers, and Copilot programme owners to validate ROI and tune suggestion confidence thresholds.",
+        "subjectParam": "queueId or agentUserId (window required)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "conversations",
+            "dataset": "analytics-conversation-details-query",
+            "role": "seed",
+            "filterBy": "queueId or agentUserId + window",
+            "joinKey": "conversationId",
+            "provides": "conversationId, tHandle, tTalk, tAcw, agentId, wrapUpCode",
+            "description": "Conversation list \u2014 seed for suggestion and evaluation enrichment"
+          },
+          {
+            "step": "suggestions",
+            "dataset": "conversations.get.conversation.suggestions",
+            "joinKey": "conversationId",
+            "provides": "suggestionId, type (Knowledge/FAQ/Script), timestamp offered",
+            "description": "Agent Assist suggestions offered during each conversation \u2014 reveals suggestion volume and type distribution"
+          },
+          {
+            "step": "suggestion-detail",
+            "dataset": "conversations.get.conversation.suggestion.detail",
+            "joinKey": "conversationId+suggestionId",
+            "provides": "content, confidenceScore, source (article/script), accepted flag",
+            "description": "Full suggestion content with confidence and acceptance status \u2014 key to measuring uptake rate"
+          },
+          {
+            "step": "ai-sta-overview",
+            "dataset": "conversations.get.speech.text.analytics",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore, silencePct, overtalkPct",
+            "description": "S&TA top-level scores \u2014 correlate with suggestion uptake to assess CX impact of accepted suggestions"
+          },
+          {
+            "step": "sentiment-timeline",
+            "dataset": "speech.and.text.analytics.get.sentiment.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "per-utterance sentiment scores, agent vs customer breakdown",
+            "description": "Utterance-level sentiment timeline \u2014 compare sentiment trajectory in conversations where suggestions were accepted vs. declined"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId",
+            "description": "QM evaluation scores \u2014 key correlation target: do conversations with accepted suggestions score higher?"
+          },
+          {
+            "step": "evaluation-forms",
+            "dataset": "quality.get.published.evaluation.forms",
+            "joinKey": "(reference \u2014 form catalogue)",
+            "provides": "form definitions, weighted question list, critical items",
+            "description": "Evaluation form definitions \u2014 understand which scoring dimensions are most affected by suggestion quality"
+          }
+        ],
+        "joinSequence": "conversations (seed) \u2192 suggestions (conversationId) \u2192 suggestion-detail (conversationId+suggestionId) \u2192 evaluations (conversationId) \u2192 sta-overview (conversationId)",
+        "analyticalQuestionsAnswered": [
+          "What percentage of conversations had at least one suggestion offered?",
+          "What is the suggestion acceptance rate (accepted/offered)?",
+          "Do conversations with accepted suggestions have lower AHT?",
+          "Is there a positive correlation between suggestion acceptance and evaluation score?",
+          "Which suggestion types (Knowledge, FAQ, Script) have the highest confidence and acceptance?",
+          "Are certain agents ignoring suggestions that others accept \u2014 coaching opportunity?"
+        ],
+        "derivedMetrics": [
+          "suggestionCoverageRate% = conversationsWithSuggestions / totalConversations",
+          "suggestionAcceptanceRate% = acceptedSuggestions / offeredSuggestions",
+          "avgHandleTimeDelta = avgTHandle(accepted) - avgTHandle(declined)",
+          "evalScoreDelta = avgEvalScore(accepted) - avgEvalScore(declined)"
+        ],
+        "executiveMetrics": [
+          "suggestionCoverageRate%",
+          "suggestionAcceptanceRate%",
+          "ahtImpactSeconds",
+          "evalScoreImpact",
+          "knowledgeArticleUtilisationRate%"
+        ]
+      },
+      "byoi-external-conversation-investigation": {
+        "description": "Specialised investigation for conversations injected via the BYOI (Bring Your Own Integration) provider API \u2014 conversations that originated in an external telephony system and were handed off into Genesys Cloud for routing, recording, and analytics. Identifies the BYOI indicator fields, maps external context to Genesys data, and confirms analytics and recording coverage for injected calls. Used by integration engineers validating a BYOI deployment and by voice engineers investigating injected-call quality issues.",
+        "subjectParam": "conversationId (with non-null externalTag)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[purpose=external].externalContactId, ANI, DNIS",
+            "description": "Base conversation \u2014 confirm non-null externalTag as the BYOI indicator; extract externalConversationId for provider-side lookup"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "tTalk, tHeld, tAcw, tIvr, tAcd, segment timeline",
+            "description": "Per-segment analytics \u2014 confirms IVR/ACD/agent timing is fully captured for the injected conversation"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set attributes: CRM case ID, external call ID, intent label, escalation flags",
+            "description": "Custom attributes set by the BYOI provider at injection time \u2014 the primary context bridge between external system and Genesys"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect variables set during the injected conversation flow",
+            "description": "Participant-level flow variables \u2014 captures any Architect-side enrichment that occurred after the BYOI handoff"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus \u2014 confirms recording captured post-injection",
+            "description": "Recording metadata \u2014 verifies recording policy triggered correctly for the injected conversation"
+          },
+          {
+            "step": "recordings",
+            "dataset": "conversations.get.recordings",
+            "joinKey": "conversationId",
+            "provides": "downloadURL, mediaType, recordingType \u2014 actual recording objects",
+            "description": "Recording download URLs \u2014 allows playback confirmation that audio was captured correctly from the BYOI SIP handoff"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP INVITE/BYE/re-INVITE messages from the BYOI SIP-to-SIP handoff",
+            "description": "SIP trace \u2014 for BYOI calls this reflects the provider's SIP-to-SIP handoff, not a PSTN leg; use to diagnose codec or media path issues"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "conversations.get.speech.text.analytics",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore, analysisStatus",
+            "description": "S&TA summary \u2014 confirms speech analytics is running on injected calls; analysisStatus should be 'Success' if S&TA is licensed and audio quality is sufficient"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, form, evaluatorId",
+            "description": "QM evaluations \u2014 confirms injected conversations flow through QM pipeline identically to native conversations"
+          }
+        ],
+        "byoiIndicatorFields": {
+          "externalTag": "Non-null value confirms BYOI injection; set by provider at POST /api/v2/conversations/providers/{providerId}/calls",
+          "externalConversationId": "Provider's own conversation identifier \u2014 use to correlate with provider's CDR",
+          "participants[purpose=external]": "External participant in the roster; externalContactId links to Genesys external contact record"
+        },
+        "diagnosticSignals": [
+          "externalTag null \u2192 conversation is native, not BYOI injected",
+          "analytics-detail tTalk=0 \u2192 injection succeeded but audio media never connected; check SIP SDP negotiation in sip-trace",
+          "recording absent \u2192 BYOI SIP handoff audio not captured; check edge recording policy applies to provider trunk",
+          "sta-overview analysisStatus='Failed' \u2192 audio codec incompatible with S&TA (check SDP offer in sip-trace for codec list)",
+          "custom-attributes empty \u2192 provider did not set context at injection; integration bug in provider's POST body"
+        ],
+        "joinSequence": "conversation-base (externalTag confirm) \u2192 analytics-detail \u2192 custom-attributes \u2192 participant-attributes \u2192 recording-metadata \u2192 sip-trace (voice only)",
+        "executiveMetrics": [
+          "injectedConversationVolume",
+          "recordingCoverageRate%",
+          "staAnalysisSuccessRate%",
+          "avgHandleTime",
+          "evaluationCoverageRate%"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40234,6 +40483,96 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "platform-security-and-api-governance": {
+        "description": "OAuth client inventory, active authorisation grants, role assignments, and API consumption metrics. Used by IT security teams, compliance officers, and platform administrators for access reviews, integration audits, and over-privileged client identification. Pairs with audit-logs (service=Authorization) to detect unauthorised permission changes.",
+        "datasetsInOrder": [
+          "oauth.get.clients",
+          "oauth.get.authorizations",
+          "authorization.get.roles",
+          "oauth.post.client.usage.query",
+          "oauth.get.client.usage.query.results",
+          "usage.get.api.usage.organization.summary",
+          "usage.get.api.usage.by.client",
+          "usage.get.api.usage.by.user",
+          "analytics.query.rate.limit.aggregates",
+          "audit-logs"
+        ],
+        "joinOn": "clientId or userId",
+        "groupBy": [
+          "clientId",
+          "userId"
+        ],
+        "outputMetrics": [
+          "oauthClientCount",
+          "activeAuthGrantCount",
+          "apiCallsPerClient (volume)",
+          "rateLimitHitsPerClient (nOverLimit)",
+          "rolesAssignedCount",
+          "authorizationChangeEvents (from audit-logs)"
+        ],
+        "auditLogFilter": "service=Authorization, action in [CREATE, UPDATE, DELETE]",
+        "executivePresentation": "OAuth client table with call volume + active grants; flag clients with rate-limit hits > 0 or grants older than 90 days; role assignment matrix for privileged roles"
+      },
+      "organisation-health-and-limits": {
+        "description": "Platform health snapshot combining organisation configuration, configured resource limits, currently firing alerts, and rate-limit pressure. Used by platform administrators and operations leads to proactively identify capacity ceilings before they cause service impact. Key pre-deployment and post-migration validation checklist.",
+        "datasetsInOrder": [
+          "organization.get.organization.details",
+          "organization.get.organization.limits",
+          "alerting.get.alerts",
+          "alerting.get.rules",
+          "analytics.query.rate.limit.aggregates",
+          "usage.get.api.usage.organization.summary"
+        ],
+        "joinOn": "(no join \u2014 org-level singleton + alert IDs)",
+        "outputMetrics": [
+          "orgName, orgId, defaultLanguage, features enabled",
+          "configuredLimits (per feature/resource type)",
+          "activeAlertCount by severity",
+          "rateLimitHits nError, nOverLimit (last 24h)",
+          "orgApiCallsLastHour vs. daily average"
+        ],
+        "diagnosticSignals": [
+          "alerting.get.alerts: severity=CRITICAL with no acknowledged status \u2192 immediate escalation required",
+          "analytics.query.rate.limit.aggregates nOverLimit > 0 \u2192 integration is hitting API ceiling; review oauth.get.clients for the offending client",
+          "organization.get.organization.limits: remaining capacity < 20% for any resource \u2192 capacity planning action needed"
+        ],
+        "executivePresentation": "Single-page platform health card: org limits gauge chart + active alert list + 24-hour API usage trend"
+      },
+      "skills-and-routing-workforce-readiness": {
+        "description": "Cross-queue skill coverage analysis combining skill definitions, skill groups, agent skill assignments, queue requirements, and channel capacity limits. Used by workforce planners and routing architects to identify under-skilled queues, skill gaps ahead of volume peaks, and mismatches between queue skill requirements and available agent proficiency.",
+        "datasetsInOrder": [
+          "routing.get.all.routing.skills",
+          "routing.get.skill.groups",
+          "routing.get.all.languages",
+          "routing-queues",
+          "routing.get.single.queue.config",
+          "routing-queue-members",
+          "routing.get.user.utilization",
+          "workforce.get.management.units",
+          "workforce.get.management.unit.users",
+          "users.get.user.routing.skills"
+        ],
+        "joinOn": "skillId \u2192 userId; queueId \u2192 userId",
+        "groupBy": [
+          "skillId",
+          "queueId",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "agentsWithSkill (count per skill)",
+          "avgProficiencyRating per skill per queue",
+          "queueCoverageAgents = agents qualified for queue's required skills",
+          "channelCapacity = maxCapacity per mediaType per agent",
+          "languageRouting coverage = agents per language per queue",
+          "skillGroupSize and divisionAssignment"
+        ],
+        "derivedMetrics": [
+          "skillCoverageRate% = agentsWithRequiredSkill / totalQueueAgents",
+          "multilingualCoverage% = languageQualifiedAgents / totalAgents",
+          "omniChannelCapacity = agents with maxCapacity > 1 for chat/email"
+        ],
+        "executivePresentation": "Skill coverage heat map (skill \u00d7 queue) + language routing table + channel capacity distribution chart; flag queues with < 3 qualified agents for any required skill"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40354,6 +40693,110 @@
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
+      },
+      "routing-architecture-audit": {
+        "description": "Complete routing configuration audit \u2014 skill definitions, skill groups, language routing, queue member rosters, and queue configuration details. Used by voice engineers and routing architects after routing changes, during onboarding of new queues, or when investigating misrouted calls. Provides the definitive picture of 'who can receive what call'.",
+        "datasetsInOrder": [
+          "routing.get.all.routing.skills",
+          "routing.get.skill.groups",
+          "routing.get.all.languages",
+          "routing-queues",
+          "routing.get.single.queue.config",
+          "routing.get.queue.wrapup.codes.by.queue",
+          "routing-queue-members",
+          "routing.get.user.utilization",
+          "users.get.user.routing.skills"
+        ],
+        "diagnosticSignals": [
+          "queue.scoringMethod=SKILLS_ROUTING but zero agents have the required skill \u2192 queue will never connect calls",
+          "queue.mediaSettings.enableAutoAnswer=false \u2192 agents must manually accept; check if causing tAlerting spikes",
+          "queue.acwSettings.timeoutMs=0 \u2192 no ACW enforced; agents may skip wrapup (check wrapup distribution for blank codes)",
+          "routing-queue-members returns empty \u2192 queue is configured but has no members; calls will queue forever",
+          "routing.get.user.utilization maxCapacity=0 for a mediaType \u2192 agent blocked from receiving that media type",
+          "queue uses LANGUAGE_SKILLS_ROUTING but routing.get.all.languages shows no matching language codes"
+        ],
+        "enrichWith": [
+          "analytics.query.conversation.aggregates.queue.performance (validate expected nConnected given member count)",
+          "analytics.query.conversation.aggregates.abandon.metrics (high abandons on a queue with few skilled agents)"
+        ]
+      },
+      "presence-and-routing-status-audit": {
+        "description": "Agent presence and routing status audit \u2014 maps all defined presence states (custom and system) against live agent status to identify why agents are off-queue. Answers the supervisor question 'where are my agents?' and identifies ghost agents, stale presence states, and agents in non-productive custom states during peak hours.",
+        "datasetsInOrder": [
+          "presence.get.system.presence.definitions",
+          "presence.get.organization.presence.definitions",
+          "users",
+          "users.get.bulk.user.presences",
+          "users.get.bulk.user.presences.genesys.cloud",
+          "analytics.query.user.observations.real.time.status",
+          "users.get.agent.current.routing.status",
+          "analytics.query.user.aggregates.login.activity"
+        ],
+        "joinOn": "userId \u2192 presenceDefinitionId",
+        "diagnosticSignals": [
+          "system presence 'On Queue' + routingStatus NOT_RESPONDING \u2192 ghost agent; station may be disconnected",
+          "organisation presence definition with systemPresence=AVAILABLE but high tSystemPresence in that state during peak \u2192 custom 'available' state not routing correctly",
+          "users.get.bulk.user.presences: lastModifiedDate > 4h ago with presence=AWAY during shift hours \u2192 stale presence; agent may have lost connectivity",
+          "analytics.query.user.aggregates.login.activity: tOffQueue / tLoggedIn > 0.4 for multiple agents \u2192 systematic off-queue pattern; check break schedule vs adherence",
+          "oUserRoutingStatus=IDLE + oUserPresence=AVAILABLE for > 30 min \u2192 potential routing configuration not delivering interactions"
+        ],
+        "enrichWith": [
+          "workforce.get.management.unit.adherence (compare actual presence to scheduled activity)",
+          "audit-logs (service=UserManagement, action=UPDATE to detect presence state changes by admin)"
+        ]
+      },
+      "multi-channel-active-contact-centre-snapshot": {
+        "description": "Real-time multi-media snapshot of all active interactions across voice, chat, email, and callback channels. Pairs live conversation counts with queue observations and agent presence to give an operations manager or NOC team a complete right-now picture. Use as a live wall board feed or as the starting point for drill-down investigations of overloaded queues.",
+        "datasetsInOrder": [
+          "conversations.get.active.calls",
+          "conversations.get.active.callbacks",
+          "conversations.get.active.chats",
+          "conversations.get.active.emails",
+          "conversations.get.active.conversations",
+          "analytics.query.queue.observations.real.time.stats",
+          "analytics.query.conversation.activity.real.time",
+          "analytics.query.user.observations.real.time.status",
+          "users.get.bulk.user.presences",
+          "telephony.get.trunk.metrics.summary"
+        ],
+        "pollingIntervalSeconds": 15,
+        "joinOn": "queueId (observations) + userId (presence)",
+        "diagnosticSignals": [
+          "conversations.get.active.calls count >> oInteracting from queue observations \u2192 orphaned calls not in a queue (check BYOI or direct-dial flows)",
+          "conversations.get.active.callbacks count > oWaiting \u2192 callbacks queued but no queue observation visible (callback queue misconfigured)",
+          "analytics.query.queue.observations.real.time.stats oWaiting > 0 + oOnQueueUsers=0 \u2192 understaffed queue; immediate supervisor action required",
+          "telephony.get.trunk.metrics.summary currentCalls / maxConcurrentCalls > 0.85 \u2192 trunk saturation imminent during the active snapshot",
+          "analytics.query.conversation.activity.real.time oLongestWaiting > SLA target \u2192 breach already occurring for oldest waiting customer"
+        ],
+        "enrichWith": [
+          "users.get.agent.active.conversations (drilldown: click an agent to see their active interactions)",
+          "users.get.agent.current.routing.status (confirm agent is INTERACTING, not IDLE with ghost call)"
+        ]
+      },
+      "recording-and-quality-coverage-by-queue": {
+        "description": "Recording compliance and QM evaluation coverage audit for a specific queue or agent. Measures what percentage of connected conversations have recordings and evaluations, identifies recording policy gaps, and verifies evaluation form coverage. Used by compliance officers, QM managers, and voice engineers to validate recording policy configuration and satisfy regulatory or contractual recording obligations.",
+        "subjectParam": "queueId or agentUserId",
+        "datasetsInOrder": [
+          "analytics-conversation-details-query",
+          "conversations.get.conversation.recording.metadata",
+          "conversations.get.recordings",
+          "quality.get.published.evaluation.forms",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "audit-logs"
+        ],
+        "joinOn": "conversationId",
+        "derivedMetric": "recordingCoverageRate% = conversationsWithRecordings / nConnected; evaluationCoverageRate% = conversationsWithEvaluations / nConnected",
+        "diagnosticSignals": [
+          "conversationId in analytics-detail but absent from recording.metadata \u2192 recording policy not triggering; check queue recording rules in admin console",
+          "recording.fileState='ERROR' \u2192 edge storage issue or retention policy conflict; check telephony.get.edges for storage-path errors",
+          "recording.duration << conversation.tTalk \u2192 recording stopped early; agent disconnection or hold gap not bridged",
+          "quality.get.published.evaluation.forms: form assigned to queue but evaluationCoverageRate < target \u2192 evaluators not keeping pace with volume",
+          "quality.get.agents.activity: agentId with evalCount=0 for full window \u2192 no evaluations assigned; gap in QM rotation",
+          "audit-logs service=Recording + action=DELETE \u2192 recordings deleted before retention period; compliance risk"
+        ],
+        "auditLogFilter": "service=Recording, action in [CREATE, UPDATE, DELETE, BULK_DELETE]",
+        "executivePresentation": "Recording coverage gauge + evaluation coverage gauge per queue; agent evaluation league table; flag queues below regulatory recording threshold"
       }
     }
   }

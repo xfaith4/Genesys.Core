@@ -131,7 +131,7 @@ function _Query {
         $rdr.Dispose()
         $cmd.Dispose()
     }
-    return $list.ToArray()
+    return ,($list.ToArray())
 }
 
 # Row value accessor – works with both [hashtable] and [pscustomobject].
@@ -307,7 +307,7 @@ function _AddDistinctString {
 }
 
 function _NewBridgeList {
-    return (New-Object System.Collections.Generic.List[object])
+    return ,(New-Object System.Collections.Generic.List[object])
 }
 
 function _NormalizeFilterState {
@@ -1028,6 +1028,13 @@ function _ConvertConversationRecordToStoreRow {
         } catch { }
     }
 
+    $conversationStartValue = _ObjVal $Record @('conversationStart') $null
+    $conversationEndValue   = _ObjVal $Record @('conversationEnd')   $null
+    $conversationStartUtc   = _TryParseDateUtc $conversationStartValue
+    $conversationEndUtc     = _TryParseDateUtc $conversationEndValue
+    $conversationStartText  = if ($null -ne $conversationStartUtc) { $conversationStartUtc.ToString('o') } elseif ($null -ne $conversationStartValue) { [string]$conversationStartValue } else { '' }
+    $conversationEndText    = if ($null -ne $conversationEndUtc) { $conversationEndUtc.ToString('o') } elseif ($null -ne $conversationEndValue) { [string]$conversationEndValue } else { '' }
+
     $primaryQueue = if ($queueNames.Count -gt 0) { $queueNames[0] } else { $queue }
     $finalQueue   = if ($queueNames.Count -gt 0) { $queueNames[$queueNames.Count - 1] } else { $queue }
     $mosMin = $null
@@ -1070,8 +1077,8 @@ function _ConvertConversationRecordToStoreRow {
         has_mos            = $hasMos
         segment_count      = $segmentCount
         participant_count  = $partCount
-        conversation_start = [string](_ObjVal $Record @('conversationStart') '')
-        conversation_end   = [string](_ObjVal $Record @('conversationEnd') '')
+        conversation_start = $conversationStartText
+        conversation_end   = $conversationEndText
         participants_json  = if ($Record.PSObject.Properties['participants']) { _ToJsonOrNull -Value $Record.participants } else { $null }
         attributes_json    = if ($Record.PSObject.Properties['attributes'])   { _ToJsonOrNull -Value $Record.attributes   } else { $null }
         raw_json           = $rawJson
@@ -1215,6 +1222,7 @@ function _WriteConversationRows {
     $inserted = 0
     $skipped  = 0
     $failed   = 0
+    $firstFailure = ''
 
     $cmd = $Conn.CreateCommand()
     $cmd.CommandText = @'
@@ -1279,6 +1287,12 @@ VALUES
             try {
                 $holdRaw = _RowVal $row 'has_hold' $false
                 $mosRaw  = _RowVal $row 'has_mos'  $false
+                $externalContactPresent = [bool](_RowVal $row 'external_contact_present' $false)
+                $customerDisconnect = [bool](_RowVal $row 'customer_disconnect' $false)
+                $agentDisconnect = [bool](_RowVal $row 'agent_disconnect' $false)
+                $acdDisconnect = [bool](_RowVal $row 'acd_disconnect' $false)
+                $containsCallback = [bool](_RowVal $row 'contains_callback' $false)
+                $containsVoicemail = [bool](_RowVal $row 'contains_voicemail' $false)
 
                 $pMap['@cvid' ].Value = $cvid
                 $pMap['@cid'  ].Value = $CaseId
@@ -1289,8 +1303,8 @@ VALUES
                 $pMap['@queue'].Value = [string](_RowVal $row 'queue_name'        '')
                 $pMap['@disc' ].Value = [string](_RowVal $row 'disconnect_type'   '')
                 $pMap['@dur'  ].Value = [int]   (_RowVal $row 'duration_sec'       0)
-                $pMap['@hold' ].Value = [int]   (if ([bool]$holdRaw) { 1 } else { 0 })
-                $pMap['@mos'  ].Value = [int]   (if ([bool]$mosRaw)  { 1 } else { 0 })
+                $pMap['@hold' ].Value = if ([bool]$holdRaw) { 1 } else { 0 }
+                $pMap['@mos'  ].Value = if ([bool]$mosRaw)  { 1 } else { 0 }
                 $pMap['@segs' ].Value = [int]   (_RowVal $row 'segment_count'      0)
                 $pMap['@ptcnt'].Value = [int]   (_RowVal $row 'participant_count'  0)
                 $pMap['@start'].Value = [string](_RowVal $row 'conversation_start' '')
@@ -1332,12 +1346,12 @@ VALUES
                 $pMap['@wname' ].Value = [string](_RowVal $row 'wrapup_name' '')
                 $pMap['@flowid'].Value = [string](_RowVal $row 'flow_id' '')
                 $pMap['@flowname'].Value = [string](_RowVal $row 'flow_name' '')
-                $pMap['@extcontact'].Value = [int](if ([bool](_RowVal $row 'external_contact_present' $false)) { 1 } else { 0 })
-                $pMap['@custdisc'  ].Value = [int](if ([bool](_RowVal $row 'customer_disconnect' $false)) { 1 } else { 0 })
-                $pMap['@agentdisc' ].Value = [int](if ([bool](_RowVal $row 'agent_disconnect' $false)) { 1 } else { 0 })
-                $pMap['@acddisc'   ].Value = [int](if ([bool](_RowVal $row 'acd_disconnect' $false)) { 1 } else { 0 })
-                $pMap['@callback'  ].Value = [int](if ([bool](_RowVal $row 'contains_callback' $false)) { 1 } else { 0 })
-                $pMap['@voicemail' ].Value = [int](if ([bool](_RowVal $row 'contains_voicemail' $false)) { 1 } else { 0 })
+                $pMap['@extcontact'].Value = if ($externalContactPresent) { 1 } else { 0 }
+                $pMap['@custdisc'  ].Value = if ($customerDisconnect) { 1 } else { 0 }
+                $pMap['@agentdisc' ].Value = if ($agentDisconnect) { 1 } else { 0 }
+                $pMap['@acddisc'   ].Value = if ($acdDisconnect) { 1 } else { 0 }
+                $pMap['@callback'  ].Value = if ($containsCallback) { 1 } else { 0 }
+                $pMap['@voicemail' ].Value = if ($containsVoicemail) { 1 } else { 0 }
                 $pMap['@signature' ].Value = [string](_RowVal $row 'conversation_signature' '')
                 $pMap['@flags'     ].Value = [string](_RowVal $row 'anomaly_flags' '')
                 $pMap['@risk'      ].Value = [int](_RowVal $row 'risk_score' 0)
@@ -1347,6 +1361,9 @@ VALUES
                 $inserted++
             } catch {
                 $failed++
+                if ([string]::IsNullOrWhiteSpace($firstFailure)) {
+                    $firstFailure = $_.Exception.Message
+                }
             }
         }
     } finally {
@@ -1357,6 +1374,7 @@ VALUES
         RecordCount  = $inserted
         SkippedCount = $skipped
         FailedCount  = $failed
+        FirstFailure = $firstFailure
     }
 }
 
@@ -1368,7 +1386,7 @@ function _ImportJsonlFileToConnection {
         [Parameter(Mandatory)][string]$RunId,
         [Parameter(Mandatory)][string]$RunFolder,
         [Parameter(Mandatory)][string]$FilePath,
-        [Parameter(Mandatory)][System.Collections.Generic.List[object]]$Batch,
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Batch,
         [Parameter(Mandatory)][int]$BatchSize,
         [Parameter(Mandatory)][hashtable]$Stats,
         [Parameter(Mandatory)][string]$ImportedUtc
@@ -1386,6 +1404,27 @@ function _ImportJsonlFileToConnection {
     $chunkStart = 0L
     $lineStart  = 0L
     $firstChunk = $true
+
+    $formatFailure = {
+        param($ErrorRecord)
+        $message = $ErrorRecord.Exception.Message
+        $position = ''
+        $stack = ''
+        if ($ErrorRecord.InvocationInfo -and $ErrorRecord.InvocationInfo.PositionMessage) {
+            $position = $ErrorRecord.InvocationInfo.PositionMessage.Trim()
+        }
+        if ($ErrorRecord.ScriptStackTrace) {
+            $stack = $ErrorRecord.ScriptStackTrace.Trim()
+        }
+        if ($position) {
+            if ($stack) {
+                return "$message [$position] [$stack]"
+            }
+            return "$message [$position]"
+        }
+        if ($stack) { return "$message [$stack]" }
+        return $message
+    }
 
     try {
         while (($bytesRead = $fs.Read($buf, 0, $bufSize)) -gt 0) {
@@ -1418,11 +1457,17 @@ function _ImportJsonlFileToConnection {
                                     $Stats.RecordCount  += $result.RecordCount
                                     $Stats.SkippedCount += $result.SkippedCount
                                     $Stats.FailedCount  += $result.FailedCount
+                                    if ($result.FailedCount -gt 0 -and [string]::IsNullOrWhiteSpace([string]$Stats.FirstFailure) -and -not [string]::IsNullOrWhiteSpace([string]$result.FirstFailure)) {
+                                        $Stats.FirstFailure = [string]$result.FirstFailure
+                                    }
                                     $Batch.Clear()
                                 }
                             }
                         } catch {
                             $Stats.FailedCount++
+                            if ([string]::IsNullOrWhiteSpace([string]$Stats.FirstFailure)) {
+                                $Stats.FirstFailure = & $formatFailure $_
+                            }
                         }
                     }
                     $lineBuffer.Clear()
@@ -1451,6 +1496,9 @@ function _ImportJsonlFileToConnection {
                     }
                 } catch {
                     $Stats.FailedCount++
+                    if ([string]::IsNullOrWhiteSpace([string]$Stats.FirstFailure)) {
+                        $Stats.FirstFailure = & $formatFailure $_
+                    }
                 }
             }
         }
@@ -3284,6 +3332,7 @@ function Import-RunFolderToCase {
         SkippedCount = 0
         FailedCount  = 0
         DataLineCount = 0
+        FirstFailure = ''
     }
 
     $conn = _Open
@@ -3324,11 +3373,15 @@ function Import-RunFolderToCase {
                 $stats.RecordCount  += $result.RecordCount
                 $stats.SkippedCount += $result.SkippedCount
                 $stats.FailedCount  += $result.FailedCount
+                if ($result.FailedCount -gt 0 -and [string]::IsNullOrWhiteSpace([string]$stats.FirstFailure) -and -not [string]::IsNullOrWhiteSpace([string]$result.FirstFailure)) {
+                    $stats.FirstFailure = [string]$result.FirstFailure
+                }
                 $batch.Clear()
             }
 
             if ($stats.SkippedCount -gt 0 -or $stats.FailedCount -gt 0) {
-                throw "Import contract failed after parsing Core data: skipped=$($stats.SkippedCount), failed=$($stats.FailedCount)."
+                $detail = if (-not [string]::IsNullOrWhiteSpace([string]$stats.FirstFailure)) { " First failure: $($stats.FirstFailure)" } else { '' }
+                throw "Import contract failed after parsing Core data: skipped=$($stats.SkippedCount), failed=$($stats.FailedCount).$detail"
             }
             if ($stats.RecordCount -ne $contract.DataRecordCount) {
                 throw "Import reconciliation failed: inserted $($stats.RecordCount) conversation row(s), Core data contained $($contract.DataRecordCount)."

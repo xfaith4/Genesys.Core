@@ -1,6 +1,52 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
+function _GetReportRowValues {
+    param(
+        [Parameter(Mandatory)][object]$Row,
+        [Parameter(Mandatory)][string[]]$Names,
+        [string]$Separator = '|'
+    )
+
+    foreach ($name in $Names) {
+        $prop = $Row.PSObject.Properties[$name]
+        if ($null -eq $prop) { continue }
+        $value = $prop.Value
+        if ($null -eq $value) { continue }
+
+        if ($value -is [System.Array] -or $value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            return @($value | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        }
+
+        $text = [string]$value
+        if ([string]::IsNullOrWhiteSpace($text)) { continue }
+        if ($text.Contains($Separator)) {
+            return @($text.Split($Separator) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+        return @($text)
+    }
+
+    return @()
+}
+
+function _GetReportRowScalar {
+    param(
+        [Parameter(Mandatory)][object]$Row,
+        [Parameter(Mandatory)][string[]]$Names
+    )
+
+    foreach ($name in $Names) {
+        $prop = $Row.PSObject.Properties[$name]
+        if ($null -eq $prop) { continue }
+        $value = $prop.Value
+        if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
+            return $value
+        }
+    }
+
+    return $null
+}
+
 function New-ImpactReport {
     <#
     .SYNOPSIS
@@ -36,8 +82,8 @@ function New-ImpactReport {
     # the PSObject.Properties check prevents that.
 
     $impactByDivision = $rows |
-        Where-Object { $_.PSObject.Properties['divisionIds'] -and @($_.divisionIds).Count -gt 0 } |
-        ForEach-Object { @($_.divisionIds) } |
+        ForEach-Object { @(_GetReportRowValues -Row $_ -Names @('divisionIds','division_ids')) } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
         Group-Object |
         Sort-Object @{Expression='Count';Descending=$true}, Name |
         ForEach-Object {
@@ -48,8 +94,8 @@ function New-ImpactReport {
         }
 
     $impactByQueue = $rows |
-        Where-Object { $_.PSObject.Properties['queueIds'] -and @($_.queueIds).Count -gt 0 } |
-        ForEach-Object { @($_.queueIds) } |
+        ForEach-Object { @(_GetReportRowValues -Row $_ -Names @('queueIds','queue_name','primary_queue','final_queue')) } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
         Group-Object |
         Sort-Object @{Expression='Count';Descending=$true}, Name |
         ForEach-Object {
@@ -60,8 +106,8 @@ function New-ImpactReport {
         }
 
     $affectedAgents = $rows |
-        Where-Object { $_.PSObject.Properties['userIds'] -and @($_.userIds).Count -gt 0 } |
-        ForEach-Object { @($_.userIds) } |
+        ForEach-Object { @(_GetReportRowValues -Row $_ -Names @('userIds','agent_names')) } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
         Group-Object |
         Sort-Object @{Expression='Count';Descending=$true}, Name |
         ForEach-Object {
@@ -72,8 +118,11 @@ function New-ImpactReport {
         }
 
     $directionBreakdown = $rows |
-        Where-Object { $_.PSObject.Properties['direction'] -and $_.direction } |
-        Group-Object direction |
+        ForEach-Object {
+            $direction = _GetReportRowScalar -Row $_ -Names @('direction')
+            if ($null -ne $direction) { [pscustomobject]@{ Direction = [string]$direction } }
+        } |
+        Group-Object Direction |
         Sort-Object @{Expression='Count';Descending=$true}, Name |
         ForEach-Object {
             [pscustomobject]@{
@@ -83,8 +132,11 @@ function New-ImpactReport {
         }
 
     $mediaTypeBreakdown = $rows |
-        Where-Object { $_.PSObject.Properties['mediaType'] -and $_.mediaType } |
-        Group-Object mediaType |
+        ForEach-Object {
+            $mediaType = _GetReportRowScalar -Row $_ -Names @('mediaType','media_type')
+            if ($null -ne $mediaType) { [pscustomobject]@{ MediaType = [string]$mediaType } }
+        } |
+        Group-Object MediaType |
         Sort-Object @{Expression='Count';Descending=$true}, Name |
         ForEach-Object {
             [pscustomobject]@{
@@ -93,10 +145,10 @@ function New-ImpactReport {
             }
         }
 
-    $conversationStarts = $rows |
-        Where-Object { $_.PSObject.Properties['conversationStart'] -and $_.conversationStart } |
+    $conversationStarts = @($rows |
         ForEach-Object {
-            $value = $_.conversationStart
+            $value = _GetReportRowScalar -Row $_ -Names @('conversationStart','conversation_start')
+            if ($null -eq $value) { return $null }
             try {
                 if ($value -is [datetimeoffset]) {
                     return $value.ToUniversalTime()
@@ -115,7 +167,7 @@ function New-ImpactReport {
             }
         } |
         Where-Object { $null -ne $_ } |
-        Sort-Object
+        Sort-Object)
 
     $timeWindow = $null
     if ($conversationStarts.Count -gt 0) {

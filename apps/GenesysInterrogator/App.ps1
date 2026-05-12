@@ -256,10 +256,19 @@ function Set-AuthActionState {
 Set-Status "Catalog loaded. $($script:AllDatasets.Count) datasets. Connect a session to run." '#94A3B8'
 Set-AuthActionState
 
+if (-not [string]::IsNullOrWhiteSpace($env:GENESYS_BEARER_TOKEN)) {
+    $controls.TxtConn.Text = 'Bearer token available from GENESYS_BEARER_TOKEN. Click Bearer to connect.'
+    $controls.TxtConn.Foreground = '#FBBF24'
+    Set-Status 'Catalog loaded. A bearer token is available from the environment.' '#FBBF24'
+}
+
 $controls.TxtFilter.Add_TextChanged({
     $q = $controls.TxtFilter.Text.Trim()
     if ([string]::IsNullOrWhiteSpace($q)) {
         Set-DatasetList -Items $script:AllDatasets
+        if ($controls.LstDatasets.Items.Count -gt 0) {
+            $controls.LstDatasets.SelectedIndex = 0
+        }
         return
     }
     $filtered = @($script:AllDatasets | Where-Object {

@@ -3375,6 +3375,41 @@ function _ClearTrendGrid {
     _ClearTrendCanvas
 }
 
+function _TrySeedTrendWindowDefaults {
+    if ($null -eq $script:DpTrendAStart -or
+        $null -eq $script:DpTrendAEnd   -or
+        $null -eq $script:DpTrendBStart -or
+        $null -eq $script:DpTrendBEnd) {
+        return $false
+    }
+
+    $hasAnyTrendDate = $script:DpTrendAStart.SelectedDate -or
+        $script:DpTrendAEnd.SelectedDate -or
+        $script:DpTrendBStart.SelectedDate -or
+        $script:DpTrendBEnd.SelectedDate
+    if ($hasAnyTrendDate) { return $false }
+
+    $windowBStart = $script:DtpStartDate.SelectedDate
+    $windowBEnd   = $script:DtpEndDate.SelectedDate
+    if (-not $windowBStart -or -not $windowBEnd) { return $false }
+
+    $windowBStart = $windowBStart.Date
+    $windowBEnd   = $windowBEnd.Date
+    if ($windowBStart -gt $windowBEnd) { return $false }
+
+    $dayCount = [int](($windowBEnd - $windowBStart).TotalDays) + 1
+    if ($dayCount -le 0) { return $false }
+
+    $windowAEnd   = $windowBStart.AddDays(-1)
+    $windowAStart = $windowAEnd.AddDays(-1 * ($dayCount - 1))
+
+    $script:DpTrendAStart.SelectedDate = $windowAStart
+    $script:DpTrendAEnd.SelectedDate   = $windowAEnd
+    $script:DpTrendBStart.SelectedDate = $windowBStart
+    $script:DpTrendBEnd.SelectedDate   = $windowBEnd
+    return $true
+}
+
 function _DrawTrendHourlyVolume {
     param([object[]]$Rows)
 
@@ -3631,6 +3666,15 @@ function _StartTrendReportJob {
     $aEnd = $script:DpTrendAEnd.SelectedDate
     $bStart = $script:DpTrendBStart.SelectedDate
     $bEnd = $script:DpTrendBEnd.SelectedDate
+    if ((-not $aStart) -and (-not $aEnd) -and (-not $bStart) -and (-not $bEnd)) {
+        if (_TrySeedTrendWindowDefaults) {
+            $aStart = $script:DpTrendAStart.SelectedDate
+            $aEnd = $script:DpTrendAEnd.SelectedDate
+            $bStart = $script:DpTrendBStart.SelectedDate
+            $bEnd = $script:DpTrendBEnd.SelectedDate
+            _SetStatus 'Trend windows defaulted from the current query range.'
+        }
+    }
     if ($null -eq $aStart -or $null -eq $aEnd -or $null -eq $bStart -or $null -eq $bEnd) {
         [System.Windows.MessageBox]::Show('Set all four trend window dates before pulling the report.', 'Trend')
         return

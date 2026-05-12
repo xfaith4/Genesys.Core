@@ -424,7 +424,13 @@ $requiredControls = @(
     'DgWrapupCodes','DgWrapupByQueue','DgWrapupByHour',
     'DgWrapupInsights','DgWrapupCrossRef',
     'LblWrapupCodes','LblWrapupConnected','LblWrapupQueues',
-    'LblWrapupTopReason'
+    'LblWrapupTopReason',
+    'DpTrendAStart','DpTrendAEnd','DpTrendBStart','DpTrendBEnd',
+    'CmbTrendDivision','BtnPullTrendReport','BtnExportIncidentSummary',
+    'LblTrendWindowA','LblTrendWindowB','LblTrendQueueCount',
+    'LblTrendRegressionCount','LblTrendImprovementCount',
+    'DgTrendComparison','DgTrendRegressions','DgTrendImprovements',
+    'CanvasTrendHourlyVolume','TxtIncidentImpactSummary'
 )
 
 foreach ($ctrl in $requiredControls) {
@@ -622,6 +628,39 @@ Check 'QUAL-04' 'App.UI.ps1 wires Quality pull, render, and low-score drillthrou
     $uiContent -match 'function _OpenLowScoreConversation' -and
     $uiContent -match 'BtnPullQualityReport\.Add_Click' -and
     $uiContent -match 'DgLowScoreConversations\.Add_SelectionChanged'
+}
+
+# ── TREND / COMPARATIVE REPORTING (TRND) ─────────────────────────────────────
+
+Write-Host "`n=== TREND / COMPARATIVE REPORTING ===" -ForegroundColor Cyan
+
+Check 'TRND-01' 'App.CoreAdapter.psm1 exposes Get-TrendReport dataset pulls' {
+    $adapterContent -match 'function Get-TrendReport' -and
+    $adapterContent -match 'analytics\.query\.conversation\.aggregates\.queue\.performance' -and
+    $adapterContent -match 'analytics\.query\.conversation\.aggregates\.abandon\.metrics' -and
+    $adapterContent -match 'analytics\.query\.queue\.aggregates\.service\.level'
+}
+
+Check 'TRND-02' 'App.Database.psm1 defines schema v12 trend tables and exports accessors' {
+    $schemaMatch = [regex]::Match($dbContent, '\$script:SchemaVersion\s*=\s*(\d+)')
+    $schemaMatch.Success -and [int]$schemaMatch.Groups[1].Value -ge 12 -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_trend_windows' -and
+    $dbContent -match 'CREATE TABLE IF NOT EXISTS report_trend_comparison' -and
+    $dbContent -match 'function Import-TrendReport' -and
+    $dbContent -match 'function Get-TrendComparisonRows' -and
+    $dbContent -match 'function Get-TrendChangeLeaders' -and
+    $dbContent -match 'function Export-IncidentImpactSummary'
+}
+
+Check 'TRND-03' 'App.UI.ps1 wires Trend pull, render, export, and filter handlers' {
+    $uiContent -match 'function _StartTrendReportJob' -and
+    $uiContent -match 'function _PopulateTrendDivisionFilter' -and
+    $uiContent -match 'function _RenderTrendGrid' -and
+    $uiContent -match 'function _DrawTrendHourlyVolume' -and
+    $uiContent -match 'function _ExportIncidentImpactSummaryReport' -and
+    $uiContent -match 'BtnPullTrendReport\.Add_Click' -and
+    $uiContent -match 'CmbTrendDivision\.Add_SelectionChanged' -and
+    $uiContent -match 'BtnExportIncidentSummary\.Add_Click'
 }
 
 # ── INVESTIGATION WORKBENCH TRUST FOUNDATIONS (WB) ────────────────────────────

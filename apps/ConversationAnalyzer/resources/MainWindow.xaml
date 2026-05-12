@@ -1949,6 +1949,225 @@
                                 </Grid>
                             </TabItem>
 
+                            <TabItem Header="Trend" Foreground="{StaticResource BrushText}">
+                                <Grid Margin="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushHero}"
+                                            BorderBrush="#4E5A62"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="TEMPORAL TREND &amp; IMPACT"
+                                                           Style="{StaticResource LblSection}"
+                                                           Margin="0,0,0,4"/>
+                                                <TextBlock Text="Compare baseline and incident windows, rank regressions/improvements, and export a one-page incident impact summary from the case store."
+                                                           Foreground="{StaticResource BrushText}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Division:" Foreground="{StaticResource BrushSubtext}"
+                                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbTrendDivision"
+                                                          Width="160" Height="28"
+                                                          ToolTip="Filter trend comparisons by division after import."/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button x:Name="BtnPullTrendReport"
+                                                        Content="Pull Report"
+                                                        Style="{StaticResource BtnAccent}" Height="30"
+                                                        Margin="0,0,8,0"
+                                                        ToolTip="Fetches Window A and Window B queue-performance aggregates at hourly granularity."/>
+                                                <Button x:Name="BtnExportIncidentSummary"
+                                                        Content="Export Summary"
+                                                        Style="{StaticResource BtnBase}" Height="30"
+                                                        ToolTip="Writes the current Incident Impact Summary to a text report under the app output root."/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1"
+                                            Background="#121A1F"
+                                            BorderBrush="{StaticResource BrushLine}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="10,8"
+                                            Margin="0,0,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="30"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="40"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="WINDOW A START" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <DatePicker x:Name="DpTrendAStart" Width="138" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="WINDOW A END" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <DatePicker x:Name="DpTrendAEnd" Width="138" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="4">
+                                                <TextBlock Text="WINDOW B START" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <DatePicker x:Name="DpTrendBStart" Width="138" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="6">
+                                                <TextBlock Text="WINDOW B END" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <DatePicker x:Name="DpTrendBEnd" Width="138" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="8">
+                                                <TextBlock Text="WINDOW A" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTrendWindowA" Text="—"
+                                                           Foreground="{StaticResource BrushCyan}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="10">
+                                                <TextBlock Text="WINDOW B" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <TextBlock x:Name="LblTrendWindowB" Text="—"
+                                                           Foreground="{StaticResource BrushText}" FontWeight="SemiBold" FontSize="16"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="12">
+                                                <TextBlock Text="QUEUES / REG / IMP" Foreground="{StaticResource BrushSubtext}" FontSize="10"/>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock x:Name="LblTrendQueueCount" Text="—"
+                                                               Foreground="{StaticResource BrushGreen}" FontWeight="SemiBold" FontSize="16"/>
+                                                    <TextBlock Text=" / " Foreground="{StaticResource BrushSubtext}" FontSize="16"/>
+                                                    <TextBlock x:Name="LblTrendRegressionCount" Text="—"
+                                                               Foreground="{StaticResource BrushRed}" FontWeight="SemiBold" FontSize="16"/>
+                                                    <TextBlock Text=" / " Foreground="{StaticResource BrushSubtext}" FontSize="16"/>
+                                                    <TextBlock x:Name="LblTrendImprovementCount" Text="—"
+                                                               Foreground="{StaticResource BrushYellow}" FontWeight="SemiBold" FontSize="16"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.25*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="0.75*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="1.15*"/>
+                                            <RowDefinition Height="10"/>
+                                            <RowDefinition Height="0.85*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Grid.Column="0" Grid.RowSpan="3"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <DataGrid x:Name="DgTrendComparison" Style="{StaticResource DgBase}" Margin="2">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Queue" Binding="{Binding QueueName}" Width="170" SortMemberPath="QueueName"/>
+                                                    <DataGridTextColumn Header="Window A Offered" Binding="{Binding WindowAOffered}" Width="92" SortMemberPath="WindowAOffered"/>
+                                                    <DataGridTextColumn Header="Window B Offered" Binding="{Binding WindowBOffered}" Width="92" SortMemberPath="WindowBOffered"/>
+                                                    <DataGridTextColumn Header="Δ Offered %" Binding="{Binding DeltaOfferedPct}" Width="78" SortMemberPath="DeltaOfferedPct"/>
+                                                    <DataGridTextColumn Header="A Abandon %" Binding="{Binding WindowAAbandonPct}" Width="78" SortMemberPath="WindowAAbandonPct"/>
+                                                    <DataGridTextColumn Header="B Abandon %" Binding="{Binding WindowBAbandonPct}" Width="78" SortMemberPath="WindowBAbandonPct"/>
+                                                    <DataGridTextColumn Header="Δ Abandon %" Binding="{Binding DeltaAbandonPct}" Width="82" SortMemberPath="DeltaAbandonPct"/>
+                                                    <DataGridTextColumn Header="A SL %" Binding="{Binding WindowAServiceLevelPct}" Width="65" SortMemberPath="WindowAServiceLevelPct"/>
+                                                    <DataGridTextColumn Header="B SL %" Binding="{Binding WindowBServiceLevelPct}" Width="65" SortMemberPath="WindowBServiceLevelPct"/>
+                                                    <DataGridTextColumn Header="Δ SL %" Binding="{Binding DeltaServiceLevelPct}" Width="65" SortMemberPath="DeltaServiceLevelPct"/>
+                                                    <DataGridTextColumn Header="Δ Handle (s)" Binding="{Binding DeltaHandleSec}" Width="85" SortMemberPath="DeltaHandleSec"/>
+                                                    <DataGridTextColumn Header="Interval" Binding="{Binding IntervalStart}" Width="150" SortMemberPath="IntervalStart"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Grid.Row="0"
+                                                Background="#0F161B"
+                                                BorderBrush="{StaticResource BrushLine}"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="2">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="8"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <DataGrid x:Name="DgTrendRegressions" Grid.Row="0" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Regression Queue" Binding="{Binding QueueName}" Width="*" SortMemberPath="QueueName"/>
+                                                        <DataGridTextColumn Header="Δ Abandon %" Binding="{Binding DeltaAbandonPct}" Width="82" SortMemberPath="DeltaAbandonPct"/>
+                                                        <DataGridTextColumn Header="Δ SL %" Binding="{Binding DeltaServiceLevelPct}" Width="70" SortMemberPath="DeltaServiceLevelPct"/>
+                                                        <DataGridTextColumn Header="Δ Handle" Binding="{Binding DeltaHandleSec}" Width="70" SortMemberPath="DeltaHandleSec"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <DataGrid x:Name="DgTrendImprovements" Grid.Row="2" Style="{StaticResource DgBase}" Margin="2">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Improvement Queue" Binding="{Binding QueueName}" Width="*" SortMemberPath="QueueName"/>
+                                                        <DataGridTextColumn Header="Δ Abandon %" Binding="{Binding DeltaAbandonPct}" Width="82" SortMemberPath="DeltaAbandonPct"/>
+                                                        <DataGridTextColumn Header="Δ SL %" Binding="{Binding DeltaServiceLevelPct}" Width="70" SortMemberPath="DeltaServiceLevelPct"/>
+                                                        <DataGridTextColumn Header="Δ Handle" Binding="{Binding DeltaHandleSec}" Width="70" SortMemberPath="DeltaHandleSec"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Grid>
+                                        </Border>
+
+                                        <Grid Grid.Column="2" Grid.Row="2">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="0.55*"/>
+                                                <RowDefinition Height="8"/>
+                                                <RowDefinition Height="0.45*"/>
+                                            </Grid.RowDefinitions>
+                                            <Border Grid.Row="0"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="8">
+                                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                                    <Canvas x:Name="CanvasTrendHourlyVolume" Height="220" Width="520"/>
+                                                </ScrollViewer>
+                                            </Border>
+                                            <Border Grid.Row="2"
+                                                    Background="#0F161B"
+                                                    BorderBrush="{StaticResource BrushLine}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="4">
+                                                <TextBox x:Name="TxtIncidentImpactSummary"
+                                                         Style="{StaticResource TxtBase}"
+                                                         IsReadOnly="True"
+                                                         TextWrapping="Wrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         FontFamily="Consolas"
+                                                         FontSize="12"
+                                                         Margin="2"/>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+
                             <TabItem Header="Quality" Foreground="{StaticResource BrushText}">
                                 <Grid Margin="2">
                                     <Grid.RowDefinitions>

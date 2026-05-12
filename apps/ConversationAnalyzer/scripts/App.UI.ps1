@@ -108,6 +108,25 @@ $script:LblWrapupConnected           = _Ctrl 'LblWrapupConnected'
 $script:LblWrapupQueues              = _Ctrl 'LblWrapupQueues'
 $script:LblWrapupTopReason           = _Ctrl 'LblWrapupTopReason'
 
+# Trend tab
+$script:DpTrendAStart               = _Ctrl 'DpTrendAStart'
+$script:DpTrendAEnd                 = _Ctrl 'DpTrendAEnd'
+$script:DpTrendBStart               = _Ctrl 'DpTrendBStart'
+$script:DpTrendBEnd                 = _Ctrl 'DpTrendBEnd'
+$script:CmbTrendDivision            = _Ctrl 'CmbTrendDivision'
+$script:BtnPullTrendReport          = _Ctrl 'BtnPullTrendReport'
+$script:BtnExportIncidentSummary    = _Ctrl 'BtnExportIncidentSummary'
+$script:LblTrendWindowA             = _Ctrl 'LblTrendWindowA'
+$script:LblTrendWindowB             = _Ctrl 'LblTrendWindowB'
+$script:LblTrendQueueCount          = _Ctrl 'LblTrendQueueCount'
+$script:LblTrendRegressionCount     = _Ctrl 'LblTrendRegressionCount'
+$script:LblTrendImprovementCount    = _Ctrl 'LblTrendImprovementCount'
+$script:DgTrendComparison           = _Ctrl 'DgTrendComparison'
+$script:DgTrendRegressions          = _Ctrl 'DgTrendRegressions'
+$script:DgTrendImprovements         = _Ctrl 'DgTrendImprovements'
+$script:CanvasTrendHourlyVolume     = _Ctrl 'CanvasTrendHourlyVolume'
+$script:TxtIncidentImpactSummary    = _Ctrl 'TxtIncidentImpactSummary'
+
 # Quality tab
 $script:BtnPullQualityReport         = _Ctrl 'BtnPullQualityReport'
 $script:DgQualityAgentScores         = _Ctrl 'DgQualityAgentScores'
@@ -247,6 +266,10 @@ $script:State = @{
     WrapupRunspace          = $null
     WrapupTimer             = $null
     WrapupCaseId            = ''       # case targeted by in-progress wrapup pull
+    TrendJob                = $null    # PSDataCollection for trend comparison background pull
+    TrendRunspace           = $null
+    TrendTimer              = $null
+    TrendCaseId             = ''       # case targeted by in-progress trend pull
     QualityJob              = $null    # PSDataCollection for quality overlay background pull
     QualityRunspace         = $null
     QualityTimer            = $null
@@ -489,6 +512,8 @@ function _RefreshActiveCaseStatus {
         _RenderTransferGrid
         _RenderFlowContainmentGrid
         _RenderWrapupGrid
+        _PopulateTrendDivisionFilter
+        _RenderTrendGrid
         _RenderQualityGrid
     }
 }
@@ -3275,6 +3300,482 @@ function _RenderSelectedWrapupDetail {
         })
     }
     if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
+}
+
+function _PopulateTrendDivisionFilter {
+    if ($null -eq $script:CmbTrendDivision) { return }
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('TrendComparisonRows')) {
+        $rows = @($script:State.DemoData['TrendComparisonRows'])
+        $divRows = $rows |
+            Where-Object { $_.DivisionId -and $_.DivisionName } |
+            Select-Object DivisionId, @{ n = 'Name'; e = { $_.DivisionName } } |
+            Sort-Object Name -Unique
+
+        $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+        foreach ($d in $divRows) { $items.Add($d) }
+        $script:CmbTrendDivision.ItemsSource = $items
+        $script:CmbTrendDivision.DisplayMemberPath = 'Name'
+        $script:CmbTrendDivision.SelectedIndex = 0
+        return
+    }
+
+    if (-not (Test-DatabaseInitialized)) { return }
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) { return }
+
+    $prevSel = ''
+    if ($null -ne $script:CmbTrendDivision.SelectedItem) {
+        $prevSel = [string]$script:CmbTrendDivision.SelectedItem.DivisionId
+    }
+
+    $divRows = @()
+    try {
+        $rows = @(Get-TrendComparisonRows -CaseId $caseId)
+        $divRows = $rows |
+            Where-Object { $_.DivisionId -and $_.DivisionName } |
+            Select-Object DivisionId, @{ n = 'Name'; e = { $_.DivisionName } } |
+            Sort-Object Name -Unique
+    } catch {}
+
+    $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
+    foreach ($d in $divRows) { $items.Add($d) }
+
+    $script:CmbTrendDivision.ItemsSource = $items
+    $script:CmbTrendDivision.DisplayMemberPath = 'Name'
+    $script:CmbTrendDivision.SelectedIndex = 0
+
+    if ($prevSel) {
+        for ($i = 1; $i -lt $items.Count; $i++) {
+            if ($items[$i].DivisionId -eq $prevSel) {
+                $script:CmbTrendDivision.SelectedIndex = $i
+                break
+            }
+        }
+    }
+}
+
+function _ClearTrendCanvas {
+    if ($null -eq $script:CanvasTrendHourlyVolume) { return }
+    $script:CanvasTrendHourlyVolume.Children.Clear()
+}
+
+function _ClearTrendGrid {
+    if ($null -ne $script:DgTrendComparison)        { $script:DgTrendComparison.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgTrendRegressions)       { $script:DgTrendRegressions.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:DgTrendImprovements)      { $script:DgTrendImprovements.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]::new() }
+    if ($null -ne $script:TxtIncidentImpactSummary) { $script:TxtIncidentImpactSummary.Text = '' }
+    if ($null -ne $script:LblTrendWindowA)          { $script:LblTrendWindowA.Text = '-' }
+    if ($null -ne $script:LblTrendWindowB)          { $script:LblTrendWindowB.Text = '-' }
+    if ($null -ne $script:LblTrendQueueCount)       { $script:LblTrendQueueCount.Text = '-' }
+    if ($null -ne $script:LblTrendRegressionCount)  { $script:LblTrendRegressionCount.Text = '-' }
+    if ($null -ne $script:LblTrendImprovementCount) { $script:LblTrendImprovementCount.Text = '-' }
+    _ClearTrendCanvas
+}
+
+function _DrawTrendHourlyVolume {
+    param([object[]]$Rows)
+
+    if ($null -eq $script:CanvasTrendHourlyVolume) { return }
+
+    $canvas = $script:CanvasTrendHourlyVolume
+    $canvas.Children.Clear()
+    $canvas.Width = 520
+    $canvas.Height = 220
+
+    $hourBuckets = @{}
+    foreach ($row in @($Rows)) {
+        $intervalStart = [string]$row.IntervalStart
+        if ([string]::IsNullOrWhiteSpace($intervalStart)) { continue }
+        $dt = $null
+        try { $dt = [datetime]::Parse($intervalStart) } catch { }
+        if ($null -eq $dt) { continue }
+        $hour = $dt.ToUniversalTime().Hour
+        if (-not $hourBuckets.ContainsKey($hour)) {
+            $hourBuckets[$hour] = [ordered]@{ Hour = $hour; WindowA = 0; WindowB = 0 }
+        }
+        $hourBuckets[$hour].WindowA += [double]$row.WindowAOffered
+        $hourBuckets[$hour].WindowB += [double]$row.WindowBOffered
+    }
+
+    if ($hourBuckets.Count -eq 0) {
+        $empty = New-Object System.Windows.Controls.TextBlock
+        $empty.Text = 'Hourly overlay will appear after trend data is loaded.'
+        $empty.Foreground = [System.Windows.Media.Brushes]::Gray
+        $empty.FontSize = 12
+        [System.Windows.Controls.Canvas]::SetLeft($empty, 12)
+        [System.Windows.Controls.Canvas]::SetTop($empty, 12)
+        $canvas.Children.Add($empty) | Out-Null
+        return
+    }
+
+    $points = @($hourBuckets.Values | Sort-Object Hour)
+    $maxValue = [double]([Math]::Max((@($points | Measure-Object -Property WindowA -Maximum).Maximum), (@($points | Measure-Object -Property WindowB -Maximum).Maximum)))
+    if ($maxValue -le 0) { $maxValue = 1.0 }
+
+    $left = 36.0
+    $top = 18.0
+    $plotWidth = 460.0
+    $plotHeight = 160.0
+    $bottom = $top + $plotHeight
+
+    $axis = New-Object System.Windows.Shapes.Rectangle
+    $axis.Width = $plotWidth
+    $axis.Height = $plotHeight
+    $axis.Stroke = [System.Windows.Media.Brushes]::DimGray
+    $axis.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(15, 134, 200, 216))
+    [System.Windows.Controls.Canvas]::SetLeft($axis, $left)
+    [System.Windows.Controls.Canvas]::SetTop($axis, $top)
+    $canvas.Children.Add($axis) | Out-Null
+
+    for ($hour = 0; $hour -lt 24; $hour++) {
+        $x = $left + ($hour / 23.0) * $plotWidth
+        $tick = New-Object System.Windows.Shapes.Line
+        $tick.X1 = $x; $tick.X2 = $x; $tick.Y1 = $top; $tick.Y2 = $bottom
+        $tick.Stroke = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(30, 255, 255, 255))
+        $tick.StrokeThickness = 1
+        $canvas.Children.Add($tick) | Out-Null
+
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = ('{0:D2}' -f $hour)
+        $lbl.FontSize = 9
+        $lbl.Foreground = [System.Windows.Media.Brushes]::Gray
+        [System.Windows.Controls.Canvas]::SetLeft($lbl, $x - 8)
+        [System.Windows.Controls.Canvas]::SetTop($lbl, $bottom + 2)
+        $canvas.Children.Add($lbl) | Out-Null
+    }
+
+    $lineA = New-Object System.Windows.Shapes.Polyline
+    $lineA.Stroke = [System.Windows.Media.Brushes]::DeepSkyBlue
+    $lineA.StrokeThickness = 2
+    $lineB = New-Object System.Windows.Shapes.Polyline
+    $lineB.Stroke = [System.Windows.Media.Brushes]::Goldenrod
+    $lineB.StrokeThickness = 2
+
+    foreach ($point in $points) {
+        $x = $left + ($point.Hour / 23.0) * $plotWidth
+        $yA = $bottom - (($point.WindowA / $maxValue) * $plotHeight)
+        $yB = $bottom - (($point.WindowB / $maxValue) * $plotHeight)
+        $lineA.Points.Add([System.Windows.Point]::new($x, $yA))
+        $lineB.Points.Add([System.Windows.Point]::new($x, $yB))
+    }
+
+    $canvas.Children.Add($lineA) | Out-Null
+    $canvas.Children.Add($lineB) | Out-Null
+
+    $legendA = New-Object System.Windows.Controls.TextBlock
+    $legendA.Text = 'Window A'
+    $legendA.Foreground = [System.Windows.Media.Brushes]::DeepSkyBlue
+    $legendA.FontSize = 11
+    [System.Windows.Controls.Canvas]::SetLeft($legendA, $left)
+    [System.Windows.Controls.Canvas]::SetTop($legendA, 0)
+    $canvas.Children.Add($legendA) | Out-Null
+
+    $legendB = New-Object System.Windows.Controls.TextBlock
+    $legendB.Text = 'Window B'
+    $legendB.Foreground = [System.Windows.Media.Brushes]::Goldenrod
+    $legendB.FontSize = 11
+    [System.Windows.Controls.Canvas]::SetLeft($legendB, $left + 84)
+    [System.Windows.Controls.Canvas]::SetTop($legendB, 0)
+    $canvas.Children.Add($legendB) | Out-Null
+
+    $scaleLbl = New-Object System.Windows.Controls.TextBlock
+    $scaleLbl.Text = "Peak hourly offered: $([Math]::Round($maxValue, 0))"
+    $scaleLbl.Foreground = [System.Windows.Media.Brushes]::Gray
+    $scaleLbl.FontSize = 10
+    [System.Windows.Controls.Canvas]::SetLeft($scaleLbl, $left + 180)
+    [System.Windows.Controls.Canvas]::SetTop($scaleLbl, 0)
+    $canvas.Children.Add($scaleLbl) | Out-Null
+}
+
+function _RenderTrendGrid {
+    $divisionId = ''
+    if ($null -ne $script:CmbTrendDivision) {
+        $sel = $script:CmbTrendDivision.SelectedItem
+        if ($null -ne $sel -and $sel.DivisionId) {
+            $divisionId = [string]$sel.DivisionId
+        }
+    }
+
+    $rows = @()
+    $regressions = @()
+    $improvements = @()
+    $summary = $null
+
+    if ($script:State.DemoModeEnabled -and $script:State.DemoData.ContainsKey('TrendComparisonRows')) {
+        $allRows = @($script:State.DemoData['TrendComparisonRows'])
+        $rows = if ([string]::IsNullOrWhiteSpace($divisionId)) { $allRows } else { @($allRows | Where-Object { [string]$_.DivisionId -eq $divisionId }) }
+
+        $allRegressions = @($script:State.DemoData['TrendRegressionRows'])
+        $allImprovements = @($script:State.DemoData['TrendImprovementRows'])
+        $regressions = if ([string]::IsNullOrWhiteSpace($divisionId)) { $allRegressions } else { @($allRegressions | Where-Object { [string]$_.DivisionId -eq $divisionId }) }
+        $improvements = if ([string]::IsNullOrWhiteSpace($divisionId)) { $allImprovements } else { @($allImprovements | Where-Object { [string]$_.DivisionId -eq $divisionId }) }
+        $summary = $script:State.DemoData['TrendIncidentSummary']
+    } else {
+        if (-not (Test-DatabaseInitialized)) { _ClearTrendGrid; return }
+        $caseId = $script:State.ActiveCaseId
+        if ([string]::IsNullOrEmpty($caseId)) { _ClearTrendGrid; return }
+
+        try {
+            $rows = @(Get-TrendComparisonRows -CaseId $caseId -DivisionId $divisionId)
+            $regressions = @(Get-TrendChangeLeaders -CaseId $caseId -DivisionId $divisionId -Mode Regressions -Top 5)
+            $improvements = @(Get-TrendChangeLeaders -CaseId $caseId -DivisionId $divisionId -Mode Improvements -Top 5)
+            $summary = Get-IncidentImpactSummary -CaseId $caseId
+        } catch {
+            _SetStatus "Trend report read failed: $_"
+            return
+        }
+    }
+
+    if ($null -eq $summary) {
+        _ClearTrendGrid
+        return
+    }
+
+    $comparisonRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in $rows) {
+        $comparisonRows.Add([pscustomobject]@{
+            QueueName              = [string]$row.QueueName
+            WindowAOffered         = [int]$row.WindowAOffered
+            WindowBOffered         = [int]$row.WindowBOffered
+            DeltaOfferedPct        = if ($null -ne $row.DeltaOfferedPct) { '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaOfferedPct } else { '-' }
+            WindowAAbandonPct      = '{0:F1}' -f [double]$row.WindowAAbandonPct
+            WindowBAbandonPct      = '{0:F1}' -f [double]$row.WindowBAbandonPct
+            DeltaAbandonPct        = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaAbandonPct
+            WindowAServiceLevelPct = '{0:F1}' -f [double]$row.WindowAServiceLevelPct
+            WindowBServiceLevelPct = '{0:F1}' -f [double]$row.WindowBServiceLevelPct
+            DeltaServiceLevelPct   = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaServiceLevelPct
+            DeltaHandleSec         = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaHandleSec
+            IntervalStart          = [string]$row.IntervalStart
+        })
+    }
+    if ($null -ne $script:DgTrendComparison) { $script:DgTrendComparison.ItemsSource = $comparisonRows }
+
+    $leaderProjection = {
+        param($leaderRows)
+        $collection = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+        foreach ($row in @($leaderRows)) {
+            $collection.Add([pscustomobject]@{
+                QueueName            = [string]$row.QueueName
+                DeltaAbandonPct      = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaAbandonPct
+                DeltaServiceLevelPct = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaServiceLevelPct
+                DeltaHandleSec       = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaHandleSec
+            })
+        }
+        return $collection
+    }
+    if ($null -ne $script:DgTrendRegressions)  { $script:DgTrendRegressions.ItemsSource = & $leaderProjection $regressions }
+    if ($null -ne $script:DgTrendImprovements) { $script:DgTrendImprovements.ItemsSource = & $leaderProjection $improvements }
+
+    $windows = @($summary.Windows)
+    $windowA = @($windows | Where-Object { [string]$_.Label -eq 'A' } | Select-Object -First 1)
+    $windowB = @($windows | Where-Object { [string]$_.Label -eq 'B' } | Select-Object -First 1)
+    if ($null -ne $script:LblTrendWindowA) { $script:LblTrendWindowA.Text = if ($windowA) { "$($windowA.Start) -> $($windowA.End)" } else { '-' } }
+    if ($null -ne $script:LblTrendWindowB) { $script:LblTrendWindowB.Text = if ($windowB) { "$($windowB.Start) -> $($windowB.End)" } else { '-' } }
+
+    $queueCount = @($rows | Select-Object -ExpandProperty QueueName -Unique).Count
+    if ($null -ne $script:LblTrendQueueCount)       { $script:LblTrendQueueCount.Text = [string]$queueCount }
+    if ($null -ne $script:LblTrendRegressionCount)  { $script:LblTrendRegressionCount.Text = [string](@($regressions).Count) }
+    if ($null -ne $script:LblTrendImprovementCount) { $script:LblTrendImprovementCount.Text = [string](@($improvements).Count) }
+
+    $summaryLines = New-Object System.Collections.Generic.List[string]
+    $summaryLines.Add("Total conversations in case window: $($summary.TotalConversations)") | Out-Null
+    if ($windowA) { $summaryLines.Add("Window A: $($windowA.Start) -> $($windowA.End)") | Out-Null }
+    if ($windowB) { $summaryLines.Add("Window B: $($windowB.Start) -> $($windowB.End)") | Out-Null }
+    $summaryLines.Add('') | Out-Null
+    $summaryLines.Add('Impacted queues:') | Out-Null
+    foreach ($queue in @($summary.ImpactedQueues)) {
+        $summaryLines.Add("  $($queue.QueueName) | offered(B)=$($queue.OfferedInWindowB) | delta offered %=$($queue.DeltaOfferedPct) | delta abandon %=$($queue.DeltaAbandonPct)") | Out-Null
+    }
+    $summaryLines.Add('') | Out-Null
+    $summaryLines.Add('Top wrapup codes:') | Out-Null
+    foreach ($wrapup in @($summary.TopWrapupCodes)) {
+        $name = if ([string]::IsNullOrWhiteSpace([string]$wrapup.WrapupName)) { [string]$wrapup.WrapupCode } else { [string]$wrapup.WrapupName }
+        $summaryLines.Add("  $name | conversations=$($wrapup.ConversationCount)") | Out-Null
+    }
+    if ($null -ne $summary.WorstServiceLevel) {
+        $summaryLines.Add('') | Out-Null
+        $summaryLines.Add("Worst service level: $($summary.WorstServiceLevel.QueueName) | B SL %=$($summary.WorstServiceLevel.WindowBServiceLevel) | delta SL %=$($summary.WorstServiceLevel.DeltaServiceLevelPct)") | Out-Null
+    }
+    if ($null -ne $summary.QualityShift) {
+        $summaryLines.Add("Quality shift: A=$($summary.QualityShift.WindowAAvgScore) | B=$($summary.QualityShift.WindowBAvgScore) | delta=$($summary.QualityShift.DeltaScorePct)") | Out-Null
+    }
+    if ($null -ne $script:TxtIncidentImpactSummary) { $script:TxtIncidentImpactSummary.Text = ($summaryLines -join "`r`n") }
+
+    _DrawTrendHourlyVolume -Rows $rows
+}
+
+function _StartTrendReportJob {
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Trend')
+        return
+    }
+
+    $case = _EnsureActiveCase
+    if ($null -eq $case) { return }
+
+    if (-not (Test-CoreInitialized)) {
+        [System.Windows.MessageBox]::Show('Genesys Core is not initialized. Check Settings.', 'Trend')
+        return
+    }
+
+    $headers = Get-StoredHeaders
+    if ($null -eq $headers -or $headers.Count -eq 0) {
+        [System.Windows.MessageBox]::Show('Connect to Genesys Cloud before pulling trend data.', 'Not Connected')
+        return
+    }
+
+    $aStart = $script:DpTrendAStart.SelectedDate
+    $aEnd = $script:DpTrendAEnd.SelectedDate
+    $bStart = $script:DpTrendBStart.SelectedDate
+    $bEnd = $script:DpTrendBEnd.SelectedDate
+    if ($null -eq $aStart -or $null -eq $aEnd -or $null -eq $bStart -or $null -eq $bEnd) {
+        [System.Windows.MessageBox]::Show('Set all four trend window dates before pulling the report.', 'Trend')
+        return
+    }
+
+    $aStartUtc = ([datetime]$aStart).ToUniversalTime().ToString('o')
+    $aEndUtc   = ([datetime]$aEnd).Date.AddDays(1).AddTicks(-1).ToUniversalTime().ToString('o')
+    $bStartUtc = ([datetime]$bStart).ToUniversalTime().ToString('o')
+    $bEndUtc   = ([datetime]$bEnd).Date.AddDays(1).AddTicks(-1).ToUniversalTime().ToString('o')
+
+    if ([datetime]::Parse($aStartUtc) -gt [datetime]::Parse($aEndUtc) -or [datetime]::Parse($bStartUtc) -gt [datetime]::Parse($bEndUtc)) {
+        [System.Windows.MessageBox]::Show('Each trend window start date must be on or before its end date.', 'Trend')
+        return
+    }
+
+    $cfg         = Get-AppConfig
+    $corePath    = if ($env:GENESYS_CORE_MODULE)  { $env:GENESYS_CORE_MODULE  } else { $cfg.CoreModulePath }
+    $catalogPath = if ($env:GENESYS_CORE_CATALOG) { $env:GENESYS_CORE_CATALOG } else { $cfg.CatalogPath }
+    $schemaPath  = if ($env:GENESYS_CORE_SCHEMA)  { $env:GENESYS_CORE_SCHEMA  } else { $cfg.SchemaPath }
+    $outputRoot  = $cfg.OutputRoot
+    $connInfo    = Get-ConnectionInfo
+    $region      = if ($null -ne $connInfo -and $connInfo.Region) { $connInfo.Region } else { $cfg.Region }
+    $baseUri     = "https://api.$region"
+    $caseId      = $case.case_id
+
+    _SetStatus 'Pulling trend comparison report...'
+    if ($null -ne $script:BtnPullTrendReport) { $script:BtnPullTrendReport.IsEnabled = $false }
+    $script:State.TrendCaseId = $caseId
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $appDir = $script:UIAppDir
+
+    [void]$ps.AddScript({
+        param($AppDir, $CorePath, $CatalogPath, $SchemaPath, $OutputRoot, $Headers, $BaseUri, $AStart, $AEnd, $BStart, $BEnd)
+        Set-StrictMode -Version Latest
+
+        Import-Module ([System.IO.Path]::Combine($AppDir, 'modules', 'App.CoreAdapter.psm1')) -Force -ErrorAction Stop
+        Initialize-CoreAdapter -CoreModulePath $CorePath -CatalogPath $CatalogPath -SchemaPath $SchemaPath -OutputRoot $OutputRoot
+        return (Get-TrendReport -WindowA @{ Start = $AStart; End = $AEnd } -WindowB @{ Start = $BStart; End = $BEnd } -Headers $Headers -BaseUri $BaseUri -Granularity 'PT1H')
+    })
+    [void]$ps.AddArgument($appDir)
+    [void]$ps.AddArgument($corePath)
+    [void]$ps.AddArgument($catalogPath)
+    [void]$ps.AddArgument($schemaPath)
+    [void]$ps.AddArgument($outputRoot)
+    [void]$ps.AddArgument($headers)
+    [void]$ps.AddArgument($baseUri)
+    [void]$ps.AddArgument($aStartUtc)
+    [void]$ps.AddArgument($aEndUtc)
+    [void]$ps.AddArgument($bStartUtc)
+    [void]$ps.AddArgument($bEndUtc)
+
+    $asyncResult = $ps.BeginInvoke()
+
+    $script:State.TrendJob = @{ Ps = $ps; Async = $asyncResult; CaseId = $caseId }
+    $script:State.TrendRunspace = $rs
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [System.TimeSpan]::FromSeconds(2)
+    $script:State.TrendTimer = $timer
+
+    $timer.Add_Tick({
+        param($sender, $e)
+        $job = $script:State.TrendJob
+        if ($null -eq $job) { $script:State.TrendTimer.Stop(); return }
+        if (-not $job.Async.IsCompleted) { return }
+
+        $script:State.TrendTimer.Stop()
+        $script:State.TrendTimer = $null
+
+        $folderMap = $null
+        $endFailure = $null
+        try {
+            $results = $job.Ps.EndInvoke($job.Async)
+            $folderMap = $results | Select-Object -Last 1
+        } catch {
+            $endFailure = $_
+        } finally {
+            try { $job.Ps.Dispose() } catch {}
+            try { $script:State.TrendRunspace.Close() } catch {}
+            try { $script:State.TrendRunspace.Dispose() } catch {}
+            $script:State.TrendJob = $null
+            $script:State.TrendRunspace = $null
+            $script:State.TrendCaseId = ''
+        }
+
+        if ($null -ne $endFailure) {
+            _SetStatus 'Trend comparison pull failed'
+            _Dispatch { if ($null -ne $script:BtnPullTrendReport) { $script:BtnPullTrendReport.IsEnabled = $true } }
+            [System.Windows.MessageBox]::Show("Pull failed: $endFailure", 'Trend')
+            return
+        }
+
+        if ($null -ne $folderMap) {
+            try {
+                $importStats = Import-TrendReport -CaseId $job.CaseId -FolderMap $folderMap
+                $summary = "Loaded $($importStats.RecordCount) trend rows across $($importStats.WindowCount) windows"
+                if ($importStats.SkippedCount -gt 0) { $summary += " ($($importStats.SkippedCount) skipped)" }
+                if ($folderMap.PartialFailure) { $summary += ' - WARNING: one or more trend datasets failed.' }
+                _SetStatus $summary
+                _PopulateTrendDivisionFilter
+                _RenderTrendGrid
+                [System.Windows.MessageBox]::Show($summary, 'Trend Report')
+            } catch {
+                _SetStatus 'Trend comparison import failed'
+                [System.Windows.MessageBox]::Show("Import failed: $_", 'Trend')
+            }
+        } else {
+            _SetStatus 'Trend comparison pull completed (no data returned)'
+        }
+
+        _Dispatch { if ($null -ne $script:BtnPullTrendReport) { $script:BtnPullTrendReport.IsEnabled = $true } }
+    })
+
+    $timer.Start()
+}
+
+function _ExportIncidentImpactSummaryReport {
+    if (-not (Test-DatabaseInitialized)) {
+        [System.Windows.MessageBox]::Show('Case store is offline.', 'Trend')
+        return
+    }
+
+    $caseId = $script:State.ActiveCaseId
+    if ([string]::IsNullOrEmpty($caseId)) {
+        [System.Windows.MessageBox]::Show('Open a case before exporting the incident impact summary.', 'Trend')
+        return
+    }
+
+    $dlg = New-Object Microsoft.Win32.SaveFileDialog
+    $dlg.Title = 'Export Incident Impact Summary'
+    $dlg.Filter = 'Text files (*.txt)|*.txt'
+    $dlg.FileName = "incident-impact-summary-$caseId.txt"
+    if (-not $dlg.ShowDialog()) { return }
+
+    try {
+        Export-IncidentImpactSummary -CaseId $caseId -OutputPath $dlg.FileName | Out-Null
+        _SetStatus "Exported incident impact summary to $($dlg.FileName)"
+    } catch {
+        [System.Windows.MessageBox]::Show("Export failed: $_", 'Trend')
+        _SetStatus 'Incident impact summary export failed'
+    }
 }
 
 function _ClearQualityGrid {
@@ -6277,6 +6778,40 @@ function _GetDemoReportData {
             TopReasonName = 'Billing Issue'
             TopReasonCount = 22
         }
+        TrendComparisonRows = @(
+            [pscustomobject]@{ QueueName='Billing Support'; DivisionId='div-sales'; DivisionName='Sales'; IntervalStart='2026-05-08T14:00:00.000Z'; WindowAOffered=42; WindowBOffered=57; DeltaOfferedPct=35.7; WindowAAbandonPct=4.8; WindowBAbandonPct=8.9; DeltaAbandonPct=4.1; WindowAServiceLevelPct=88.0; WindowBServiceLevelPct=74.5; DeltaServiceLevelPct=-13.5; DeltaHandleSec=42.6 }
+            [pscustomobject]@{ QueueName='Billing Support'; DivisionId='div-sales'; DivisionName='Sales'; IntervalStart='2026-05-08T15:00:00.000Z'; WindowAOffered=39; WindowBOffered=53; DeltaOfferedPct=35.9; WindowAAbandonPct=5.1; WindowBAbandonPct=9.2; DeltaAbandonPct=4.1; WindowAServiceLevelPct=86.0; WindowBServiceLevelPct=72.0; DeltaServiceLevelPct=-14.0; DeltaHandleSec=38.9 }
+            [pscustomobject]@{ QueueName='Customer Care'; DivisionId='div-sales'; DivisionName='Sales'; IntervalStart='2026-05-08T14:00:00.000Z'; WindowAOffered=50; WindowBOffered=61; DeltaOfferedPct=22.0; WindowAAbandonPct=6.5; WindowBAbandonPct=11.7; DeltaAbandonPct=5.2; WindowAServiceLevelPct=82.2; WindowBServiceLevelPct=68.4; DeltaServiceLevelPct=-13.8; DeltaHandleSec=51.3 }
+            [pscustomobject]@{ QueueName='Customer Care'; DivisionId='div-sales'; DivisionName='Sales'; IntervalStart='2026-05-08T15:00:00.000Z'; WindowAOffered=48; WindowBOffered=64; DeltaOfferedPct=33.3; WindowAAbandonPct=7.0; WindowBAbandonPct=12.8; DeltaAbandonPct=5.8; WindowAServiceLevelPct=80.5; WindowBServiceLevelPct=65.1; DeltaServiceLevelPct=-15.4; DeltaHandleSec=57.8 }
+            [pscustomobject]@{ QueueName='Digital Support'; DivisionId='div-digital'; DivisionName='Digital'; IntervalStart='2026-05-08T14:00:00.000Z'; WindowAOffered=27; WindowBOffered=23; DeltaOfferedPct=-14.8; WindowAAbandonPct=3.9; WindowBAbandonPct=2.4; DeltaAbandonPct=-1.5; WindowAServiceLevelPct=91.4; WindowBServiceLevelPct=94.2; DeltaServiceLevelPct=2.8; DeltaHandleSec=-21.4 }
+            [pscustomobject]@{ QueueName='Digital Support'; DivisionId='div-digital'; DivisionName='Digital'; IntervalStart='2026-05-08T15:00:00.000Z'; WindowAOffered=29; WindowBOffered=25; DeltaOfferedPct=-13.8; WindowAAbandonPct=4.2; WindowBAbandonPct=2.8; DeltaAbandonPct=-1.4; WindowAServiceLevelPct=90.8; WindowBServiceLevelPct=93.5; DeltaServiceLevelPct=2.7; DeltaHandleSec=-18.7 }
+        )
+        TrendRegressionRows = @(
+            [pscustomobject]@{ QueueName='Customer Care'; DivisionId='div-sales'; DivisionName='Sales'; DeltaAbandonPct=5.5; DeltaServiceLevelPct=-14.6; DeltaHandleSec=54.5 }
+            [pscustomobject]@{ QueueName='Billing Support'; DivisionId='div-sales'; DivisionName='Sales'; DeltaAbandonPct=4.1; DeltaServiceLevelPct=-13.7; DeltaHandleSec=40.8 }
+        )
+        TrendImprovementRows = @(
+            [pscustomobject]@{ QueueName='Digital Support'; DivisionId='div-digital'; DivisionName='Digital'; DeltaAbandonPct=-1.5; DeltaServiceLevelPct=2.8; DeltaHandleSec=-20.1 }
+        )
+        TrendIncidentSummary = [pscustomobject]@{
+            TotalConversations = 174
+            Windows = @(
+                [pscustomobject]@{ Label='A'; Start='2026-05-08T14:00:00.000Z'; End='2026-05-08T15:59:59.000Z' }
+                [pscustomobject]@{ Label='B'; Start='2026-05-09T14:00:00.000Z'; End='2026-05-09T15:59:59.000Z' }
+            )
+            ImpactedQueues = @(
+                [pscustomobject]@{ QueueName='Customer Care'; OfferedInWindowB=125; DeltaOfferedPct=27.6; DeltaAbandonPct=5.5 }
+                [pscustomobject]@{ QueueName='Billing Support'; OfferedInWindowB=110; DeltaOfferedPct=35.8; DeltaAbandonPct=4.1 }
+                [pscustomobject]@{ QueueName='Digital Support'; OfferedInWindowB=48; DeltaOfferedPct=-14.3; DeltaAbandonPct=-1.5 }
+            )
+            TopWrapupCodes = @(
+                [pscustomobject]@{ WrapupCode='BILLING_ISSUE'; WrapupName='Billing Issue'; ConversationCount=22 }
+                [pscustomobject]@{ WrapupCode='CANCEL_SAVE'; WrapupName='Retention Save Attempt'; ConversationCount=19 }
+                [pscustomobject]@{ WrapupCode='RESOLVED_CHAT'; WrapupName='Resolved in Chat'; ConversationCount=17 }
+            )
+            WorstServiceLevel = [pscustomobject]@{ QueueName='Customer Care'; WindowBServiceLevel=66.8; DeltaServiceLevelPct=-14.6 }
+            QualityShift = [pscustomobject]@{ WindowAAvgScore=82.4; WindowBAvgScore=76.8; DeltaScorePct=-5.6 }
+        }
         QualitySummary = [pscustomobject]@{
             EvaluationCount = 9
             SurveyCount = 14
@@ -6410,6 +6945,8 @@ function _RunDemoScenario {
         _RenderTransferGrid
         _RenderFlowContainmentGrid
         _RenderWrapupGrid
+        _PopulateTrendDivisionFilter
+        _RenderTrendGrid
         _RenderQualityGrid
 
         if ($null -ne $script:TxtRunStatus)     { $script:TxtRunStatus.Text = 'Demo run complete' }
@@ -6420,7 +6957,7 @@ function _RunDemoScenario {
                 "Run folder: $runFolder"
                 'Authentication was not required.'
                 'Conversation results: 3'
-                'Breakout tabs loaded: Queue Performance, Agent Performance, Transfer & Escalation, Flow & IVR, Contact Reasons, Quality.'
+                'Breakout tabs loaded: Queue Performance, Agent Performance, Transfer & Escalation, Flow & IVR, Contact Reasons, Trend, Quality.'
             ) -join [Environment]::NewLine
         }
         _SetStatus 'Demo data loaded (3 conversations)'
@@ -6494,6 +7031,18 @@ if ($null -ne $script:BtnPullWrapupReport) {
 
 if ($null -ne $script:DgWrapupCodes) {
     $script:DgWrapupCodes.Add_SelectionChanged({ _RenderSelectedWrapupDetail })
+}
+
+if ($null -ne $script:BtnPullTrendReport) {
+    $script:BtnPullTrendReport.Add_Click({ _StartTrendReportJob })
+}
+
+if ($null -ne $script:CmbTrendDivision) {
+    $script:CmbTrendDivision.Add_SelectionChanged({ _RenderTrendGrid })
+}
+
+if ($null -ne $script:BtnExportIncidentSummary) {
+    $script:BtnExportIncidentSummary.Add_Click({ _ExportIncidentImpactSummaryReport })
 }
 
 if ($null -ne $script:BtnPullQualityReport) {

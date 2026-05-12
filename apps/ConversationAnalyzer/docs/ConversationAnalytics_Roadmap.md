@@ -641,6 +641,7 @@ Documentation: document the two-window model, explain that Window A is typically
 > enrichment endpoints (new) to produce a normalized, engineer-readable event stream per conversation.
 >
 > **Non-negotiable constraints:**
+>
 > - No Genesys API calls from the UI. All calls go through `Invoke-Dataset` via `App.CoreAdapter.psm1`.
 > - The new `analytics-conversation-timeline-analysis` dataset is the single entry point for the UI.
 > - Analytics extraction failure fails the run; enrichment failures produce warnings only.
@@ -656,6 +657,7 @@ Documentation: document the two-window model, explain that Window A is typically
 > `analytics-conversation-timeline-analysis` registered in the catalog and in `Get-DatasetRegistry`.
 >
 > New catalog dataset keys:
+>
 > - `conversations.get.conversation.object` — `GET /api/v2/conversations/{conversationId}`
 > - `conversations.get.conversation.customattributes` — `GET /api/v2/conversations/{conversationId}/customattributes`
 > - `conversations.search.customattributes` — `POST /api/v2/conversations/customattributes/search`
@@ -692,6 +694,7 @@ Documentation: the dataset reference table in this roadmap is updated to include
 
 > **What was delivered:** `Invoke-ConversationTimelineAnalysisDataset` implemented in `Datasets.ps1`.
 > The handler orchestrates:
+>
 > 1. Async analytics details job (existing engine) → persists `data/analytics-details.jsonl`
 > 2. Per-conversation enrichment fan-out for all six enrichment types (with partial-failure tolerance)
 > 3. Timeline event normalization from every source into the stable event schema
@@ -753,6 +756,7 @@ Task: enrichment failures must be written to `errors.jsonl` with `conversationId
 `httpStatus`, and `message`. The overall run must still complete if analytics extraction succeeded.
 
 Validation: run the dataset against a test org with a known set of conversations. Confirm:
+
 - `timeline-events.jsonl` is populated and sorted.
 - All expected `data/` files are present.
 - A conversation with failed speech-analytics enrichment still appears in `conversations.jsonl`.
@@ -766,6 +770,7 @@ Documentation: update `Get-DatasetRegistry` comment with the full compound datas
 ## Session 23: CoreAdapter Timeline Functions and Preview/Full Dispatch — **COMPLETE**
 
 > **What was delivered:** Three new functions added to `App.CoreAdapter.psm1`:
+>
 > - `Start-TimelineRun` — invokes `analytics-conversation-timeline-analysis` with enrichment parameters
 > - `Get-TimelineConversations` — reads `conversations.jsonl` from a timeline run folder
 > - `Get-TimelineEvents` — reads `timeline-events.jsonl` for a specific conversation
@@ -774,16 +779,17 @@ Scope: extend `App.CoreAdapter.psm1` with timeline-specific functions that mirro
 `Start-PreviewRun` / `Start-FullRun` pattern and add timeline artifact readers.
 
 Task: add `Start-TimelineRun` to `App.CoreAdapter.psm1`. Parameters:
-  - `AgentId` (optional), `ConversationId` (optional), `QueueId` (optional)
-  - `Interval` (required ISO-8601)
-  - `MediaTypes` (optional array)
-  - `IncludeConversationObject` ($true default)
-  - `IncludeCustomAttributes` ($true default)
-  - `IncludeParticipantAttributes` ($true default)
-  - `IncludeSuggestions` ($true default)
-  - `IncludeRecordingMetadata` ($true default)
-  - `IncludeSpeechTextAnalytics` ($true default)
-  - `PreviewMode` ($false default — if $true, uses sync query instead of async job)
+
+- `AgentId` (optional), `ConversationId` (optional), `QueueId` (optional)
+- `Interval` (required ISO-8601)
+- `MediaTypes` (optional array)
+- `IncludeConversationObject` ($true default)
+- `IncludeCustomAttributes` ($true default)
+- `IncludeParticipantAttributes` ($true default)
+- `IncludeSuggestions` ($true default)
+- `IncludeRecordingMetadata` ($true default)
+- `IncludeSpeechTextAnalytics` ($true default)
+- `PreviewMode` ($false default — if $true, uses sync query instead of async job)
 
 Task: add `Get-TimelineConversations` to read `conversations.jsonl` from a timeline run folder using
 a `FileStream` + `StreamReader` (shared-write safe, no `Get-Content`). Return an array of conversation
@@ -853,6 +859,7 @@ Task: add `_ExportTimeline` to export the selected conversation's timeline event
 run summary to a one-page text report.
 
 Validation:
+
 - Load a timeline run folder and confirm the conversation grid populates before enrichment completes.
 - Select a conversation and confirm all detail pane tabs populate from artifacts only (no API calls).
 - Confirm lane view renders events at approximately correct positions for a conversation ≥ 2 minutes.

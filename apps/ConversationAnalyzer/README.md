@@ -87,6 +87,7 @@ Environment variables override the persisted Core paths at runtime:
 - Faithful DB drilldown from canonical raw JSON, with flattened columns retained for fast analysis
 - Page, run, population-report, and single-conversation export paths
 - SQLite-backed case management for imports, notes, findings, bookmarks, tags, saved views, and report snapshots
+- Investigation report tabs for queue performance, agent performance, transfer chains, flow containment, wrapup intelligence, quality overlay, trend comparison, and timeline analysis
 
 ## Case-Driven Pivot Workflow
 
@@ -141,6 +142,17 @@ Report types:
 
 - **Population report**: full filtered-set summary, facets, risk cohorts, representative examples, provenance, and exact filter state.
 - **Conversation dossier**: single-conversation export shape with canonical raw JSON, derived detail, and version lineage.
+
+### Trend Comparison
+
+The **Trend** tab compares two time windows at hourly granularity using the case store as the read model after import.
+
+- Configure **Window A** and **Window B** with the four date pickers on the tab, then click **Pull Report**.
+- The app fetches queue performance, abandon metrics, and service-level aggregates for both windows through `App.CoreAdapter.psm1`, imports them into the local SQLite store, and renders a side-by-side delta grid.
+- The right-hand panels rank the biggest regressions and improvements, draw an hourly offered-volume overlay, and summarize impacted queues, wrapup codes, service-level degradation, and quality shift.
+- **Export Summary** writes the current Incident Impact Summary to a one-page text file suitable for management briefings.
+
+This tab does not call Genesys Cloud directly from the UI. As with the rest of the app, all extraction flows through `Invoke-Dataset` via `App.CoreAdapter.psm1`.
 
 ### 7. Drill down faithfully
 

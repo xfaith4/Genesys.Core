@@ -1,0 +1,200 @@
+{
+  "investigationKey": "queue-investigation",
+  "runId": "demo-run",
+  "subjectType": "queue",
+  "subjectId": "queue-demo-1",
+  "window": {
+    "since": "2026-04-01T00:00:00.0000000Z",
+    "until": "2026-04-08T00:00:00.0000000Z"
+  },
+  "datasetsInvoked": [
+    {
+      "stepName": "queue",
+      "datasetKey": "routing.get.single.queue.config",
+      "runId": "demo-queue",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "members",
+      "datasetKey": "routing-queue-members",
+      "runId": "demo-members",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "wrapupCodes",
+      "datasetKey": "routing.get.queue.wrapup.codes.by.queue",
+      "runId": "demo-wrapupCodes",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "observations",
+      "datasetKey": "analytics.query.queue.observations.real.time.stats",
+      "runId": "demo-observations",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "sla",
+      "datasetKey": "analytics.query.conversation.aggregates.queue.performance",
+      "runId": "demo-sla",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "abandons",
+      "datasetKey": "analytics.query.conversation.aggregates.abandon.metrics",
+      "runId": "demo-abandons",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "transfers",
+      "datasetKey": "analytics.query.conversation.aggregates.transfer.metrics",
+      "runId": "demo-transfers",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "wrapupDistribution",
+      "datasetKey": "analytics.query.conversation.aggregates.wrapup.distribution",
+      "runId": "demo-wrapupDistribution",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "activeAgents",
+      "datasetKey": "analytics.query.user.observations.real.time.status",
+      "runId": "demo-activeAgents",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    }
+  ],
+  "joinPlan": [
+    {
+      "stepName": "queue",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "id",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "members",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "wrapupCodes",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "observations",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "sla",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "abandons",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "transfers",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "wrapupDistribution",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "activeAgents",
+      "leftSource": "identity",
+      "leftKey": "queue.id",
+      "rightKey": "queueId",
+      "joinKind": "Left"
+    }
+  ],
+  "redactionProfile": {
+    "datasets": {
+      "routing.get.single.queue.config": "standard",
+      "routing-queue-members": "queue-investigation-members",
+      "routing.get.queue.wrapup.codes.by.queue": "standard",
+      "analytics.query.queue.observations.real.time.stats": "standard",
+      "analytics.query.conversation.aggregates.queue.performance": "standard",
+      "analytics.query.conversation.aggregates.abandon.metrics": "standard",
+      "analytics.query.conversation.aggregates.transfer.metrics": null,
+      "analytics.query.conversation.aggregates.wrapup.distribution": null,
+      "analytics.query.user.observations.real.time.status": "standard"
+    },
+    "composerOverrides": []
+  },
+  "outputArtifacts": {
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\summary.json",
+    "dataPaths": {
+      "queue": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\queue.jsonl",
+      "members": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\members.jsonl",
+      "wrapupCodes": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\wrapupCodes.jsonl",
+      "observations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\observations.jsonl",
+      "sla": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\sla.jsonl",
+      "abandons": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\abandons.jsonl",
+      "transfers": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\transfers.jsonl",
+      "wrapupDistribution": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\wrapupDistribution.jsonl",
+      "activeAgents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-8c0f7417dc5949c590d743f9869f07ce\\queue-investigation\\demo-run\\data\\activeAgents.jsonl"
+    }
+  },
+  "startedAt": "2026-05-12T11:18:48.6351695Z",
+  "finishedAt": "2026-05-12T11:18:48.9217453Z",
+  "composerVersion": "1.0.0"
+}

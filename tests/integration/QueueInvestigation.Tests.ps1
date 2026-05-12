@@ -19,7 +19,7 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
         # Fixture data. Records intentionally include rows for OTHER queues so
         # SubjectFilter logic is exercised.
         $script:Fixture = @{
-            'routing-queues' = @(
+            'routing.get.single.queue.config' = @(
                 [pscustomobject]@{
                     id = 'queue-fixture-001'; name = 'Support'; mediaSettings = [pscustomobject]@{ call = [pscustomobject]@{ alertingTimeoutSeconds = 30 } }
                 }
@@ -30,6 +30,11 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
             'routing-queue-members' = @(
                 [pscustomobject]@{ id = 'agent-1'; queueId = 'queue-fixture-001'; name = 'Jane Doe';   joined = $true }
                 [pscustomobject]@{ id = 'agent-2'; queueId = 'queue-fixture-001'; name = 'John Smith'; joined = $true }
+            )
+            'routing.get.queue.wrapup.codes.by.queue' = @(
+                [pscustomobject]@{ id = 'wu-1'; queueId = 'queue-fixture-001'; name = 'Resolved' }
+                [pscustomobject]@{ id = 'wu-2'; queueId = 'queue-fixture-001'; name = 'Escalated' }
+                [pscustomobject]@{ id = 'wu-9'; queueId = 'queue-fixture-999'; name = 'OtherQueue' }
             )
             'analytics.query.queue.observations.real.time.stats' = @(
                 [pscustomobject]@{ queueId = 'queue-fixture-001'; mediaType = 'voice'; oWaiting = 3; oInteracting = 5; oOnQueueUsers = 7 }
@@ -42,6 +47,15 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
             'analytics.query.conversation.aggregates.abandon.metrics' = @(
                 [pscustomobject]@{ queueId = 'queue-fixture-001'; nAbandoned = 4;  tAbandoned = 32; nOffered = 120 }
                 [pscustomobject]@{ queueId = 'queue-fixture-999'; nAbandoned = 1;  tAbandoned = 9;  nOffered = 60 }
+            )
+            'analytics.query.conversation.aggregates.transfer.metrics' = @(
+                [pscustomobject]@{ queueId = 'queue-fixture-001'; mediaType = 'voice'; nTransferred = 6; nBlindTransferred = 2; nConsultTransferred = 4; nConnected = 110 }
+                [pscustomobject]@{ queueId = 'queue-fixture-999'; mediaType = 'voice'; nTransferred = 1; nBlindTransferred = 1; nConsultTransferred = 0; nConnected = 55 }
+            )
+            'analytics.query.conversation.aggregates.wrapup.distribution' = @(
+                [pscustomobject]@{ queueId = 'queue-fixture-001'; wrapUpCode = 'Resolved'; nConnected = 82; tHandle = 3100 }
+                [pscustomobject]@{ queueId = 'queue-fixture-001'; wrapUpCode = 'Escalated'; nConnected = 28; tHandle = 1400 }
+                [pscustomobject]@{ queueId = 'queue-fixture-999'; wrapUpCode = 'OtherQueue'; nConnected = 55; tHandle = 1800 }
             )
             'analytics.query.user.observations.real.time.status' = @(
                 [pscustomobject]@{ queueId = 'queue-fixture-001'; userId = 'agent-1'; oUserPresence = 'AVAILABLE' }
@@ -99,9 +113,9 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
             Test-Path $script:HappyResult.SummaryPath  | Should -BeTrue
         }
 
-        It 'manifest records exactly six datasetsInvoked entries' {
+        It 'manifest records exactly nine datasetsInvoked entries' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
-            @($m.datasetsInvoked).Count | Should -Be 6
+            @($m.datasetsInvoked).Count | Should -Be 9
         }
 
         It 'manifest contains every required field' {
@@ -116,11 +130,21 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
             $m.window.until     | Should -Not -BeNullOrEmpty
         }
 
-        It 'summary contains the six expected sections' {
+        It 'summary contains the expected sections' {
             $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
-            foreach ($section in @('queue','members','observations','sla','abandons','activeAgents')) {
+            foreach ($section in @('queue','members','wrapupCodes','observations','sla','abandons','transfers','wrapupDistribution','activeAgents')) {
                 $s.PSObject.Properties.Name | Should -Contain $section
             }
+        }
+
+        It 'wrapup codes and transfer sections are filtered to the subject queue' {
+            $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
+            @($s.wrapupCodes).Count             | Should -Be 2
+            @($s.wrapupCodes).queueId | Select-Object -Unique | Should -Be @($script:KnownQueueId)
+            @($s.transfers).Count               | Should -Be 1
+            $s.transfers[0].queueId             | Should -Be $script:KnownQueueId
+            @($s.wrapupDistribution).Count      | Should -Be 2
+            @($s.wrapupDistribution).queueId | Select-Object -Unique | Should -Be @($script:KnownQueueId)
         }
 
         It 'seed queue row is filtered to the subject' {
@@ -198,7 +222,7 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
 
     Context '4. Required step failure aborts' {
         It 'throws, writes failure event, and does not write summary.json' {
-            $invoker = & $script:MakeInvoker @{ 'routing-queues' = @{ Throw = 'fixture: 403 forbidden' } }
+            $invoker = & $script:MakeInvoker @{ 'routing.get.single.queue.config' = @{ Throw = 'fixture: 403 forbidden' } }
             { Get-GenesysQueueInvestigation -QueueId $script:KnownQueueId -Since ([datetime]'2026-04-01T00:00:00Z') -Until ([datetime]'2026-04-08T00:00:00Z') -OutputRoot $script:OutputRoot -RunId 'fail-required' -DatasetInvoker $invoker } | Should -Throw
 
             $runFolder   = Join-Path (Join-Path $script:OutputRoot 'queue-investigation') 'fail-required'
@@ -243,14 +267,20 @@ Describe 'Queue Investigation flagship — fixture-driven contract' {
                 'analytics.query.queue.observations.real.time.stats'      = @()
                 'analytics.query.conversation.aggregates.queue.performance' = @()
                 'analytics.query.conversation.aggregates.abandon.metrics' = @()
+                'analytics.query.conversation.aggregates.transfer.metrics' = @()
+                'analytics.query.conversation.aggregates.wrapup.distribution' = @()
                 'analytics.query.user.observations.real.time.status'      = @()
+                'routing.get.queue.wrapup.codes.by.queue'                  = @()
             }
             $r = Get-GenesysQueueInvestigation -QueueId $script:KnownQueueId -Since ([datetime]'2026-04-01T00:00:00Z') -Until ([datetime]'2026-04-08T00:00:00Z') -OutputRoot $script:OutputRoot -RunId 'empty-aggs' -DatasetInvoker $invoker
 
             $s = Get-Content $r.SummaryPath -Raw | ConvertFrom-Json
+            @($s.wrapupCodes).Count  | Should -Be 0
             @($s.observations).Count | Should -Be 0
             @($s.sla).Count          | Should -Be 0
             @($s.abandons).Count     | Should -Be 0
+            @($s.transfers).Count    | Should -Be 0
+            @($s.wrapupDistribution).Count | Should -Be 0
             @($s.activeAgents).Count | Should -Be 0
 
             # Seed (queue) and members are independent — queue must still be present.

@@ -1,0 +1,199 @@
+{
+  "investigationKey": "conversation-investigation",
+  "runId": "demo-run",
+  "subjectType": "conversation",
+  "subjectId": "conv-demo-001",
+  "window": {
+    "since": null,
+    "until": null
+  },
+  "datasetsInvoked": [
+    {
+      "stepName": "conversationLookup",
+      "datasetKey": "conversations.get.specific.conversation.details",
+      "runId": "demo-conversationLookup",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "conversation",
+      "datasetKey": "analytics-conversation-details-query",
+      "runId": "demo-conversation",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "participants",
+      "datasetKey": "(derived)",
+      "runId": null,
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "agents",
+      "datasetKey": "users",
+      "runId": "demo-agents",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "divisions",
+      "datasetKey": "users.division.analysis.get.users.with.division.info",
+      "runId": "demo-divisions",
+      "validationStatus": "unvalidated",
+      "recordCount": 0,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "skills",
+      "datasetKey": "routing.get.all.routing.skills",
+      "runId": "demo-skills",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "recordings",
+      "datasetKey": "conversations.get.recordings",
+      "runId": "demo-recordings",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "evaluations",
+      "datasetKey": "quality.get.evaluations.query",
+      "runId": "demo-evaluations",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "surveys",
+      "datasetKey": "quality.get.surveys",
+      "runId": "demo-surveys",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    }
+  ],
+  "joinPlan": [
+    {
+      "stepName": "conversationLookup",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "id",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "conversation",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "conversationId",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "participants",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "userId",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "agents",
+      "leftSource": "identity",
+      "leftKey": "participants.userId",
+      "rightKey": "id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "divisions",
+      "leftSource": "identity",
+      "leftKey": "participants.userId",
+      "rightKey": "id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "skills",
+      "leftSource": "identity",
+      "leftKey": "participants.userId",
+      "rightKey": null,
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "recordings",
+      "leftSource": "identity",
+      "leftKey": "conversation.conversationId",
+      "rightKey": "conversationId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "evaluations",
+      "leftSource": "identity",
+      "leftKey": "conversation.conversationId",
+      "rightKey": "conversation.id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "surveys",
+      "leftSource": "identity",
+      "leftKey": "conversation.conversationId",
+      "rightKey": "conversationId",
+      "joinKind": "Left"
+    }
+  ],
+  "redactionProfile": {
+    "datasets": {
+      "conversations.get.specific.conversation.details": null,
+      "analytics-conversation-details-query": "agent-investigation-conversations",
+      "users": "agent-investigation-users",
+      "users.division.analysis.get.users.with.division.info": "agent-investigation-division",
+      "routing.get.all.routing.skills": "standard",
+      "conversations.get.recordings": "conversation-investigation-recordings",
+      "quality.get.evaluations.query": "conversation-investigation-evaluations",
+      "quality.get.surveys": null
+    },
+    "composerOverrides": []
+  },
+  "outputArtifacts": {
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\summary.json",
+    "dataPaths": {
+      "conversationLookup": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\conversationLookup.jsonl",
+      "conversation": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\conversation.jsonl",
+      "participants": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\participants.jsonl",
+      "agents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\agents.jsonl",
+      "divisions": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\divisions.jsonl",
+      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\skills.jsonl",
+      "recordings": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\recordings.jsonl",
+      "evaluations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\evaluations.jsonl",
+      "surveys": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\surveys.jsonl"
+    }
+  },
+  "startedAt": "2026-05-12T10:20:54.7969412Z",
+  "finishedAt": "2026-05-12T10:20:55.0546315Z",
+  "composerVersion": "1.0.0"
+}

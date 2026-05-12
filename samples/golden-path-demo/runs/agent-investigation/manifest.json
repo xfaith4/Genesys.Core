@@ -1,0 +1,237 @@
+{
+  "investigationKey": "agent-investigation",
+  "runId": "demo-run",
+  "subjectType": "agent",
+  "subjectId": "agent-demo-001",
+  "window": {
+    "since": "2026-04-01T00:00:00.0000000Z",
+    "until": "2026-04-08T00:00:00.0000000Z"
+  },
+  "datasetsInvoked": [
+    {
+      "stepName": "identity",
+      "datasetKey": "users.get.user.details.with.full.expansion",
+      "runId": "demo-identity",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "division",
+      "datasetKey": "(derived)",
+      "runId": null,
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "skills",
+      "datasetKey": "users.get.user.routing.skills",
+      "runId": "demo-skills",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "queues",
+      "datasetKey": "users.get.user.queue.memberships",
+      "runId": "demo-queues",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "presence",
+      "datasetKey": "users.get.bulk.user.presences",
+      "runId": "demo-presence",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "routingStatus",
+      "datasetKey": "users.get.agent.current.routing.status",
+      "runId": "demo-routingStatus",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "utilization",
+      "datasetKey": "routing.get.user.utilization",
+      "runId": "demo-utilization",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "activity",
+      "datasetKey": "analytics.query.user.details.activity.report",
+      "runId": "demo-activity",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "activeConversations",
+      "datasetKey": "users.get.agent.active.conversations",
+      "runId": "demo-activeConversations",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "conversations",
+      "datasetKey": "analytics-conversation-details-query",
+      "runId": "demo-conversations",
+      "validationStatus": "unvalidated",
+      "recordCount": 2,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "auditAccountChanges",
+      "datasetKey": "audit-logs",
+      "runId": "demo-auditAccountChanges",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    }
+  ],
+  "joinPlan": [
+    {
+      "stepName": "identity",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "id",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "division",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "skills",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "queues",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "presence",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "routingStatus",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "utilization",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "activity",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "activeConversations",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "conversations",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "participants.userId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "auditAccountChanges",
+      "leftSource": "identity",
+      "leftKey": "agent.id",
+      "rightKey": "entity.id",
+      "joinKind": "Left"
+    }
+  ],
+  "redactionProfile": {
+    "datasets": {
+      "users.get.user.details.with.full.expansion": "agent-investigation-users",
+      "users.get.user.routing.skills": "standard",
+      "users.get.user.queue.memberships": "standard",
+      "users.get.bulk.user.presences": "agent-investigation-presences",
+      "users.get.agent.current.routing.status": "standard",
+      "routing.get.user.utilization": null,
+      "analytics.query.user.details.activity.report": "agent-investigation-activity",
+      "users.get.agent.active.conversations": "agent-investigation-conversations",
+      "analytics-conversation-details-query": "agent-investigation-conversations",
+      "audit-logs": "agent-investigation-audit"
+    },
+    "composerOverrides": []
+  },
+  "outputArtifacts": {
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\summary.json",
+    "dataPaths": {
+      "identity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\identity.jsonl",
+      "division": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\division.jsonl",
+      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\skills.jsonl",
+      "queues": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\queues.jsonl",
+      "presence": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\presence.jsonl",
+      "routingStatus": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\routingStatus.jsonl",
+      "utilization": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\utilization.jsonl",
+      "activity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\activity.jsonl",
+      "activeConversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\activeConversations.jsonl",
+      "conversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\conversations.jsonl",
+      "auditAccountChanges": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-a5fe1446fdf34b14a3c0c11b2a666a36\\agent-investigation\\demo-run\\data\\auditAccountChanges.jsonl"
+    }
+  },
+  "startedAt": "2026-05-12T11:18:47.7364224Z",
+  "finishedAt": "2026-05-12T11:18:48.0086163Z",
+  "composerVersion": "1.0.0"
+}

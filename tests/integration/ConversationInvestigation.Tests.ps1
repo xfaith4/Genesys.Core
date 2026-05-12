@@ -81,6 +81,20 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
                     totalScore   = 75
                 }
             )
+            'quality.get.surveys' = @(
+                [pscustomobject]@{
+                    id             = 'survey-1'
+                    conversationId = 'conv-fixture-001'
+                    npsScore       = 9
+                    csatScore      = 4.7
+                }
+                [pscustomobject]@{
+                    id             = 'survey-2'
+                    conversationId = 'conv-fixture-999'
+                    npsScore       = 5
+                    csatScore      = 2.1
+                }
+            )
         }
 
         $script:MakeInvoker = {
@@ -135,9 +149,9 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             Test-Path $script:HappyResult.SummaryPath  | Should -BeTrue
         }
 
-        It 'manifest records exactly eight datasetsInvoked entries' {
+        It 'manifest records exactly nine datasetsInvoked entries' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
-            @($m.datasetsInvoked).Count | Should -Be 8
+            @($m.datasetsInvoked).Count | Should -Be 9
         }
 
         It 'manifest contains every required field' {
@@ -152,9 +166,9 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             $m.window.until     | Should -BeNullOrEmpty
         }
 
-        It 'summary contains the eight expected sections' {
+        It 'summary contains the expected sections' {
             $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
-            foreach ($section in @('conversationLookup','conversation','participants','agents','divisions','skills','recordings','evaluations')) {
+            foreach ($section in @('conversationLookup','conversation','participants','agents','divisions','skills','recordings','evaluations','surveys')) {
                 $s.PSObject.Properties.Name | Should -Contain $section
             }
         }
@@ -200,6 +214,12 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             $s.evaluations[0].conversation.id         | Should -Be $script:KnownConversationId
         }
 
+        It 'surveys section contains only surveys for this conversation' {
+            $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
+            @($s.surveys).Count               | Should -Be 1
+            $s.surveys[0].conversationId      | Should -Be $script:KnownConversationId
+        }
+
         It 'data/*.jsonl line counts match manifest recordCount per step' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
             foreach ($entry in $m.datasetsInvoked) {
@@ -242,6 +262,21 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
             $recEntry = $m.datasetsInvoked | Where-Object { $_.stepName -eq 'recordings' }
             $recEntry.recordCount | Should -Be 0
             $recEntry.status      | Should -Be 'ok'
+        }
+    }
+
+    Context '3A. Missing optional step — no surveys' {
+        It 'still exits 0; surveys section is empty; manifest records recordCount=0' {
+            $invoker = & $script:MakeInvoker @{ 'quality.get.surveys' = @() }
+            $r = Get-GenesysConversationInvestigation -ConversationId $script:KnownConversationId -OutputRoot $script:OutputRoot -RunId 'missing-surveys' -DatasetInvoker $invoker
+
+            $s = Get-Content $r.SummaryPath -Raw | ConvertFrom-Json
+            @($s.surveys).Count | Should -Be 0
+
+            $m = Get-Content $r.ManifestPath -Raw | ConvertFrom-Json
+            $surveyEntry = $m.datasetsInvoked | Where-Object { $_.stepName -eq 'surveys' }
+            $surveyEntry.recordCount | Should -Be 0
+            $surveyEntry.status      | Should -Be 'ok'
         }
     }
 

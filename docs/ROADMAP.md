@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-04-29
+> Last updated: 2026-05-12
 
 ## 1. Product Intent
 
@@ -25,6 +25,11 @@ the engineering teams that automate against them.
 
 ## 2. Recently Completed
 
+- [x] Session 20 backend foundation (2026-05-12): ConversationAnalyzer now
+      has a two-window trend-report puller, case-store comparison schema,
+      `report_trend_delta` view, regression/improvement accessors, and an
+      exportable incident-impact summary. The WPF Trend tab and hourly charting
+      remain open in Release 1.3.
 - [x] Critical hardening (2026-03-30): catalog-path resolution, schema-path
       computation, and Genesys.Ops module-init ordering. Queries now succeed
       from any working directory and on first import.
@@ -327,6 +332,11 @@ established and proven across all three flagships.
 - [ ] Session 20 — Temporal Trend and Comparative Reporting
       (period-over-period comparisons on Core aggregate outputs and on
       investigation outputs).
+  - [x] Backend foundation: `Get-TrendReport`, `Import-TrendReport`,
+        `report_trend_comparison`, `report_trend_delta`, comparative query
+        helpers, and `Export-IncidentImpactSummary`.
+  - [ ] WPF Trend tab, regression/improvement panels, hourly overlay chart,
+        and case-date-range configuration wiring.
 - [ ] Additional flagship investigations identified during 1.0–1.2
       (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
       names a concrete use case.

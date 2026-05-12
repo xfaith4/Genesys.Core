@@ -678,7 +678,7 @@ function renderTable() {
             inner.appendChild(makeEl('div', 'ps-label', 'PowerShell — Invoke-Dataset'));
 
             const codeBlock = makeEl('div', 'code-block');
-            codeBlock.innerHTML = psSnippet(d);
+            codeBlock.textContent = psSnippet(d);
             inner.appendChild(codeBlock);
 
             dtd.appendChild(inner);

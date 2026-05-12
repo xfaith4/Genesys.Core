@@ -14,14 +14,14 @@ Set-StrictMode -Version Latest
 #   2. SQLITE_DLL environment variable
 #   3. .\lib\System.Data.SQLite.dll  (repo-relative default)
 #
-# Schema version: 11
+# Schema version: 12
 # Conversation detail is stored as canonical raw JSON plus flattened and
 # normalized analytical dimensions. App.Database.psm1 owns all SQLite access.
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:DbInitialized = $false
 $script:ConnStr       = $null
-$script:SchemaVersion = 11
+$script:SchemaVersion = 12
 
 # ── Private: DLL resolution ───────────────────────────────────────────────────
 
@@ -2144,6 +2144,117 @@ CREATE TABLE IF NOT EXISTS report_quality_topics (
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_case   ON report_quality_topics(case_id)'       | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_conv   ON report_quality_topics(conversation_id)' | Out-Null
     _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_quality_topic_topic  ON report_quality_topics(topic_id)'      | Out-Null
+
+    # Schema v12 — Trend and comparative reporting (Session 20 foundation)
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_trend_windows (
+    row_id              TEXT    PRIMARY KEY,
+    case_id             TEXT    NOT NULL REFERENCES cases(case_id),
+    window_label        TEXT    NOT NULL DEFAULT '',
+    window_start        TEXT    NOT NULL DEFAULT '',
+    window_end          TEXT    NOT NULL DEFAULT '',
+    imported_utc        TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql @'
+CREATE TABLE IF NOT EXISTS report_trend_comparison (
+    row_id              TEXT    PRIMARY KEY,
+    case_id             TEXT    NOT NULL REFERENCES cases(case_id),
+    window_label        TEXT    NOT NULL DEFAULT '',
+    queue_id            TEXT    NOT NULL DEFAULT '',
+    queue_name          TEXT    NOT NULL DEFAULT '',
+    division_id         TEXT    NOT NULL DEFAULT '',
+    division_name       TEXT    NOT NULL DEFAULT '',
+    interval_start      TEXT    NOT NULL DEFAULT '',
+    n_offered           INTEGER NOT NULL DEFAULT 0,
+    n_connected         INTEGER NOT NULL DEFAULT 0,
+    n_abandoned         INTEGER NOT NULL DEFAULT 0,
+    abandon_rate_pct    REAL    NOT NULL DEFAULT 0,
+    t_handle_avg_sec    REAL    NOT NULL DEFAULT 0,
+    t_talk_avg_sec      REAL    NOT NULL DEFAULT 0,
+    t_acw_avg_sec       REAL    NOT NULL DEFAULT 0,
+    n_answered_in_20    INTEGER NOT NULL DEFAULT 0,
+    n_answered_in_30    INTEGER NOT NULL DEFAULT 0,
+    n_answered_in_60    INTEGER NOT NULL DEFAULT 0,
+    service_level_pct   REAL    NOT NULL DEFAULT 0,
+    imported_utc        TEXT    NOT NULL DEFAULT ''
+)
+'@ | Out-Null
+
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_trend_window_case    ON report_trend_windows(case_id, window_label)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_trend_case_queue      ON report_trend_comparison(case_id, queue_id)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_trend_case_label      ON report_trend_comparison(case_id, window_label)' | Out-Null
+    _NonQuery -Conn $Conn -Sql 'CREATE INDEX IF NOT EXISTS idx_trend_case_interval   ON report_trend_comparison(case_id, interval_start)' | Out-Null
+
+    _NonQuery -Conn $Conn -Sql 'DROP VIEW IF EXISTS report_trend_delta' | Out-Null
+    _NonQuery -Conn $Conn -Sql @'
+CREATE VIEW report_trend_delta AS
+WITH keys AS (
+    SELECT case_id, queue_id, interval_start
+    FROM report_trend_comparison
+    GROUP BY case_id, queue_id, interval_start
+),
+a AS (
+    SELECT *
+    FROM report_trend_comparison
+    WHERE window_label = 'A'
+),
+b AS (
+    SELECT *
+    FROM report_trend_comparison
+    WHERE window_label = 'B'
+)
+SELECT
+    k.case_id,
+    k.queue_id,
+    COALESCE(a.queue_name, b.queue_name) AS queue_name,
+    COALESCE(a.division_id, b.division_id) AS division_id,
+    COALESCE(a.division_name, b.division_name) AS division_name,
+    k.interval_start,
+    COALESCE(a.n_offered, 0) AS window_a_n_offered,
+    COALESCE(b.n_offered, 0) AS window_b_n_offered,
+    (COALESCE(b.n_offered, 0) - COALESCE(a.n_offered, 0)) AS delta_n_offered,
+    CASE WHEN COALESCE(a.n_offered, 0) > 0
+         THEN ROUND(((COALESCE(b.n_offered, 0) - COALESCE(a.n_offered, 0)) * 100.0) / a.n_offered, 1)
+         ELSE NULL END AS delta_n_offered_pct,
+    COALESCE(a.n_connected, 0) AS window_a_n_connected,
+    COALESCE(b.n_connected, 0) AS window_b_n_connected,
+    (COALESCE(b.n_connected, 0) - COALESCE(a.n_connected, 0)) AS delta_n_connected,
+    COALESCE(a.n_abandoned, 0) AS window_a_n_abandoned,
+    COALESCE(b.n_abandoned, 0) AS window_b_n_abandoned,
+    (COALESCE(b.n_abandoned, 0) - COALESCE(a.n_abandoned, 0)) AS delta_n_abandoned,
+    COALESCE(a.abandon_rate_pct, 0.0) AS window_a_abandon_rate_pct,
+    COALESCE(b.abandon_rate_pct, 0.0) AS window_b_abandon_rate_pct,
+    ROUND(COALESCE(b.abandon_rate_pct, 0.0) - COALESCE(a.abandon_rate_pct, 0.0), 1) AS delta_abandon_rate_pct,
+    COALESCE(a.t_handle_avg_sec, 0.0) AS window_a_t_handle_avg_sec,
+    COALESCE(b.t_handle_avg_sec, 0.0) AS window_b_t_handle_avg_sec,
+    ROUND(COALESCE(b.t_handle_avg_sec, 0.0) - COALESCE(a.t_handle_avg_sec, 0.0), 1) AS delta_t_handle_avg_sec,
+    COALESCE(a.t_talk_avg_sec, 0.0) AS window_a_t_talk_avg_sec,
+    COALESCE(b.t_talk_avg_sec, 0.0) AS window_b_t_talk_avg_sec,
+    ROUND(COALESCE(b.t_talk_avg_sec, 0.0) - COALESCE(a.t_talk_avg_sec, 0.0), 1) AS delta_t_talk_avg_sec,
+    COALESCE(a.t_acw_avg_sec, 0.0) AS window_a_t_acw_avg_sec,
+    COALESCE(b.t_acw_avg_sec, 0.0) AS window_b_t_acw_avg_sec,
+    ROUND(COALESCE(b.t_acw_avg_sec, 0.0) - COALESCE(a.t_acw_avg_sec, 0.0), 1) AS delta_t_acw_avg_sec,
+    COALESCE(a.service_level_pct, 0.0) AS window_a_service_level_pct,
+    COALESCE(b.service_level_pct, 0.0) AS window_b_service_level_pct,
+    ROUND(COALESCE(b.service_level_pct, 0.0) - COALESCE(a.service_level_pct, 0.0), 1) AS delta_service_level_pct,
+    COALESCE(a.n_answered_in_20, 0) AS window_a_n_answered_in_20,
+    COALESCE(b.n_answered_in_20, 0) AS window_b_n_answered_in_20,
+    COALESCE(a.n_answered_in_30, 0) AS window_a_n_answered_in_30,
+    COALESCE(b.n_answered_in_30, 0) AS window_b_n_answered_in_30,
+    COALESCE(a.n_answered_in_60, 0) AS window_a_n_answered_in_60,
+    COALESCE(b.n_answered_in_60, 0) AS window_b_n_answered_in_60
+FROM keys k
+LEFT JOIN a
+    ON a.case_id = k.case_id
+   AND a.queue_id = k.queue_id
+   AND a.interval_start = k.interval_start
+LEFT JOIN b
+    ON b.case_id = k.case_id
+   AND b.queue_id = k.queue_id
+   AND b.interval_start = k.interval_start
+'@ | Out-Null
 
     # Stamp schema version on first creation and after migrations
     $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
@@ -4429,6 +4540,589 @@ WHERE case_id = @cid
         AvgSL30sPct    = [double](_RowVal $r 'avg_sl_30s_pct'  0.0)
         AvgHandleSec   = [double](_RowVal $r 'avg_handle_sec'  0.0)
     }
+}
+
+function Import-TrendReport {
+    <#
+    .SYNOPSIS
+        Imports two queue-performance windows for trend comparison.
+    .DESCRIPTION
+        Reads Window A and Window B aggregate run folders returned by
+        Get-TrendReport and stores one row per queue per interval per window in
+        report_trend_comparison. Window definitions are persisted in
+        report_trend_windows and comparison deltas are surfaced through the
+        report_trend_delta view.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [Parameter(Mandatory)][hashtable] $FolderMap
+    )
+    _RequireDb
+
+    function _ReadTrendAggJsonl ([string]$RunFolder) {
+        if ([string]::IsNullOrWhiteSpace($RunFolder) -or -not [System.IO.Directory]::Exists($RunFolder)) {
+            return @()
+        }
+        $dataDir = [System.IO.Path]::Combine($RunFolder, 'data')
+        if (-not [System.IO.Directory]::Exists($dataDir)) { return @() }
+        $records = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in [System.IO.Directory]::GetFiles($dataDir, '*.jsonl')) {
+            foreach ($line in [System.IO.File]::ReadAllLines($f)) {
+                $trimmed = $line.Trim()
+                if (-not $trimmed) { continue }
+                try {
+                    $records.Add(($trimmed | ConvertFrom-Json))
+                } catch {
+                    Write-Warning "Import-TrendReport: skipping malformed JSONL line in $f — $($_.Exception.Message)"
+                }
+            }
+        }
+        return $records.ToArray()
+    }
+
+    function _FlattenTrendAggResult ([object]$Result) {
+        $rows = [System.Collections.Generic.List[hashtable]]::new()
+        if ($null -eq $Result -or $null -eq $Result.data) { return $rows }
+        $queueId = [string](_ObjVal $Result.group @('queueId') '')
+        if (-not $queueId) { return $rows }
+        foreach ($d in @($Result.data)) {
+            $intervalText = [string](_ObjVal $d @('interval') '')
+            $intervalStart = if ($intervalText -match '^([^/]+)/') { $Matches[1] } else { $intervalText }
+            $metricMap = @{}
+            foreach ($metric in @($d.metrics)) {
+                $metricMap[[string]$metric.metric] = $metric.stats
+            }
+            $rows.Add(@{
+                QueueId       = $queueId
+                IntervalStart = $intervalStart
+                Metrics       = $metricMap
+            }) | Out-Null
+        }
+        return $rows
+    }
+
+    function _NormalizeTrendWindowMap {
+        param(
+            [Parameter(Mandatory)][hashtable]$Source,
+            [Parameter(Mandatory)][string]$DefaultLabel
+        )
+        $label = if ($Source.ContainsKey('WindowLabel') -and -not [string]::IsNullOrWhiteSpace([string]$Source['WindowLabel'])) {
+            [string]$Source['WindowLabel']
+        } else {
+            $DefaultLabel
+        }
+
+        return @{
+            WindowLabel        = $label
+            StartDateTime      = if ($Source.ContainsKey('StartDateTime')) { [string]$Source['StartDateTime'] } else { '' }
+            EndDateTime        = if ($Source.ContainsKey('EndDateTime')) { [string]$Source['EndDateTime'] } else { '' }
+            QueuePerfFolder    = if ($Source.ContainsKey('QueuePerfFolder')) { [string]$Source['QueuePerfFolder'] } else { '' }
+            AbandonFolder      = if ($Source.ContainsKey('AbandonFolder')) { [string]$Source['AbandonFolder'] } else { '' }
+            ServiceLevelFolder = if ($Source.ContainsKey('ServiceLevelFolder')) { [string]$Source['ServiceLevelFolder'] } else { '' }
+        }
+    }
+
+    $windows = @()
+    if ($FolderMap.ContainsKey('WindowA') -and $FolderMap['WindowA'] -is [hashtable]) {
+        $windows += ,(_NormalizeTrendWindowMap -Source $FolderMap['WindowA'] -DefaultLabel 'A')
+    }
+    if ($FolderMap.ContainsKey('WindowB') -and $FolderMap['WindowB'] -is [hashtable]) {
+        $windows += ,(_NormalizeTrendWindowMap -Source $FolderMap['WindowB'] -DefaultLabel 'B')
+    }
+    if ($windows.Count -eq 0) {
+        throw 'Import-TrendReport: FolderMap must contain WindowA and WindowB entries returned by Get-TrendReport.'
+    }
+
+    $stats = [ordered]@{
+        RecordCount  = 0
+        SkippedCount = 0
+        WindowCount  = 0
+    }
+    $now = [datetime]::UtcNow.ToString('o')
+
+    $conn = _Open
+    try {
+        foreach ($window in $windows) {
+            $label = [string]$window.WindowLabel
+            if ([string]::IsNullOrWhiteSpace($label)) {
+                throw 'Import-TrendReport: window label cannot be empty.'
+            }
+
+            _NonQuery -Conn $conn -Sql 'DELETE FROM report_trend_comparison WHERE case_id = @cid AND window_label = @label' -P @{ '@cid' = $CaseId; '@label' = $label } | Out-Null
+            _NonQuery -Conn $conn -Sql 'DELETE FROM report_trend_windows WHERE case_id = @cid AND window_label = @label' -P @{ '@cid' = $CaseId; '@label' = $label } | Out-Null
+
+            _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_trend_windows(row_id, case_id, window_label, window_start, window_end, imported_utc)
+VALUES(@rid, @cid, @label, @start, @end, @ts)
+'@ -P @{
+                '@rid'   = "$CaseId|trend-window|$label"
+                '@cid'   = $CaseId
+                '@label' = $label
+                '@start' = [string]$window.StartDateTime
+                '@end'   = [string]$window.EndDateTime
+                '@ts'    = $now
+            } | Out-Null
+
+            $merged = @{}
+            function _EnsureTrendRow ([string]$Key, [string]$QueueId, [string]$IntervalStart) {
+                if (-not $merged.ContainsKey($Key)) {
+                    $merged[$Key] = @{
+                        QueueId         = $QueueId
+                        IntervalStart   = $IntervalStart
+                        nConnected      = 0
+                        tHandleSum      = 0.0
+                        tTalkSum        = 0.0
+                        tAcwSum         = 0.0
+                        nOfferedPerf    = 0
+                        nAbandoned      = 0
+                        nOfferedAbandon = 0
+                        nAnsweredIn20   = 0
+                        nAnsweredIn30   = 0
+                        nAnsweredIn60   = 0
+                        nOfferedSL      = 0
+                    }
+                }
+            }
+
+            foreach ($record in (_ReadTrendAggJsonl $window.QueuePerfFolder)) {
+                foreach ($row in (_FlattenTrendAggResult $record)) {
+                    $key = "$($row.QueueId)|$($row.IntervalStart)"
+                    _EnsureTrendRow -Key $key -QueueId $row.QueueId -IntervalStart $row.IntervalStart
+                    $metrics = $row.Metrics
+                    if ($metrics.ContainsKey('nConnected')) { $merged[$key].nConnected += [int]$metrics['nConnected'].count }
+                    if ($metrics.ContainsKey('tHandle'))    { $merged[$key].tHandleSum += [double]$metrics['tHandle'].sum }
+                    if ($metrics.ContainsKey('tTalk'))      { $merged[$key].tTalkSum += [double]$metrics['tTalk'].sum }
+                    if ($metrics.ContainsKey('tAcw'))       { $merged[$key].tAcwSum += [double]$metrics['tAcw'].sum }
+                    if ($metrics.ContainsKey('nOffered'))   { $merged[$key].nOfferedPerf += [int]$metrics['nOffered'].count }
+                }
+            }
+
+            foreach ($record in (_ReadTrendAggJsonl $window.AbandonFolder)) {
+                foreach ($row in (_FlattenTrendAggResult $record)) {
+                    $key = "$($row.QueueId)|$($row.IntervalStart)"
+                    _EnsureTrendRow -Key $key -QueueId $row.QueueId -IntervalStart $row.IntervalStart
+                    $metrics = $row.Metrics
+                    if ($metrics.ContainsKey('nAbandoned')) { $merged[$key].nAbandoned += [int]$metrics['nAbandoned'].count }
+                    if ($metrics.ContainsKey('nOffered'))   { $merged[$key].nOfferedAbandon += [int]$metrics['nOffered'].count }
+                }
+            }
+
+            foreach ($record in (_ReadTrendAggJsonl $window.ServiceLevelFolder)) {
+                foreach ($row in (_FlattenTrendAggResult $record)) {
+                    $key = "$($row.QueueId)|$($row.IntervalStart)"
+                    _EnsureTrendRow -Key $key -QueueId $row.QueueId -IntervalStart $row.IntervalStart
+                    $metrics = $row.Metrics
+                    if ($metrics.ContainsKey('nAnsweredIn20')) { $merged[$key].nAnsweredIn20 += [int]$metrics['nAnsweredIn20'].count }
+                    if ($metrics.ContainsKey('nAnsweredIn30')) { $merged[$key].nAnsweredIn30 += [int]$metrics['nAnsweredIn30'].count }
+                    if ($metrics.ContainsKey('nAnsweredIn60')) { $merged[$key].nAnsweredIn60 += [int]$metrics['nAnsweredIn60'].count }
+                    if ($metrics.ContainsKey('nOffered'))      { $merged[$key].nOfferedSL += [int]$metrics['nOffered'].count }
+                }
+            }
+
+            foreach ($entry in $merged.Values) {
+                $queueId = [string]$entry.QueueId
+                $queueName = ''
+                $divisionId = ''
+                $divisionName = ''
+
+                $queueRow = _Query -Conn $conn -Sql @'
+SELECT name, division_id FROM ref_queues
+WHERE case_id = @cid AND queue_id = @qid
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId; '@qid' = $queueId }
+                if ($queueRow.Count -gt 0) {
+                    $queueName = [string](_RowVal $queueRow[0] 'name' '')
+                    $divisionId = [string](_RowVal $queueRow[0] 'division_id' '')
+                }
+                if (-not $queueName) { $queueName = "$queueId (unresolved)" }
+
+                if ($divisionId) {
+                    $divisionRow = _Query -Conn $conn -Sql @'
+SELECT name FROM ref_divisions
+WHERE case_id = @cid AND division_id = @did
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId; '@did' = $divisionId }
+                    if ($divisionRow.Count -gt 0) {
+                        $divisionName = [string](_RowVal $divisionRow[0] 'name' '')
+                    }
+                }
+
+                $nConnected = [int]$entry.nConnected
+                $nOffered = if ($entry.nOfferedAbandon -gt 0) { [int]$entry.nOfferedAbandon } else { [int]$entry.nOfferedPerf }
+                $nAbandoned = [int]$entry.nAbandoned
+                $nOfferedSL = if ($entry.nOfferedSL -gt 0) { [int]$entry.nOfferedSL } else { $nOffered }
+                $abandonRatePct = if ($nOffered -gt 0) { [Math]::Round(($nAbandoned / $nOffered) * 100.0, 1) } else { 0.0 }
+                $serviceLevelPct = if ($nOfferedSL -gt 0) { [Math]::Round(($entry.nAnsweredIn30 / $nOfferedSL) * 100.0, 1) } else { 0.0 }
+                $tHandleAvgSec = if ($nConnected -gt 0) { [Math]::Round($entry.tHandleSum / $nConnected / 1000.0, 1) } else { 0.0 }
+                $tTalkAvgSec = if ($nConnected -gt 0) { [Math]::Round($entry.tTalkSum / $nConnected / 1000.0, 1) } else { 0.0 }
+                $tAcwAvgSec = if ($nConnected -gt 0) { [Math]::Round($entry.tAcwSum / $nConnected / 1000.0, 1) } else { 0.0 }
+
+                try {
+                    _NonQuery -Conn $conn -Sql @'
+INSERT INTO report_trend_comparison(
+    row_id, case_id, window_label, queue_id, queue_name, division_id, division_name, interval_start,
+    n_offered, n_connected, n_abandoned, abandon_rate_pct,
+    t_handle_avg_sec, t_talk_avg_sec, t_acw_avg_sec,
+    n_answered_in_20, n_answered_in_30, n_answered_in_60, service_level_pct,
+    imported_utc)
+VALUES(
+    @rid, @cid, @label, @qid, @qname, @did, @dname, @istart,
+    @noff, @nconn, @naban, @aban,
+    @thandle, @ttalk, @tacw,
+    @n20, @n30, @n60, @sl,
+    @ts)
+ON CONFLICT(row_id) DO UPDATE SET
+    queue_name=excluded.queue_name,
+    division_id=excluded.division_id,
+    division_name=excluded.division_name,
+    n_offered=excluded.n_offered,
+    n_connected=excluded.n_connected,
+    n_abandoned=excluded.n_abandoned,
+    abandon_rate_pct=excluded.abandon_rate_pct,
+    t_handle_avg_sec=excluded.t_handle_avg_sec,
+    t_talk_avg_sec=excluded.t_talk_avg_sec,
+    t_acw_avg_sec=excluded.t_acw_avg_sec,
+    n_answered_in_20=excluded.n_answered_in_20,
+    n_answered_in_30=excluded.n_answered_in_30,
+    n_answered_in_60=excluded.n_answered_in_60,
+    service_level_pct=excluded.service_level_pct,
+    imported_utc=excluded.imported_utc
+'@ -P @{
+                        '@rid'    = "$CaseId|trend|$label|$queueId|$($entry.IntervalStart)"
+                        '@cid'    = $CaseId
+                        '@label'  = $label
+                        '@qid'    = $queueId
+                        '@qname'  = $queueName
+                        '@did'    = $divisionId
+                        '@dname'  = $divisionName
+                        '@istart' = [string]$entry.IntervalStart
+                        '@noff'   = $nOffered
+                        '@nconn'  = $nConnected
+                        '@naban'  = $nAbandoned
+                        '@aban'   = $abandonRatePct
+                        '@thandle'= $tHandleAvgSec
+                        '@ttalk'  = $tTalkAvgSec
+                        '@tacw'   = $tAcwAvgSec
+                        '@n20'    = [int]$entry.nAnsweredIn20
+                        '@n30'    = [int]$entry.nAnsweredIn30
+                        '@n60'    = [int]$entry.nAnsweredIn60
+                        '@sl'     = $serviceLevelPct
+                        '@ts'     = $now
+                    } | Out-Null
+                    $stats.RecordCount++
+                } catch {
+                    Write-Warning "Import-TrendReport: failed to upsert queue '$queueId' interval '$($entry.IntervalStart)' for window '$label' — $($_.Exception.Message)"
+                    $stats.SkippedCount++
+                }
+            }
+
+            $stats.WindowCount++
+        }
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+
+    return [pscustomobject]$stats
+}
+
+function Get-TrendComparisonRows {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [string] $DivisionId = ''
+    )
+    _RequireDb
+
+    $sql = @'
+SELECT queue_id, queue_name, division_id, division_name, interval_start,
+       window_a_n_offered, window_b_n_offered, delta_n_offered, delta_n_offered_pct,
+       window_a_n_connected, window_b_n_connected, delta_n_connected,
+       window_a_n_abandoned, window_b_n_abandoned, delta_n_abandoned,
+       window_a_abandon_rate_pct, window_b_abandon_rate_pct, delta_abandon_rate_pct,
+       window_a_t_handle_avg_sec, window_b_t_handle_avg_sec, delta_t_handle_avg_sec,
+       window_a_t_talk_avg_sec, window_b_t_talk_avg_sec, delta_t_talk_avg_sec,
+       window_a_t_acw_avg_sec, window_b_t_acw_avg_sec, delta_t_acw_avg_sec,
+       window_a_service_level_pct, window_b_service_level_pct, delta_service_level_pct
+FROM report_trend_delta
+WHERE case_id = @cid
+'@
+    $p = @{ '@cid' = $CaseId }
+    if ($DivisionId) {
+        $sql += ' AND division_id = @did'
+        $p['@did'] = $DivisionId
+    }
+    $sql += ' ORDER BY queue_name ASC, interval_start ASC'
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+
+    return @($rows | ForEach-Object {
+        [pscustomobject]@{
+            QueueId                = [string](_RowVal $_ 'queue_id' '')
+            QueueName              = [string](_RowVal $_ 'queue_name' '')
+            DivisionId             = [string](_RowVal $_ 'division_id' '')
+            DivisionName           = [string](_RowVal $_ 'division_name' '')
+            IntervalStart          = [string](_RowVal $_ 'interval_start' '')
+            WindowAOffered         = [int]   (_RowVal $_ 'window_a_n_offered' 0)
+            WindowBOffered         = [int]   (_RowVal $_ 'window_b_n_offered' 0)
+            DeltaOffered           = [int]   (_RowVal $_ 'delta_n_offered' 0)
+            DeltaOfferedPct        = _TryParseDouble (_RowVal $_ 'delta_n_offered_pct' $null)
+            WindowAConnected       = [int]   (_RowVal $_ 'window_a_n_connected' 0)
+            WindowBConnected       = [int]   (_RowVal $_ 'window_b_n_connected' 0)
+            DeltaConnected         = [int]   (_RowVal $_ 'delta_n_connected' 0)
+            WindowAAbandoned       = [int]   (_RowVal $_ 'window_a_n_abandoned' 0)
+            WindowBAbandoned       = [int]   (_RowVal $_ 'window_b_n_abandoned' 0)
+            DeltaAbandoned         = [int]   (_RowVal $_ 'delta_n_abandoned' 0)
+            WindowAAbandonPct      = [double](_RowVal $_ 'window_a_abandon_rate_pct' 0.0)
+            WindowBAbandonPct      = [double](_RowVal $_ 'window_b_abandon_rate_pct' 0.0)
+            DeltaAbandonPct        = [double](_RowVal $_ 'delta_abandon_rate_pct' 0.0)
+            WindowAHandleSec       = [double](_RowVal $_ 'window_a_t_handle_avg_sec' 0.0)
+            WindowBHandleSec       = [double](_RowVal $_ 'window_b_t_handle_avg_sec' 0.0)
+            DeltaHandleSec         = [double](_RowVal $_ 'delta_t_handle_avg_sec' 0.0)
+            WindowATalkSec         = [double](_RowVal $_ 'window_a_t_talk_avg_sec' 0.0)
+            WindowBTalkSec         = [double](_RowVal $_ 'window_b_t_talk_avg_sec' 0.0)
+            DeltaTalkSec           = [double](_RowVal $_ 'delta_t_talk_avg_sec' 0.0)
+            WindowAAcwSec          = [double](_RowVal $_ 'window_a_t_acw_avg_sec' 0.0)
+            WindowBAcwSec          = [double](_RowVal $_ 'window_b_t_acw_avg_sec' 0.0)
+            DeltaAcwSec            = [double](_RowVal $_ 'delta_t_acw_avg_sec' 0.0)
+            WindowAServiceLevelPct = [double](_RowVal $_ 'window_a_service_level_pct' 0.0)
+            WindowBServiceLevelPct = [double](_RowVal $_ 'window_b_service_level_pct' 0.0)
+            DeltaServiceLevelPct   = [double](_RowVal $_ 'delta_service_level_pct' 0.0)
+        }
+    })
+}
+
+function Get-TrendChangeLeaders {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [ValidateSet('Regressions','Improvements')]
+        [string] $Mode = 'Regressions',
+        [int] $Top = 10,
+        [string] $DivisionId = ''
+    )
+    _RequireDb
+
+    $sql = @'
+SELECT queue_id,
+       queue_name,
+       division_id,
+       division_name,
+       SUM(window_b_n_offered) AS window_b_n_offered,
+       AVG(delta_abandon_rate_pct) AS delta_abandon_rate_pct,
+       AVG(delta_service_level_pct) AS delta_service_level_pct,
+       AVG(delta_t_handle_avg_sec) AS delta_t_handle_avg_sec,
+       COUNT(*) AS interval_count
+FROM report_trend_delta
+WHERE case_id = @cid
+'@
+    $p = @{ '@cid' = $CaseId; '@top' = $Top }
+    if ($DivisionId) {
+        $sql += ' AND division_id = @did'
+        $p['@did'] = $DivisionId
+    }
+    $sql += ' GROUP BY queue_id, queue_name, division_id, division_name'
+    if ($Mode -eq 'Regressions') {
+        $sql += ' ORDER BY AVG(delta_abandon_rate_pct) DESC, AVG(delta_service_level_pct) ASC, AVG(delta_t_handle_avg_sec) DESC, queue_name ASC'
+    } else {
+        $sql += ' ORDER BY AVG(delta_abandon_rate_pct) ASC, AVG(delta_service_level_pct) DESC, AVG(delta_t_handle_avg_sec) ASC, queue_name ASC'
+    }
+    $sql += ' LIMIT @top'
+
+    $conn = _Open
+    try {
+        $rows = _Query -Conn $conn -Sql $sql -P $p
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+
+    return @($rows | ForEach-Object {
+        [pscustomobject]@{
+            QueueId             = [string](_RowVal $_ 'queue_id' '')
+            QueueName           = [string](_RowVal $_ 'queue_name' '')
+            DivisionId          = [string](_RowVal $_ 'division_id' '')
+            DivisionName        = [string](_RowVal $_ 'division_name' '')
+            WindowBOffered      = [int]   (_RowVal $_ 'window_b_n_offered' 0)
+            DeltaAbandonPct     = [double](_RowVal $_ 'delta_abandon_rate_pct' 0.0)
+            DeltaServiceLevelPct= [double](_RowVal $_ 'delta_service_level_pct' 0.0)
+            DeltaHandleSec      = [double](_RowVal $_ 'delta_t_handle_avg_sec' 0.0)
+            IntervalCount       = [int]   (_RowVal $_ 'interval_count' 0)
+        }
+    })
+}
+
+function Get-IncidentImpactSummary {
+    param([Parameter(Mandatory)][string] $CaseId)
+    _RequireDb
+
+    $conn = _Open
+    try {
+        $totalConversations = [int](_Scalar -Conn $conn -Sql 'SELECT COUNT(*) FROM conversations WHERE case_id = @cid' -P @{ '@cid' = $CaseId })
+
+        $windowRows = _Query -Conn $conn -Sql @'
+SELECT window_label, window_start, window_end
+FROM report_trend_windows
+WHERE case_id = @cid
+ORDER BY window_label ASC
+'@ -P @{ '@cid' = $CaseId }
+
+        $topQueues = _Query -Conn $conn -Sql @'
+SELECT queue_id, queue_name,
+       SUM(window_b_n_offered) AS offered_in_window_b,
+       AVG(delta_n_offered_pct) AS delta_offered_pct,
+       AVG(delta_abandon_rate_pct) AS delta_abandon_rate_pct
+FROM report_trend_delta
+WHERE case_id = @cid
+GROUP BY queue_id, queue_name
+ORDER BY SUM(window_b_n_offered) DESC, AVG(delta_abandon_rate_pct) DESC, queue_name ASC
+LIMIT 5
+'@ -P @{ '@cid' = $CaseId }
+
+        $topWrapups = _Query -Conn $conn -Sql @'
+SELECT wrapup_code, wrapup_name, COUNT(*) AS conversation_count
+FROM conversations
+WHERE case_id = @cid AND (wrapup_code <> '' OR wrapup_name <> '')
+GROUP BY wrapup_code, wrapup_name
+ORDER BY COUNT(*) DESC, wrapup_name ASC, wrapup_code ASC
+LIMIT 3
+'@ -P @{ '@cid' = $CaseId }
+
+        $worstServiceLevel = _Query -Conn $conn -Sql @'
+SELECT queue_id, queue_name,
+       AVG(window_b_service_level_pct) AS window_b_service_level_pct,
+       AVG(delta_service_level_pct) AS delta_service_level_pct
+FROM report_trend_delta
+WHERE case_id = @cid
+GROUP BY queue_id, queue_name
+ORDER BY AVG(window_b_service_level_pct) ASC, AVG(delta_service_level_pct) ASC, queue_name ASC
+LIMIT 1
+'@ -P @{ '@cid' = $CaseId }
+
+        $windowAMeta = @($windowRows | Where-Object { [string](_RowVal $_ 'window_label' '') -eq 'A' }) | Select-Object -First 1
+        $windowBMeta = @($windowRows | Where-Object { [string](_RowVal $_ 'window_label' '') -eq 'B' }) | Select-Object -First 1
+
+        $qualityShift = $null
+        if ($null -ne $windowAMeta -and $null -ne $windowBMeta) {
+            $qualityRows = _Query -Conn $conn -Sql @'
+SELECT
+    AVG(CASE WHEN completed_at >= @aStart AND completed_at <= @aEnd THEN score_pct END) AS avg_score_a,
+    AVG(CASE WHEN completed_at >= @bStart AND completed_at <= @bEnd THEN score_pct END) AS avg_score_b,
+    COUNT(CASE WHEN completed_at >= @aStart AND completed_at <= @aEnd THEN 1 END) AS count_a,
+    COUNT(CASE WHEN completed_at >= @bStart AND completed_at <= @bEnd THEN 1 END) AS count_b
+FROM report_evaluations
+WHERE case_id = @cid AND score_pct IS NOT NULL
+'@ -P @{
+                '@cid' = $CaseId
+                '@aStart' = [string](_RowVal $windowAMeta 'window_start' '')
+                '@aEnd' = [string](_RowVal $windowAMeta 'window_end' '')
+                '@bStart' = [string](_RowVal $windowBMeta 'window_start' '')
+                '@bEnd' = [string](_RowVal $windowBMeta 'window_end' '')
+            }
+            if ($qualityRows.Count -gt 0) {
+                $qr = $qualityRows[0]
+                $avgA = _TryParseDouble (_RowVal $qr 'avg_score_a' $null)
+                $avgB = _TryParseDouble (_RowVal $qr 'avg_score_b' $null)
+                $qualityShift = [pscustomobject]@{
+                    WindowAAvgScore = $avgA
+                    WindowBAvgScore = $avgB
+                    DeltaScorePct   = if ($null -ne $avgA -and $null -ne $avgB) { [Math]::Round($avgB - $avgA, 1) } else { $null }
+                    WindowACount    = [int](_RowVal $qr 'count_a' 0)
+                    WindowBCount    = [int](_RowVal $qr 'count_b' 0)
+                }
+            }
+        }
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+
+    return [pscustomobject]@{
+        TotalConversations = $totalConversations
+        Windows            = @($windowRows | ForEach-Object {
+            [pscustomobject]@{
+                Label = [string](_RowVal $_ 'window_label' '')
+                Start = [string](_RowVal $_ 'window_start' '')
+                End   = [string](_RowVal $_ 'window_end' '')
+            }
+        })
+        ImpactedQueues     = @($topQueues | ForEach-Object {
+            [pscustomobject]@{
+                QueueId            = [string](_RowVal $_ 'queue_id' '')
+                QueueName          = [string](_RowVal $_ 'queue_name' '')
+                OfferedInWindowB   = [int]   (_RowVal $_ 'offered_in_window_b' 0)
+                DeltaOfferedPct    = _TryParseDouble (_RowVal $_ 'delta_offered_pct' $null)
+                DeltaAbandonPct    = _TryParseDouble (_RowVal $_ 'delta_abandon_rate_pct' $null)
+            }
+        })
+        TopWrapupCodes      = @($topWrapups | ForEach-Object {
+            [pscustomobject]@{
+                WrapupCode        = [string](_RowVal $_ 'wrapup_code' '')
+                WrapupName        = [string](_RowVal $_ 'wrapup_name' '')
+                ConversationCount = [int]   (_RowVal $_ 'conversation_count' 0)
+            }
+        })
+        WorstServiceLevel   = if ($worstServiceLevel.Count -gt 0) {
+            [pscustomobject]@{
+                QueueId              = [string](_RowVal $worstServiceLevel[0] 'queue_id' '')
+                QueueName            = [string](_RowVal $worstServiceLevel[0] 'queue_name' '')
+                WindowBServiceLevel  = _TryParseDouble (_RowVal $worstServiceLevel[0] 'window_b_service_level_pct' $null)
+                DeltaServiceLevelPct = _TryParseDouble (_RowVal $worstServiceLevel[0] 'delta_service_level_pct' $null)
+            }
+        } else { $null }
+        QualityShift        = $qualityShift
+    }
+}
+
+function Export-IncidentImpactSummary {
+    param(
+        [Parameter(Mandatory)][string] $CaseId,
+        [Parameter(Mandatory)][string] $OutputPath
+    )
+    _RequireDb
+
+    $summary = Get-IncidentImpactSummary -CaseId $CaseId
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('Incident Impact Summary') | Out-Null
+    $lines.Add("CaseId: $CaseId") | Out-Null
+    $lines.Add("GeneratedUtc: $([datetime]::UtcNow.ToString('o'))") | Out-Null
+    $lines.Add('') | Out-Null
+    $lines.Add("Total conversations in case window: $($summary.TotalConversations)") | Out-Null
+    if (@($summary.Windows).Count -gt 0) {
+        $lines.Add('Windows:') | Out-Null
+        foreach ($window in @($summary.Windows)) {
+            $lines.Add("  Window $($window.Label): $($window.Start) -> $($window.End)") | Out-Null
+        }
+    }
+    $lines.Add('') | Out-Null
+    $lines.Add('Impacted queues:') | Out-Null
+    foreach ($queue in @($summary.ImpactedQueues)) {
+        $lines.Add("  $($queue.QueueName) — offered(B): $($queue.OfferedInWindowB); delta offered %: $($queue.DeltaOfferedPct); delta abandon %: $($queue.DeltaAbandonPct)") | Out-Null
+    }
+    $lines.Add('') | Out-Null
+    $lines.Add('Top wrapup codes:') | Out-Null
+    foreach ($wrapup in @($summary.TopWrapupCodes)) {
+        $name = if ([string]::IsNullOrWhiteSpace($wrapup.WrapupName)) { $wrapup.WrapupCode } else { $wrapup.WrapupName }
+        $lines.Add("  $name — $($wrapup.ConversationCount) conversation(s)") | Out-Null
+    }
+    $lines.Add('') | Out-Null
+    if ($null -ne $summary.WorstServiceLevel) {
+        $lines.Add("Worst service level in Window B: $($summary.WorstServiceLevel.QueueName) — SL %: $($summary.WorstServiceLevel.WindowBServiceLevel); delta SL %: $($summary.WorstServiceLevel.DeltaServiceLevelPct)") | Out-Null
+    }
+    if ($null -ne $summary.QualityShift) {
+        $lines.Add("Quality score shift: A=$($summary.QualityShift.WindowAAvgScore) B=$($summary.QualityShift.WindowBAvgScore) delta=$($summary.QualityShift.DeltaScorePct)") | Out-Null
+    }
+
+    $parent = [System.IO.Path]::GetDirectoryName($OutputPath)
+    if (-not [string]::IsNullOrWhiteSpace($parent) -and -not [System.IO.Directory]::Exists($parent)) {
+        [System.IO.Directory]::CreateDirectory($parent) | Out-Null
+    }
+    [System.IO.File]::WriteAllLines($OutputPath, $lines, [System.Text.Encoding]::UTF8)
+    return $OutputPath
 }
 
 function Import-AgentPerformanceReport {
@@ -6968,6 +7662,8 @@ Export-ModuleMember -Function `
     Get-CaseAgentUserIds, `
     Import-ReferenceDataToCase, Get-ResolvedName, `
     Import-QueuePerformanceReport, Get-QueuePerfRows, Get-QueuePerfSummary, `
+    Import-TrendReport, Get-TrendComparisonRows, Get-TrendChangeLeaders, `
+    Get-IncidentImpactSummary, Export-IncidentImpactSummary, `
     Import-AgentPerformanceReport, Get-AgentPerfRows, Get-AgentPerfSummary, `
     Import-TransferReport, Get-TransferFlowRows, Get-TransferChainRows, Get-TransferSummary, `
     Import-FlowContainmentReport, Get-FlowPerfRows, Get-FlowMilestoneRows, `

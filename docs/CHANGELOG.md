@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-12
+
+### Added
+
+- **ConversationAnalyzer Session 20 backend foundation:**
+  - `Get-TrendReport` added to `apps/ConversationAnalyzer/modules/App.CoreAdapter.psm1` to pull queue-performance, abandon, and service-level aggregates for two comparison windows (`WindowA`, `WindowB`).
+  - Schema bumped to **v12** with `report_trend_windows`, `report_trend_comparison`, and the `report_trend_delta` view in `apps/ConversationAnalyzer/modules/App.Database.psm1`.
+  - `Import-TrendReport`, `Get-TrendComparisonRows`, `Get-TrendChangeLeaders`, `Get-IncidentImpactSummary`, and `Export-IncidentImpactSummary` added to establish comparative reporting and briefing export before the WPF Trend tab is wired.
+  - `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` now asserts the trend-report backend surface.
+
+### Changed
+
+- `docs/ROADMAP.md`, `apps/ConversationAnalyzer/docs/ConversationAnalytics_Roadmap.md`, `progress.md`, and `task_plan.md` updated to record Session 20 as partially delivered: backend foundation complete, UI/charting still open.
+
 ## 2026-05-07
 
 ### Changed

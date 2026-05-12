@@ -368,6 +368,33 @@ ArchCheck 'ARCH-42' 'Transfer tab controls and handlers are wired' {
     $uiPs -match 'function _OpenTransferChainConversation'
 }
 
+Write-Host "`n--- Trend and comparative reporting ---" -ForegroundColor DarkCyan
+
+ArchCheck 'ARCH-42A' 'CoreAdapter exposes a two-window trend aggregate puller' {
+    $adapter -match 'function Get-TrendReport' -and
+    $adapter -match 'WindowA' -and
+    $adapter -match 'WindowB' -and
+    $adapter -match 'analytics\.query\.conversation\.aggregates\.queue\.performance' -and
+    $adapter -match 'analytics\.query\.conversation\.aggregates\.abandon\.metrics' -and
+    $adapter -match 'analytics\.query\.queue\.aggregates\.service\.level'
+}
+
+ArchCheck 'ARCH-42B' 'Database owns trend schema, import, delta view, and comparative accessors' {
+    $database -match 'CREATE TABLE IF NOT EXISTS report_trend_windows' -and
+    $database -match 'CREATE TABLE IF NOT EXISTS report_trend_comparison' -and
+    $database -match 'CREATE VIEW report_trend_delta' -and
+    $database -match 'function Import-TrendReport' -and
+    $database -match 'function Get-TrendComparisonRows' -and
+    $database -match 'function Get-TrendChangeLeaders'
+}
+
+ArchCheck 'ARCH-42C' 'Database exposes incident impact summary and export functions' {
+    $database -match 'function Get-IncidentImpactSummary' -and
+    $database -match 'function Export-IncidentImpactSummary' -and
+    $database -match 'report_evaluations' -and
+    $database -match 'report_trend_windows'
+}
+
 Write-Host "`n--- Flow and IVR containment reporting ---" -ForegroundColor DarkCyan
 
 ArchCheck 'ARCH-43' 'CoreAdapter exposes flow containment pulls without UI direct dataset access' {

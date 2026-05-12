@@ -464,6 +464,131 @@ function Get-QueuePerformanceReport {
     }
 }
 
+function Get-TrendReport {
+    <#
+    .SYNOPSIS
+        Session 20 — pulls two queue-performance windows for trend comparison.
+    .DESCRIPTION
+        Calls Invoke-Dataset for the same three aggregate datasets used by
+        Get-QueuePerformanceReport, once for Window A and once for Window B.
+        Results are written under OutputRoot\report-trend-<timestamp>\window-a\
+        and OutputRoot\report-trend-<timestamp>\window-b\.
+
+        Each window parameter must expose Start and End members (hashtable or
+        PSCustomObject). The returned hashtable is shaped for
+        Import-TrendReport in App.Database.psm1.
+    .PARAMETER WindowA
+        Baseline or comparison window. Must contain Start and End.
+    .PARAMETER WindowB
+        Baseline or comparison window. Must contain Start and End.
+    .PARAMETER Headers
+        Auth headers hashtable. Optional.
+    .PARAMETER BaseUri
+        Optional Genesys Cloud API base URI.
+    .PARAMETER Granularity
+        Analytics aggregate granularity for both windows. Defaults to PT1H.
+    #>
+    param(
+        [Parameter(Mandatory)][object] $WindowA,
+        [Parameter(Mandatory)][object] $WindowB,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = '',
+        [string] $Granularity = 'PT1H'
+    )
+    _RequireInitialized
+
+    function _GetWindowField {
+        param(
+            [Parameter(Mandatory)][object]$Window,
+            [Parameter(Mandatory)][string]$Name
+        )
+        if ($Window -is [hashtable]) {
+            if ($Window.ContainsKey($Name)) {
+                return [string]$Window[$Name]
+            }
+            return ''
+        }
+
+        $prop = $Window.PSObject.Properties[$Name]
+        if ($null -eq $prop) { return '' }
+        return [string]$prop.Value
+    }
+
+    function _InvokeTrendWindow {
+        param(
+            [Parameter(Mandatory)][string]$WindowLabel,
+            [Parameter(Mandatory)][object]$Window,
+            [Parameter(Mandatory)][string]$RootPath
+        )
+
+        $startDateTime = _GetWindowField -Window $Window -Name 'Start'
+        $endDateTime = _GetWindowField -Window $Window -Name 'End'
+        if ([string]::IsNullOrWhiteSpace($startDateTime) -or [string]::IsNullOrWhiteSpace($endDateTime)) {
+            throw "Get-TrendReport: window '$WindowLabel' must provide non-empty Start and End values."
+        }
+
+        $interval = "$startDateTime/$endDateTime"
+        $datasetKeys = @(
+            'analytics.query.conversation.aggregates.queue.performance',
+            'analytics.query.conversation.aggregates.abandon.metrics',
+            'analytics.query.queue.aggregates.service.level'
+        )
+
+        $folderMap = @{}
+        foreach ($key in $datasetKeys) {
+            $dsRoot = [System.IO.Path]::Combine($RootPath, $key)
+            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+            try {
+                $body = switch ($key) {
+                    'analytics.query.conversation.aggregates.queue.performance' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound') -Granularity $Granularity
+                    }
+                    'analytics.query.conversation.aggregates.abandon.metrics' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned') -Granularity $Granularity
+                    }
+                    'analytics.query.queue.aggregates.service.level' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60') -Granularity $Granularity
+                    }
+                }
+                Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            } catch {
+                Write-Warning "Get-TrendReport: window '$WindowLabel' dataset '$key' failed — $($_.Exception.Message)"
+            }
+
+            $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+        }
+
+        return @{
+            WindowLabel        = $WindowLabel
+            StartDateTime      = $startDateTime
+            EndDateTime        = $endDateTime
+            QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
+            AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
+            ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+            PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+        }
+    }
+
+    $stamp = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-trend-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $windowARoot = [System.IO.Path]::Combine($repRoot, 'window-a')
+    $windowBRoot = [System.IO.Path]::Combine($repRoot, 'window-b')
+    [System.IO.Directory]::CreateDirectory($windowARoot) | Out-Null
+    [System.IO.Directory]::CreateDirectory($windowBRoot) | Out-Null
+
+    $windowAFolders = _InvokeTrendWindow -WindowLabel 'A' -Window $WindowA -RootPath $windowARoot
+    $windowBFolders = _InvokeTrendWindow -WindowLabel 'B' -Window $WindowB -RootPath $windowBRoot
+
+    return @{
+        WindowA = $windowAFolders
+        WindowB = $windowBFolders
+        PartialFailure = ($windowAFolders.PartialFailure -or $windowBFolders.PartialFailure)
+    }
+}
+
 function Get-AgentPerformanceReport {
     <#
     .SYNOPSIS
@@ -1053,6 +1178,6 @@ Export-ModuleMember -Function `
     Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
     Get-RecentRunFolders, Get-DiagnosticsText, `
     Get-TimelineConversations, Get-TimelineEvents, Get-TimelineErrors, `
-    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-AgentPerformanceReport, `
+    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-TrendReport, Get-AgentPerformanceReport, `
     Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport, `
     Get-QualityOverlayReport

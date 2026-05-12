@@ -605,11 +605,21 @@ Documentation: note that surveys require a post-call survey program configured i
 
 ## Session 20: Temporal Trend, Comparative Analysis, and Composite Roll-Ups
 
+> **Partial delivery (2026-05-12):** The backend foundation is now in place.
+> `Get-TrendReport` pulls two queue-performance windows through Core,
+> `Import-TrendReport` persists them into `report_trend_windows` and
+> `report_trend_comparison`, the `report_trend_delta` view calculates the A→B
+> metric deltas, and the case store now exposes comparative accessors plus
+> `Export-IncidentImpactSummary`. The remaining work in this session is the
+> WPF Trend tab, regression/improvement panels, and the hourly overlay chart.
+
 Scope: enable time-series analysis and before/after comparisons so investigators can answer "did this change after the incident?" and supervisors can answer "is this week better or worse than last week?" — both entirely from data already in the case store or from a targeted second pull through Core.
 
-Task: add `Get-TrendReport` to `App.CoreAdapter.psm1`. It accepts two time windows (`-WindowA` and `-WindowB`, each a `{Start, End}` pair) and calls `Invoke-Dataset` for `analytics.query.conversation.aggregates.queue.performance`, `analytics.query.conversation.aggregates.abandon.metrics`, and `analytics.query.queue.aggregates.service.level` for each window in parallel background runspaces. Results land in `report-trend-A-<timestamp>` and `report-trend-B-<timestamp>` folders.
+Task: add `Get-TrendReport` to `App.CoreAdapter.psm1`. It accepts two time windows (`-WindowA` and `-WindowB`, each a `{Start, End}` pair) and calls `Invoke-Dataset` for `analytics.query.conversation.aggregates.queue.performance`, `analytics.query.conversation.aggregates.abandon.metrics`, and `analytics.query.queue.aggregates.service.level` for each window. Results land under `report-trend-<timestamp>/window-a` and `report-trend-<timestamp>/window-b`.
 
 Task: add `Import-TrendReport` to `App.Database.psm1`. Write `report_trend_comparison`: one row per queue per window label (A or B) with all queue performance metrics. Add a computed `delta_*` view that calculates the absolute and percentage change for each metric between window A and window B.
+
+Delivered: the backend now also persists `report_trend_windows`, exposes `Get-TrendComparisonRows` / `Get-TrendChangeLeaders`, and can export a management-briefing text summary via `Export-IncidentImpactSummary`.
 
 Task: add a "Trend" report tab. Show a side-by-side comparison grid: queue name, Window A values, Window B values, delta (color-coded green for improvement, red for regression). Add a "Biggest Regressions" panel ranking queues by worst abandon rate delta. Add a "Biggest Improvements" panel for the opposite direction.
 

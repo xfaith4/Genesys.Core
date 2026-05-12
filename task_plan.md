@@ -24,6 +24,7 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Release 1.0 Agent Investigation Track B follow-up | complete | Evaluated the current roadmap pivot, hardened Agent Investigation composer edge cases, repaired fixture integration coverage, and synchronized roadmap/readiness/onboarding docs after 105 unit and 12 integration tests passed. |
 | Conversation investigation package review | complete | Hardened chronological conversation/SIP timeline generation, regenerated sample package, confirmed live command path, and reran package/full validation. |
 | Conversation package API PCAP export | complete | Removed the live `-SipTracePath` requirement, derived the analytics interval from `GET /api/v2/conversations/{conversationId}`, added SIP metadata/PCAP API export, regenerated the sample package, and reran targeted/full validation. |
+| Session 20 backend foundation | complete | Added the two-window trend pull/import layer, schema v12 comparison storage, delta view, ranking accessors, and exportable incident-impact summary. WPF Trend tab/chart work remains open. |
 
 ## Current Task Scope
 

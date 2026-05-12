@@ -92,3 +92,13 @@
 - Added `docs/CONVERSATION_INVESTIGATION_PACKAGE.md` with the exact live command, API sequence, package outputs, and telephony PCAP permissions.
 - Regenerated `samples/demo-conversation-investigation` with `.pcap` and `.pcap-metadata.csv`; package JSON now shows `pcapDownloadId`, `PcapDownloaded = true`, 3 SIP messages, and 3 PCAP metadata rows.
 - Validation passed: parser checks for package-related PowerShell files; `ConversationInvestigation.Tests.ps1` passed 17 tests; `ConversationInvestigationPackage.Tests.ps1` passed 7 tests; `pwsh -NoProfile -File scripts/Invoke-Tests.ps1` passed 142 tests.
+
+## 2026-05-12
+
+- Evaluated the roadmap after the conversation package work and chose the next actionable local phase: Session 20 backend foundation for ConversationAnalyzer trend reporting.
+- Added `Get-TrendReport` to `App.CoreAdapter.psm1` so the app can pull queue-performance, abandon, and service-level aggregates for two comparison windows without breaking the Core boundary.
+- Bumped the case-store schema to v12 and added `report_trend_windows`, `report_trend_comparison`, and the `report_trend_delta` view in `App.Database.psm1`.
+- Added `Import-TrendReport`, `Get-TrendComparisonRows`, `Get-TrendChangeLeaders`, `Get-IncidentImpactSummary`, and `Export-IncidentImpactSummary` to establish the comparative-reporting/query/export layer before the WPF tab is wired.
+- Extended `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` with trend-report architecture checks.
+- Validation passed for parser checks on `App.CoreAdapter.psm1` and `App.Database.psm1`, and the static/architecture portions of `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed with the new trend checks.
+- Full `Invoke-AllTests.ps1` currently still fails 11 existing DB runtime smoke checks (`SMK-11` through `SMK-19`); the new trend-report checks passed and the failing cases are outside this Session 20 backend slice.

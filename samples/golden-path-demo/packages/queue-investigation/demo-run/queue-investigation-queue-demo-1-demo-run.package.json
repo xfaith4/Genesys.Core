@@ -1,0 +1,87 @@
+{
+  "packageType": "investigation-package",
+  "generatedAtUtc": "2026-05-12T11:18:49.6554042Z",
+  "investigationKey": "queue-investigation",
+  "subjectType": "queue",
+  "subjectId": "queue-demo-1",
+  "runId": "demo-run",
+  "counts": {
+    "steps": 9,
+    "failed": 0,
+    "records": 13.0,
+    "sections": 9
+  },
+  "files": {
+    "markdown": "queue-investigation-queue-demo-1-demo-run.md",
+    "workbook": "queue-investigation-queue-demo-1-demo-run.xlsx",
+    "manifest": "manifest.json",
+    "summary": "summary.json",
+    "events": "events.jsonl",
+    "csv": {
+      "queue": "queue-investigation-queue-demo-1-demo-run.queue.csv",
+      "members": "queue-investigation-queue-demo-1-demo-run.members.csv",
+      "wrapupCodes": "queue-investigation-queue-demo-1-demo-run.wrapupCodes.csv",
+      "observations": "queue-investigation-queue-demo-1-demo-run.observations.csv",
+      "sla": "queue-investigation-queue-demo-1-demo-run.sla.csv",
+      "abandons": "queue-investigation-queue-demo-1-demo-run.abandons.csv",
+      "transfers": "queue-investigation-queue-demo-1-demo-run.transfers.csv",
+      "wrapupDistribution": "queue-investigation-queue-demo-1-demo-run.wrapupDistribution.csv",
+      "activeAgents": "queue-investigation-queue-demo-1-demo-run.activeAgents.csv"
+    },
+    "dataFolder": "data",
+    "packageJson": "queue-investigation-queue-demo-1-demo-run.package.json"
+  },
+  "overview": {
+    "GeneratedAtUtc": "2026-05-12T11:18:49.6554042Z",
+    "Investigation": "queue-investigation",
+    "SubjectType": "queue",
+    "SubjectId": "queue-demo-1",
+    "RunId": "demo-run",
+    "StartedAtUtc": "2026-05-12T11:18:48.6351695Z",
+    "FinishedAtUtc": "2026-05-12T11:18:48.9217453Z",
+    "SinceUtc": "2026-04-01T00:00:00.0000000Z",
+    "UntilUtc": "2026-04-08T00:00:00.0000000Z",
+    "StepCount": 9,
+    "FailedSteps": 0,
+    "RecordsCollected": 13.0,
+    "SectionCount": 9
+  },
+  "sections": [
+    {
+      "Name": "queue",
+      "RecordCount": 1
+    },
+    {
+      "Name": "members",
+      "RecordCount": 2
+    },
+    {
+      "Name": "wrapupCodes",
+      "RecordCount": 2
+    },
+    {
+      "Name": "observations",
+      "RecordCount": 1
+    },
+    {
+      "Name": "sla",
+      "RecordCount": 1
+    },
+    {
+      "Name": "abandons",
+      "RecordCount": 1
+    },
+    {
+      "Name": "transfers",
+      "RecordCount": 1
+    },
+    {
+      "Name": "wrapupDistribution",
+      "RecordCount": 2
+    },
+    {
+      "Name": "activeAgents",
+      "RecordCount": 2
+    }
+  ]
+}

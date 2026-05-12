@@ -1,0 +1,97 @@
+{
+  "packageType": "investigation-package",
+  "generatedAtUtc": "2026-05-12T11:18:49.1089101Z",
+  "investigationKey": "agent-investigation",
+  "subjectType": "agent",
+  "subjectId": "agent-demo-001",
+  "runId": "demo-run",
+  "counts": {
+    "steps": 11,
+    "failed": 0,
+    "records": 15.0,
+    "sections": 11
+  },
+  "files": {
+    "markdown": "agent-investigation-agent-demo-001-demo-run.md",
+    "workbook": "agent-investigation-agent-demo-001-demo-run.xlsx",
+    "manifest": "manifest.json",
+    "summary": "summary.json",
+    "events": "events.jsonl",
+    "csv": {
+      "agent": "agent-investigation-agent-demo-001-demo-run.agent.csv",
+      "division": "agent-investigation-agent-demo-001-demo-run.division.csv",
+      "skills": "agent-investigation-agent-demo-001-demo-run.skills.csv",
+      "queues": "agent-investigation-agent-demo-001-demo-run.queues.csv",
+      "presence": "agent-investigation-agent-demo-001-demo-run.presence.csv",
+      "routingStatus": "agent-investigation-agent-demo-001-demo-run.routingStatus.csv",
+      "utilization": "agent-investigation-agent-demo-001-demo-run.utilization.csv",
+      "activity": "agent-investigation-agent-demo-001-demo-run.activity.csv",
+      "activeConversations": "agent-investigation-agent-demo-001-demo-run.activeConversations.csv",
+      "conversations": "agent-investigation-agent-demo-001-demo-run.conversations.csv",
+      "auditAccountChanges": "agent-investigation-agent-demo-001-demo-run.auditAccountChanges.csv"
+    },
+    "dataFolder": "data",
+    "packageJson": "agent-investigation-agent-demo-001-demo-run.package.json"
+  },
+  "overview": {
+    "GeneratedAtUtc": "2026-05-12T11:18:49.1089101Z",
+    "Investigation": "agent-investigation",
+    "SubjectType": "agent",
+    "SubjectId": "agent-demo-001",
+    "RunId": "demo-run",
+    "StartedAtUtc": "2026-05-12T11:18:47.7364224Z",
+    "FinishedAtUtc": "2026-05-12T11:18:48.0086163Z",
+    "SinceUtc": "2026-04-01T00:00:00.0000000Z",
+    "UntilUtc": "2026-04-08T00:00:00.0000000Z",
+    "StepCount": 11,
+    "FailedSteps": 0,
+    "RecordsCollected": 15.0,
+    "SectionCount": 11
+  },
+  "sections": [
+    {
+      "Name": "agent",
+      "RecordCount": 1
+    },
+    {
+      "Name": "division",
+      "RecordCount": 1
+    },
+    {
+      "Name": "skills",
+      "RecordCount": 2
+    },
+    {
+      "Name": "queues",
+      "RecordCount": 2
+    },
+    {
+      "Name": "presence",
+      "RecordCount": 1
+    },
+    {
+      "Name": "routingStatus",
+      "RecordCount": 1
+    },
+    {
+      "Name": "utilization",
+      "RecordCount": 1
+    },
+    {
+      "Name": "activity",
+      "RecordCount": 1
+    },
+    {
+      "Name": "activeConversations",
+      "RecordCount": 2
+    },
+    {
+      "Name": "conversations",
+      "RecordCount": 2
+    },
+    {
+      "Name": "auditAccountChanges",
+      "RecordCount": 1
+    }
+  ]
+}

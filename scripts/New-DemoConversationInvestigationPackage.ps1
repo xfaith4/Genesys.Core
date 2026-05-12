@@ -121,6 +121,15 @@ try {
                 totalScore   = 91
             }
         )
+        'quality.get.surveys' = @(
+            [pscustomobject]@{
+                id             = 'demo-survey-001'
+                conversationId = $conversationId
+                npsScore       = 10
+                csatScore      = 4.9
+                comment        = 'Agent resolved the billing question quickly.'
+            }
+        )
     }
 
     $datasetInvoker = {

@@ -170,7 +170,10 @@ not the manifest.
 | skills | `users.get.user.routing.skills` | `userId` | Skill assignments + proficiency |
 | queues | `users.get.user.queue.memberships` | `userId` | Queue memberships |
 | presence | `users.get.bulk.user.presences` (single-user query) | `userId` | Current PureCloud presence for the user |
+| routingStatus | `users.get.agent.current.routing.status` (single-user query) | `userId` | Current ACD routing status for the user |
+| utilization | `routing.get.user.utilization` (single-user query) | `userId` | Current channel-capacity utilization snapshot |
 | activity | `analytics.query.user.details.activity.report` (user/window body filter) | `userId` | Login/logout/on-queue activity in the requested window |
+| activeConversations | `users.get.agent.active.conversations` (single-user query) | `userId` | Current live interactions owned by the agent |
 | conversations | `analytics-conversation-details-query` (user/window segment filter) | `userId` | Conversations the agent touched |
 | auditAccountChanges | `audit-logs` (EntityType=`User`, EntityId=`userId`) | `userId` | Audit changes made to the agent account |
 
@@ -189,6 +192,7 @@ not the manifest.
 | skills | `routing.get.all.routing.skills` (filtered) | `userId` | Skills at time of contact |
 | recordings | `conversations.get.recordings` | `conversationId` | Recording metadata if present |
 | evaluations | `quality.get.evaluations.query` | `conversationId` | Evaluation outcomes if present |
+| surveys | `quality.get.surveys` (filtered by `conversationId`) | `conversationId` | Post-contact CSAT / NPS outcomes if present |
 
 ### 4.3 Queue investigation _(Release 1.2)_
 
@@ -197,19 +201,31 @@ not the manifest.
 
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| queue | `routing-queues` (filtered to subject) | seed | Config and metadata |
+| queue | `routing.get.single.queue.config` (single-queue query) | seed | Queue configuration and metadata |
 | members | `routing-queue-members` (parameterised by queueId) | `queueId` | Current membership with routing status |
-| observations | `analytics.query.queue.observations.real.time.stats` | `queueId` | Real-time waiting/interacting |
-| sla | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | SLA window metrics |
-| abandons | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon counts |
-| activeAgents | `analytics.query.user.observations.real.time.status` | `queueId` | Agents currently on-queue |
+| wrapupCodes | `routing.get.queue.wrapup.codes.by.queue` (single-queue query) | `queueId` | Queue-specific wrap-up labels |
+| observations | `analytics.query.queue.observations.real.time.stats` (queue body filter) | `queueId` | Real-time waiting/interacting/on-queue state |
+| sla | `analytics.query.conversation.aggregates.queue.performance` (queue/window body filter) | `queueId` | Offered, answered, and handle-time metrics in the requested window |
+| abandons | `analytics.query.conversation.aggregates.abandon.metrics` (queue/window body filter) | `queueId` | Abandon and short-abandon metrics in the requested window |
+| transfers | `analytics.query.conversation.aggregates.transfer.metrics` (queue/window body filter) | `queueId` | Blind/consult transfer rates for the queue |
+| wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` (queue/window body filter) | `queueId` | Wrap-up-code distribution and handle time |
+| activeAgents | `analytics.query.user.observations.real.time.status` (member-scoped body filter) | `queueId` | Current queue-member activity snapshot |
 
 The `routing-queue-members` catalog dataset added in 1.2 wraps
 `routing.get.queue.members.with.status` (membership + presence). The
 `queue-investigation-members` redaction profile strips the deep contact
 fields carried over by user records embedded under each membership entry.
 
-## 5. Dependencies
+## 5. Sample outputs
+
+Deterministic sample outputs are committed for review and demos:
+
+- `samples/demo-agent-investigation/` — standard run artifacts for the enriched Agent Investigation.
+- `samples/demo-conversation-investigation-run/` — standard run artifacts for the Conversation Investigation.
+- `samples/demo-conversation-investigation/` — packaged conversation-investigation deliverable (HTML/XLSX/CSV/PCAP-oriented example).
+- `samples/demo-queue-investigation/` — standard run artifacts for the enriched Queue Investigation.
+
+## 6. Dependencies
 
 Track B is gated by Track A. Each flagship investigation cannot be marked done
 until the datasets it composes have `Live Invoke-Dataset acceptance passed`
@@ -224,7 +240,7 @@ under Track A.
 The mirror-catalog cutover should also land before any investigation references
 catalog keys, to avoid a double rename when the deprecated stub is removed.
 
-## 6. Redaction
+## 7. Redaction
 
 Investigations are the point at which redaction policy stops being a per-dataset
 concern and becomes a composed-record concern. A user record is low risk on its
@@ -247,7 +263,7 @@ If the redaction milestone slips, the Conversation investigation slips with it.
 The Agent and Queue investigations have lower exposure and can ship on the
 existing redaction baseline.
 
-## 7. Testing
+## 8. Testing
 
 Investigations get the same testing treatment as datasets:
 
@@ -265,7 +281,7 @@ Investigations get the same testing treatment as datasets:
   composes require `Live Invoke-Dataset acceptance passed`; the investigation
   workflow itself requires `Production workflow validated`.
 
-## 8. Relationship to existing composers
+## 9. Relationship to existing composers
 
 Two ad-hoc composers already exist in `Genesys.Ops`:
 
@@ -286,7 +302,7 @@ These predate this design. Disposition resolved in **Release 1.2**:
 
 No existing cmdlet is renamed or removed by this work.
 
-## 9. Open questions
+## 10. Open questions
 
 - **Parameter expansion vs. dataset filtering.** Some catalog datasets
   ("filtered by participant", "filtered to memberships") need a parameter

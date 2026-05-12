@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Genesys Investigation Console — Powered by Genesys.Core</title>
+
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:        #f0f4f1;
+      --surface:   #ffffff;
+      --surface2:  #f8faf9;
+      --ink:       #13201a;
+      --ink2:      #2a3d34;
+      --muted:     #5b6b62;
+      --accent:    #0d9f6e;
+      --accent-dk: #087a54;
+      --accent2:   #006d77;
+      --accent3:   #e05d2b;
+      --warn:      #c8860a;
+      --ok:        #0d9f6e;
+      --danger:    #c0392b;
+      --stroke:    #d0dbd4;
+      --stroke2:   #b8ccc0;
+      --shadow-sm: 0 2px 8px rgba(13,32,26,.08);
+      --shadow-md: 0 6px 20px rgba(13,32,26,.10);
+      --r-sm:  10px;
+      --r-md:  16px;
+      --r-lg:  22px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 420px at 8% -8%, #d2ecdf 0%, transparent 60%),
+        radial-gradient(1200px 440px at 92% 0%,  #cce6ec 0%, transparent 65%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h2 { font-size: 1rem; font-weight: 600; color: var(--ink2); }
+    h3 { font-size: .85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    p  { margin: 0; }
+
+    /* Utility */
+    .hide  { display: none !important; }
+    .muted { color: var(--muted); }
+    .ok    { color: var(--ok); }
+    .warn  { color: var(--warn); }
+    .danger{ color: var(--danger); }
+    .bold  { font-weight: 600; }
+    .mono  { font-family: "Cascadia Code","Consolas","IBM Plex Mono",monospace; font-size: .85em; }
+    .flex  { display: flex; }
+    .gap8  { gap: 8px; }
+    .gap12 { gap: 12px; }
+    .gap16 { gap: 16px; }
+    .align-center { align-items: center; }
+    .wrap  { flex-wrap: wrap; }
+    .grow  { flex: 1 1 0; }
+    .right { text-align: right; }
+
+    .pill {
+      display: inline-block; padding: 2px 9px;
+      border-radius: 999px; font-size: .78rem; font-weight: 600;
+      line-height: 1.6;
+    }
+    .pill-green  { background: #d1f5e6; color: #0b7a51; }
+    .pill-amber  { background: #fef3cd; color: #8a6300; }
+    .pill-red    { background: #fddada; color: #8b1c1c; }
+    .pill-blue   { background: #cce8f0; color: #005f6e; }
+    .pill-gray   { background: #e2eae4; color: #4a5c50; }
+    .pill-purple { background: #e8dcf5; color: #5a2d91; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--stroke2); border-radius: 4px; }
+
+    /* Navigation */
+    #nav {
+      background: linear-gradient(110deg, #11382a 0%, #0f2f34 60%, #154e3a 100%);
+      color: #f3fff8;
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.22);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    .nav-logo { font-size: 1.12rem; font-weight: 700; letter-spacing: .02em; color: #fff; white-space: nowrap; }
+    .nav-logo span { color: #5fe8b0; }
+    .nav-sep { width: 1px; height: 28px; background: rgba(255,255,255,.15); flex-shrink: 0; }
+    .spacer  { flex: 1; }
+    #nav-tabs { display: flex; gap: 4px; }
+    .tab-btn {
+      background: transparent;
+      color: #d2efe1;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 500;
+      font-family: inherit;
+      transition: background .15s;
+    }
+    .tab-btn:hover  { background: rgba(255,255,255,.08); color: #fff; }
+    .tab-btn.active { background: rgba(95,232,176,.18); color: #fff; box-shadow: inset 0 -2px 0 #5fe8b0; }
+    .nav-action {
+      background: #1a4d3a;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.18);
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 500;
+      font-family: inherit;
+    }
+    .nav-action:hover { background: #246b51; }
+
+    /* Banner */
+    #demo-banner {
+      background: linear-gradient(90deg, #fde8d0 0%, #f6c89e 100%);
+      color: #6b3a0e;
+      padding: 8px 28px;
+      font-size: .85rem;
+      font-weight: 600;
+      border-bottom: 1px solid #e9b97f;
+    }
+
+    /* Layout */
+    main { padding: 28px; max-width: 1320px; margin: 0 auto; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-md);
+      padding: 22px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 22px;
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* KPI grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+    }
+    .kpi-card {
+      background: var(--surface2);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+    }
+    .kpi-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--ink); margin-top: 4px; }
+    .kpi-sub   { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+    /* Drop zones */
+    .dropzone {
+      border: 2px dashed var(--stroke2);
+      border-radius: var(--r-md);
+      background: var(--surface2);
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      transition: background .15s, border-color .15s;
+    }
+    .dropzone.dragover { background: #e7f5ee; border-color: var(--accent); color: var(--accent-dk); }
+    .dropzone .hint { font-size: .85rem; }
+    .dropzone .actions { margin-top: 14px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn:hover    { background: var(--accent-dk); }
+    .btn.ghost    { background: transparent; color: var(--accent-dk); border: 1px solid var(--stroke2); }
+    .btn.ghost:hover { background: #eaf6f0; }
+    .btn.danger   { background: var(--danger); }
+    .btn.small    { padding: 5px 10px; font-size: .8rem; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Tables */
+    table.data {
+      width: 100%; border-collapse: collapse; font-size: .88rem;
+    }
+    table.data th, table.data td {
+      text-align: left; padding: 8px 10px;
+      border-bottom: 1px solid var(--stroke);
+      vertical-align: top;
+    }
+    table.data th {
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); font-weight: 600;
+      background: var(--surface2);
+      position: sticky; top: 0;
+    }
+    table.data tr:hover td { background: #f3f9f5; }
+    .table-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--stroke); border-radius: var(--r-sm); }
+
+    /* Run cards */
+    .run-card {
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+      background: var(--surface2);
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      transition: border-color .15s, box-shadow .15s;
+      cursor: pointer;
+    }
+    .run-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+    .run-card.selected { border-color: var(--accent); background: #e7f5ee; }
+    .run-card-id { font-weight: 600; }
+
+    /* Detail layout */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 940px) {
+      .detail-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    details {
+      background: var(--surface2);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+    details > summary {
+      cursor: pointer; font-weight: 600; color: var(--ink2);
+      list-style: none;
+    }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::before {
+      content: '▶ ';
+      font-size: .7em;
+      color: var(--muted);
+      transition: transform .15s;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    details[open] > summary::before { content: '▼ '; }
+    details pre {
+      margin: 10px 0 0 0;
+      background: #14201a;
+      color: #c6e6d5;
+      padding: 12px;
+      border-radius: 8px;
+      max-height: 320px;
+      overflow: auto;
+      font-size: .8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Step status bar */
+    .step-bar { display: flex; flex-wrap: wrap; gap: 6px; }
+    .step-chip {
+      padding: 4px 10px; border-radius: 999px;
+      font-size: .78rem; font-weight: 500;
+      border: 1px solid var(--stroke);
+    }
+    .step-chip.ok   { background: #d1f5e6; color: #0b7a51; border-color: #aedfc8; }
+    .step-chip.err  { background: #fddada; color: #8b1c1c; border-color: #f4b8b8; }
+    .step-chip.skip { background: #e2eae4; color: #4a5c50; }
+
+    /* Diagnostics */
+    pre.diag {
+      background: #14201a; color: #c6e6d5;
+      padding: 14px; border-radius: var(--r-sm);
+      font-size: .8rem; max-height: 480px; overflow: auto;
+      white-space: pre-wrap; word-break: break-word;
+    }
+
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .command-card {
+      background: var(--surface2);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+    }
+    .command-card pre {
+      margin: 10px 0 0 0;
+      background: #14201a;
+      color: #c6e6d5;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: .8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .mt6 { margin-top: 6px; }
+    .mt8 { margin-top: 8px; }
+    .mt10 { margin-top: 10px; }
+    .mt14 { margin-top: 14px; }
+    .mb10 { margin-bottom: 10px; }
+    .actions-start { justify-content: flex-start; }
+
+    .empty {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* Footer */
+    footer {
+      padding: 22px 28px;
+      color: var(--muted);
+      font-size: .8rem;
+      text-align: center;
+    }
+    footer a { color: var(--accent-dk); }
+  </style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="nav-logo">Genesys <span>Investigation</span> Console</div>
+  <div class="nav-sep"></div>
+  <div id="nav-tabs">
+    <button class="tab-btn active" data-tab="overview">🏠 Overview</button>
+    <button class="tab-btn" data-tab="agent">👤 Agent</button>
+    <button class="tab-btn" data-tab="conversation">💬 Conversation</button>
+    <button class="tab-btn" data-tab="queue">📞 Queue</button>
+    <button class="tab-btn" data-tab="history">📚 Runs</button>
+    <button class="tab-btn" data-tab="diagnostics">🛟 Diagnostics</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="nav-action" id="btn-load-demo">📊 Load Demo</button>
+  <button class="nav-action" id="btn-load-files">📁 Load Run…</button>
+  <input type="file" id="file-input" multiple accept=".json,.jsonl" class="hide" />
+</nav>
+
+<div id="demo-banner" class="hide">
+  DEMO MODE — built-in synthetic fixtures loaded. Not connected to any live Genesys Cloud organisation.
+</div>
+
+<main>
+
+  <!-- ──────────────────────── OVERVIEW ──────────────────────── -->
+  <section id="tab-overview" class="tab-panel">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Summary dashboard</h2>
+        <div class="muted" id="overview-meta">No runs loaded</div>
+      </div>
+      <div class="kpi-grid" id="overview-kpis"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Loaded investigations</h2>
+        <button class="btn ghost small" id="btn-clear-runs">Clear all</button>
+      </div>
+      <div id="overview-runs"><div class="empty">No runs loaded. Use <b>Load Demo</b> in the top right.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Release 1.4 operator workflow</h2>
+        <div class="muted">PowerShell entry points for package export, support handoff, and the full demo path.</div>
+      </div>
+      <div class="workflow-grid">
+        <div class="command-card">
+          <h3>Excel + Markdown package</h3>
+          <p class="muted mt8">Builds a generic operator package for any run folder.</p>
+          <pre class="mono">pwsh -NoProfile -File .\scripts\Export-InvestigationPackage.ps1 -RunFolder .\samples\demo-agent-investigation -DestinationRoot .\samples\release-1.4-packages -Force</pre>
+          <div class="actions actions-start mt10">
+            <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Export-InvestigationPackage.ps1 -RunFolder .\samples\demo-agent-investigation -DestinationRoot .\samples\release-1.4-packages -Force">Copy command</button>
+          </div>
+        </div>
+        <div class="command-card">
+          <h3>Diagnostics handoff</h3>
+          <p class="muted mt8">Writes a redacted support bundle and copies it to the clipboard when available.</p>
+          <pre class="mono">pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json</pre>
+          <div class="actions actions-start mt10">
+            <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json">Copy command</button>
+          </div>
+        </div>
+        <div class="command-card">
+          <h3>Golden-path demo</h3>
+          <p class="muted mt8">Regenerates the sample runs, packages, diagnostics, and scenario notes under one folder.</p>
+          <pre class="mono">pwsh -NoProfile -File .\scripts\Invoke-GoldenPathDemo.ps1 -Destination .\samples\golden-path-demo -Force</pre>
+          <div class="actions actions-start mt10">
+            <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Invoke-GoldenPathDemo.ps1 -Destination .\samples\golden-path-demo -Force">Copy command</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>How to load runs</h2>
+      <p class="muted mt6">
+        Investigations emit a folder per run under <span class="mono">out/&lt;investigationKey&gt;/&lt;runId&gt;/</span>
+        containing <span class="mono">manifest.json</span>, <span class="mono">summary.json</span>,
+        <span class="mono">events.jsonl</span>, and <span class="mono">data/*.jsonl</span>.
+        Drop any combination of those files (or the whole folder) onto this app
+        — the console identifies the run by <span class="mono">investigationKey</span> + <span class="mono">runId</span>
+        from the manifest.
+      </p>
+      <div class="dropzone mt14" id="global-dropzone">
+        <div class="hint">⬇️ Drop one or more investigation files here, or:</div>
+        <div class="actions">
+          <button class="btn" id="btn-load-demo-2">Load demo dataset</button>
+          <button class="btn ghost" id="btn-load-files-2">Pick files…</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── AGENT ──────────────────────── -->
+  <section id="tab-agent" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>👤 Agent Investigation</h2>
+        <select id="select-agent" class="btn ghost"></select>
+      </div>
+      <div id="agent-detail"><div class="empty">No Agent Investigation runs loaded.</div></div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── CONVERSATION ──────────────────────── -->
+  <section id="tab-conversation" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>💬 Conversation Investigation</h2>
+        <select id="select-conversation" class="btn ghost"></select>
+      </div>
+      <div id="conversation-detail"><div class="empty">No Conversation Investigation runs loaded.</div></div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── QUEUE ──────────────────────── -->
+  <section id="tab-queue" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>📞 Queue Investigation</h2>
+        <select id="select-queue" class="btn ghost"></select>
+      </div>
+      <div id="queue-detail"><div class="empty">No Queue Investigation runs loaded.</div></div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── HISTORY ──────────────────────── -->
+  <section id="tab-history" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>📚 Run history</h2>
+        <div class="muted" id="history-meta">0 runs</div>
+      </div>
+      <div class="table-scroll">
+        <table class="data" id="history-table">
+          <thead>
+            <tr>
+              <th>Investigation</th>
+              <th>Subject</th>
+              <th>Window</th>
+              <th>Started</th>
+              <th>Steps</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="history-empty" class="empty">No runs loaded.</div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── DIAGNOSTICS ──────────────────────── -->
+  <section id="tab-diagnostics" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>🛟 Diagnostics bundle</h2>
+        <div class="flex gap8">
+          <button class="btn ghost small" id="btn-copy-diag">Copy to clipboard</button>
+          <button class="btn small" id="btn-download-diag">Download .json</button>
+        </div>
+      </div>
+      <p class="muted mb10">
+        A redacted, support-ready snapshot of every loaded run: manifest metadata, step status, record counts,
+        validation status, and an excerpt of the first <span class="mono">events.jsonl</span> errors.
+        Authorization headers and token-shaped fields are stripped — the bundle is safe to attach to a support ticket.
+      </p>
+      <pre class="diag" id="diag-output">No runs loaded.</pre>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Genesys.Core Investigation Console — single-file HTML.
+  Reads run artifacts from <span class="mono">out/&lt;investigationKey&gt;/&lt;runId&gt;/</span> only;
+  performs no Genesys REST calls.
+</footer>
+
+<script>
+'use strict';
+
+// ─── Demo dataset (inlined sanitized fixtures) ─────────────────────────────
+//
+// These match the byte-equivalent committed samples under
+// `samples/demo-agent-investigation/`, `samples/demo-conversation-investigation-run/`,
+// and `samples/demo-queue-investigation/`. Keeping them inline means the
+// console works offline and from `file://` with no Pages workflow needed.
+//
+const DEMO_RUNS = [
+  {
+    manifest: {
+      investigationKey: "agent-investigation",
+      runId: "demo-run",
+      subjectType: "agent",
+      subjectId: "agent-demo-001",
+      window: { since: "2026-04-01T00:00:00Z", until: "2026-04-08T00:00:00Z" },
+      datasetsInvoked: [
+        { stepName: "identity",            datasetKey: "users.get.user.details.with.full.expansion", validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "division",            datasetKey: "(derived)",                                  validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "skills",              datasetKey: "users.get.user.routing.skills",              validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "queues",              datasetKey: "users.get.user.queue.memberships",           validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "presence",            datasetKey: "users.get.bulk.user.presences",              validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "routingStatus",       datasetKey: "users.get.agent.current.routing.status",     validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "utilization",         datasetKey: "routing.get.user.utilization",               validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "activity",            datasetKey: "analytics.query.user.details.activity.report", validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "activeConversations", datasetKey: "users.get.agent.active.conversations",       validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "conversations",       datasetKey: "analytics-conversation-details-query",       validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "auditAccountChanges", datasetKey: "audit-logs",                                 validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" }
+      ],
+      joinPlan: [],
+      redactionProfile: { datasets: {}, composerOverrides: [] },
+      startedAt:  "2026-05-12T10:20:53.4591052Z",
+      finishedAt: "2026-05-12T10:20:53.7599428Z",
+      composerVersion: "1.0.0"
+    },
+    summary: {
+      agent:               [{ id: "agent-demo-001", name: "Jane Doe", email: "jane.doe@example.invalid", state: "ACTIVE", division: { id: "div-demo-1", name: "CustomerCare" } }],
+      division:            [{ id: "agent-demo-001", userId: "agent-demo-001", division: { id: "div-demo-1", name: "CustomerCare" } }],
+      skills:              [{ id: "sk-demo-1", userId: "agent-demo-001", name: "English",     state: "active" },
+                            { id: "sk-demo-2", userId: "agent-demo-001", name: "Billing",     state: "active" }],
+      queues:              [{ id: "queue-demo-1", userId: "agent-demo-001", name: "Support",      joined: true },
+                            { id: "queue-demo-2", userId: "agent-demo-001", name: "Escalations",  joined: true }],
+      presence:            [{ userId: "agent-demo-001", presence: "AVAILABLE" }],
+      routingStatus:       [{ userId: "agent-demo-001", status: "INTERACTING", startTime: "2026-04-02T10:15:00Z" }],
+      utilization:         [{ userId: "agent-demo-001", call: { maximumCapacity: 1, utilizedCapacity: 1 }, callback: { maximumCapacity: 1, utilizedCapacity: 0 } }],
+      activity:            [{ userId: "agent-demo-001", loginMinutes: 420, onQueueMinutes: 340, interactingMinutes: 285 }],
+      activeConversations: [{ id: "active-conv-demo-1", userId: "agent-demo-001", mediaType: "voice",   state: "connected" },
+                            { id: "active-conv-demo-2", userId: "agent-demo-001", mediaType: "message", state: "connected" }],
+      conversations:       [{ conversationId: "conv-demo-A", participants: [{ userId: "agent-demo-001", role: "agent" }] },
+                            { conversationId: "conv-demo-B", participants: [{ userId: "agent-demo-001", role: "agent" }] }],
+      auditAccountChanges: [{ id: "audit-demo-1", entityId: "agent-demo-001", entityType: "User", action: "update", serviceName: "directory", timestamp: "2026-04-02T01:00:00Z" }]
+    }
+  },
+  {
+    manifest: {
+      investigationKey: "conversation-investigation",
+      runId: "demo-run",
+      subjectType: "conversation",
+      subjectId: "conv-demo-001",
+      window: { since: null, until: null },
+      datasetsInvoked: [
+        { stepName: "conversationLookup", datasetKey: "conversations.get.specific.conversation.details", validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "conversation",       datasetKey: "analytics-conversation-details-query",            validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "participants",       datasetKey: "(derived)",                                       validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "agents",             datasetKey: "users",                                           validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "divisions",          datasetKey: "users.division.analysis.get.users.with.division.info", validationStatus: "unvalidated", recordCount: 0, required: false, status: "ok" },
+        { stepName: "skills",             datasetKey: "routing.get.all.routing.skills",                  validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "recordings",         datasetKey: "conversations.get.recordings",                    validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "evaluations",        datasetKey: "quality.get.evaluations.query",                   validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "surveys",            datasetKey: "quality.get.surveys",                             validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" }
+      ],
+      joinPlan: [],
+      redactionProfile: { datasets: {}, composerOverrides: [] },
+      startedAt:  "2026-05-12T10:20:54.7969412Z",
+      finishedAt: "2026-05-12T10:20:55.0546315Z",
+      composerVersion: "1.0.0"
+    },
+    summary: {
+      conversationLookup: [{ conversationId: "conv-demo-001", conversationStart: "2026-04-05T13:10:00Z", conversationEnd: "2026-04-05T13:27:00Z",
+                             participants: [{ userId: "agent-demo-001", purpose: "agent", queueId: "queue-demo-1", divisionId: "div-demo-1" },
+                                            { purpose: "customer" }] }],
+      conversation:       [{ conversationId: "conv-demo-001", participants: [{ userId: "agent-demo-001", role: "agent" }] }],
+      participants:       [{ userId: "agent-demo-001", purpose: null }],
+      agents:             [{ id: "agent-demo-001", name: "Jane Doe", division: { id: "div-demo-1", name: "CustomerCare" } }],
+      divisions:          [],
+      skills:             [{ id: "skill-demo-1", userId: "agent-demo-001", name: "Billing" },
+                           { id: "skill-demo-2", userId: "agent-demo-001", name: "Retention" }],
+      recordings:         [{ id: "rec-demo-1",    conversationId: "conv-demo-001", mediaType: "voice", status: "available" }],
+      evaluations:        [{ id: "eval-demo-1",   conversation: { id: "conv-demo-001" }, totalScore: 91 }],
+      surveys:            [{ id: "survey-demo-1", conversationId: "conv-demo-001", npsScore: 10, csatScore: 4.9, comment: "Agent resolved the issue quickly." }]
+    }
+  },
+  {
+    manifest: {
+      investigationKey: "queue-investigation",
+      runId: "demo-run",
+      subjectType: "queue",
+      subjectId: "queue-demo-1",
+      window: { since: "2026-04-01T00:00:00Z", until: "2026-04-08T00:00:00Z" },
+      datasetsInvoked: [
+        { stepName: "queue",              datasetKey: "routing.get.single.queue.config",                              validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "members",            datasetKey: "routing-queue-members",                                        validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "wrapupCodes",        datasetKey: "routing.get.queue.wrapup.codes.by.queue",                      validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "observations",       datasetKey: "analytics.query.queue.observations.real.time.stats",           validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "sla",                datasetKey: "analytics.query.conversation.aggregates.queue.performance",    validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "abandons",           datasetKey: "analytics.query.conversation.aggregates.abandon.metrics",      validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "transfers",          datasetKey: "analytics.query.conversation.aggregates.transfer.metrics",     validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "wrapupDistribution", datasetKey: "analytics.query.conversation.aggregates.wrapup.distribution",  validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" },
+        { stepName: "activeAgents",       datasetKey: "analytics.query.user.observations.real.time.status",           validationStatus: "unvalidated", recordCount: 2, required: false, status: "ok" }
+      ],
+      joinPlan: [],
+      redactionProfile: { datasets: {}, composerOverrides: [] },
+      startedAt:  "2026-05-12T10:20:56.0069513Z",
+      finishedAt: "2026-05-12T10:20:56.2580608Z",
+      composerVersion: "1.0.0"
+    },
+    summary: {
+      queue:              [{ id: "queue-demo-1", name: "Support", mediaSettings: { call: { alertingTimeoutSeconds: 30 } } }],
+      members:            [{ id: "agent-demo-001", queueId: "queue-demo-1", name: "Jane Doe",  joined: true },
+                           { id: "agent-demo-002", queueId: "queue-demo-1", name: "John Smith", joined: true }],
+      wrapupCodes:        [{ id: "wu-demo-1", queueId: "queue-demo-1", name: "Resolved"  },
+                           { id: "wu-demo-2", queueId: "queue-demo-1", name: "Escalated" }],
+      observations:       [{ queueId: "queue-demo-1", mediaType: "voice", oWaiting: 3, oInteracting: 5, oOnQueueUsers: 7 }],
+      sla:                [{ queueId: "queue-demo-1", mediaType: "voice", nOffered: 120, nAnswered: 110, tHandle: 4500 }],
+      abandons:           [{ queueId: "queue-demo-1", nAbandoned: 4, tAbandoned: 32, nOffered: 120 }],
+      transfers:          [{ queueId: "queue-demo-1", mediaType: "voice", nTransferred: 6, nBlindTransferred: 2, nConsultTransferred: 4, nConnected: 110 }],
+      wrapupDistribution: [{ queueId: "queue-demo-1", wrapUpCode: "Resolved",  nConnected: 82, tHandle: 3100 },
+                           { queueId: "queue-demo-1", wrapUpCode: "Escalated", nConnected: 28, tHandle: 1400 }],
+      activeAgents:       [{ queueId: "queue-demo-1", userId: "agent-demo-001", oUserPresence: "AVAILABLE" },
+                           { queueId: "queue-demo-1", userId: "agent-demo-002", oUserPresence: "BUSY"      }]
+    }
+  }
+];
+
+// ─── State ─────────────────────────────────────────────────────────────────
+const state = {
+  runs: new Map(),          // key = `${investigationKey}::${runId}` → { manifest, summary, events?, files: Map }
+  currentTab: 'overview',
+  demoMode: false
+};
+
+const KIND_LABEL = {
+  'agent-investigation':        'Agent',
+  'conversation-investigation': 'Conversation',
+  'queue-investigation':        'Queue'
+};
+
+const KIND_ICON = {
+  'agent-investigation':        '👤',
+  'conversation-investigation': '💬',
+  'queue-investigation':        '📞'
+};
+
+// ─── Utilities ─────────────────────────────────────────────────────────────
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
+function el(tag, props, children) {
+  const e = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (k === 'class')      e.className = v;
+    else if (k === 'html')  e.innerHTML = v;
+    else if (k === 'text')  e.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  if (children) {
+    for (const c of [].concat(children)) {
+      if (c == null) continue;
+      e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+  }
+  return e;
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  try { return new Date(s).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z'); }
+  catch { return s; }
+}
+function fmtRange(w) {
+  if (!w || (!w.since && !w.until)) return '—';
+  return `${fmtDate(w.since)} → ${fmtDate(w.until)}`;
+}
+function runKey(m) { return `${m.investigationKey}::${m.runId}`; }
+function pluralS(n, s) { return n === 1 ? `1 ${s}` : `${n} ${s}s`; }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Strip likely auth secrets from arbitrary objects before display in diagnostics.
+function redactDeep(value) {
+  if (Array.isArray(value)) return value.map(redactDeep);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (/(authorization|api[_-]?key|token|secret|password|client[_-]?secret)/i.test(k)) {
+        out[k] = '[redacted]';
+      } else {
+        out[k] = redactDeep(v);
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
+// ─── Loaders ───────────────────────────────────────────────────────────────
+function loadDemo() {
+  for (const r of DEMO_RUNS) {
+    state.runs.set(runKey(r.manifest), {
+      manifest: r.manifest,
+      summary:  r.summary,
+      events:   null,
+      files:    new Map()
+    });
+  }
+  state.demoMode = true;
+  $('#demo-banner').classList.remove('hide');
+  renderAll();
+}
+
+function clearAllRuns() {
+  state.runs.clear();
+  state.demoMode = false;
+  $('#demo-banner').classList.add('hide');
+  renderAll();
+}
+
+// Group dropped files by their parent run folder (manifest.json wins as anchor).
+// Heuristic: if a manifest.json arrives, that becomes the run; sibling
+// summary.json / events.jsonl / data/*.jsonl are attached by webkitRelativePath
+// prefix. If only summary.json arrives we still create a partial run.
+async function ingestFiles(fileList) {
+  const files = Array.from(fileList);
+  if (state.demoMode) {
+    clearAllRuns();
+  }
+  // Bucket by directory prefix (best-effort)
+  const buckets = new Map();
+  for (const f of files) {
+    const path = f.webkitRelativePath || f.name;
+    const dir  = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    if (!buckets.has(dir)) buckets.set(dir, []);
+    buckets.get(dir).push(f);
+  }
+
+  // Promote any /data/*.jsonl files to the parent dir so they bucket with the run.
+  const promoted = new Map();
+  for (const [dir, fs] of buckets) {
+    const parent = dir.endsWith('/data') ? dir.slice(0, -5) : dir;
+    if (!promoted.has(parent)) promoted.set(parent, []);
+    promoted.get(parent).push(...fs);
+  }
+
+  let added = 0;
+  for (const [, group] of promoted) {
+    const manifestFile = group.find(f => /(^|\/)manifest\.json$/i.test(f.name));
+    const summaryFile  = group.find(f => /(^|\/)summary\.json$/i.test(f.name));
+    const eventsFile   = group.find(f => /(^|\/)events\.jsonl$/i.test(f.name));
+    if (!manifestFile && !summaryFile) continue;
+
+    let manifest = null, summary = null;
+    if (manifestFile) manifest = JSON.parse(await manifestFile.text());
+    if (summaryFile)  summary  = JSON.parse(await summaryFile.text());
+    if (!manifest && summary) {
+      // synthesize a placeholder manifest so the run still appears
+      manifest = {
+        investigationKey: 'unknown-investigation',
+        runId: `imported-${Date.now()}`,
+        subjectType: 'unknown', subjectId: '?',
+        window: {}, datasetsInvoked: [], joinPlan: [],
+        redactionProfile: { datasets: {} },
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        composerVersion: 'imported'
+      };
+    }
+    const events = eventsFile ? await eventsFile.text() : null;
+    const dataFiles = new Map();
+    for (const f of group) {
+      if (/\.jsonl$/i.test(f.name) && !/events\.jsonl/i.test(f.name)) {
+        dataFiles.set(f.name.replace(/\.jsonl$/i, ''), await f.text());
+      }
+    }
+    state.runs.set(runKey(manifest), { manifest, summary, events, files: dataFiles });
+    added++;
+  }
+
+  if (added === 0) {
+    alert('No manifest.json or summary.json found in the dropped files.');
+  } else {
+    renderAll();
+  }
+}
+
+// ─── Renderers ─────────────────────────────────────────────────────────────
+function runsByKind(kind) {
+  return Array.from(state.runs.values()).filter(r => r.manifest.investigationKey === kind);
+}
+
+function renderAll() {
+  renderOverview();
+  renderAgent();
+  renderConversation();
+  renderQueue();
+  renderHistory();
+  renderDiagnostics();
+}
+
+function renderOverview() {
+  const runs = Array.from(state.runs.values());
+  const meta = $('#overview-meta');
+
+  if (!runs.length) {
+    meta.textContent = 'No runs loaded';
+    $('#overview-kpis').innerHTML = '';
+    $('#overview-runs').innerHTML =
+      '<div class="empty">No runs loaded. Use <b>Load Demo</b> in the top right.</div>';
+    return;
+  }
+
+  meta.textContent = `${runs.length} run${runs.length === 1 ? '' : 's'} loaded`;
+
+  const stepTotals = runs.reduce((acc, r) => {
+    const steps = r.manifest.datasetsInvoked || [];
+    acc.total  += steps.length;
+    acc.ok     += steps.filter(s => (s.status || 'ok') === 'ok').length;
+    acc.failed += steps.filter(s => s.status && s.status !== 'ok').length;
+    acc.records += steps.reduce((n, s) => n + (s.recordCount || 0), 0);
+    return acc;
+  }, { total: 0, ok: 0, failed: 0, records: 0 });
+
+  const byKind = {};
+  for (const r of runs) {
+    const k = r.manifest.investigationKey;
+    byKind[k] = (byKind[k] || 0) + 1;
+  }
+
+  const kpis = $('#overview-kpis');
+  kpis.innerHTML = '';
+  const cards = [
+    { label: 'Investigation runs', value: runs.length, sub: Object.entries(byKind).map(([k,v]) => `${v} ${KIND_LABEL[k] || k}`).join(' · ') },
+    { label: 'Total dataset steps', value: stepTotals.total, sub: `${stepTotals.ok} ok · ${stepTotals.failed} failed` },
+    { label: 'Records collected',   value: stepTotals.records, sub: '' },
+    { label: 'Latest run',          value: fmtDate(runs.map(r => r.manifest.startedAt).sort().slice(-1)[0]), sub: '' }
+  ];
+  for (const c of cards) {
+    kpis.appendChild(el('div', { class: 'kpi-card' }, [
+      el('div', { class: 'kpi-label', text: c.label }),
+      el('div', { class: 'kpi-value', text: c.value }),
+      c.sub ? el('div', { class: 'kpi-sub', text: c.sub }) : null
+    ]));
+  }
+
+  const container = $('#overview-runs');
+  container.innerHTML = '';
+  for (const r of runs.sort((a, b) => (b.manifest.startedAt || '').localeCompare(a.manifest.startedAt || ''))) {
+    const m = r.manifest;
+    const icon = KIND_ICON[m.investigationKey] || '🗂';
+    const failed = (m.datasetsInvoked || []).filter(s => s.status && s.status !== 'ok').length;
+    const stepCount = (m.datasetsInvoked || []).length;
+    container.appendChild(el('div', { class: 'run-card', onclick: () => goToDetail(r) }, [
+      el('div', { class: 'flex gap16 align-center grow' }, [
+        el('div', { style: 'font-size:1.8rem;', text: icon }),
+        el('div', null, [
+          el('div', { class: 'run-card-id', text: `${KIND_LABEL[m.investigationKey] || m.investigationKey} — ${m.subjectId || '(no subject)'}` }),
+          el('div', { class: 'muted', text: `${pluralS(stepCount, 'step')} · ${fmtRange(m.window)}` }),
+          el('div', { class: 'mono muted', text: `runId: ${m.runId}` })
+        ])
+      ]),
+      el('div', { class: 'right' }, [
+        failed
+          ? el('span', { class: 'pill pill-red', text: `${failed} failed` })
+          : el('span', { class: 'pill pill-green', text: 'all ok' }),
+        el('div', { class: 'muted', style: 'margin-top:4px;font-size:.78rem;', text: fmtDate(m.startedAt) })
+      ])
+    ]));
+  }
+}
+
+function goToDetail(run) {
+  const tab = ({
+    'agent-investigation':        'agent',
+    'conversation-investigation': 'conversation',
+    'queue-investigation':        'queue'
+  })[run.manifest.investigationKey];
+  if (!tab) return;
+  switchTab(tab);
+  const sel = $(`#select-${tab}`);
+  if (sel) { sel.value = run.manifest.runId; sel.dispatchEvent(new Event('change')); }
+}
+
+function populateSelect(selectId, runs) {
+  const sel = $('#' + selectId);
+  const prev = sel.value;
+  sel.innerHTML = '';
+  for (const r of runs) {
+    sel.appendChild(el('option', { value: r.manifest.runId }, [
+      `${r.manifest.subjectId || '(no subject)'} — ${r.manifest.runId}`
+    ]));
+  }
+  if (runs.some(r => r.manifest.runId === prev)) sel.value = prev;
+  return sel;
+}
+
+function stepBar(m) {
+  const wrap = el('div', { class: 'step-bar' });
+  for (const s of m.datasetsInvoked || []) {
+    const status = s.status || 'ok';
+    const cls = status === 'ok'
+      ? (s.recordCount === 0 ? 'step-chip skip' : 'step-chip ok')
+      : 'step-chip err';
+    wrap.appendChild(el('span', { class: cls, title: s.datasetKey || '' },
+      `${s.stepName} · ${s.recordCount ?? 0}`));
+  }
+  return wrap;
+}
+
+function manifestPanel(m) {
+  return el('div', { class: 'panel' }, [
+    el('div', { class: 'panel-head' }, [
+      el('h2', { text: 'Manifest' }),
+      el('span', { class: 'pill pill-blue', text: m.composerVersion || '—' })
+    ]),
+    el('div', { class: 'kpi-grid', style: 'margin-bottom:14px;' }, [
+      kpi('Subject',  `${m.subjectType || '?'} / ${m.subjectId || '?'}`),
+      kpi('Window',   fmtRange(m.window)),
+      kpi('Started',  fmtDate(m.startedAt)),
+      kpi('Finished', fmtDate(m.finishedAt)),
+      kpi('Steps',    `${(m.datasetsInvoked || []).length}`),
+      kpi('Run ID',   m.runId)
+    ]),
+    el('h3', { text: 'Step status', style: 'margin-bottom:8px;' }),
+    stepBar(m),
+    el('details', { style: 'margin-top:14px;' }, [
+      el('summary', { text: 'Raw manifest JSON' }),
+      el('pre', { text: JSON.stringify(m, null, 2) })
+    ])
+  ]);
+}
+function kpi(label, value) {
+  return el('div', { class: 'kpi-card' }, [
+    el('div', { class: 'kpi-label', text: label }),
+    el('div', { class: 'kpi-value', style: 'font-size:1rem;font-weight:600;', text: value })
+  ]);
+}
+
+function dataTable(rows, columns) {
+  if (!rows || !rows.length) return el('div', { class: 'empty', text: 'No records' });
+  const tbl = el('table', { class: 'data' });
+  const thead = el('thead'); const trh = el('tr');
+  for (const c of columns) trh.appendChild(el('th', { text: c.label }));
+  thead.appendChild(trh); tbl.appendChild(thead);
+  const tb = el('tbody');
+  for (const row of rows) {
+    const tr = el('tr');
+    for (const c of columns) {
+      const v = typeof c.get === 'function' ? c.get(row) : row[c.key];
+      tr.appendChild(el('td', null, v && typeof v === 'object'
+        ? [el('span', { class: 'mono', text: JSON.stringify(v) })]
+        : [String(v ?? '—')]));
+    }
+    tb.appendChild(tr);
+  }
+  tbl.appendChild(tb);
+  return el('div', { class: 'table-scroll' }, [tbl]);
+}
+
+function renderAgent() {
+  const target = $('#agent-detail');
+  const runs = runsByKind('agent-investigation');
+  if (!runs.length) {
+    target.innerHTML = '<div class="empty">No Agent Investigation runs loaded.</div>';
+    $('#select-agent').innerHTML = '';
+    return;
+  }
+  const sel = populateSelect('select-agent', runs);
+  sel.onchange = () => paintAgent(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+  paintAgent(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+
+  function paintAgent(run) {
+    target.innerHTML = '';
+    target.appendChild(manifestPanel(run.manifest));
+    const s = run.summary || {};
+    const grid = el('div', { class: 'detail-grid' });
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Identity & division' }),
+      dataTable(s.agent || [], [
+        { label: 'Name',     get: r => r.name },
+        { label: 'Email',    get: r => r.email },
+        { label: 'State',    get: r => r.state },
+        { label: 'Division', get: r => r.division && r.division.name }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Skills' }),
+      dataTable(s.skills || [], [
+        { label: 'Skill', get: r => r.name },
+        { label: 'State', get: r => r.state }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Queues' }),
+      dataTable(s.queues || [], [
+        { label: 'Queue',  get: r => r.name },
+        { label: 'Joined', get: r => r.joined ? 'yes' : 'no' }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Routing / presence' }),
+      dataTable([
+        ...(s.presence       || []).map(p => ({ label: 'Presence',      value: p.presence })),
+        ...(s.routingStatus  || []).map(p => ({ label: 'Routing status', value: `${p.status} @ ${fmtDate(p.startTime)}` }))
+      ], [
+        { label: 'Field', get: r => r.label },
+        { label: 'Value', get: r => r.value }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Activity (window)' }),
+      dataTable(s.activity || [], [
+        { label: 'Login min',       get: r => r.loginMinutes },
+        { label: 'On-queue min',    get: r => r.onQueueMinutes },
+        { label: 'Interacting min', get: r => r.interactingMinutes }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Active / windowed conversations' }),
+      dataTable([
+        ...(s.activeConversations || []).map(c => ({ id: c.id, kind: 'active',  media: c.mediaType, state: c.state })),
+        ...(s.conversations       || []).map(c => ({ id: c.conversationId, kind: 'windowed', media: '—',           state: '—' }))
+      ], [
+        { label: 'Conversation', get: r => r.id },
+        { label: 'Kind',         get: r => r.kind },
+        { label: 'Media',        get: r => r.media },
+        { label: 'State',        get: r => r.state }
+      ])
+    ]));
+
+    target.appendChild(grid);
+
+    target.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Account-change audit (window)' }),
+      dataTable(s.auditAccountChanges || [], [
+        { label: 'When',    get: r => fmtDate(r.timestamp) },
+        { label: 'Service', get: r => r.serviceName },
+        { label: 'Action',  get: r => r.action },
+        { label: 'Entity',  get: r => `${r.entityType} ${r.entityId}` }
+      ])
+    ]));
+  }
+}
+
+function renderConversation() {
+  const target = $('#conversation-detail');
+  const runs = runsByKind('conversation-investigation');
+  if (!runs.length) {
+    target.innerHTML = '<div class="empty">No Conversation Investigation runs loaded.</div>';
+    $('#select-conversation').innerHTML = '';
+    return;
+  }
+  const sel = populateSelect('select-conversation', runs);
+  sel.onchange = () => paintConv(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+  paintConv(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+
+  function paintConv(run) {
+    target.innerHTML = '';
+    target.appendChild(manifestPanel(run.manifest));
+    const s = run.summary || {};
+    const grid = el('div', { class: 'detail-grid' });
+
+    const lookup = (s.conversationLookup || [])[0] || {};
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Conversation' }),
+      el('div', { class: 'kpi-grid' }, [
+        kpi('ID',    lookup.conversationId || '—'),
+        kpi('Start', fmtDate(lookup.conversationStart)),
+        kpi('End',   fmtDate(lookup.conversationEnd)),
+        kpi('Participants', String((lookup.participants || []).length))
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Participants (resolved)' }),
+      dataTable(s.agents || [], [
+        { label: 'Agent',    get: r => r.name },
+        { label: 'ID',       get: r => r.id },
+        { label: 'Division', get: r => r.division && r.division.name }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Recordings' }),
+      dataTable(s.recordings || [], [
+        { label: 'ID',     get: r => r.id },
+        { label: 'Media',  get: r => r.mediaType },
+        { label: 'Status', get: r => r.status }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Evaluations' }),
+      dataTable(s.evaluations || [], [
+        { label: 'ID',    get: r => r.id },
+        { label: 'Score', get: r => r.totalScore }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Surveys (CSAT / NPS)' }),
+      dataTable(s.surveys || [], [
+        { label: 'NPS',     get: r => r.npsScore },
+        { label: 'CSAT',    get: r => r.csatScore },
+        { label: 'Comment', get: r => r.comment }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Skills at time of contact' }),
+      dataTable(s.skills || [], [
+        { label: 'Skill',   get: r => r.name },
+        { label: 'User ID', get: r => r.userId }
+      ])
+    ]));
+
+    target.appendChild(grid);
+  }
+}
+
+function renderQueue() {
+  const target = $('#queue-detail');
+  const runs = runsByKind('queue-investigation');
+  if (!runs.length) {
+    target.innerHTML = '<div class="empty">No Queue Investigation runs loaded.</div>';
+    $('#select-queue').innerHTML = '';
+    return;
+  }
+  const sel = populateSelect('select-queue', runs);
+  sel.onchange = () => paintQueue(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+  paintQueue(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+
+  function paintQueue(run) {
+    target.innerHTML = '';
+    target.appendChild(manifestPanel(run.manifest));
+    const s = run.summary || {};
+    const grid = el('div', { class: 'detail-grid' });
+
+    const q = (s.queue || [])[0] || {};
+    const obs = (s.observations || [])[0] || {};
+    const sla = (s.sla || [])[0] || {};
+    const ab  = (s.abandons || [])[0] || {};
+    const tx  = (s.transfers || [])[0] || {};
+
+    const slaPct = sla.nOffered ? Math.round((sla.nAnswered / sla.nOffered) * 100) : null;
+    const abPct  = ab.nOffered  ? Math.round((ab.nAbandoned / ab.nOffered)  * 100) : null;
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Queue' }),
+      el('div', { class: 'kpi-grid' }, [
+        kpi('Name',          q.name || '—'),
+        kpi('ID',             q.id || '—'),
+        kpi('Alert (sec)',    (q.mediaSettings && q.mediaSettings.call && q.mediaSettings.call.alertingTimeoutSeconds) || '—'),
+        kpi('Waiting',        obs.oWaiting ?? '—'),
+        kpi('Interacting',    obs.oInteracting ?? '—'),
+        kpi('On-queue users', obs.oOnQueueUsers ?? '—')
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Performance (window)' }),
+      el('div', { class: 'kpi-grid' }, [
+        kpi('Offered',      sla.nOffered ?? '—'),
+        kpi('Answered',     sla.nAnswered ?? '—'),
+        kpi('Service %',    slaPct == null ? '—' : `${slaPct}%`),
+        kpi('Abandoned',    ab.nAbandoned ?? '—'),
+        kpi('Abandon %',    abPct == null ? '—' : `${abPct}%`),
+        kpi('Transferred',  tx.nTransferred ?? '—')
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Members' }),
+      dataTable(s.members || [], [
+        { label: 'Agent',  get: r => r.name },
+        { label: 'Joined', get: r => r.joined ? 'yes' : 'no' }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Wrap-up distribution' }),
+      dataTable(s.wrapupDistribution || [], [
+        { label: 'Code',      get: r => r.wrapUpCode },
+        { label: 'Connected', get: r => r.nConnected },
+        { label: 'Handle',    get: r => r.tHandle }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Active agents on queue' }),
+      dataTable(s.activeAgents || [], [
+        { label: 'User ID',  get: r => r.userId },
+        { label: 'Presence', get: r => r.oUserPresence }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Wrap-up code catalog' }),
+      dataTable(s.wrapupCodes || [], [
+        { label: 'Code', get: r => r.name }
+      ])
+    ]));
+
+    target.appendChild(grid);
+  }
+}
+
+function renderHistory() {
+  const runs = Array.from(state.runs.values())
+    .sort((a, b) => (b.manifest.startedAt || '').localeCompare(a.manifest.startedAt || ''));
+  const tbody = $('#history-table tbody');
+  tbody.innerHTML = '';
+  const empty = $('#history-empty');
+  $('#history-meta').textContent = `${runs.length} run${runs.length === 1 ? '' : 's'}`;
+  if (!runs.length) { empty.classList.remove('hide'); $('#history-table').classList.add('hide'); return; }
+  empty.classList.add('hide'); $('#history-table').classList.remove('hide');
+  for (const r of runs) {
+    const m = r.manifest;
+    const failed = (m.datasetsInvoked || []).filter(s => s.status && s.status !== 'ok').length;
+    const total = (m.datasetsInvoked || []).length;
+    tbody.appendChild(el('tr', { style: 'cursor:pointer;', onclick: () => goToDetail(r) }, [
+      el('td', null, [el('span', null, `${KIND_ICON[m.investigationKey] || '🗂'} ${KIND_LABEL[m.investigationKey] || m.investigationKey}`)]),
+      el('td', { text: m.subjectId || '—' }),
+      el('td', { text: fmtRange(m.window) }),
+      el('td', { text: fmtDate(m.startedAt) }),
+      el('td', { text: String(total) }),
+      el('td', null, [
+        failed
+          ? el('span', { class: 'pill pill-red', text: `${failed} failed` })
+          : el('span', { class: 'pill pill-green', text: 'all ok' })
+      ]),
+      el('td', null, [el('span', { class: 'mono muted', text: m.runId })])
+    ]));
+  }
+}
+
+function buildDiagnostics() {
+  const runs = Array.from(state.runs.values());
+  if (!runs.length) return 'No runs loaded.';
+  const bundle = {
+    generatedAt: new Date().toISOString(),
+    consoleVersion: '1.4.0',
+    runs: runs.map(r => {
+      const m = r.manifest;
+      const eventsTail = r.events
+        ? r.events.split(/\r?\n/).filter(Boolean).slice(-5)
+            .map(line => { try { return redactDeep(JSON.parse(line)); } catch { return line; } })
+        : null;
+      return {
+        investigationKey: m.investigationKey,
+        runId: m.runId,
+        subjectType: m.subjectType,
+        subjectId: m.subjectId,
+        window: m.window,
+        startedAt: m.startedAt,
+        finishedAt: m.finishedAt,
+        composerVersion: m.composerVersion,
+        steps: (m.datasetsInvoked || []).map(s => ({
+          stepName: s.stepName,
+          datasetKey: s.datasetKey,
+          validationStatus: s.validationStatus,
+          recordCount: s.recordCount,
+          required: s.required,
+          status: s.status || 'ok',
+          errorMessage: s.errorMessage || null
+        })),
+        redactionProfile: redactDeep(m.redactionProfile || null),
+        recentEvents: eventsTail
+      };
+    })
+  };
+  return JSON.stringify(bundle, null, 2);
+}
+
+function renderDiagnostics() {
+  $('#diag-output').textContent = buildDiagnostics();
+}
+
+// ─── Tabs ──────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  state.currentTab = name;
+  $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $$('.tab-panel').forEach(p => p.classList.toggle('hide', p.id !== `tab-${name}`));
+}
+
+// ─── Wire up ───────────────────────────────────────────────────────────────
+function init() {
+  $$('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  const fileInput = $('#file-input');
+  $('#btn-load-files').addEventListener('click', () => fileInput.click());
+  $('#btn-load-files-2').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.length) ingestFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  $('#btn-load-demo').addEventListener('click', loadDemo);
+  $('#btn-load-demo-2').addEventListener('click', loadDemo);
+  $('#btn-clear-runs').addEventListener('click', clearAllRuns);
+
+  // Drag-drop on the global dropzone AND the whole page.
+  function bindDrop(target) {
+    target.addEventListener('dragover', e => { e.preventDefault(); target.classList?.add('dragover'); });
+    target.addEventListener('dragleave', () => target.classList?.remove('dragover'));
+    target.addEventListener('drop', async e => {
+      e.preventDefault(); target.classList?.remove('dragover');
+      const files = [];
+      const items = e.dataTransfer?.items;
+      if (items && items.length) {
+        const walk = async entry => {
+          if (entry.isFile) await new Promise(res => entry.file(f => { Object.defineProperty(f, 'webkitRelativePath', { value: entry.fullPath.replace(/^\//,'') }); files.push(f); res(); }));
+          else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const all = await new Promise(res => reader.readEntries(res));
+            for (const sub of all) await walk(sub);
+          }
+        };
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          const entry = it.webkitGetAsEntry?.();
+          if (entry) await walk(entry);
+          else { const f = it.getAsFile(); if (f) files.push(f); }
+        }
+      } else {
+        for (const f of e.dataTransfer.files) files.push(f);
+      }
+      if (files.length) ingestFiles(files);
+    });
+  }
+  bindDrop($('#global-dropzone'));
+  bindDrop(document.body);
+
+  $('#btn-copy-diag').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(buildDiagnostics()); alert('Diagnostics bundle copied.'); }
+    catch { alert('Clipboard blocked; use Download instead.'); }
+  });
+  $('#btn-download-diag').addEventListener('click', () => {
+    const blob = new Blob([buildDiagnostics()], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = el('a', { href: url, download: `genesys-investigation-diag-${Date.now()}.json` });
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  $$('[data-copy-command]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const command = button.getAttribute('data-copy-command');
+      try {
+        await navigator.clipboard.writeText(command);
+        const original = button.textContent;
+        button.textContent = 'Copied';
+        setTimeout(() => { button.textContent = original; }, 1200);
+      } catch {
+        alert('Clipboard blocked; copy the command from the card instead.');
+      }
+    });
+  });
+
+  // Auto-load demo when opened via file:// or when the embedded query says so.
+  if (location.search.includes('demo=1') || location.protocol === 'file:') {
+    // Don't force, but make it one click away by hinting.
+    // Comment: explicit click is preferred to avoid surprising on real runs.
+  }
+
+  renderAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

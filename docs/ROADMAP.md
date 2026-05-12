@@ -25,6 +25,23 @@ the engineering teams that automate against them.
 
 ## 2. Recently Completed
 
+- [x] Release 1.4 operator console + packaging (2026-05-12): added
+      `apps/InvestigationConsole/index.html` as a unified offline console for
+      Agent, Conversation, and Queue runs with run history, summary, and
+      diagnostics views; added generic Excel/Markdown packaging and redacted
+      diagnostics bundle exports in `Genesys.Ops`; added wrapper scripts
+      `Export-InvestigationPackage.ps1`,
+      `Copy-InvestigationDiagnosticsBundle.ps1`, and
+      `Invoke-GoldenPathDemo.ps1`; added focused tests and README portfolio /
+      architecture updates.
+- [x] Investigation enrichment + demo outputs (2026-05-12): Agent Investigation
+      now includes routing status, utilization, and active conversations;
+      Conversation Investigation now includes surveys; Queue Investigation now
+      includes queue-config seeding, wrap-up labels, transfer metrics, and
+      wrap-up distribution with explicit queue/window parameterization. Added
+      deterministic sample outputs under `samples/demo-agent-investigation/`,
+      `samples/demo-conversation-investigation-run/`, and
+      `samples/demo-queue-investigation/`.
 - [x] Session 20 backend foundation (2026-05-12): ConversationAnalyzer now
       has a two-window trend-report puller, case-store comparison schema,
       `report_trend_delta` view, regression/improvement accessors, and an
@@ -49,9 +66,11 @@ the engineering teams that automate against them.
 - [x] Release 1.1 — Conversation Investigation flagship: `Get-GenesysConversationInvestigation`
       implemented with derived-participants step, `RecordDeriver`/`SubjectUpdater`
       extension to `Invoke-Investigation`, redaction profiles for recordings and
-      evaluations datasets, and full fixture-driven integration test suite.
+      evaluations datasets, survey enrichment, and full fixture-driven
+      integration test suite.
 - [x] Release 1.2 — Queue Investigation flagship: `Get-GenesysQueueInvestigation`
-      implemented over six steps (queue, members, observations, sla, abandons,
+      now implemented over nine steps (queue, members, wrapupCodes,
+      observations, sla, abandons, transfers, wrapupDistribution,
       activeAgents); new `routing-queue-members` dataset and
       `queue-investigation-members` redaction profile added to the catalog;
       `Get-GenesysQueueHealthSnapshot` and `Invoke-GenesysOperationsReport`
@@ -74,6 +93,7 @@ Conversation and Queue investigations follow once the model is in production.
 | 1.1 | Conversation Investigation + redaction hardening |
 | 1.2 | Queue Investigation + reporting-contract cleanup |
 | 1.3 | Visibility extensions, edge alarms, temporal trends |
+| 1.4 | Operator console + demo-ready productization |
 
 ---
 
@@ -218,11 +238,12 @@ These are the integration tests that gate release. They live under
 1. **Happy path, full window.** Given a known agent ID and a 7-day window
    against the recorded fixture, the run produces:
    - exit code 0
-   - `manifest.json` containing every required field listed in the
-     Manifest Contract, with `datasetsInvoked.length == 7`
-   - `summary.json` with sections `agent`, `division`, `skills`, `queues`,
-     `presence`, `activity`, `conversations` and an inner-join row count
-     ≥ 1 for the seed identity step
+       - `manifest.json` containing every required field listed in the
+             Manifest Contract, with `datasetsInvoked.length == 10`
+       - `summary.json` with sections `agent`, `division`, `skills`, `queues`,
+             `presence`, `routingStatus`, `utilization`, `activity`,
+             `activeConversations`, `conversations`, and an inner-join row count ≥ 1
+             for the seed identity step
    - one JSONL per step under `data/`, line counts matching
      `datasetsInvoked[i].recordCount`
 2. **Determinism.** Two consecutive runs over the same fixture produce
@@ -273,7 +294,7 @@ content it surfaces.
       `Get-GenesysConversationInvestigation -ConversationId <x>` →
       conversation detail + every agent involved (with their division/skills/
       queues at time of contact, current-state attribution acceptable for
-      1.1) + recordings/evaluations/sentiment when present.
+      1.1) + recordings/evaluations/surveys when present.
 - [x] **Profile-by-dataset redaction sweep.** Explicit allow/deny rules for
       `conversations.get.recordings` and `quality.get.evaluations.query`
       added to `catalog/genesys.catalog.json` as
@@ -286,7 +307,8 @@ content it surfaces.
       edge case. All tests under `tests/integration/ConversationInvestigation.Tests.ps1`.
 - [ ] Live validation of any Conversation-only datasets not covered in 1.0
       (`conversations.get.specific.conversation.details`,
-      `analytics-conversation-details-query`, recordings, evaluations).
+      `analytics-conversation-details-query`, recordings, evaluations,
+      surveys).
 
 ---
 
@@ -297,8 +319,9 @@ with the composition contract.
 
 - [x] **Flagship investigation — Queue.**
       `Get-GenesysQueueInvestigation -QueueId <x> -Since <window>` →
-      queue config + members + observations + SLA + abandons + agents
-      currently active on the queue. Six steps composed via
+      queue config + members + wrap-up labels + observations + SLA + abandons
+      + transfers + wrap-up distribution + agents currently active on the
+      queue. Nine steps composed via
       `Invoke-Investigation`; new `routing-queue-members` dataset wraps
       `routing.get.queue.members.with.status`. Emits the standard run-artifact
       set under `out/queue-investigation/<runId>/`.
@@ -337,6 +360,9 @@ established and proven across all three flagships.
         helpers, and `Export-IncidentImpactSummary`.
   - [ ] WPF Trend tab, regression/improvement panels, hourly overlay chart,
         and case-date-range configuration wiring.
+- [x] Flagship investigation visibility extensions: Agent routing/utilization,
+      Conversation survey enrichment, Queue transfer/wrap-up context, and
+      committed deterministic demo outputs.
 - [ ] Additional flagship investigations identified during 1.0–1.2
       (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
       names a concrete use case.
@@ -358,3 +384,17 @@ A release is not complete unless:
 - New cross-module references have been justified in the relevant design doc;
   by default, prefer fewer abstractions, fewer files, and fewer cross-module
   calls.
+
+## Release 1.4 — Operator Console + Demo-Ready Productization
+
+Goal: Convert Genesys.Core from a governed execution framework into a
+demo-ready operational investigation product.
+
+- [x] Unified Investigation Console for Agent, Conversation, and Queue runs.
+- [x] Run History view over existing artifact folders.
+- [x] Summary dashboard for manifest, validation, dataset counts, and failures.
+- [x] Investigation-specific detail views.
+- [x] Excel and Markdown export packages.
+- [x] Golden-path demo scenario using fixture or sanitized live data.
+- [x] Portfolio-ready README section with screenshots and architecture diagram.
+- [x] Copy Diagnostics bundle for support handoff.

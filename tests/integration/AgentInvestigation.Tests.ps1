@@ -37,8 +37,20 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
                 [pscustomobject]@{ userId = 'agent-fixture-001'; presence = 'AVAILABLE' }
                 [pscustomobject]@{ userId = 'agent-fixture-999'; presence = 'OFFLINE' }
             )
+            'users.get.agent.current.routing.status' = @(
+                [pscustomobject]@{ userId = 'agent-fixture-001'; status = 'INTERACTING'; startTime = '2026-04-02T10:15:00Z' }
+                [pscustomobject]@{ userId = 'agent-fixture-999'; status = 'OFF_QUEUE'; startTime = '2026-04-02T09:00:00Z' }
+            )
+            'routing.get.user.utilization' = @(
+                [pscustomobject]@{ userId = 'agent-fixture-001'; call = [pscustomobject]@{ maximumCapacity = 1; utilizedCapacity = 1 } }
+                [pscustomobject]@{ userId = 'agent-fixture-999'; call = [pscustomobject]@{ maximumCapacity = 1; utilizedCapacity = 0 } }
+            )
             'analytics.query.user.details.activity.report' = @(
                 [pscustomobject]@{ userId = 'agent-fixture-001'; loginMinutes = 420; onQueueMinutes = 340 }
+            )
+            'users.get.agent.active.conversations' = @(
+                [pscustomobject]@{ id = 'active-conv-1'; userId = 'agent-fixture-001'; mediaType = 'voice'; state = 'connected' }
+                [pscustomobject]@{ id = 'active-conv-2'; userId = 'agent-fixture-001'; mediaType = 'message'; state = 'connected' }
             )
             'analytics-conversation-details-query' = @(
                 [pscustomobject]@{
@@ -122,7 +134,7 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
 
         It 'manifest records the scoped dataset and derived-section entries' {
             $m = Get-Content $script:HappyResult.ManifestPath -Raw | ConvertFrom-Json
-            @($m.datasetsInvoked).Count | Should -Be 8
+            @($m.datasetsInvoked).Count | Should -Be 11
         }
 
         It 'manifest contains every required field' {
@@ -141,7 +153,7 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
 
         It 'summary contains the expected scoped sections' {
             $s = Get-Content $script:HappyResult.SummaryPath -Raw | ConvertFrom-Json
-            foreach ($section in @('agent','division','skills','queues','presence','activity','conversations','auditAccountChanges')) {
+            foreach ($section in @('agent','division','skills','queues','presence','routingStatus','utilization','activity','activeConversations','conversations','auditAccountChanges')) {
                 $s.PSObject.Properties.Name | Should -Contain $section
             }
         }
@@ -172,7 +184,7 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
                 }
                 $steps = Get-GenesysAgentInvestigationStepDefinition -UserId $KnownUserId -Since $window.Since -Until $window.Until
                 $result = [ordered]@{}
-                foreach ($stepName in @('identity','skills','queues','presence','activity','conversations','auditAccountChanges')) {
+                foreach ($stepName in @('identity','skills','queues','presence','routingStatus','utilization','activity','activeConversations','conversations','auditAccountChanges')) {
                     $step = $steps | Where-Object { $_['Name'] -eq $stepName } | Select-Object -First 1
                     $result[$stepName] = & $step['Parameters'] $subject @{} $window
                 }
@@ -183,11 +195,17 @@ Describe 'Agent Investigation flagship — fixture-driven contract' {
             $skillsQuery = & $getMapValue $parametersByStep.skills 'Query'
             $queuesQuery = & $getMapValue $parametersByStep.queues 'Query'
             $presenceQuery = & $getMapValue $parametersByStep.presence 'Query'
+            $routingStatusQuery = & $getMapValue $parametersByStep.routingStatus 'Query'
+            $utilizationQuery = & $getMapValue $parametersByStep.utilization 'Query'
+            $activeConversationsQuery = & $getMapValue $parametersByStep.activeConversations 'Query'
 
             (& $getMapValue $identityQuery 'userId') | Should -Be $script:KnownUserId
             (& $getMapValue $skillsQuery 'userId') | Should -Be $script:KnownUserId
             (& $getMapValue $queuesQuery 'userId') | Should -Be $script:KnownUserId
             (& $getMapValue $presenceQuery 'id') | Should -Be $script:KnownUserId
+            (& $getMapValue $routingStatusQuery 'userId') | Should -Be $script:KnownUserId
+            (& $getMapValue $utilizationQuery 'userId') | Should -Be $script:KnownUserId
+            (& $getMapValue $activeConversationsQuery 'userId') | Should -Be $script:KnownUserId
 
             $activityBody = & $getMapValue $parametersByStep.activity 'Body'
             (& $getMapValue $activityBody 'interval') | Should -Be '2026-04-01T00:00:00.0000000Z/2026-04-08T00:00:00.0000000Z'

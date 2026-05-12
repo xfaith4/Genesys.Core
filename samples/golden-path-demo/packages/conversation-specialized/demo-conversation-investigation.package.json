@@ -1,0 +1,64 @@
+{
+  "packageType": "conversation-investigation",
+  "generatedAtUtc": "2026-05-12T11:18:50.2811960Z",
+  "conversationId": "demo-conversation-001",
+  "runId": "demo-run",
+  "sourceSipTraceName": null,
+  "pcapDownloadId": "demo-pcap-download",
+  "warnings": [],
+  "counts": {
+    "participants": 2,
+    "agents": 1,
+    "recordings": 1,
+    "evaluations": 1,
+    "timelineEvents": 9,
+    "sipMessages": 3,
+    "pcapMetadataRows": 3,
+    "findings": 3
+  },
+  "files": {
+    "html": "demo-conversation-investigation.html",
+    "timelineCsv": "demo-conversation-investigation.timeline.csv",
+    "sipTraceCsv": "demo-conversation-investigation.sip-trace.csv",
+    "pcapMetadataCsv": "demo-conversation-investigation.pcap-metadata.csv",
+    "pcap": "demo-conversation-investigation.pcap",
+    "findingsCsv": "demo-conversation-investigation.findings.csv",
+    "workbook": "demo-conversation-investigation.xlsx",
+    "packageJson": "demo-conversation-investigation.package.json"
+  },
+  "overview": {
+    "GeneratedAtUtc": "2026-05-12T11:18:50.2811960Z",
+    "Investigation": "conversation-investigation",
+    "RunId": "demo-run",
+    "ConversationId": "demo-conversation-001",
+    "Participants": 2,
+    "Agents": 1,
+    "Divisions": 1,
+    "Skills": 1,
+    "Recordings": 1,
+    "Evaluations": 1,
+    "TimelineEvents": 9,
+    "SipMessages": 3,
+    "PcapDownloaded": true
+  },
+  "findings": [
+    {
+      "Severity": "Info",
+      "Source": "Conversation Detail",
+      "Finding": "Disconnect marker present",
+      "Evidence": "Sequence 2: demo-customer-001 client"
+    },
+    {
+      "Severity": "Info",
+      "Source": "Conversation Detail",
+      "Finding": "Disconnect marker present",
+      "Evidence": "Sequence 8: demo-agent-001 client"
+    },
+    {
+      "Severity": "Medium",
+      "Source": "SIP Trace",
+      "Finding": "SIP error response 486",
+      "Evidence": "SIP/2.0 486 Busy Here"
+    }
+  ]
+}

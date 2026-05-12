@@ -4,6 +4,19 @@
 
 ### Added
 
+- **Release 1.4 operator console + demo-ready productization:**
+  - Added `apps/InvestigationConsole/index.html`, a single-file offline console for Agent, Conversation, and Queue investigations with summary KPIs, investigation-specific views, run history, and a diagnostics pane.
+  - Added generic package exports in `Genesys.Ops`: `Export-GenesysInvestigationPackage` writes Markdown/CSV/XLSX deliverables and `Export-GenesysInvestigationDiagnosticsBundle` writes redacted support JSON.
+  - Added wrapper scripts `scripts/Export-InvestigationPackage.ps1`, `scripts/Copy-InvestigationDiagnosticsBundle.ps1`, and `scripts/Invoke-GoldenPathDemo.ps1` to package runs, hand off diagnostics, and assemble the golden-path demo scenario.
+  - Added focused Pester coverage for the new 1.4 packaging and diagnostics workflows.
+
+- **Investigation enrichment + demo outputs:**
+  - `Get-GenesysAgentInvestigation` now includes `routingStatus`, `utilization`, and `activeConversations` sections sourced from user-scoped Genesys endpoints.
+  - `Get-GenesysConversationInvestigation` now includes `surveys` so a single investigation can surface CSAT / NPS alongside recordings and evaluations.
+  - `Get-GenesysQueueInvestigation` now seeds from `routing.get.single.queue.config` and adds `wrapupCodes`, `transfers`, and `wrapupDistribution`, while explicitly parameterizing queue/window aggregate queries.
+  - Added deterministic demo generators: `scripts/New-DemoAgentInvestigation.ps1`, `scripts/New-DemoConversationInvestigation.ps1`, and `scripts/New-DemoQueueInvestigation.ps1`.
+  - Added committed sample outputs under `samples/demo-agent-investigation/`, `samples/demo-conversation-investigation-run/`, and `samples/demo-queue-investigation/`.
+
 - **ConversationAnalyzer Session 20 backend foundation:**
   - `Get-TrendReport` added to `apps/ConversationAnalyzer/modules/App.CoreAdapter.psm1` to pull queue-performance, abandon, and service-level aggregates for two comparison windows (`WindowA`, `WindowB`).
   - Schema bumped to **v12** with `report_trend_windows`, `report_trend_comparison`, and the `report_trend_delta` view in `apps/ConversationAnalyzer/modules/App.Database.psm1`.

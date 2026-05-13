@@ -9,6 +9,13 @@
 - Hardened aggregate/page response handling so missing `results`, `entities`, `data`, `metrics`, `stats`, `nextUri`, and async job fields do not trigger strict-mode failures on empty or partial API responses.
 - Validation: MonthlyMetrics parser checks passed, `tests/unit/MonthlyMetrics.Script.Tests.ps1` passed 5 tests, and `scripts/Invoke-Tests.ps1 -Path tests/unit -Output Normal` passed 162 tests. Live integration was not run because this environment has no Genesys credentials.
 
+## ConversationAnalyzer Display Review - May 13, 2026
+
+- Confirmed saved conversation detail JSONL exists under the app run folder and that the newest saved demo run indexes into 3 displayable conversation rows.
+- Added an on-screen run/data directory display so completed run artifacts are visible immediately after run completion.
+- Added a display fallback that clears stale conversation-grid filters when the saved run contains indexed conversations but the current UI filter state hides every row.
+- Validation: ConversationAnalyzer parser checks passed; `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed 270 checks with 0 failures and 2 SQLite-native-library skips in WSL.
+
 **Date:** February 18, 2026
 **Repository:** Genesys.Core
 **Branch:** copilot/perform-code-review-harden

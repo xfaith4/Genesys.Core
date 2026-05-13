@@ -396,7 +396,7 @@ $xamlContent = ReadFile 'resources\MainWindow.xaml'
 $requiredControls = @(
     'BtnRun','BtnCancelRun','BtnPreviewRun',
     'DgConversations','LstRecentRuns',
-    'BtnCopyDiagnostics','TxtRunProgress','TxtRunStatus',
+    'BtnCopyDiagnostics','TxtRunProgress','TxtRunStatus','TxtRunDirectory',
     'LblActiveCase','BtnManageCase','BtnImportRun',
     'BtnExpandJson',
     'DtpStartDate','TxtStartTime','DtpEndDate','TxtEndTime',

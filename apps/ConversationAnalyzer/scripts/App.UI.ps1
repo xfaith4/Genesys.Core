@@ -40,6 +40,7 @@ $script:BtnCancelRun           = _Ctrl 'BtnCancelRun'
 $script:TxtRunStatus           = _Ctrl 'TxtRunStatus'
 $script:PrgRun                 = _Ctrl 'PrgRun'
 $script:TxtRunProgress         = _Ctrl 'TxtRunProgress'
+$script:TxtRunDirectory        = _Ctrl 'TxtRunDirectory'
 $script:LstRecentRuns          = _Ctrl 'LstRecentRuns'
 $script:BtnOpenRun             = _Ctrl 'BtnOpenRun'
 $script:LblActiveCase          = _Ctrl 'LblActiveCase'
@@ -720,6 +721,27 @@ function _TestCompletedRunFolder {
     }
 }
 
+function _UpdateRunDirectoryDisplay {
+    param([string]$RunFolder)
+
+    if ($null -eq $script:TxtRunDirectory) { return }
+
+    $text = ''
+    if (-not [string]::IsNullOrWhiteSpace($RunFolder)) {
+        $dataFolder = [System.IO.Path]::Combine($RunFolder, 'data')
+        $text = @(
+            "Run folder: $RunFolder"
+            "Data folder: $dataFolder"
+        ) -join [Environment]::NewLine
+    }
+
+    _Dispatch {
+        if ($null -ne $script:TxtRunDirectory) {
+            $script:TxtRunDirectory.Text = $text
+        }
+    }
+}
+
 function _ResolveRunFolderFromResult {
     param([object]$RunResult)
 
@@ -904,6 +926,28 @@ function _SelectComboContent {
         }
     }
     if ($Combo.Items.Count -gt 0 -and -not $Content) { $Combo.SelectedIndex = 0 }
+}
+
+function _ClearConversationDisplayFilters {
+    param([switch]$ClearRunFilters)
+
+    $script:State.FilterDirection = ''
+    $script:State.FilterMedia = ''
+    $script:State.FilterDisconnect = ''
+    $script:State.FilterAgent = ''
+    $script:State.SearchText = ''
+    $script:State.ColumnFilters = @{}
+    if ($null -ne $script:TxtSearch) { $script:TxtSearch.Text = '' }
+    if ($null -ne $script:TxtFilterAgent) { $script:TxtFilterAgent.Text = '' }
+    _SelectComboContent -Combo $script:CmbFilterDirection -Content '' -DefaultContent 'All directions'
+    _SelectComboContent -Combo $script:CmbFilterMedia -Content '' -DefaultContent 'All media'
+    _SelectComboContent -Combo $script:CmbFilterDisconnect -Content '' -DefaultContent 'All disconnects'
+
+    if ($ClearRunFilters) {
+        if ($null -ne $script:TxtConversationId) { $script:TxtConversationId.Text = '' }
+        if ($null -ne $script:TxtFilterUserId) { $script:TxtFilterUserId.Text = '' }
+        if ($null -ne $script:TxtFilterDivisionId) { $script:TxtFilterDivisionId.Text = '' }
+    }
 }
 
 function _SetDateTimeFilterControls {
@@ -4818,6 +4862,7 @@ function _LoadRunAndRefreshGrid {
 
     $script:State.CurrentRunFolder  = $RunFolder
     $script:State.DiagnosticsContext = $RunFolder
+    _UpdateRunDirectoryDisplay -RunFolder $RunFolder
     $script:State.DataSource = 'index'
     $script:State.DemoModeEnabled = $false
     $script:State.DemoData = @{}
@@ -4866,12 +4911,25 @@ function _LoadRunAndRefreshGrid {
         $allIdx = @(Load-RunIndex -RunFolder $RunFolder)
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh -AllIndex $allIdx
+        $displayRecordCount = @($script:State.CurrentIndex).Count
+        if ($allIdx.Count -gt 0 -and $displayRecordCount -eq 0) {
+            $clearRunFilters = [string]::IsNullOrWhiteSpace($PreferredConversationId)
+            _ClearConversationDisplayFilters -ClearRunFilters:([bool]$clearRunFilters)
+            _AppendRunDiagnostic `
+                -Stage 'Run display filters reset' `
+                -Message 'The completed run contained conversation records, but the current UI filters hid all rows. Cleared display filters and reloaded the saved run artifacts.' `
+                -RunFolder $RunFolder `
+                -DataSource 'index'
+            $script:State.CurrentPage = 1
+            _ApplyFiltersAndRefresh -AllIndex $allIdx
+            $displayRecordCount = @($script:State.CurrentIndex).Count
+        }
         _SetStatus "Loaded $($allIdx.Count) records from $([System.IO.Path]::GetFileName($RunFolder))"
         $script:TxtStatusRight.Text = [datetime]::Now.ToString('HH:mm:ss')
         return [pscustomobject]@{
             Succeeded = $true
             IndexRecordCount = $allIdx.Count
-            DisplayRecordCount = @($script:State.CurrentIndex).Count
+            DisplayRecordCount = $displayRecordCount
             Contract = $contract
             Error = ''
         }
@@ -5821,6 +5879,7 @@ function _StartRunInBackground {
         $script:TxtRunStatus.Text   = "Starting $RunType run…"
         $script:TxtConsoleStatus.Text = 'Running'
         $script:TxtRunProgress.Text  = ''
+        if ($null -ne $script:TxtRunDirectory) { $script:TxtRunDirectory.Text = '' }
         $script:DgRunEvents.ItemsSource = $null
         $script:TxtDiagnostics.Text  = ''
     }
@@ -5934,6 +5993,7 @@ function _PollBackgroundRun {
         if ($folder) {
             $script:State.CurrentRunFolder   = $folder
             $script:State.DiagnosticsContext = $folder
+            _UpdateRunDirectoryDisplay -RunFolder $folder
         }
     }
 
@@ -5986,6 +6046,7 @@ function _PollBackgroundRun {
     if ($resultFolder) {
         $script:State.CurrentRunFolder   = $resultFolder
         $script:State.DiagnosticsContext = $resultFolder
+        _UpdateRunDirectoryDisplay -RunFolder $resultFolder
     }
 
     # Read trace log written by the background script (always in $env:TEMP).
@@ -6021,6 +6082,7 @@ function _PollBackgroundRun {
     if ($null -ne $script:State.CurrentRunFolder) {
         Add-RecentRun -RunFolder $script:State.CurrentRunFolder
         _RefreshRecentRuns
+        _UpdateRunDirectoryDisplay -RunFolder $script:State.CurrentRunFolder
         $runLoadResult = _LoadRunAndRefreshGrid `
             -RunFolder $script:State.CurrentRunFolder `
             -PreferredConversationId $preferredConversationId `

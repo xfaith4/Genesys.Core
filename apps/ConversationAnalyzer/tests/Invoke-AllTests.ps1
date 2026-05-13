@@ -205,6 +205,14 @@ ArchCheck 'ARCH-18D' 'App.Database.psm1 exposes non-UI drilldown resolver' {
     ($database -match 'run-folder\.jsonl')
 }
 
+ArchCheck 'ARCH-18E' 'Run completion displays saved artifact directories and clears filters when saved rows are hidden' {
+    ($xaml -match 'TxtRunDirectory') -and
+    ($uiPs -match 'function _UpdateRunDirectoryDisplay') -and
+    ($uiPs -match 'Data folder:') -and
+    ($uiPs -match 'function _ClearConversationDisplayFilters') -and
+    ($uiPs -match 'Run display filters reset')
+}
+
 # ── Architecture: export streaming ────────────────────────────────────────────
 Write-Host "`n--- Export streaming ---" -ForegroundColor DarkCyan
 

@@ -2304,19 +2304,21 @@ LEFT JOIN b
    AND b.interval_start = k.interval_start
 '@ | Out-Null
 
-    # Stamp schema version on first creation and after migrations
-    $count = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
-    if ($count -eq 0) {
+    # Normalize schema_version to a single current row so simple readers do not
+    # observe stale historical versions from earlier migrations.
+    $nowUtc  = [datetime]::UtcNow.ToString('o')
+    $count   = [int](_Scalar -Conn $Conn -Sql 'SELECT COUNT(*) FROM schema_version')
+    $current = if ($count -gt 0) {
+        [int](_Scalar -Conn $Conn -Sql 'SELECT MAX(version) FROM schema_version')
+    } else {
+        0
+    }
+
+    if ($count -ne 1 -or $current -ne $script:SchemaVersion) {
+        _NonQuery -Conn $Conn -Sql 'DELETE FROM schema_version' | Out-Null
         _NonQuery -Conn $Conn -Sql `
             'INSERT INTO schema_version(version, applied_utc) VALUES(@v, @t)' `
-            -P @{ '@v' = $script:SchemaVersion; '@t' = [datetime]::UtcNow.ToString('o') } | Out-Null
-    } else {
-        $current = [int](_Scalar -Conn $Conn -Sql 'SELECT MAX(version) FROM schema_version')
-        if ($current -lt $script:SchemaVersion) {
-            _NonQuery -Conn $Conn -Sql `
-                'INSERT INTO schema_version(version, applied_utc) VALUES(@v, @t)' `
-                -P @{ '@v' = $script:SchemaVersion; '@t' = [datetime]::UtcNow.ToString('o') } | Out-Null
-        }
+            -P @{ '@v' = $script:SchemaVersion; '@t' = $nowUtc } | Out-Null
     }
 }
 

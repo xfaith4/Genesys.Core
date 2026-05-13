@@ -546,6 +546,30 @@ try {
         }
     }
 
+    SmokeCheck 'SMK-10A' 'Initialized database reports the current schema version and case-workflow tables' {
+        if (-not $dbAvailable) {
+            return [pscustomobject]@{
+                Result = 'SKIP'
+                Detail = $dbInitError
+            }
+        }
+
+        $conn = New-Object System.Data.SQLite.SQLiteConnection("Data Source=$dbPath;Version=3;")
+        $conn.Open()
+        try {
+            $versionCmd = New-Object System.Data.SQLite.SQLiteCommand('SELECT version FROM schema_version LIMIT 1', $conn)
+            $version = [int]$versionCmd.ExecuteScalar()
+            $tableRows = $conn.GetSchema('Tables') | Where-Object { $_.TABLE_TYPE -eq 'table' }
+            $tableNames = @($tableRows | Select-Object -ExpandProperty TABLE_NAME)
+            $required = @('cases','core_runs','imports','conversations','case_tags','bookmarks','findings','saved_views','report_snapshots','case_audit','conversation_versions')
+            $missingTables = @($required | Where-Object { $tableNames -notcontains $_ })
+            return ($version -eq 12) -and ($missingTables.Count -eq 0)
+        } finally {
+            $conn.Close()
+            $conn.Dispose()
+        }
+    }
+
     if ($dbAvailable) {
         SmokeCheck 'SMK-11' 'Import-RunFolderToCase imports a synthetic run into the case store' {
             $caseId = New-Case -Name 'Smoke Case' -Description 'Runtime smoke'

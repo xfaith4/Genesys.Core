@@ -342,6 +342,34 @@ function _Dispatch {
     $script:Window.Dispatcher.Invoke([System.Action]$Action)
 }
 
+function _AsObservableCollection {
+    param([object]$Items)
+
+    $collection = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    if ($null -eq $Items) { return ,$collection }
+
+    if ($Items -is [string] -or $Items -isnot [System.Collections.IEnumerable]) {
+        $collection.Add($Items)
+        return ,$collection
+    }
+
+    foreach ($item in @($Items)) {
+        $collection.Add($item)
+    }
+
+    return ,$collection
+}
+
+function _SetItemsSource {
+    param(
+        [object]$Control,
+        [object]$Items
+    )
+
+    if ($null -eq $Control) { return }
+    $Control.ItemsSource = (_AsObservableCollection -Items $Items)
+}
+
 # ── Visual-tree helper ────────────────────────────────────────────────────────
 
 function _FindVisualChildren {
@@ -1824,7 +1852,7 @@ function _PopulateQueuePerfDivisionFilter {
         $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
         $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
         foreach ($d in $divRows) { $items.Add($d) }
-        $script:CmbQueuePerfDivision.ItemsSource = $items
+        _SetItemsSource -Control $script:CmbQueuePerfDivision -Items $items
         $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
         $script:CmbQueuePerfDivision.SelectedIndex = 0
         return
@@ -1855,7 +1883,7 @@ function _PopulateQueuePerfDivisionFilter {
     $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
     foreach ($d in $divRows) { $items.Add($d) }
 
-    $script:CmbQueuePerfDivision.ItemsSource   = $items
+    _SetItemsSource -Control $script:CmbQueuePerfDivision -Items $items
     $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
     $script:CmbQueuePerfDivision.SelectedIndex = 0
 
@@ -1949,7 +1977,7 @@ function _RenderQueuePerfGrid {
             ServiceLevelPct = [string]("{0:F1}" -f [double]($r.service_level_pct))
         })
     }
-    $script:DgQueuePerf.ItemsSource = $displayRows
+    _SetItemsSource -Control $script:DgQueuePerf -Items $displayRows
 
     # Update summary bar
     $script:LblQPerfQueues.Text     = [string]($summary.TotalQueues)
@@ -2119,7 +2147,7 @@ function _PopulateAgentPerfDivisionFilter {
         $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
         $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
         foreach ($d in $divRows) { $items.Add($d) }
-        $script:CmbAgentPerfDivision.ItemsSource = $items
+        _SetItemsSource -Control $script:CmbAgentPerfDivision -Items $items
         $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
         $script:CmbAgentPerfDivision.SelectedIndex = 0
         return
@@ -2147,7 +2175,7 @@ function _PopulateAgentPerfDivisionFilter {
     $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
     foreach ($d in $divRows) { $items.Add($d) }
 
-    $script:CmbAgentPerfDivision.ItemsSource       = $items
+    _SetItemsSource -Control $script:CmbAgentPerfDivision -Items $items
     $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
     $script:CmbAgentPerfDivision.SelectedIndex     = 0
 
@@ -2249,7 +2277,7 @@ function _RenderAgentPerfGrid {
             IdleRatioPct  = [string]("{0:F1}" -f [double]($r.idle_ratio_pct))
         })
     }
-    $script:DgAgentPerf.ItemsSource = $displayRows
+    _SetItemsSource -Control $script:DgAgentPerf -Items $displayRows
 
     # Update summary bar
     $script:LblAPerfAgents.Text    = [string]($summary.TotalAgents)
@@ -2498,7 +2526,7 @@ function _RenderTransferGrid {
             PctOfTotalOffered = [string]("{0:F1}" -f [double]($r.pct_of_total_offered))
         })
     }
-    $script:DgTransferFlows.ItemsSource = $flowRows
+    _SetItemsSource -Control $script:DgTransferFlows -Items $flowRows
 
     $destAgg = @{}
     foreach ($r in $flows) {
@@ -2520,7 +2548,7 @@ function _RenderTransferGrid {
             PctOfTotalOffered = [string]("{0:F1}" -f [double]$d.Percent)
         })
     }
-    $script:DgTransferDestinations.ItemsSource = $destRows
+    _SetItemsSource -Control $script:DgTransferDestinations -Items $destRows
 
     $chainRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($c in $chains) {
@@ -2534,7 +2562,7 @@ function _RenderTransferGrid {
             HasConsultTransfer   = if ([int]($c.has_consult_transfer) -eq 1) { 'Yes' } else { '' }
         })
     }
-    $script:DgTransferChains.ItemsSource = $chainRows
+    _SetItemsSource -Control $script:DgTransferChains -Items $chainRows
 
     $script:LblXferFlows.Text     = [string]($summary.TotalFlows)
     $script:LblXferTransfers.Text = [string]($summary.TotalTransfers)
@@ -2812,7 +2840,7 @@ function _RenderFlowContainmentGrid {
     }
 
     if ($null -ne $script:DgFlowPerf) {
-        $script:DgFlowPerf.ItemsSource = $displayRows
+        _SetItemsSource -Control $script:DgFlowPerf -Items $displayRows
         if ($displayRows.Count -gt 0) {
             $target = $displayRows[0]
             if ($previousFlowId) {
@@ -2860,7 +2888,7 @@ function _RenderSelectedFlowDetail {
                 PctOfEntries  = [string]("{0:F1}" -f [double]($m.pct_of_entries))
             })
         }
-        if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = $milestoneRows }
+        _SetItemsSource -Control $script:DgFlowMilestones -Items $milestoneRows
 
         $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
         foreach ($q in $queues) {
@@ -2869,7 +2897,7 @@ function _RenderSelectedFlowDetail {
                 ConversationCount = [int]   ($q.ConversationCount)
             })
         }
-        if ($null -ne $script:DgFlowQueues) { $script:DgFlowQueues.ItemsSource = $queueRows }
+        _SetItemsSource -Control $script:DgFlowQueues -Items $queueRows
         return
     }
 
@@ -2910,7 +2938,7 @@ function _RenderSelectedFlowDetail {
             PctOfEntries  = [string]("{0:F1}" -f [double]($m.pct_of_entries))
         })
     }
-    if ($null -ne $script:DgFlowMilestones) { $script:DgFlowMilestones.ItemsSource = $milestoneRows }
+    _SetItemsSource -Control $script:DgFlowMilestones -Items $milestoneRows
 
     $queueRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($q in $queues) {
@@ -2919,7 +2947,7 @@ function _RenderSelectedFlowDetail {
             ConversationCount = [int]   ($q.ConversationCount)
         })
     }
-    if ($null -ne $script:DgFlowQueues) { $script:DgFlowQueues.ItemsSource = $queueRows }
+    _SetItemsSource -Control $script:DgFlowQueues -Items $queueRows
 }
 
 function _ClearWrapupGrid {
@@ -3154,7 +3182,7 @@ function _RenderWrapupGrid {
     }
 
     if ($null -ne $script:DgWrapupCodes) {
-        $script:DgWrapupCodes.ItemsSource = $displayRows
+        _SetItemsSource -Control $script:DgWrapupCodes -Items $displayRows
         if ($displayRows.Count -gt 0) {
             $target = $displayRows[0]
             if ($previousCodeId) {
@@ -3208,7 +3236,7 @@ function _RenderWrapupGrid {
         }
         $hourDisplay.Add([pscustomobject]$entry)
     }
-    if ($null -ne $script:DgWrapupByHour) { $script:DgWrapupByHour.ItemsSource = $hourDisplay }
+    _SetItemsSource -Control $script:DgWrapupByHour -Items $hourDisplay
 
     $insightRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($i in $insights) {
@@ -3219,7 +3247,7 @@ function _RenderWrapupGrid {
             NConnectedTotal    = [int]   ($i.NConnectedTotal)
         })
     }
-    if ($null -ne $script:DgWrapupInsights) { $script:DgWrapupInsights.ItemsSource = $insightRows }
+    _SetItemsSource -Control $script:DgWrapupInsights -Items $insightRows
 
     $crossRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($c in $crossRef) {
@@ -3230,7 +3258,7 @@ function _RenderWrapupGrid {
             MedianSegmentCount = [string]("{0:F1}" -f [double]($c.MedianSegmentCount))
         })
     }
-    if ($null -ne $script:DgWrapupCrossRef) { $script:DgWrapupCrossRef.ItemsSource = $crossRows }
+    _SetItemsSource -Control $script:DgWrapupCrossRef -Items $crossRows
 
     _RenderSelectedWrapupDetail
 }
@@ -3259,7 +3287,7 @@ function _RenderSelectedWrapupDetail {
                 PctOfOrgTotal   = [string]("{0:F1}" -f [double]($q.pct_of_org_total))
             })
         }
-        if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
+        _SetItemsSource -Control $script:DgWrapupByQueue -Items $queueRows
         return
     }
 
@@ -3299,7 +3327,7 @@ function _RenderSelectedWrapupDetail {
             PctOfOrgTotal   = [string]("{0:F1}" -f [double]($q.pct_of_org_total))
         })
     }
-    if ($null -ne $script:DgWrapupByQueue) { $script:DgWrapupByQueue.ItemsSource = $queueRows }
+    _SetItemsSource -Control $script:DgWrapupByQueue -Items $queueRows
 }
 
 function _PopulateTrendDivisionFilter {
@@ -3315,7 +3343,7 @@ function _PopulateTrendDivisionFilter {
         $items = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
         $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
         foreach ($d in $divRows) { $items.Add($d) }
-        $script:CmbTrendDivision.ItemsSource = $items
+        _SetItemsSource -Control $script:CmbTrendDivision -Items $items
         $script:CmbTrendDivision.DisplayMemberPath = 'Name'
         $script:CmbTrendDivision.SelectedIndex = 0
         return
@@ -3343,7 +3371,7 @@ function _PopulateTrendDivisionFilter {
     $items.Add([pscustomobject]@{ DivisionId = ''; Name = '(All divisions)' })
     foreach ($d in $divRows) { $items.Add($d) }
 
-    $script:CmbTrendDivision.ItemsSource = $items
+    _SetItemsSource -Control $script:CmbTrendDivision -Items $items
     $script:CmbTrendDivision.DisplayMemberPath = 'Name'
     $script:CmbTrendDivision.SelectedIndex = 0
 
@@ -3586,23 +3614,30 @@ function _RenderTrendGrid {
             IntervalStart          = [string]$row.IntervalStart
         })
     }
-    if ($null -ne $script:DgTrendComparison) { $script:DgTrendComparison.ItemsSource = $comparisonRows }
+    _SetItemsSource -Control $script:DgTrendComparison -Items $comparisonRows
 
-    $leaderProjection = {
-        param($leaderRows)
-        $collection = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
-        foreach ($row in @($leaderRows)) {
-            $collection.Add([pscustomobject]@{
-                QueueName            = [string]$row.QueueName
-                DeltaAbandonPct      = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaAbandonPct
-                DeltaServiceLevelPct = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaServiceLevelPct
-                DeltaHandleSec       = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaHandleSec
-            })
-        }
-        return $collection
+    $regressionRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in @($regressions)) {
+        $regressionRows.Add([pscustomobject]@{
+            QueueName            = [string]$row.QueueName
+            DeltaAbandonPct      = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaAbandonPct
+            DeltaServiceLevelPct = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaServiceLevelPct
+            DeltaHandleSec       = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaHandleSec
+        })
     }
-    if ($null -ne $script:DgTrendRegressions)  { $script:DgTrendRegressions.ItemsSource = & $leaderProjection $regressions }
-    if ($null -ne $script:DgTrendImprovements) { $script:DgTrendImprovements.ItemsSource = & $leaderProjection $improvements }
+
+    $improvementRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($row in @($improvements)) {
+        $improvementRows.Add([pscustomobject]@{
+            QueueName            = [string]$row.QueueName
+            DeltaAbandonPct      = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaAbandonPct
+            DeltaServiceLevelPct = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaServiceLevelPct
+            DeltaHandleSec       = '{0:+0.0;-0.0;0.0}' -f [double]$row.DeltaHandleSec
+        })
+    }
+
+    _SetItemsSource -Control $script:DgTrendRegressions -Items $regressionRows
+    _SetItemsSource -Control $script:DgTrendImprovements -Items $improvementRows
 
     $windows = @($summary.Windows)
     $windowA = @($windows | Where-Object { [string]$_.Label -eq 'A' } | Select-Object -First 1)
@@ -4041,7 +4076,7 @@ function _RenderQualityGrid {
             AvgScore         = [string]("{0:F1}" -f [double]$row.AvgScore)
         })
     }
-    if ($null -ne $script:DgQualityAgentScores) { $script:DgQualityAgentScores.ItemsSource = $agentDisplay }
+    _SetItemsSource -Control $script:DgQualityAgentScores -Items $agentDisplay
 
     $queueDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($row in $queueRows) {
@@ -4055,7 +4090,7 @@ function _RenderQualityGrid {
             DetractorCount  = [int]   $row.DetractorCount
         })
     }
-    if ($null -ne $script:DgQualityQueues) { $script:DgQualityQueues.ItemsSource = $queueDisplay }
+    _SetItemsSource -Control $script:DgQualityQueues -Items $queueDisplay
 
     $lowDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($row in $lowRows) {
@@ -4070,7 +4105,7 @@ function _RenderQualityGrid {
             CompletedAt     = [string]$row.CompletedAt
         })
     }
-    if ($null -ne $script:DgLowScoreConversations) { $script:DgLowScoreConversations.ItemsSource = $lowDisplay }
+    _SetItemsSource -Control $script:DgLowScoreConversations -Items $lowDisplay
 
     $topicDisplay = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     foreach ($row in $topicRows) {
@@ -4080,7 +4115,7 @@ function _RenderQualityGrid {
             ConversationCount = [int]   $row.ConversationCount
         })
     }
-    if ($null -ne $script:DgLowScoreTopics) { $script:DgLowScoreTopics.ItemsSource = $topicDisplay }
+    _SetItemsSource -Control $script:DgLowScoreTopics -Items $topicDisplay
 }
 
 function _OpenLowScoreConversation {

@@ -24,7 +24,8 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Release 1.0 Agent Investigation Track B follow-up | complete | Evaluated the current roadmap pivot, hardened Agent Investigation composer edge cases, repaired fixture integration coverage, and synchronized roadmap/readiness/onboarding docs after 105 unit and 12 integration tests passed. |
 | Conversation investigation package review | complete | Hardened chronological conversation/SIP timeline generation, regenerated sample package, confirmed live command path, and reran package/full validation. |
 | Conversation package API PCAP export | complete | Removed the live `-SipTracePath` requirement, derived the analytics interval from `GET /api/v2/conversations/{conversationId}`, added SIP metadata/PCAP API export, regenerated the sample package, and reran targeted/full validation. |
-| Session 20 backend foundation | complete | Added the two-window trend pull/import layer, schema v12 comparison storage, delta view, ranking accessors, and exportable incident-impact summary. WPF Trend tab/chart work remains open. |
+| Session 20 temporal trend reporting | complete | Backend foundation and WPF Trend surface are now wired: two-window pull/import, comparison/delta accessors, regression/improvement panels, hourly overlay, incident-summary export, and case-date-range defaults. |
+| Release 1.3 Edge Alarms & Event Feed | complete | Added Edge log-job catalog datasets and exported `Get-GenesysEdgeEvent` as a normalized NOC feed over Edge, trunk, alert, and optional Edge log-job status signals. Live endpoint acceptance remains a separate Track A gate. |
 
 ## Current Task Scope
 

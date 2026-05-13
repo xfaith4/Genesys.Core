@@ -104,6 +104,7 @@
         'Get-GenesysTrunkMetrics'
         'Get-GenesysStation'
         'Get-GenesysEdgeHealthSnapshot'
+        'Get-GenesysEdgeEvent'
 
         # Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
         'Get-GenesysQueueAbandonRate'

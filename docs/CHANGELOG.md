@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-13
+
+### Added
+
+- **Release 1.3 Edge Alarms & Event Feed:**
+  - Added Edge log-job catalog datasets for creating a log job, reading log-job status, and requesting an upload from a specific Edge.
+  - Added `Get-GenesysEdgeEvent` to `Genesys.Ops`, normalizing Edge inventory, trunk state, active alerts, and optional Edge log-job status into a flat NOC feed.
+  - Added unit coverage for the NOC feed contract, Edge log-job dataset parameter forwarding, and the `-LogJobId`/`-EdgeId` guard.
+
+### Changed
+
+- Recorded Session 20 Trend UI as delivered after validating the WPF Trend tab, regression/improvement panels, hourly overlay, and case-date-range default wiring through the ConversationAnalyzer test harness.
+
 ## 2026-05-12
 
 ### Added

@@ -102,3 +102,12 @@
 - Extended `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` with trend-report architecture checks.
 - Validation passed for parser checks on `App.CoreAdapter.psm1` and `App.Database.psm1`, and the static/architecture portions of `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed with the new trend checks.
 - Full `Invoke-AllTests.ps1` currently still fails 11 existing DB runtime smoke checks (`SMK-11` through `SMK-19`); the new trend-report checks passed and the failing cases are outside this Session 20 backend slice.
+
+## 2026-05-13
+
+- Verified the existing Session 20 WPF Trend UI changes before advancing: `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed 268 PASS / 0 FAIL / 2 SKIP. The skips are the local WSL `e_sqlite3` native-library blocker for database runtime smoke checks.
+- Completed the next Release 1.3 roadmap slice: Edge Alarms & Event Feed.
+- Added Edge log-job catalog datasets for create/status/upload-request flows and exported `Get-GenesysEdgeEvent` from `Genesys.Ops`.
+- `Get-GenesysEdgeEvent` now returns a flat NOC feed over Edge offline/state concerns, trunk state concerns, active alerts, collector failures, and optional Edge log-job status via `telephony.get.edge.logs.job`.
+- Added unit coverage for the NOC feed contract, Edge log-job parameter forwarding, and the required `EdgeId` guard for `-LogJobId`.
+- Validation passed: catalog JSON parse, `Assert-Catalog`, parser checks for `Genesys.Ops.psm1` and `GenesysOps.Hardening.Tests.ps1`, `Invoke-Pester tests/unit/GenesysOps.Hardening.Tests.ps1` (40 PASS), and `scripts/Invoke-Tests.ps1 -Path tests/unit -IncludeIntegration -Output Normal` (157 unit PASS; 57 integration PASS / 1 SKIP for live catalog credentials).

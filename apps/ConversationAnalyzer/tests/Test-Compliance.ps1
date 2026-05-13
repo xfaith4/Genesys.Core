@@ -663,6 +663,13 @@ Check 'TRND-03' 'App.UI.ps1 wires Trend pull, render, export, and filter handler
     $uiContent -match 'BtnExportIncidentSummary\.Add_Click'
 }
 
+Check 'TRND-04' 'App.UI.ps1 seeds Trend windows from the main query range when Trend dates are blank' {
+    $uiContent -match 'function _TrySeedTrendWindowDefaults' -and
+    $uiContent -match 'function _SyncTrendWindowDefaultsFromQueryRange' -and
+    $uiContent -match 'DtpStartDate\.Add_SelectedDateChanged\(\{\s*_SyncTrendWindowDefaultsFromQueryRange' -and
+    $uiContent -match 'DtpEndDate\.Add_SelectedDateChanged\(\{\s*_SyncTrendWindowDefaultsFromQueryRange'
+}
+
 # ── INVESTIGATION WORKBENCH TRUST FOUNDATIONS (WB) ────────────────────────────
 
 Write-Host "`n=== INVESTIGATION WORKBENCH TRUST FOUNDATIONS ===" -ForegroundColor Cyan

@@ -605,13 +605,14 @@ Documentation: note that surveys require a post-call survey program configured i
 
 ## Session 20: Temporal Trend, Comparative Analysis, and Composite Roll-Ups
 
-> **Partial delivery (2026-05-12):** The backend foundation is now in place.
+> **Delivered (2026-05-13):** The backend foundation and WPF reporting surface are now in place.
 > `Get-TrendReport` pulls two queue-performance windows through Core,
 > `Import-TrendReport` persists them into `report_trend_windows` and
 > `report_trend_comparison`, the `report_trend_delta` view calculates the A→B
 > metric deltas, and the case store now exposes comparative accessors plus
-> `Export-IncidentImpactSummary`. The remaining work in this session is the
-> WPF Trend tab, regression/improvement panels, and the hourly overlay chart.
+> `Export-IncidentImpactSummary`. The WPF Trend tab now wires pull/import,
+> division filtering, regression/improvement panels, incident-summary export,
+> case-date-range defaults, and the hourly volume overlay.
 
 Scope: enable time-series analysis and before/after comparisons so investigators can answer "did this change after the incident?" and supervisors can answer "is this week better or worse than last week?" — both entirely from data already in the case store or from a targeted second pull through Core.
 
@@ -626,6 +627,8 @@ Task: add a "Trend" report tab. Show a side-by-side comparison grid: queue name,
 Task: add an "Hourly Volume" sub-view: pull hourly granularity from the aggregate datasets for both windows and render a dual-line chart overlay (Window A vs. Window B) for selected queues, showing volume and handle time across the day. Use WPF `Canvas` or a simple `Grid`-based bar chart rather than a charting library dependency.
 
 Task: add a composite "Incident Impact Summary" that assembles data already in the case store: total conversations in the case window, impacted queues ranked by volume, top 3 wrapup codes in the window, worst service level, and whether quality evaluation scores shifted between windows. This summary should be exportable as a single-page text report suitable for management briefing.
+
+Delivered: the Trend tab, regression/improvement grids, hourly volume overlay, incident-summary export, and case-date-range default wiring are implemented and covered by the ConversationAnalyzer static/runtime test harness.
 
 Validation: pull two windows around a known configuration change in a test org and verify the delta calculations are correct, the regression ranking identifies the expected queues, and the Incident Impact Summary exports cleanly.
 

@@ -3438,6 +3438,14 @@ function _TrySeedTrendWindowDefaults {
     return $true
 }
 
+function _SyncTrendWindowDefaultsFromQueryRange {
+    if (_TrySeedTrendWindowDefaults) {
+        if ($null -ne $script:TxtStatusRight) {
+            $script:TxtStatusRight.Text = 'Trend windows seeded from query range'
+        }
+    }
+}
+
 function _DrawTrendHourlyVolume {
     param([object[]]$Rows)
 
@@ -5586,6 +5594,7 @@ function _ApplyQueryTemplate {
     $script:DtpEndDate.SelectedDate   = $yesterday
     $script:TxtStartTime.Text = '00:00:00'
     $script:TxtEndTime.Text   = '23:59:59'
+    _SyncTrendWindowDefaultsFromQueryRange
 
     $queueText = if ($isQueueGroup -and $null -ne $script:TxtTemplateQueueGroup) {
         $script:TxtTemplateQueueGroup.Text.Trim()
@@ -7270,6 +7279,7 @@ if ($null -ne $script:TxtFilterAgent) {
 
 # Date/time range pickers – refresh server-side grid when selection changes (no-op in index mode)
 $script:DtpStartDate.Add_SelectedDateChanged({
+    _SyncTrendWindowDefaultsFromQueryRange
     if ($script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
@@ -7277,6 +7287,7 @@ $script:DtpStartDate.Add_SelectedDateChanged({
 })
 
 $script:DtpEndDate.Add_SelectedDateChanged({
+    _SyncTrendWindowDefaultsFromQueryRange
     if ($script:State.DataSource -eq 'database') {
         $script:State.CurrentPage = 1
         _ApplyFiltersAndRefresh
@@ -7411,6 +7422,7 @@ if ($cfg.LastEndDate) {
 }
 $script:TxtStartTime.Text = if ([string]::IsNullOrWhiteSpace([string]$cfg.LastStartTime)) { '00:00:00' } else { [string]$cfg.LastStartTime }
 $script:TxtEndTime.Text   = if ([string]::IsNullOrWhiteSpace([string]$cfg.LastEndTime))   { '23:59:59' } else { [string]$cfg.LastEndTime }
+_SyncTrendWindowDefaultsFromQueryRange
 
 _RefreshRecentRuns
 _RefreshActiveCaseStatus

@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-05-12
+> Last updated: 2026-05-13
 
 ## 1. Product Intent
 
@@ -349,16 +349,19 @@ with the composition contract.
 **Goal:** Add deferred visibility features once the composition layer is
 established and proven across all three flagships.
 
-- [ ] Idea 5 — Edge Alarms & Event Feed (catalog endpoint
-      `telephony.get.edge.logs`, `Get-GenesysEdgeEvent` Ops cmdlet, NOC feed
-      contract).
+- [x] Idea 5 — Edge Alarms & Event Feed: added Edge log-job catalog datasets
+      (`telephony.create.edge.logs.job`, `telephony.get.edge.logs.job`,
+      `telephony.request.edge.logs.job.upload`) and the exported
+      `Get-GenesysEdgeEvent` Ops cmdlet, which normalizes Edge, trunk, alert,
+      and optional Edge log-job status into a NOC feed contract. Live endpoint
+      acceptance remains covered by the Track A live-validation gate.
 - [ ] Session 20 — Temporal Trend and Comparative Reporting
       (period-over-period comparisons on Core aggregate outputs and on
       investigation outputs).
   - [x] Backend foundation: `Get-TrendReport`, `Import-TrendReport`,
         `report_trend_comparison`, `report_trend_delta`, comparative query
         helpers, and `Export-IncidentImpactSummary`.
-  - [ ] WPF Trend tab, regression/improvement panels, hourly overlay chart,
+  - [x] WPF Trend tab, regression/improvement panels, hourly overlay chart,
         and case-date-range configuration wiring.
 - [x] Flagship investigation visibility extensions: Agent routing/utilization,
       Conversation survey enrichment, Queue transfer/wrap-up context, and

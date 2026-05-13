@@ -548,6 +548,81 @@ Describe 'Export-GenesysConfigurationSnapshot — partial success' {
 }
 
 # ---------------------------------------------------------------------------
+Describe 'Get-GenesysEdgeEvent — NOC feed contract' {
+
+    It 'normalizes edge, trunk, and alert concerns while omitting healthy inventory by default' {
+        InModuleScope 'Genesys.Ops' {
+            $script:GC = @{ Connected = $true; CatalogPath = $null }
+
+            function script:Get-GenesysEdge {
+                @(
+                    [PSCustomObject]@{ id = 'edge-1'; name = 'Edge One'; onlineStatus = 'OFFLINE'; state = 'ACTIVE' }
+                    [PSCustomObject]@{ id = 'edge-2'; name = 'Edge Two'; onlineStatus = 'ONLINE';  state = 'ACTIVE' }
+                )
+            }
+            function script:Get-GenesysTrunk {
+                @(
+                    [PSCustomObject]@{
+                        id = 'trunk-1'
+                        name = 'Trunk One'
+                        state = 'INACTIVE'
+                        inService = $false
+                        edge = [PSCustomObject]@{ id = 'edge-1' }
+                    }
+                )
+            }
+            function script:Get-GenesysAlert {
+                @([PSCustomObject]@{ id = 'alert-1'; name = 'Telephony Alert'; endDate = $null })
+            }
+
+            $events = @(Get-GenesysEdgeEvent)
+
+            $events.EventType | Should -Contain 'EdgeOffline'
+            $events.EventType | Should -Contain 'TrunkState'
+            $events.EventType | Should -Contain 'ActiveAlert'
+            $events.EventType | Should -Not -Contain 'EdgeHealthy'
+            ($events | Where-Object EventType -eq 'EdgeOffline').Severity | Should -Be 'Critical'
+        }
+    }
+
+    It 'adds Edge log-job status records through the catalog dataset contract' {
+        InModuleScope 'Genesys.Ops' {
+            $script:GC = @{ Connected = $true; CatalogPath = $null }
+            $script:CapturedEdgeLogDataset = $null
+            $script:CapturedEdgeLogParameters = $null
+
+            function script:Get-GenesysEdge { @() }
+            function script:Get-GenesysTrunk { @() }
+            function script:Get-GenesysAlert { @() }
+            function script:Invoke-GenesysDataset {
+                param(
+                    [string] $Dataset,
+                    [hashtable] $DatasetParameters
+                )
+
+                $script:CapturedEdgeLogDataset = $Dataset
+                $script:CapturedEdgeLogParameters = $DatasetParameters
+                @([PSCustomObject]@{ id = 'job-1'; status = 'COMPLETE' })
+            }
+
+            $events = @(Get-GenesysEdgeEvent -EdgeId 'edge-1' -LogJobId 'job-1')
+
+            $script:CapturedEdgeLogDataset | Should -Be 'telephony.get.edge.logs.job'
+            $script:CapturedEdgeLogParameters.Query.edgeId | Should -Be 'edge-1'
+            $script:CapturedEdgeLogParameters.Query.jobId | Should -Be 'job-1'
+            ($events | Where-Object EventType -eq 'EdgeLogJob').Status | Should -Be 'COMPLETE'
+        }
+    }
+
+    It 'requires EdgeId when querying an Edge log job' {
+        InModuleScope 'Genesys.Ops' {
+            $script:GC = @{ Connected = $true; CatalogPath = $null }
+            { Get-GenesysEdgeEvent -LogJobId 'job-1' } | Should -Throw '*EdgeId is required*'
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 Describe 'Agent investigation step definitions — catalog key validation' {
 
     It 'all step DatasetKey values exist in the active catalog' {

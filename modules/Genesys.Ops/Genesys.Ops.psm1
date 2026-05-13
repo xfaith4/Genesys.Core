@@ -3111,6 +3111,182 @@ function Get-GenesysEdgeHealthSnapshot {
     }
 }
 
+function Get-GenesysEdgeEvent {
+    <#
+    .SYNOPSIS
+        Returns a normalized NOC event feed for Edge, trunk, alert, and Edge log-job signals.
+    .DESCRIPTION
+        Combines existing Edge inventory, SIP trunk state, active Genesys alerting,
+        and optional Edge log-job status into one operator-facing feed. The output
+        shape is intentionally flat so it can be sent to dashboards, CSV exports,
+        or monitoring automation without each caller learning the raw endpoint
+        shapes.
+
+        The default output includes only concerning signals. Use -IncludeHealthy
+        when a full inventory/status feed is needed.
+    .PARAMETER EdgeId
+        Optional one-or-more Edge IDs used to scope Edge/trunk events and Edge
+        log-job status checks.
+    .PARAMETER LogJobId
+        Optional Edge logs job ID. When supplied, EdgeId is required and the
+        cmdlet adds log-job status records by calling telephony.get.edge.logs.job.
+    .PARAMETER IncludeHealthy
+        Include healthy Edge and trunk inventory records in addition to warning
+        and critical events.
+    .EXAMPLE
+        Get-GenesysEdgeEvent | Sort-Object Severity, SourceType, SourceName
+    .EXAMPLE
+        Get-GenesysEdgeEvent -EdgeId 'edge-123' -LogJobId 'job-456'
+    #>
+    [CmdletBinding()]
+    param(
+        [string[]] $EdgeId,
+        [string] $LogJobId,
+        [switch] $IncludeHealthy
+    )
+
+    Assert-GenesysConnected
+
+    $observedUtc = [DateTime]::UtcNow.ToString('o')
+    $events = [System.Collections.Generic.List[object]]::new()
+    $edgeFilter = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($id in @($EdgeId)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$id)) {
+            $edgeFilter.Add([string]$id) | Out-Null
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LogJobId) -and $edgeFilter.Count -eq 0) {
+        throw 'EdgeId is required when LogJobId is provided.'
+    }
+
+    $newEvent = {
+        param(
+            [string] $Severity,
+            [string] $EventType,
+            [string] $SourceType,
+            [string] $SourceId,
+            [string] $SourceName,
+            [string] $Status,
+            [string] $Message,
+            [object] $Details
+        )
+
+        [PSCustomObject][ordered]@{
+            ObservedUtc = $observedUtc
+            Severity    = $Severity
+            EventType   = $EventType
+            SourceType  = $SourceType
+            SourceId    = $SourceId
+            SourceName  = $SourceName
+            Status      = $Status
+            Message     = $Message
+            Details     = $Details
+        }
+    }
+
+    try {
+        foreach ($edge in @(Get-GenesysEdge)) {
+            $id = [string](Get-PropertyValue $edge 'id' '')
+            if ($edgeFilter.Count -gt 0 -and -not $edgeFilter.Contains($id)) { continue }
+
+            $name = [string](Get-PropertyValue $edge 'name' $id)
+            $onlineStatus = [string](Get-PropertyValue $edge 'onlineStatus' '')
+            $state = [string](Get-PropertyValue $edge 'state' '')
+            $isOffline = -not [string]::IsNullOrWhiteSpace($onlineStatus) -and $onlineStatus -ne 'ONLINE'
+            $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
+
+            if ($isOffline) {
+                $events.Add((& $newEvent 'Critical' 'EdgeOffline' 'edge' $id $name $onlineStatus "Edge '$name' is not online ($onlineStatus)." $edge)) | Out-Null
+                continue
+            }
+
+            if ($isInactive) {
+                $events.Add((& $newEvent 'Warning' 'EdgeState' 'edge' $id $name $state "Edge '$name' is not active ($state)." $edge)) | Out-Null
+                continue
+            }
+
+            if ($IncludeHealthy) {
+                $status = if (-not [string]::IsNullOrWhiteSpace($onlineStatus)) { $onlineStatus } else { $state }
+                $events.Add((& $newEvent 'Info' 'EdgeHealthy' 'edge' $id $name $status "Edge '$name' is healthy." $edge)) | Out-Null
+            }
+        }
+    }
+    catch {
+        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edge' '' 'Get-GenesysEdge' 'Failed' "Edge inventory collection failed: $($_.Exception.Message)" $null)) | Out-Null
+    }
+
+    try {
+        foreach ($trunk in @(Get-GenesysTrunk)) {
+            $trunkEdgeId = [string](Get-NestedPropertyValue $trunk 'edge.id' '')
+            if ([string]::IsNullOrWhiteSpace($trunkEdgeId)) {
+                $trunkEdgeId = [string](Get-PropertyValue $trunk 'edgeId' '')
+            }
+            if ($edgeFilter.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($trunkEdgeId) -and -not $edgeFilter.Contains($trunkEdgeId)) { continue }
+
+            $id = [string](Get-PropertyValue $trunk 'id' '')
+            $name = [string](Get-PropertyValue $trunk 'name' $id)
+            $state = [string](Get-PropertyValue $trunk 'state' '')
+            $inService = Get-PropertyValue $trunk 'inService' $null
+            $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
+            $isOutOfService = $null -ne $inService -and [bool]$inService -eq $false
+
+            if ($isInactive -or $isOutOfService) {
+                $statusParts = @()
+                if (-not [string]::IsNullOrWhiteSpace($state)) { $statusParts += $state }
+                if ($null -ne $inService) { $statusParts += "inService=$inService" }
+                $status = if ($statusParts.Count -gt 0) { $statusParts -join '; ' } else { 'Unknown' }
+                $events.Add((& $newEvent 'Warning' 'TrunkState' 'trunk' $id $name $status "Trunk '$name' needs attention ($status)." $trunk)) | Out-Null
+                continue
+            }
+
+            if ($IncludeHealthy) {
+                $status = if (-not [string]::IsNullOrWhiteSpace($state)) { $state } else { 'Healthy' }
+                $events.Add((& $newEvent 'Info' 'TrunkHealthy' 'trunk' $id $name $status "Trunk '$name' is healthy." $trunk)) | Out-Null
+            }
+        }
+    }
+    catch {
+        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'trunk' '' 'Get-GenesysTrunk' 'Failed' "Trunk collection failed: $($_.Exception.Message)" $null)) | Out-Null
+    }
+
+    try {
+        foreach ($alert in @(Get-GenesysAlert)) {
+            $endDate = Get-PropertyValue $alert 'endDate' $null
+            if ($null -ne $endDate -and -not $IncludeHealthy) { continue }
+
+            $id = [string](Get-PropertyValue $alert 'id' '')
+            $name = [string](Get-PropertyValue $alert 'name' $id)
+            $status = if ($null -eq $endDate) { 'ACTIVE' } else { 'CLEARED' }
+            $severity = if ($status -eq 'ACTIVE') { 'Warning' } else { 'Info' }
+            $events.Add((& $newEvent $severity 'ActiveAlert' 'alert' $id $name $status "Alert '$name' is $status." $alert)) | Out-Null
+        }
+    }
+    catch {
+        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'alert' '' 'Get-GenesysAlert' 'Failed' "Alert collection failed: $($_.Exception.Message)" $null)) | Out-Null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LogJobId)) {
+        foreach ($id in @($EdgeId)) {
+            if ([string]::IsNullOrWhiteSpace([string]$id)) { continue }
+            try {
+                $records = @(Invoke-GenesysDataset -Dataset 'telephony.get.edge.logs.job' -DatasetParameters @{ Query = @{ edgeId = [string]$id; jobId = $LogJobId } })
+                foreach ($record in $records) {
+                    $status = [string](Get-PropertyValue $record 'status' '')
+                    if ([string]::IsNullOrWhiteSpace($status)) { $status = [string](Get-PropertyValue $record 'state' '') }
+                    if ([string]::IsNullOrWhiteSpace($status)) { $status = 'Unknown' }
+                    $events.Add((& $newEvent 'Info' 'EdgeLogJob' 'edgeLogJob' $LogJobId $LogJobId $status "Edge log job '$LogJobId' for Edge '$id' is $status." $record)) | Out-Null
+                }
+            }
+            catch {
+                $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edgeLogJob' $LogJobId $LogJobId 'Failed' "Edge log job '$LogJobId' collection failed for Edge '$id': $($_.Exception.Message)" $null)) | Out-Null
+            }
+        }
+    }
+
+    return $events.ToArray()
+}
+
 #endregion
 
 # ---------------------------------------------------------------------------
@@ -5418,6 +5594,7 @@ function Test-GenesysOpsDatasetCoverage {
         @{ Function = 'Get-GenesysTrunk';                   Dataset = 'telephony.get.trunks' }
         @{ Function = 'Get-GenesysTrunkMetrics';            Dataset = 'telephony.get.trunk.metrics.summary' }
         @{ Function = 'Get-GenesysStation';                 Dataset = 'stations.get.stations' }
+        @{ Function = 'Get-GenesysEdgeEvent';               Dataset = '(composite)'; Composite = $true }
         @{ Function = 'Get-GenesysQueueAbandonRate';        Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
         @{ Function = 'Get-GenesysQueueServiceLevel';       Dataset = 'analytics.query.queue.aggregates.service.level'; DefaultBody = $true }
         @{ Function = 'Get-GenesysTransferAnalysis';        Dataset = 'analytics.query.conversation.aggregates.transfer.metrics'; DefaultBody = $true }

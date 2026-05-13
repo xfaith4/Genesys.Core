@@ -395,6 +395,13 @@ ArchCheck 'ARCH-42C' 'Database exposes incident impact summary and export functi
     $database -match 'report_trend_windows'
 }
 
+ArchCheck 'ARCH-42D' 'Trend UI seeds comparison windows from the main query range before pull' {
+    $uiPs -match 'function _TrySeedTrendWindowDefaults' -and
+    $uiPs -match 'function _SyncTrendWindowDefaultsFromQueryRange' -and
+    $uiPs -match 'DtpStartDate\.Add_SelectedDateChanged\(\{\s*_SyncTrendWindowDefaultsFromQueryRange' -and
+    $uiPs -match 'DtpEndDate\.Add_SelectedDateChanged\(\{\s*_SyncTrendWindowDefaultsFromQueryRange'
+}
+
 Write-Host "`n--- Flow and IVR containment reporting ---" -ForegroundColor DarkCyan
 
 ArchCheck 'ARCH-43' 'CoreAdapter exposes flow containment pulls without UI direct dataset access' {

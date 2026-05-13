@@ -716,6 +716,42 @@
         "profile": "rateLimitAware"
       }
     },
+    "telephony.create.edge.logs.job": {
+      "description": "Create an Edge logs job for a specific Edge appliance.",
+      "endpoint": "postTelephonyProvidersEdgeLogsJobs",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.edge.logs.job": {
+      "description": "Get status and metadata for a specific Edge logs job.",
+      "endpoint": "getTelephonyProvidersEdgeLogsJob",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.request.edge.logs.job.upload": {
+      "description": "Request upload for selected files from an Edge logs job.",
+      "endpoint": "postTelephonyProvidersEdgeLogsJobUpload",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
     "stations.get.stations": {
       "description": "List all station registrations (phones/softphones) and statuses.",
       "endpoint": "stations.get.stations",

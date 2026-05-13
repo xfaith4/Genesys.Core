@@ -37,7 +37,7 @@
     Genesys Cloud OAuth2 Client Secret.  Accepts [SecureString].
 
 .PARAMETER Year
-    Target year (default: current year).
+    Target year (default: previous calendar month's year).
 
 .PARAMETER Month
     Target month 1-12 (default: previous month).
@@ -63,6 +63,9 @@
     Contacts abandoned within this many seconds are classified as short/erroneous.
     Default: 5.
 
+.PARAMETER ConcurrencyGranularity
+    Granularity used for the voice concurrent-call peak scan. Default: PT15M.
+
 .PARAMETER JobPollIntervalSec
     Seconds between async job status polls.  Default: 5.
 
@@ -85,7 +88,7 @@
 param(
     [Parameter(Mandatory)][string]   $ClientId,
     [Parameter(Mandatory)][System.Security.SecureString] $ClientSecret,
-    [ValidateRange(2000,2099)][int]  $Year                     = (Get-Date).Year,
+    [ValidateRange(2000,2099)][int]  $Year                     = (Get-Date).AddMonths(-1).Year,
     [ValidateRange(1,12)]    [int]   $Month                    = (Get-Date).AddMonths(-1).Month,
     [string] $Region                   = 'usw2.pure.cloud',
     [string] $OutputPath               = '.',
@@ -93,6 +96,8 @@ param(
     [int]    $ServiceLevelThresholdSec = 20,
     [int]    $OccupancyWarningPct      = 88,
     [int]    $ShortAbandonSec          = 5,
+    [ValidatePattern('^P(?:\d+D|\d+M|T\d+[HMS])$')]
+    [string] $ConcurrencyGranularity   = 'PT15M',
     [int]    $JobPollIntervalSec       = 5,
     [int]    $JobTimeoutSec            = 300
 )
@@ -119,6 +124,33 @@ function Write-Log {
     $ts    = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $color = @{ INFO='Cyan'; WARN='Yellow'; ERROR='Red'; OK='Green' }[$Level]
     Write-Host "[$ts][$Level] $Message" -ForegroundColor ($color ?? 'White')
+}
+
+function Get-ObjectPropertyValue {
+    param($InputObject, [string]$Name, $Default = $null)
+    if ($null -eq $InputObject -or [string]::IsNullOrWhiteSpace($Name)) { return $Default }
+    if ($InputObject -is [System.Collections.IDictionary] -and $InputObject.Contains($Name)) {
+        $value = $InputObject[$Name]
+        if ($null -ne $value) { return $value }
+        return $Default
+    }
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -ne $property -and $null -ne $property.Value) { return $property.Value }
+    return $Default
+}
+
+function Get-ResponseResults {
+    param($Response)
+    return @(Get-ObjectPropertyValue $Response 'results' @())
+}
+
+function Get-IntervalStartText {
+    param($InputObject)
+    $interval = [string](Get-ObjectPropertyValue $InputObject 'Interval' '')
+    if ([string]::IsNullOrWhiteSpace($interval)) { return '' }
+    $start = @($interval -split '/', 2)[0]
+    if ($start.Length -ge 10) { return $start.Substring(0, 10) }
+    return $start
 }
 
 function Invoke-GenesysApi {
@@ -162,8 +194,14 @@ function Get-PagedResults {
     $next = $Uri
     do {
         $page = Invoke-GenesysApi -Uri $next -Headers $Headers
-        if ($page.entities) { $page.entities | ForEach-Object { $all.Add($_) } }
-        $next = $page.nextUri ?? $page.pageLinks?.nextUri
+        foreach ($entity in @((Get-ObjectPropertyValue $page 'entities' @()))) {
+            if ($null -ne $entity) { $all.Add($entity) }
+        }
+        $next = Get-ObjectPropertyValue $page 'nextUri' $null
+        if (-not $next) {
+            $pageLinks = Get-ObjectPropertyValue $page 'pageLinks' $null
+            $next = Get-ObjectPropertyValue $pageLinks 'nextUri' $null
+        }
     } while ($next)
     return $all
 }
@@ -174,32 +212,44 @@ function Wait-GenesysJob {
     do {
         Start-Sleep -Seconds $JobPollIntervalSec
         $job = Invoke-GenesysApi -Uri $JobStatusUri -Headers $Headers
-        Write-Log "  Job status: $($job.state)" 'INFO'
-        if ($job.state -eq 'FAILED') { throw "Async job failed: $($job.error?.message)" }
-    } while ($job.state -ne 'COMPLETED' -and (Get-Date) -lt $deadline)
-    if ($job.state -ne 'COMPLETED') { throw "Job timed out after ${JobTimeoutSec}s" }
+        $state = Get-ObjectPropertyValue $job 'state' ''
+        Write-Log "  Job status: $state" 'INFO'
+        if ($state -eq 'FAILED') {
+            $errorInfo = Get-ObjectPropertyValue $job 'error' $null
+            $errorMessage = Get-ObjectPropertyValue $errorInfo 'message' 'no error message returned'
+            throw "Async job failed: $errorMessage"
+        }
+    } while ($state -ne 'COMPLETED' -and (Get-Date) -lt $deadline)
+    if ($state -ne 'COMPLETED') { throw "Job timed out after ${JobTimeoutSec}s" }
     return $job
 }
 
 function Expand-MetricStats {
     param($Results, [string]$Source)
     $rows = [System.Collections.Generic.List[PSCustomObject]]::new()
-    foreach ($r in $Results) {
+    foreach ($r in @($Results)) {
+        if ($null -eq $r) { continue }
         $gp = @{}
-        if ($r.group) {
-            $r.group.PSObject.Properties | ForEach-Object { $gp[$_.Name] = $_.Value }
+        $group = Get-ObjectPropertyValue $r 'group' $null
+        if ($group) {
+            $group.PSObject.Properties | ForEach-Object { $gp[$_.Name] = $_.Value }
         }
-        foreach ($d in $r.data) {
-            foreach ($m in $d.metrics) {
-                $row = [ordered]@{ Source = $Source; Interval = $d.interval }
+        foreach ($d in @((Get-ObjectPropertyValue $r 'data' @()))) {
+            if ($null -eq $d) { continue }
+            foreach ($m in @((Get-ObjectPropertyValue $d 'metrics' @()))) {
+                if ($null -eq $m) { continue }
+                $stats = Get-ObjectPropertyValue $m 'stats' ([PSCustomObject]@{})
+                $count = Get-ObjectPropertyValue $stats 'count' 0
+                $sum   = Get-ObjectPropertyValue $stats 'sum' 0
+                $row = [ordered]@{ Source = $Source; Interval = (Get-ObjectPropertyValue $d 'interval' '') }
                 foreach ($k in $gp.Keys) { $row[$k] = $gp[$k] }
-                $row['Metric'] = $m.metric
-                $row['Count']  = $m.stats.count
-                $row['Sum']    = $m.stats.sum
-                $row['Min']    = $m.stats.min
-                $row['Max']    = $m.stats.max
-                $row['Avg_ms'] = if ($m.stats.count -gt 0) {
-                    [math]::Round($m.stats.sum / $m.stats.count, 0) } else { 0 }
+                $row['Metric'] = Get-ObjectPropertyValue $m 'metric' ''
+                $row['Count']  = $count
+                $row['Sum']    = $sum
+                $row['Min']    = Get-ObjectPropertyValue $stats 'min' 0
+                $row['Max']    = Get-ObjectPropertyValue $stats 'max' 0
+                $row['Avg_ms'] = if ($count -gt 0) {
+                    [math]::Round($sum / $count, 0) } else { 0 }
                 $rows.Add([PSCustomObject]$row)
             }
         }
@@ -210,6 +260,15 @@ function Expand-MetricStats {
 function Get-MetricSum {
     param($Rows, [string]$Metric, [string]$Column = 'Count')
     ($Rows | Where-Object Metric -eq $Metric | Measure-Object $Column -Sum).Sum ?? 0
+}
+
+function Get-MetricPeakValue {
+    param($Row)
+    $max = [double](Get-ObjectPropertyValue $Row 'Max' 0)
+    if ($max -gt 0) { return $max }
+    $count = [double](Get-ObjectPropertyValue $Row 'Count' 0)
+    if ($count -gt 0) { return $count }
+    return [double](Get-ObjectPropertyValue $Row 'Sum' 0)
 }
 
 #endregion
@@ -276,19 +335,20 @@ $convVolumeRaw = Invoke-GenesysApi `
     -Body   (@{
         interval    = $interval
         granularity = 'P1D'
-        groupBy     = @('queueId','mediaType','direction')
+        groupBy     = @('queueId','mediaType','originatingDirection')
         metrics     = @(
             'nOffered','nAnswered','nAbandonedPhase',
             'tHandle','tTalk','tAcw','tHeld',
             'tAnswered','tAbandoned',
-            'nTransferred','nOutboundAttempted','nOutboundConnected'
+            'nTransferred','nOutbound','nOutboundAttempted','nOutboundConnected'
         )
     } | ConvertTo-Json -Depth 5)
 
-$convVolumeRows = Expand-MetricStats -Results $convVolumeRaw.results -Source 'Conv_Volume'
+$convVolumeRows = Expand-MetricStats -Results (Get-ResponseResults $convVolumeRaw) -Source 'Conv_Volume'
 $convVolumeRows | ForEach-Object {
+    $queueId = Get-ObjectPropertyValue $_ 'queueId' ''
     $_ | Add-Member -NotePropertyName 'QueueName' `
-        -NotePropertyValue ($queueMap[$_.queueId] ?? $_.queueId) -Force
+        -NotePropertyValue ($queueMap[$queueId] ?? $queueId) -Force
 }
 Write-Log "  Volume rows: $($convVolumeRows.Count)" 'OK'
 
@@ -304,10 +364,11 @@ $convWrapRaw = Invoke-GenesysApi `
         metrics     = @('nWrappedPhase')
     } | ConvertTo-Json -Depth 5)
 
-$convWrapRows = Expand-MetricStats -Results $convWrapRaw.results -Source 'Conv_WrapUp'
+$convWrapRows = Expand-MetricStats -Results (Get-ResponseResults $convWrapRaw) -Source 'Conv_WrapUp'
 $convWrapRows | ForEach-Object {
+    $queueId = Get-ObjectPropertyValue $_ 'queueId' ''
     $_ | Add-Member -NotePropertyName 'QueueName' `
-        -NotePropertyValue ($queueMap[$_.queueId] ?? $_.queueId) -Force
+        -NotePropertyValue ($queueMap[$queueId] ?? $queueId) -Force
 }
 Write-Log "  Wrap-up rows: $($convWrapRows.Count)" 'OK'
 
@@ -324,12 +385,74 @@ $convXferRaw = Invoke-GenesysApi `
                         'nOffered','nAnswered')
     } | ConvertTo-Json -Depth 5)
 
-$convXferRows = Expand-MetricStats -Results $convXferRaw.results -Source 'Conv_Transfer'
+$convXferRows = Expand-MetricStats -Results (Get-ResponseResults $convXferRaw) -Source 'Conv_Transfer'
 $convXferRows | ForEach-Object {
+    $queueId = Get-ObjectPropertyValue $_ 'queueId' ''
     $_ | Add-Member -NotePropertyName 'QueueName' `
-        -NotePropertyValue ($queueMap[$_.queueId] ?? $_.queueId) -Force
+        -NotePropertyValue ($queueMap[$queueId] ?? $queueId) -Force
 }
 Write-Log "  Transfer rows: $($convXferRows.Count)" 'OK'
+
+# ── 2d  Reporting totals by direction, media, message type ──────────────────
+Write-Log "Querying monthly reporting totals by originating direction, mediaType, and messageType ..."
+$monthlyTotalsRows = @()
+$monthlyTotalsIncludeMessageType = $true
+try {
+    $monthlyTotalsRaw = Invoke-GenesysApi `
+        -Uri    "$apiBase/analytics/conversations/aggregates/query" `
+        -Method POST -Headers $authHeaders `
+        -Body   (@{
+            interval    = $interval
+            granularity = 'P1M'
+            groupBy     = @('originatingDirection','mediaType','messageType')
+            metrics     = @('nOffered','nAnswered','nConnected','nOutbound','nAbandoned','nAbandonedPhase')
+        } | ConvertTo-Json -Depth 5)
+
+    $monthlyTotalsRows = @(Expand-MetricStats -Results (Get-ResponseResults $monthlyTotalsRaw) -Source 'Monthly_Totals')
+}
+catch {
+    $monthlyTotalsIncludeMessageType = $false
+    Write-Log "  messageType monthly aggregate unavailable; retrying totals without messageType. ($_)" 'WARN'
+    $monthlyTotalsRaw = Invoke-GenesysApi `
+        -Uri    "$apiBase/analytics/conversations/aggregates/query" `
+        -Method POST -Headers $authHeaders `
+        -Body   (@{
+            interval    = $interval
+            granularity = 'P1M'
+            groupBy     = @('originatingDirection','mediaType')
+            metrics     = @('nOffered','nAnswered','nConnected','nOutbound','nAbandoned','nAbandonedPhase')
+        } | ConvertTo-Json -Depth 5)
+
+    $monthlyTotalsRows = @(Expand-MetricStats -Results (Get-ResponseResults $monthlyTotalsRaw) -Source 'Monthly_Totals')
+}
+Write-Log "  Monthly total metric rows: $($monthlyTotalsRows.Count)" 'OK'
+
+# ── 2e  Peak concurrent voice, inbound/outbound ─────────────────────────────
+Write-Log "Querying peak concurrent voice inbound/outbound ($ConcurrencyGranularity buckets) ..."
+$voiceConcurrentRows = @()
+try {
+    $voiceConcurrentRaw = Invoke-GenesysApi `
+        -Uri    "$apiBase/analytics/conversations/aggregates/query" `
+        -Method POST -Headers $authHeaders `
+        -Body   (@{
+            interval    = $interval
+            granularity = $ConcurrencyGranularity
+            groupBy     = @('originatingDirection','mediaType')
+            metrics     = @('oConcurrent')
+            filter      = @{
+                type = 'and'
+                predicates = @(
+                    @{ type = 'dimension'; dimension = 'mediaType'; operator = 'matches'; value = 'voice' }
+                )
+            }
+        } | ConvertTo-Json -Depth 8)
+
+    $voiceConcurrentRows = @(Expand-MetricStats -Results (Get-ResponseResults $voiceConcurrentRaw) -Source 'Voice_Concurrent')
+}
+catch {
+    Write-Log "  Peak concurrent voice aggregate unavailable; continuing without concurrency sheet. ($_)" 'WARN'
+}
+Write-Log "  Voice concurrent metric rows: $($voiceConcurrentRows.Count)" 'OK'
 
 #endregion
 
@@ -353,10 +476,11 @@ $queueSLRaw = Invoke-GenesysApi `
         )
     } | ConvertTo-Json -Depth 5)
 
-$queueSLRows = Expand-MetricStats -Results $queueSLRaw.results -Source 'Queue_SL'
+$queueSLRows = Expand-MetricStats -Results (Get-ResponseResults $queueSLRaw) -Source 'Queue_SL'
 $queueSLRows | ForEach-Object {
+    $queueId = Get-ObjectPropertyValue $_ 'queueId' ''
     $_ | Add-Member -NotePropertyName 'QueueName' `
-        -NotePropertyValue ($queueMap[$_.queueId] ?? $_.queueId) -Force
+        -NotePropertyValue ($queueMap[$queueId] ?? $queueId) -Force
 }
 Write-Log "  Queue SL rows: $($queueSLRows.Count)" 'OK'
 
@@ -382,10 +506,11 @@ $userAggRaw = Invoke-GenesysApi `
         )
     } | ConvertTo-Json -Depth 5)
 
-$userAggRows = Expand-MetricStats -Results $userAggRaw.results -Source 'Agent_Occ'
+$userAggRows = Expand-MetricStats -Results (Get-ResponseResults $userAggRaw) -Source 'Agent_Occ'
 $userAggRows | ForEach-Object {
+    $userId = Get-ObjectPropertyValue $_ 'userId' ''
     $_ | Add-Member -NotePropertyName 'AgentName' `
-        -NotePropertyValue ($userMap[$_.userId] ?? $_.userId) -Force
+        -NotePropertyValue ($userMap[$userId] ?? $userId) -Force
 }
 Write-Log "  Agent occupancy rows: $($userAggRows.Count)" 'OK'
 
@@ -400,10 +525,11 @@ $userStatusRaw = Invoke-GenesysApi `
         metrics     = @('tAgentRoutingStatuses')
     } | ConvertTo-Json -Depth 5)
 
-$userStatusRows = Expand-MetricStats -Results $userStatusRaw.results -Source 'Agent_Status'
+$userStatusRows = Expand-MetricStats -Results (Get-ResponseResults $userStatusRaw) -Source 'Agent_Status'
 $userStatusRows | ForEach-Object {
+    $userId = Get-ObjectPropertyValue $_ 'userId' ''
     $_ | Add-Member -NotePropertyName 'AgentName' `
-        -NotePropertyValue ($userMap[$_.userId] ?? $_.userId) -Force
+        -NotePropertyValue ($userMap[$userId] ?? $userId) -Force
 }
 Write-Log "  Agent status rows: $($userStatusRows.Count)" 'OK'
 
@@ -429,7 +555,7 @@ $flowContainRaw = Invoke-GenesysApi `
         )
     } | ConvertTo-Json -Depth 5)
 
-$flowContainRows = Expand-MetricStats -Results $flowContainRaw.results -Source 'Flow_Contain'
+$flowContainRows = Expand-MetricStats -Results (Get-ResponseResults $flowContainRaw) -Source 'Flow_Contain'
 Write-Log "  Flow containment rows: $($flowContainRows.Count)" 'OK'
 
 Write-Log "Querying flow execution detail ..."
@@ -443,7 +569,7 @@ $flowExecRaw = Invoke-GenesysApi `
         metrics     = @('tFlow','tFlowOutcome','nFlow')
     } | ConvertTo-Json -Depth 5)
 
-$flowExecRows = Expand-MetricStats -Results $flowExecRaw.results -Source 'Flow_Exec'
+$flowExecRows = Expand-MetricStats -Results (Get-ResponseResults $flowExecRaw) -Source 'Flow_Exec'
 Write-Log "  Flow execution rows: $($flowExecRows.Count)" 'OK'
 
 #endregion
@@ -470,7 +596,7 @@ try {
             )
         } | ConvertTo-Json -Depth 5)
 
-    $botRows.AddRange((Expand-MetricStats -Results $botRaw.results -Source 'Bot'))
+    $botRows.AddRange((Expand-MetricStats -Results (Get-ResponseResults $botRaw) -Source 'Bot'))
     Write-Log "  Bot rows: $($botRows.Count)" 'OK'
 }
 catch {
@@ -494,7 +620,7 @@ $actionsRaw = Invoke-GenesysApi `
         metrics     = @('tAction','nAction','nActionSuccess','nActionFailed')
     } | ConvertTo-Json -Depth 5)
 
-$actionsRows = Expand-MetricStats -Results $actionsRaw.results -Source 'Actions'
+$actionsRows = Expand-MetricStats -Results (Get-ResponseResults $actionsRaw) -Source 'Actions'
 Write-Log "  Action rows: $($actionsRows.Count)" 'OK'
 
 #endregion
@@ -505,13 +631,13 @@ Write-Log "  Action rows: $($actionsRows.Count)" 'OK'
 
 Write-Log "Fetching usage event definitions ..."
 $eventDefs    = Invoke-GenesysApi -Uri "$apiBase/usage/events/definitions" -Headers $authHeaders
-$eventDefRows = $eventDefs.entities | ForEach-Object {
+$eventDefRows = @((Get-ObjectPropertyValue $eventDefs 'entities' @())) | ForEach-Object {
     [PSCustomObject]@{
-        EventDefinitionId = $_.id
-        EventName         = $_.name
-        Description       = $_.description
-        Category          = $_.category
-        IsUsageBased      = $_.isUsageBased
+        EventDefinitionId = Get-ObjectPropertyValue $_ 'id' ''
+        EventName         = Get-ObjectPropertyValue $_ 'name' ''
+        Description       = Get-ObjectPropertyValue $_ 'description' ''
+        Category          = Get-ObjectPropertyValue $_ 'category' ''
+        IsUsageBased      = Get-ObjectPropertyValue $_ 'isUsageBased' $false
     }
 }
 Write-Log "  Event definitions: $($eventDefRows.Count)" 'OK'
@@ -523,13 +649,14 @@ $usageEventsRaw = Invoke-GenesysApi `
     -Body   (@{ interval=$interval; groupBy=@('eventDefinitionId'); granularity='P1D' } | ConvertTo-Json -Depth 5)
 
 $usageEventRows = [System.Collections.Generic.List[PSCustomObject]]::new()
-foreach ($r in $usageEventsRaw.results) {
-    $defId   = $r.group?.eventDefinitionId
+foreach ($r in (Get-ResponseResults $usageEventsRaw)) {
+    $group = Get-ObjectPropertyValue $r 'group' $null
+    $defId = Get-ObjectPropertyValue $group 'eventDefinitionId' ''
     $defName = ($eventDefRows | Where-Object EventDefinitionId -eq $defId).EventName
-    foreach ($d in $r.data) {
+    foreach ($d in @((Get-ObjectPropertyValue $r 'data' @()))) {
         $usageEventRows.Add([PSCustomObject]@{
-            Source='UsageEvents'; Interval=$d.interval
-            EventDefinitionId=$defId; EventName=$defName; Count=$d.count
+            Source='UsageEvents'; Interval=(Get-ObjectPropertyValue $d 'interval' '')
+            EventDefinitionId=$defId; EventName=$defName; Count=(Get-ObjectPropertyValue $d 'count' 0)
         })
     }
 }
@@ -542,23 +669,26 @@ $usageJobSubmit = Invoke-GenesysApi `
     -Body   (@{ interval=$interval; groupBy=@('clientId','templateUri','httpMethod'); granularity='P1D' } | ConvertTo-Json -Depth 5)
 
 $usageJobResult = Wait-GenesysJob `
-    -JobStatusUri "$apiBase/usage/aggregates/query/jobs/$($usageJobSubmit.id)" `
+    -JobStatusUri "$apiBase/usage/aggregates/query/jobs/$(Get-ObjectPropertyValue $usageJobSubmit 'id' '')" `
     -Headers $authHeaders
 
 $usageApiRows = [System.Collections.Generic.List[PSCustomObject]]::new()
-$pageUri = $usageJobResult.resultUri
+$pageUri = Get-ObjectPropertyValue $usageJobResult 'resultUri' $null
 while ($pageUri) {
     $page = Invoke-GenesysApi -Uri $pageUri -Headers $authHeaders
-    foreach ($r in $page.results) {
-        foreach ($d in $r.data) {
+    foreach ($r in (Get-ResponseResults $page)) {
+        $group = Get-ObjectPropertyValue $r 'group' $null
+        foreach ($d in @((Get-ObjectPropertyValue $r 'data' @()))) {
             $usageApiRows.Add([PSCustomObject]@{
-                Source='UsageAggregates'; Interval=$d.interval
-                ClientId=$r.group?.clientId; TemplateUri=$r.group?.templateUri
-                HttpMethod=$r.group?.httpMethod; Count=$d.count
+                Source='UsageAggregates'; Interval=(Get-ObjectPropertyValue $d 'interval' '')
+                ClientId=(Get-ObjectPropertyValue $group 'clientId' '')
+                TemplateUri=(Get-ObjectPropertyValue $group 'templateUri' '')
+                HttpMethod=(Get-ObjectPropertyValue $group 'httpMethod' '')
+                Count=(Get-ObjectPropertyValue $d 'count' 0)
             })
         }
     }
-    $pageUri = $page.nextUri
+    $pageUri = Get-ObjectPropertyValue $page 'nextUri' $null
 }
 Write-Log "  API usage rows: $($usageApiRows.Count)" 'OK'
 
@@ -571,21 +701,24 @@ if ($UsageClientId) {
         -Body   (@{ interval=$interval; groupBy=@('templateUri','httpMethod'); granularity='P1D' } | ConvertTo-Json -Depth 5)
 
     $cjResult = Wait-GenesysJob `
-        -JobStatusUri "$apiBase/usage/client/$UsageClientId/aggregates/query/jobs/$($cjSubmit.id)" `
+        -JobStatusUri "$apiBase/usage/client/$UsageClientId/aggregates/query/jobs/$(Get-ObjectPropertyValue $cjSubmit 'id' '')" `
         -Headers $authHeaders
 
-    $pageUri = $cjResult.resultUri
+    $pageUri = Get-ObjectPropertyValue $cjResult 'resultUri' $null
     while ($pageUri) {
         $page = Invoke-GenesysApi -Uri $pageUri -Headers $authHeaders
-        foreach ($r in $page.results) {
-            foreach ($d in $r.data) {
+        foreach ($r in (Get-ResponseResults $page)) {
+            $group = Get-ObjectPropertyValue $r 'group' $null
+            foreach ($d in @((Get-ObjectPropertyValue $r 'data' @()))) {
                 $clientUsageRows.Add([PSCustomObject]@{
-                    Source='ClientUsage'; Interval=$d.interval; ClientId=$UsageClientId
-                    TemplateUri=$r.group?.templateUri; HttpMethod=$r.group?.httpMethod; Count=$d.count
+                    Source='ClientUsage'; Interval=(Get-ObjectPropertyValue $d 'interval' ''); ClientId=$UsageClientId
+                    TemplateUri=(Get-ObjectPropertyValue $group 'templateUri' '')
+                    HttpMethod=(Get-ObjectPropertyValue $group 'httpMethod' '')
+                    Count=(Get-ObjectPropertyValue $d 'count' 0)
                 })
             }
         }
-        $pageUri = $page.nextUri
+        $pageUri = Get-ObjectPropertyValue $page 'nextUri' $null
     }
     Write-Log "  Per-client rows: $($clientUsageRows.Count)" 'OK'
 }
@@ -597,6 +730,95 @@ if ($UsageClientId) {
 #══════════════════════════════════════════════════════════════════════════════
 
 Write-Log "Building derived summary tables ..."
+
+# ── 9a  Monthly reporting totals ─────────────────────────────────────────────
+$monthlyReportingTotals = $monthlyTotalsRows |
+    Where-Object { $_.Metric -in @('nOffered','nAnswered','nConnected','nOutbound','nAbandoned','nAbandonedPhase') } |
+    Group-Object originatingDirection, mediaType, messageType |
+    ForEach-Object {
+        $g = $_.Group
+        $direction = [string](Get-ObjectPropertyValue $g[0] 'originatingDirection' '')
+        $media = [string](Get-ObjectPropertyValue $g[0] 'mediaType' '')
+        $message = [string](Get-ObjectPropertyValue $g[0] 'messageType' '')
+        if ([string]::IsNullOrWhiteSpace($direction)) { $direction = '(not returned)' }
+        if ([string]::IsNullOrWhiteSpace($media)) { $media = '(not returned)' }
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = if ($monthlyTotalsIncludeMessageType) { '(blank)' } else { '(not returned)' }
+        }
+
+        $offered = Get-MetricSum $g 'nOffered'
+        $answered = Get-MetricSum $g 'nAnswered'
+        $connected = Get-MetricSum $g 'nConnected'
+        $outbound = Get-MetricSum $g 'nOutbound'
+        $abandoned = Get-MetricSum $g 'nAbandoned'
+        $abandonedPhase = Get-MetricSum $g 'nAbandonedPhase'
+        if ($abandoned -eq 0 -and $abandonedPhase -gt 0) { $abandoned = $abandonedPhase }
+        $volume = if ($direction -eq 'outbound' -and $outbound -gt 0) {
+            $outbound
+        } elseif ($offered -gt 0) {
+            $offered
+        } elseif ($connected -gt 0) {
+            $connected
+        } else {
+            $answered
+        }
+
+        [PSCustomObject]@{
+            Month                = $monthLabel
+            OriginatingDirection = $direction
+            MediaType            = $media
+            MessageType          = $message
+            Volume               = $volume
+            Offered              = $offered
+            Answered             = $answered
+            Connected            = $connected
+            Outbound             = $outbound
+            Abandoned            = $abandoned
+            AbandonRate_Pct      = [math]::Round($(if($offered -gt 0){$abandoned/$offered*100}else{0}),1)
+            MessageTypeStatus    = if ($monthlyTotalsIncludeMessageType) { 'returned' } else { 'fallback-no-messageType' }
+        }
+    } | Sort-Object OriginatingDirection, MediaType, MessageType
+
+# ── 9b  Peak concurrent voice summary ───────────────────────────────────────
+$voicePeakConcurrentSummary = foreach ($direction in @('inbound','outbound')) {
+    $directionRows = @($voiceConcurrentRows | Where-Object {
+        $_.Metric -eq 'oConcurrent' -and
+        [string](Get-ObjectPropertyValue $_ 'mediaType' '') -eq 'voice' -and
+        [string](Get-ObjectPropertyValue $_ 'originatingDirection' '') -eq $direction
+    })
+
+    $peakRow = $null
+    $peakValue = 0
+    foreach ($row in $directionRows) {
+        $value = Get-MetricPeakValue $row
+        if ($null -eq $peakRow -or $value -gt $peakValue) {
+            $peakRow = $row
+            $peakValue = $value
+        }
+    }
+
+    $peakInterval = ''
+    if ($null -ne $peakRow) {
+        $peakInterval = [string](Get-ObjectPropertyValue $peakRow 'Interval' '')
+    }
+    $peakStart = if (-not [string]::IsNullOrWhiteSpace($peakInterval)) {
+        @($peakInterval -split '/', 2)[0]
+    } else {
+        ''
+    }
+
+    [PSCustomObject]@{
+        Month                = $monthLabel
+        OriginatingDirection = $direction
+        MediaType            = 'voice'
+        Metric               = 'oConcurrent'
+        PeakConcurrentVoice  = [math]::Round($peakValue, 0)
+        PeakIntervalStartUtc = $peakStart
+        PeakInterval         = $peakInterval
+        Granularity          = $ConcurrencyGranularity
+        Samples              = $directionRows.Count
+    }
+}
 
 # ── 9a  Conversation daily summary ───────────────────────────────────────────
 $convDailySummary = $convVolumeRows |
@@ -613,8 +835,8 @@ $convDailySummary = $convVolumeRows |
         $tAcw     = Get-MetricSum $g 'tAcw'    'Sum'
         $xferred  = Get-MetricSum $g 'nTransferred'
         [PSCustomObject]@{
-            Date             = ($g[0].Interval -split '/')[0].Substring(0,10)
-            MediaType        = $g[0].mediaType
+            Date             = Get-IntervalStartText $g[0]
+            MediaType        = Get-ObjectPropertyValue $g[0] 'mediaType' ''
             Offered          = $offered
             Answered         = $answered
             Abandoned        = $aband
@@ -638,10 +860,11 @@ $abandonSummary = $convVolumeRows |
         $tSum      = Get-MetricSum $g 'tAbandoned' 'Sum'
         $tMin      = ($g | Where-Object Metric -eq 'tAbandoned' | Measure-Object Min -Minimum).Minimum ?? 0
         $avgWait_s = if ($n -gt 0) { [math]::Round($tSum/$n/1000,1) } else { 0 }
+        $queueId   = Get-ObjectPropertyValue $g[0] 'queueId' ''
         [PSCustomObject]@{
-            Date                      = ($g[0].Interval -split '/')[0].Substring(0,10)
-            QueueId                   = $g[0].queueId
-            QueueName                 = ($queueMap[$g[0].queueId] ?? $g[0].queueId)
+            Date                      = Get-IntervalStartText $g[0]
+            QueueId                   = $queueId
+            QueueName                 = ($queueMap[$queueId] ?? $queueId)
             TotalAbandoned            = $n
             AvgWaitBeforeAbandon_sec  = $avgWait_s
             MinWaitBeforeAbandon_sec  = [math]::Round($tMin/1000,1)
@@ -667,10 +890,11 @@ $queueSLSummary = $queueSLRows |
                     elseif ($offered -gt 0) {
                         [math]::Round($(if($avgAns_s -le $ServiceLevelThresholdSec){$answered/$offered*100}else{0}),1)
                     } else { 0 }
+        $queueId  = Get-ObjectPropertyValue $g[0] 'queueId' ''
         [PSCustomObject]@{
-            QueueId              = $g[0].queueId
-            QueueName            = ($queueMap[$g[0].queueId] ?? $g[0].queueId)
-            MediaType            = $g[0].mediaType
+            QueueId              = $queueId
+            QueueName            = ($queueMap[$queueId] ?? $queueId)
+            MediaType            = Get-ObjectPropertyValue $g[0] 'mediaType' ''
             TotalOffered         = $offered
             TotalAnswered        = $answered
             OverflowOut          = $overflow
@@ -680,7 +904,7 @@ $queueSLSummary = $queueSLRows |
             SL_Target_sec        = $ServiceLevelThresholdSec
             BelowTarget          = $slPct -lt 80
         }
-    } | Sort-Object BelowTarget -Descending, QueueName
+    } | Sort-Object -Property @{ Expression = 'BelowTarget'; Descending = $true }, 'QueueName'
 
 # ── 9d  Agent occupancy summary ───────────────────────────────────────────────
 $agentOccupancySummary = $userAggRows |
@@ -695,9 +919,10 @@ $agentOccupancySummary = $userAggRows |
         $notRespN = Get-MetricSum $g 'nNotResponding'
         $handling = $talk + $acw
         $occ      = if ($routable -gt 0) { [math]::Round($handling/$routable*100,1) } else { 0 }
+        $userId   = Get-ObjectPropertyValue $g[0] 'userId' ''
         [PSCustomObject]@{
-            AgentId              = $g[0].userId
-            AgentName            = ($userMap[$g[0].userId] ?? $g[0].userId)
+            AgentId              = $userId
+            AgentName            = ($userMap[$userId] ?? $userId)
             RoutableTime_hr      = [math]::Round($routable/3600000,2)
             TalkTime_hr          = [math]::Round($talk/3600000,2)
             AcwTime_hr           = [math]::Round($acw/3600000,2)
@@ -720,12 +945,12 @@ $ivrContainSummary = $flowContainRows |
         $total    = Get-MetricSum $g 'nFlow'
         $base     = if ($entries -gt 0) { $entries } else { $total }
         $rate     = if ($base -gt 0) { [math]::Round($disconn/$base*100,1) } else { 0 }
-        $exits    = ($g | Where-Object { $_.exitReason } |
+        $exits    = ($g | Where-Object { Get-ObjectPropertyValue $_ 'exitReason' '' } |
                      Group-Object exitReason |
                      ForEach-Object { "$($_.Name):$($_.Count)" }) -join ' | '
         [PSCustomObject]@{
-            FlowId          = $g[0].flowId
-            FlowType        = $g[0].flowType
+            FlowId          = Get-ObjectPropertyValue $g[0] 'flowId' ''
+            FlowType        = Get-ObjectPropertyValue $g[0] 'flowType' ''
             TotalEntries    = $base
             Contained       = $disconn
             ContainRate_Pct = $rate
@@ -747,8 +972,8 @@ if ($botRows.Count -gt 0) {
             $matched  = Get-MetricSum $g 'nBotIntentMatched'
             $noMatch  = Get-MetricSum $g 'nBotIntentNotMatched'
             [PSCustomObject]@{
-                BotId               = $g[0].botId
-                BotVersion          = $g[0].botVersion
+                BotId               = Get-ObjectPropertyValue $g[0] 'botId' ''
+                BotVersion          = Get-ObjectPropertyValue $g[0] 'botVersion' ''
                 TotalSessions       = $sessions
                 Escalated           = $esc
                 ContainRate_Pct     = [math]::Round($(if($sessions -gt 0){($sessions-$esc)/$sessions*100}else{0}),1)
@@ -764,9 +989,9 @@ $wrapSummary = $convWrapRows |
     ForEach-Object {
         $g = $_.Group
         [PSCustomObject]@{
-            WrapUpCode   = $g[0].wrapUpCode
-            QueueName    = $g[0].QueueName
-            MediaType    = $g[0].mediaType
+            WrapUpCode   = Get-ObjectPropertyValue $g[0] 'wrapUpCode' ''
+            QueueName    = Get-ObjectPropertyValue $g[0] 'QueueName' ''
+            MediaType    = Get-ObjectPropertyValue $g[0] 'mediaType' ''
             TotalWrapped = Get-MetricSum $g 'nWrappedPhase'
         }
     } | Sort-Object TotalWrapped -Descending
@@ -782,9 +1007,10 @@ $transferSummary = $convXferRows |
         $blind   = Get-MetricSum $g 'nBlindTransferred'
         $consult = Get-MetricSum $g 'nConsultTransferred'
         $ans     = Get-MetricSum $g 'nAnswered'
+        $queueId = Get-ObjectPropertyValue $g[0] 'queueId' ''
         [PSCustomObject]@{
-            QueueName        = ($queueMap[$g[0].queueId] ?? $g[0].queueId)
-            MediaType        = $g[0].mediaType
+            QueueName        = ($queueMap[$queueId] ?? $queueId)
+            MediaType        = Get-ObjectPropertyValue $g[0] 'mediaType' ''
             TotalAnswered    = $ans
             TotalTransferred = $xfer
             BlindTransfers   = $blind
@@ -803,8 +1029,8 @@ $actionHealthSummary = $actionsRows |
         $success = Get-MetricSum $g 'nActionSuccess'
         $failed  = Get-MetricSum $g 'nActionFailed'
         [PSCustomObject]@{
-            ActionId         = $g[0].actionId
-            ActionType       = $g[0].actionType
+            ActionId         = Get-ObjectPropertyValue $g[0] 'actionId' ''
+            ActionType       = Get-ObjectPropertyValue $g[0] 'actionType' ''
             TotalInvocations = $total
             Successes        = $success
             Failures         = $failed
@@ -819,7 +1045,7 @@ $channelMixSummary = $convVolumeRows |
     Group-Object mediaType |
     ForEach-Object {
         [PSCustomObject]@{
-            MediaType    = $_.Group[0].mediaType
+            MediaType    = Get-ObjectPropertyValue $_.Group[0] 'mediaType' ''
             TotalOffered = ($_.Group | Measure-Object Count -Sum).Sum
         }
     } | Sort-Object TotalOffered -Descending
@@ -835,8 +1061,8 @@ $apiTopEndpoints = $usageApiRows |
     Group-Object TemplateUri, HttpMethod |
     ForEach-Object {
         [PSCustomObject]@{
-            TemplateUri = ($_.Group[0].TemplateUri ?? '(unknown)')
-            HttpMethod  = ($_.Group[0].HttpMethod  ?? '')
+            TemplateUri = Get-ObjectPropertyValue $_.Group[0] 'TemplateUri' '(unknown)'
+            HttpMethod  = Get-ObjectPropertyValue $_.Group[0] 'HttpMethod' ''
             TotalCalls  = ($_.Group | Measure-Object Count -Sum).Sum
         }
     } | Sort-Object TotalCalls -Descending | Select-Object -First 50
@@ -848,7 +1074,7 @@ $activeDailyAgents = $userAggRows |
     ForEach-Object {
         $uniqueCount = ($_.Group | Select-Object -ExpandProperty userId -Unique).Count
         [PSCustomObject]@{
-            Date            = ($_.Group[0].Interval -split '/')[0].Substring(0,10)
+            Date            = Get-IntervalStartText $_.Group[0]
             ActiveAgents    = $uniqueCount
             LicensedSeats   = $totalLicensedSeats
             Utilisation_Pct = [math]::Round($(if($totalLicensedSeats -gt 0){$uniqueCount/$totalLicensedSeats*100}else{0}),1)
@@ -871,6 +1097,14 @@ $totalAbandoned = Get-MetricSum $convVolumeRows 'nAbandonedPhase'
 $totalXferred   = Get-MetricSum $convVolumeRows 'nTransferred'
 $totalFlows     = Get-MetricSum $flowContainRows 'nFlow'
 $totalApiCalls  = ($usageApiRows | Measure-Object Count -Sum).Sum
+
+$monthlyInboundVolume = ($monthlyReportingTotals | Where-Object OriginatingDirection -eq 'inbound' | Measure-Object Volume -Sum).Sum ?? 0
+$monthlyOutboundVolume = ($monthlyReportingTotals | Where-Object OriginatingDirection -eq 'outbound' | Measure-Object Volume -Sum).Sum ?? 0
+$monthlyMessageVolume = ($monthlyReportingTotals | Where-Object MediaType -eq 'message' | Measure-Object Volume -Sum).Sum ?? 0
+$peakVoiceInboundRow = $voicePeakConcurrentSummary | Where-Object OriginatingDirection -eq 'inbound' | Select-Object -First 1
+$peakVoiceOutboundRow = $voicePeakConcurrentSummary | Where-Object OriginatingDirection -eq 'outbound' | Select-Object -First 1
+$peakVoiceInbound = Get-ObjectPropertyValue $peakVoiceInboundRow 'PeakConcurrentVoice' 0
+$peakVoiceOutbound = Get-ObjectPropertyValue $peakVoiceOutboundRow 'PeakConcurrentVoice' 0
 
 $answerRate    = [math]::Round($(if($totalOffered  -gt 0){$totalAnswered/$totalOffered*100}   else{0}),1)
 $abandonRate   = [math]::Round($(if($totalOffered  -gt 0){$totalAbandoned/$totalOffered*100}  else{0}),1)
@@ -902,6 +1136,11 @@ $kpiTable = @(
     [PSCustomObject]@{ Category='Volume';      KPI='Total Answered';              Value=$totalAnswered;    Unit='conversations'; Note='' }
     [PSCustomObject]@{ Category='Volume';      KPI='Total Abandoned';             Value=$totalAbandoned;   Unit='conversations'; Note='' }
     [PSCustomObject]@{ Category='Volume';      KPI='Total Transferred';           Value=$totalXferred;     Unit='conversations'; Note='' }
+    [PSCustomObject]@{ Category='Reporting';   KPI='Inbound Monthly Volume';      Value=$monthlyInboundVolume;  Unit='normalized volume'; Note='from Monthly_Totals' }
+    [PSCustomObject]@{ Category='Reporting';   KPI='Outbound Monthly Volume';     Value=$monthlyOutboundVolume; Unit='normalized volume'; Note='from Monthly_Totals' }
+    [PSCustomObject]@{ Category='Reporting';   KPI='Message Monthly Volume';      Value=$monthlyMessageVolume;  Unit='normalized volume'; Note='mediaType=message' }
+    [PSCustomObject]@{ Category='Reporting';   KPI='Peak Concurrent Voice Inbound';  Value=$peakVoiceInbound;  Unit='conversations'; Note=$ConcurrencyGranularity }
+    [PSCustomObject]@{ Category='Reporting';   KPI='Peak Concurrent Voice Outbound'; Value=$peakVoiceOutbound; Unit='conversations'; Note=$ConcurrencyGranularity }
     [PSCustomObject]@{ Category='Quality';     KPI='Answer Rate';                 Value=$answerRate;       Unit='%';             Note='' }
     [PSCustomObject]@{ Category='Quality';     KPI='Abandon Rate';                Value=$abandonRate;      Unit='%';             Note='Target <5%' }
     [PSCustomObject]@{ Category='Quality';     KPI='Transfer Rate';               Value=$transferRate;     Unit='%';             Note='' }
@@ -961,7 +1200,13 @@ function Write-Sheet {
 # ── TAB 1 : Dashboard ─────────────────────────────────────────────────────────
 Write-Sheet -Data $kpiTable -Sheet 'Dashboard' -Table 'tbl_KPIs' -TableStyle 'Medium2'
 
-# ── TAB 2 : Conversation Daily Summary ───────────────────────────────────────
+# ── TAB 2 : Monthly Reporting Totals ─────────────────────────────────────────
+Write-Sheet -Data $monthlyReportingTotals -Sheet 'Monthly_Totals' -Table 'tbl_MonthlyTotals' -TableStyle 'Medium4'
+
+# ── TAB 3 : Peak Concurrent Voice ────────────────────────────────────────────
+Write-Sheet -Data $voicePeakConcurrentSummary -Sheet 'Voice_PeakConcurrent' -Table 'tbl_VoicePeakConcurrent' -TableStyle 'Medium9'
+
+# ── TAB 4 : Conversation Daily Summary ───────────────────────────────────────
 if ($convDailySummary.Count -gt 0) {
     $n = $convDailySummary.Count + 1
     Write-Sheet -Data $convDailySummary -Sheet 'Conv_DailySummary' -Table 'tbl_ConvDaily' `

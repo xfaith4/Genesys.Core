@@ -12,6 +12,7 @@
 ### Changed
 
 - Recorded Session 20 Trend UI as delivered after validating the WPF Trend tab, regression/improvement panels, hourly overlay, and case-date-range default wiring through the ConversationAnalyzer test harness.
+- Hardened `apps/MonthlyMetrics/Get-GenesysMonthlyMetrics.ps1` for recurring monthly reporting: previous-month year/month defaults now align across January boundaries, conversation volume detail uses `originatingDirection`, the workbook now includes `Monthly_Totals` and `Voice_PeakConcurrent` sheets, and response expansion tolerates missing optional aggregate/page fields under strict mode.
 
 ## 2026-05-12
 

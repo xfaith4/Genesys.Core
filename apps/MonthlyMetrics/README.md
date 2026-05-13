@@ -32,13 +32,15 @@
 
 ## Overview
 
-This script provides a single-command extraction of monthly metrics across Genesys Cloud's analytics, flow execution, conversation, and API usage planes. It authenticates via OAuth2 Client Credentials, fans out across seven endpoints (two of which are async job-based), normalises the nested aggregate response shape into flat, pivot-ready rows, and writes a multi-sheet `.xlsx` workbook with embedded charts.
+This script provides a single-command extraction of monthly metrics across Genesys Cloud's analytics, flow execution, conversation, and API usage planes. It authenticates via OAuth2 Client Credentials, fans out across seven endpoint families plus dedicated conversation reporting aggregates, normalises the nested aggregate response shape into flat, pivot-ready rows, and writes a multi-sheet `.xlsx` workbook with embedded charts.
 
 **What you get in one run:**
 
 | Metric Domain | KPIs Captured |
 |---|---|
 | Conversations | Offered, Answered, Abandoned, Handle Time, Talk Time, ACW, Transfers |
+| Monthly Reporting Totals | Previous-month totals by originating direction, media type, and message type |
+| Voice Concurrency | Peak concurrent inbound and outbound voice conversations |
 | Flow Executions | Execution counts, time-in-flow, outcomes, exit reasons by flow type |
 | Actions | Invocation counts and durations by action and action type |
 | API Usage (org) | Daily call counts per endpoint template and HTTP method |
@@ -192,9 +194,11 @@ The script writes a single file named `GenesysMetrics_YYYY-MM.xlsx` to the speci
 
 | Sheet | Table Name | Content | Chart |
 |---|---|---|---|
-| `Dashboard` | `tbl_KPIs` | 9 KPI summary rows: Offered, Answered, Abandoned, Answer Rate, Abandon Rate, Avg Handle Time, Flow Executions, API Calls, Action Invocations | — |
-| `Conversations_Summary` | `tbl_ConvSummary` | Daily totals by media type: Offered, Answered, Abandoned, Handle Time (ms) | 📈 Line — Offered vs Answered |
-| `Conversations_Detail` | `tbl_ConvDetail` | Full flattened metric rows with queue, direction, and media type dimensions | — |
+| `Dashboard` | `tbl_KPIs` | KPI summary including monthly volume totals and peak concurrent inbound/outbound voice | — |
+| `Monthly_Totals` | `tbl_MonthlyTotals` | Previous-month reporting totals by `originatingDirection`, `mediaType`, and `messageType` with normalized volume | — |
+| `Voice_PeakConcurrent` | `tbl_VoicePeakConcurrent` | Peak `oConcurrent` voice values for inbound and outbound directions, with the source interval | — |
+| `Conv_DailySummary` | `tbl_ConvDaily` | Daily totals by media type: Offered, Answered, Abandoned, Handle Time (ms) | 📈 Line — Offered vs Answered |
+| `Conv_VolumeDetail` | `tbl_ConvVolumeDetail` | Full flattened metric rows with queue, originating direction, and media type dimensions | — |
 | `FlowExecutions_Summary` | `tbl_FlowSummary` | Daily execution counts by flow type | 📊 Clustered column |
 | `FlowExecutions_Detail` | `tbl_FlowDetail` | Raw metrics: `tFlow`, `tFlowOutcome`, `nFlow` with exit reason and flow ID | — |
 | `Actions_Detail` | `tbl_ActionsDetail` | Action invocation stats (`tAction`, `nAction`) by action ID and type | — |
@@ -226,7 +230,7 @@ All data lands in named Excel Tables (`tbl_*`). You can immediately insert Pivot
 | `POST` | `/api/v2/usage/aggregates/query/jobs` | Org-wide API usage (async) |
 | `POST` | `/api/v2/usage/client/{clientId}/aggregates/query/jobs` | Per-client API usage (async, optional) |
 
-All analytics endpoints use `granularity: P1D` (daily buckets) over a full calendar-month interval in ISO 8601 format.
+Most analytics endpoints use `granularity: P1D` (daily buckets) over a full calendar-month interval in ISO 8601 format. The monthly reporting totals use `P1M`; peak concurrent voice uses `PT15M` by default through `-ConcurrencyGranularity`.
 
 ---
 

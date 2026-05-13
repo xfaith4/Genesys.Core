@@ -14,6 +14,7 @@
 - Recorded Session 20 Trend UI as delivered after validating the WPF Trend tab, regression/improvement panels, hourly overlay, and case-date-range default wiring through the ConversationAnalyzer test harness.
 - Hardened `apps/MonthlyMetrics/Get-GenesysMonthlyMetrics.ps1` for recurring monthly reporting: previous-month year/month defaults now align across January boundaries, conversation volume detail uses `originatingDirection`, the workbook now includes `Monthly_Totals` and `Voice_PeakConcurrent` sheets, and response expansion tolerates missing optional aggregate/page fields under strict mode.
 - Hardened ConversationAnalyzer post-run display: the run panel now shows the exact saved run/data folders, and completed runs with saved conversation rows automatically clear stale grid filters if those filters would otherwise hide every returned conversation.
+- Hardened `analytics-conversation-details` empty-result artifacts: blank JSONL runs now include request-shape diagnostics in `summary.json`, explicit `analytics.conversationDetails.zeroResults`/request events, and a manifest warning so operators can distinguish a valid zero-result API response from a display or writer failure.
 
 ## 2026-05-12
 

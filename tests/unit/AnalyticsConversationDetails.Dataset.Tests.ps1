@@ -139,9 +139,24 @@ Describe 'Analytics conversation details dataset' {
 
         $summary = Get-Content -Path (Join-Path $runFolder.FullName 'summary.json') -Raw | ConvertFrom-Json
         $summary.totals.totalConversations | Should -Be 0
+        $summary.zeroResults | Should -BeTrue
+        $summary.dataFile | Should -Be $dataPath
+        $summary.request.bodySource | Should -Be 'assembled dataset parameters'
+        $summary.request.interval | Should -Not -BeNullOrEmpty
+        $summary.request.conversationFilterCount | Should -Be 0
+        $summary.request.segmentFilterCount | Should -Be 0
+
+        $events = @(Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        $requestEvent = @($events | Where-Object { $_.eventType -eq 'analytics.conversationDetails.request' })
+        $requestEvent.Count | Should -Be 1
+        $zeroEvent = @($events | Where-Object { $_.eventType -eq 'analytics.conversationDetails.zeroResults' })
+        $zeroEvent.Count | Should -Be 1
+        $zeroEvent[0].payload.dataFile | Should -Be $dataPath
 
         $manifest = Get-Content -Path (Join-Path $runFolder.FullName 'manifest.json') -Raw | ConvertFrom-Json
         $manifest.counts.itemCount | Should -Be 0
+        @($manifest.warnings).Count | Should -Be 1
+        [string]$manifest.warnings[0] | Should -Match 'zero conversations'
     }
 
     It 'sends segmentFilters when QueueIds DatasetParameter is provided' {

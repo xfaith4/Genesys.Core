@@ -151,6 +151,131 @@ function Resolve-DatasetParameterValues {
     return @([string]$rawValues -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
 }
 
+function Get-AnalyticsConversationDetailsObjectValue {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$InputObject,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        if ($InputObject.Contains($Name)) {
+            return $InputObject[$Name]
+        }
+
+        return $null
+    }
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($property) {
+        return $property.Value
+    }
+
+    return $null
+}
+
+function ConvertTo-AnalyticsConversationDetailsArray {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$InputObject
+    )
+
+    if ($null -eq $InputObject) {
+        return @()
+    }
+
+    if ($InputObject -is [string] -or $InputObject -is [System.Collections.IDictionary]) {
+        return @($InputObject)
+    }
+
+    if ($InputObject -is [System.Collections.IEnumerable]) {
+        return @($InputObject)
+    }
+
+    return @($InputObject)
+}
+
+function Get-AnalyticsConversationDetailsFilterDiagnostics {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$SubmitBody,
+
+        [string]$BodySource = 'unknown'
+    )
+
+    $conversationFilters = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'conversationFilters'))
+    $segmentFilters = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'segmentFilters'))
+    $metricFilters = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'metricFilters'))
+    $conversationPredicateCount = 0
+    $segmentPredicateCount = 0
+    $metricPredicateCount = 0
+    $dimensions = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+    $metrics = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($filter in $conversationFilters) {
+        $predicates = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $filter -Name 'predicates'))
+        foreach ($predicate in $predicates) {
+            $conversationPredicateCount++
+            $dimension = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $predicate -Name 'dimension')
+            if (-not [string]::IsNullOrWhiteSpace($dimension)) { $dimensions.Add($dimension) | Out-Null }
+        }
+    }
+
+    foreach ($filter in $segmentFilters) {
+        $predicates = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $filter -Name 'predicates'))
+        foreach ($predicate in $predicates) {
+            $segmentPredicateCount++
+            $dimension = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $predicate -Name 'dimension')
+            if (-not [string]::IsNullOrWhiteSpace($dimension)) { $dimensions.Add($dimension) | Out-Null }
+        }
+    }
+
+    foreach ($filter in $metricFilters) {
+        $metricsFilters = @(ConvertTo-AnalyticsConversationDetailsArray -InputObject (Get-AnalyticsConversationDetailsObjectValue -InputObject $filter -Name 'metrics'))
+        foreach ($metricFilter in $metricsFilters) {
+            $metricPredicateCount++
+            $metric = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $metricFilter -Name 'metric')
+            if (-not [string]::IsNullOrWhiteSpace($metric)) { $metrics.Add($metric) | Out-Null }
+        }
+    }
+
+    $interval = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'interval')
+    $order = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'order')
+    $orderBy = [string](Get-AnalyticsConversationDetailsObjectValue -InputObject $SubmitBody -Name 'orderBy')
+
+    return [ordered]@{
+        bodySource = $BodySource
+        interval = $interval
+        order = $order
+        orderBy = $orderBy
+        conversationFilterCount = $conversationFilters.Count
+        conversationPredicateCount = $conversationPredicateCount
+        segmentFilterCount = $segmentFilters.Count
+        segmentPredicateCount = $segmentPredicateCount
+        metricFilterCount = $metricFilters.Count
+        metricPredicateCount = $metricPredicateCount
+        hasConversationIdFilter = $dimensions.Contains('conversationId')
+        hasDivisionIdFilter = $dimensions.Contains('divisionId')
+        hasMediaTypeFilter = $dimensions.Contains('mediaType')
+        hasDirectionFilter = $dimensions.Contains('direction')
+        hasQueueIdFilter = $dimensions.Contains('queueId')
+        hasUserIdFilter = $dimensions.Contains('userId')
+        hasMessageTypeFilter = $dimensions.Contains('messageType')
+        hasFlowNameFilter = $dimensions.Contains('flowName')
+        dimensionNames = @($dimensions | Sort-Object)
+        metricNames = @($metrics | Sort-Object)
+    }
+}
+
 function Resolve-SingleAuditFilterValue {
     [CmdletBinding()]
     param(
@@ -944,11 +1069,26 @@ function Invoke-AnalyticsConversationDetailsDataset {
 
     # Body override — when a pre-built JSON body is supplied by the caller (e.g., from a
     # query template), use it directly instead of the body assembled from named parameters.
-    $submitBodyJson = if ($null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')) {
+    $hasBodyOverride = $null -ne $DatasetParameters -and $DatasetParameters.ContainsKey('Body')
+    $submitBodyJson = if ($hasBodyOverride) {
         $bodyValue = $DatasetParameters['Body']
         if ($bodyValue -is [string]) { $bodyValue } else { $bodyValue | ConvertTo-Json -Depth 100 }
     } else {
         $body | ConvertTo-Json -Depth 20
+    }
+
+    $requestDiagnostics = [ordered]@{
+        bodySource = if ($hasBodyOverride) { 'Body dataset parameter' } else { 'assembled dataset parameters' }
+        bodyParseError = $null
+    }
+    try {
+        $submittedBody = $submitBodyJson | ConvertFrom-Json -ErrorAction Stop
+        $requestDiagnostics = Get-AnalyticsConversationDetailsFilterDiagnostics `
+            -SubmitBody $submittedBody `
+            -BodySource $requestDiagnostics.bodySource
+    }
+    catch {
+        $requestDiagnostics.bodyParseError = $_.Exception.Message
     }
 
     $jobResult = Invoke-AsyncJob `
@@ -980,19 +1120,36 @@ function Invoke-AnalyticsConversationDetailsDataset {
         Write-RunEvent -RunContext $RunContext -EventType $event.eventType -Payload $event | Out-Null
     }
 
+    Write-RunEvent -RunContext $RunContext -EventType 'analytics.conversationDetails.request' -Payload $requestDiagnostics | Out-Null
+    if ($sanitizedRecords.Count -eq 0) {
+        Write-RunEvent -RunContext $RunContext -EventType 'analytics.conversationDetails.zeroResults' -Payload ([ordered]@{
+            message = 'The analytics conversation details async job completed, but the results endpoint returned zero conversations. The blank JSONL file was written intentionally to preserve the run artifact contract.'
+            request = $requestDiagnostics
+            dataFile = $dataPath
+        }) | Out-Null
+    }
+
     $summary = [ordered]@{
         datasetKey     = $RunContext.datasetKey
         runId          = $RunContext.runId
         totals         = [ordered]@{
             totalConversations = $sanitizedRecords.Count
         }
+        request        = $requestDiagnostics
+        zeroResults    = ($sanitizedRecords.Count -eq 0)
+        dataFile       = $dataPath
         generatedAtUtc = [DateTime]::UtcNow.ToString('o')
     }
 
     ($summary | ConvertTo-Json -Depth 100) | Set-Content -Path $RunContext.summaryPath -Encoding utf8
 
     Write-RunEvent -RunContext $RunContext -EventType 'run.completed' -Payload @{ itemCount = $sanitizedRecords.Count } | Out-Null
-    Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } | Out-Null
+    $warnings = @()
+    if ($sanitizedRecords.Count -eq 0) {
+        $warnings += 'analytics-conversation-details returned zero conversations; see summary.json request diagnostics and events.jsonl analytics.conversationDetails.zeroResults.'
+    }
+
+    Write-Manifest -RunContext $RunContext -Counts @{ itemCount = $sanitizedRecords.Count } -Warnings $warnings | Out-Null
     Write-GcProgressMessage -Message "Wrote $($sanitizedRecords.Count) conversation record(s) to $($dataPath)."
     Write-GcProgressMessage -Message "API call log: $($RunContext.apiLogPath)"
     return [pscustomobject]@{

@@ -1,21 +1,5 @@
 # Code Review and Hardening Summary
 
-## Monthly Metrics Review - May 13, 2026
-
-- Fixed a recurring-reporting bug where default `Year` used the current year while `Month` used the previous month, which would target the wrong December during January runs.
-- Reworked MonthlyMetrics conversation volume grouping to use `originatingDirection` instead of `direction` for reporting consistency.
-- Added `Monthly_Totals` output by `originatingDirection`, `mediaType`, and `messageType`, with a fallback marker when `messageType` is not returned by the aggregate endpoint.
-- Added `Voice_PeakConcurrent` output for inbound/outbound voice using `oConcurrent` at the configurable `-ConcurrencyGranularity` default of `PT15M`.
-- Hardened aggregate/page response handling so missing `results`, `entities`, `data`, `metrics`, `stats`, `nextUri`, and async job fields do not trigger strict-mode failures on empty or partial API responses.
-- Validation: MonthlyMetrics parser checks passed, `tests/unit/MonthlyMetrics.Script.Tests.ps1` passed 5 tests, and `scripts/Invoke-Tests.ps1 -Path tests/unit -Output Normal` passed 162 tests. Live integration was not run because this environment has no Genesys credentials.
-
-## ConversationAnalyzer Display Review - May 13, 2026
-
-- Confirmed saved conversation detail JSONL exists under the app run folder and that the newest saved demo run indexes into 3 displayable conversation rows.
-- Added an on-screen run/data directory display so completed run artifacts are visible immediately after run completion.
-- Added a display fallback that clears stale conversation-grid filters when the saved run contains indexed conversations but the current UI filter state hides every row.
-- Validation: ConversationAnalyzer parser checks passed; `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed 270 checks with 0 failures and 2 SQLite-native-library skips in WSL.
-
 **Date:** February 18, 2026
 **Repository:** Genesys.Core
 **Branch:** copilot/perform-code-review-harden
@@ -346,4 +330,3 @@ This PR successfully addresses all requirements from the problem statement:
 **Overall Status:** ✅ APPROVED FOR MERGE
 
 All changes are minimal, surgical, and follow the existing patterns. Test coverage is excellent (91% pass rate). Documentation is comprehensive. The codebase is production-ready.
-

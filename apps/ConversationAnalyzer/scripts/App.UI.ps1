@@ -192,6 +192,31 @@ $script:DgTimelineEvents            = _Ctrl 'DgTimelineEvents'
 $script:DgTimelineAttributes        = _Ctrl 'DgTimelineAttributes'
 $script:DgTimelineEnrichment        = _Ctrl 'DgTimelineEnrichment'
 
+# Short Voice Conversations tab
+$script:DpShortVoiceStartDate       = _Ctrl 'DpShortVoiceStartDate'
+$script:TxtShortVoiceStartTime      = _Ctrl 'TxtShortVoiceStartTime'
+$script:DpShortVoiceEndDate         = _Ctrl 'DpShortVoiceEndDate'
+$script:TxtShortVoiceEndTime        = _Ctrl 'TxtShortVoiceEndTime'
+$script:TxtShortVoiceThreshold      = _Ctrl 'TxtShortVoiceThreshold'
+$script:CmbShortVoiceDirection      = _Ctrl 'CmbShortVoiceDirection'
+$script:TxtShortVoiceQueue          = _Ctrl 'TxtShortVoiceQueue'
+$script:TxtShortVoiceDivision       = _Ctrl 'TxtShortVoiceDivision'
+$script:TxtShortVoiceUser           = _Ctrl 'TxtShortVoiceUser'
+$script:TxtShortVoiceCampaign       = _Ctrl 'TxtShortVoiceCampaign'
+$script:BtnShortVoiceRun            = _Ctrl 'BtnShortVoiceRun'
+$script:BtnShortVoiceCancel         = _Ctrl 'BtnShortVoiceCancel'
+$script:BtnShortVoiceExport         = _Ctrl 'BtnShortVoiceExport'
+$script:BtnShortVoiceSendElastic    = _Ctrl 'BtnShortVoiceSendElastic'
+$script:TxtShortVoiceStatus         = _Ctrl 'TxtShortVoiceStatus'
+$script:PrgShortVoice               = _Ctrl 'PrgShortVoice'
+$script:LblShortVoiceScanned        = _Ctrl 'LblShortVoiceScanned'
+$script:LblShortVoiceCount          = _Ctrl 'LblShortVoiceCount'
+$script:LblShortVoiceRate           = _Ctrl 'LblShortVoiceRate'
+$script:LblShortVoiceDurations      = _Ctrl 'LblShortVoiceDurations'
+$script:TxtShortVoiceEventTail      = _Ctrl 'TxtShortVoiceEventTail'
+$script:DgShortVoiceDetails         = _Ctrl 'DgShortVoiceDetails'
+$script:TxtShortVoiceRollupPreview  = _Ctrl 'TxtShortVoiceRollupPreview'
+
 # Run Console tab
 $script:TxtConsoleStatus       = _Ctrl 'TxtConsoleStatus'
 $script:DgRunEvents            = _Ctrl 'DgRunEvents'
@@ -285,6 +310,9 @@ $script:State = @{
     TimelineTimer      = $null
     TimelineRunFolder  = $null  # run folder for the current/last timeline run
     TimelineRunCancelled = $false
+    ShortVoicePending = $false
+    ShortVoiceParams = $null
+    ShortVoiceResult = $null
     DemoModeEnabled    = $false
     DemoData           = @{}
     DemoRunFolder      = ''
@@ -5821,6 +5849,353 @@ function _GetDatasetParameters {
     return $params
 }
 
+function _GetShortVoiceDateTimeRange {
+    $start = $null
+    $end = $null
+
+    if ($null -eq $script:DpShortVoiceStartDate -or $null -eq $script:DpShortVoiceEndDate) {
+        throw 'Short Voice date controls are unavailable.'
+    }
+
+    if ($null -eq $script:DpShortVoiceStartDate.SelectedDate -or $null -eq $script:DpShortVoiceEndDate.SelectedDate) {
+        throw 'Short Voice start and end dates are required.'
+    }
+
+    $startText = if ($null -ne $script:TxtShortVoiceStartTime) { [string]$script:TxtShortVoiceStartTime.Text.Trim() } else { '00:00:00' }
+    $endText = if ($null -ne $script:TxtShortVoiceEndTime) { [string]$script:TxtShortVoiceEndTime.Text.Trim() } else { '23:59:59' }
+    if ([string]::IsNullOrWhiteSpace($startText)) { $startText = '00:00:00' }
+    if ([string]::IsNullOrWhiteSpace($endText)) { $endText = '23:59:59' }
+
+    $start = [DateTime]::Parse(("{0:yyyy-MM-dd} {1}" -f $script:DpShortVoiceStartDate.SelectedDate, $startText))
+    $end = [DateTime]::Parse(("{0:yyyy-MM-dd} {1}" -f $script:DpShortVoiceEndDate.SelectedDate, $endText))
+
+    if ($start -gt $end) {
+        throw 'Short Voice start date/time must be earlier than end date/time.'
+    }
+
+    return [pscustomobject]@{
+        Start = $start
+        End = $end
+        Interval = ("{0}/{1}" -f $start.ToUniversalTime().ToString('o'), $end.ToUniversalTime().ToString('o'))
+    }
+}
+
+function _GetShortVoiceDirections {
+    $selected = if ($null -ne $script:CmbShortVoiceDirection -and $null -ne $script:CmbShortVoiceDirection.SelectedItem) {
+        [string]$script:CmbShortVoiceDirection.SelectedItem.Content
+    } else {
+        'Both'
+    }
+
+    switch ($selected) {
+        'Inbound' { return @('inbound') }
+        'Outbound' { return @('outbound') }
+        default { return @('inbound', 'outbound') }
+    }
+}
+
+function _BuildShortVoiceDatasetParameters {
+    $range = _GetShortVoiceDateTimeRange
+    $directions = _GetShortVoiceDirections
+
+    $conversationFilters = [System.Collections.Generic.List[object]]::new()
+    $conversationFilters.Add([ordered]@{
+        type = 'and'
+        predicates = @([ordered]@{ type = 'dimension'; dimension = 'mediaType'; operator = 'matches'; value = 'voice' })
+    }) | Out-Null
+
+    $dirPredicates = @()
+    foreach ($direction in @($directions)) {
+        $dirPredicates += [ordered]@{ type = 'dimension'; dimension = 'originatingDirection'; operator = 'matches'; value = $direction }
+    }
+    if (@($dirPredicates).Count -gt 0) {
+        $conversationFilters.Add([ordered]@{ type = 'or'; predicates = $dirPredicates }) | Out-Null
+    }
+
+    $segmentPredicates = [System.Collections.Generic.List[object]]::new()
+
+    $queue = if ($null -ne $script:TxtShortVoiceQueue) { [string]$script:TxtShortVoiceQueue.Text.Trim() } else { '' }
+    if ($queue) {
+        $segmentPredicates.Add([ordered]@{ type = 'dimension'; dimension = 'queueName'; operator = 'contains'; value = $queue }) | Out-Null
+    }
+
+    $division = if ($null -ne $script:TxtShortVoiceDivision) { [string]$script:TxtShortVoiceDivision.Text.Trim() } else { '' }
+    if ($division) {
+        $segmentPredicates.Add([ordered]@{ type = 'dimension'; dimension = 'divisionId'; operator = 'matches'; value = $division }) | Out-Null
+    }
+
+    $user = if ($null -ne $script:TxtShortVoiceUser) { [string]$script:TxtShortVoiceUser.Text.Trim() } else { '' }
+    if ($user) {
+        $segmentPredicates.Add([ordered]@{ type = 'dimension'; dimension = 'userId'; operator = 'matches'; value = $user }) | Out-Null
+    }
+
+    $campaign = if ($null -ne $script:TxtShortVoiceCampaign) { [string]$script:TxtShortVoiceCampaign.Text.Trim() } else { '' }
+    if ($campaign) {
+        $segmentPredicates.Add([ordered]@{ type = 'dimension'; dimension = 'campaignId'; operator = 'matches'; value = $campaign }) | Out-Null
+    }
+
+    $body = [ordered]@{
+        interval = $range.Interval
+        order = 'asc'
+        orderBy = 'conversationStart'
+        conversationFilters = @($conversationFilters.ToArray())
+    }
+
+    if ($segmentPredicates.Count -gt 0) {
+        $body.segmentFilters = @([ordered]@{ type = 'and'; predicates = @($segmentPredicates.ToArray()) })
+    }
+
+    return [pscustomobject]@{
+        DatasetParameters = @{ Body = ($body | ConvertTo-Json -Depth 30) }
+        Interval = $range.Interval
+        Directions = $directions
+        Queue = $queue
+        Division = $division
+        User = $user
+        Campaign = $campaign
+    }
+}
+
+function _GetShortVoiceThreshold {
+    $text = if ($null -ne $script:TxtShortVoiceThreshold) { [string]$script:TxtShortVoiceThreshold.Text.Trim() } else { '5' }
+    if ([string]::IsNullOrWhiteSpace($text)) { $text = '5' }
+    $value = [double]0
+    if (-not [double]::TryParse($text, [ref]$value)) {
+        throw 'Threshold seconds must be numeric.'
+    }
+    if ($value -le 0) {
+        throw 'Threshold seconds must be greater than zero.'
+    }
+    return [math]::Round($value, 3)
+}
+
+function _RenderShortVoiceResult {
+    param([Parameter(Mandatory = $true)]$Result)
+
+    $summary = $Result.Summary
+    $rollup = $Result.Rollup
+    $preview = @($Result.PreviewDetails | Select-Object -First 2000)
+
+    _Dispatch {
+        if ($null -ne $script:TxtShortVoiceStatus) {
+            $script:TxtShortVoiceStatus.Text = 'Complete'
+        }
+        if ($null -ne $script:PrgShortVoice) {
+            $script:PrgShortVoice.Value = 100
+        }
+        if ($null -ne $script:LblShortVoiceScanned) {
+            $script:LblShortVoiceScanned.Text = [string]$summary.TotalVoiceConversationsScanned
+        }
+        if ($null -ne $script:LblShortVoiceCount) {
+            $script:LblShortVoiceCount.Text = [string]$summary.TotalShortVoiceConversations
+        }
+        if ($null -ne $script:LblShortVoiceRate) {
+            $script:LblShortVoiceRate.Text = [string]$summary.ShortConversationRatePercent
+        }
+        if ($null -ne $script:LblShortVoiceDurations) {
+            $script:LblShortVoiceDurations.Text = "{0} / {1} / {2}" -f $summary.AverageShortDurationSeconds, $summary.MedianShortDurationSeconds, $summary.P95ShortDurationSeconds
+        }
+        if ($null -ne $script:DgShortVoiceDetails) {
+            $script:DgShortVoiceDetails.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($preview)
+        }
+        if ($null -ne $script:TxtShortVoiceRollupPreview) {
+            $script:TxtShortVoiceRollupPreview.Text = ($rollup | ConvertTo-Json -Depth 8)
+        }
+    }
+}
+
+function _BuildShortVoiceEventTail {
+    param([string]$RunFolder)
+    if ([string]::IsNullOrWhiteSpace($RunFolder)) { return '' }
+
+    $events = @(Get-RunEvents -RunFolder $RunFolder -LastN 12)
+    if (@($events).Count -eq 0) { return '' }
+    $lines = @()
+    foreach ($event in @($events)) {
+        $ts = if ($event.PSObject.Properties['timestamp']) { [string]$event.timestamp } else { '' }
+        $et = if ($event.PSObject.Properties['eventType']) { [string]$event.eventType } else { '' }
+        $lines += ("{0} {1}" -f $ts, $et).Trim()
+    }
+    return [string]::Join([Environment]::NewLine, $lines)
+}
+
+function _RunShortVoicePostProcessFromCurrentRun {
+    if ([string]::IsNullOrWhiteSpace($script:State.CurrentRunFolder)) {
+        throw 'No run folder available for short voice post-processing.'
+    }
+
+    $params = $script:State.ShortVoiceParams
+    if ($null -eq $params) {
+        throw 'Short voice parameters are not initialized.'
+    }
+
+    $threshold = _GetShortVoiceThreshold
+    $postParams = @{
+        RunFolder = $script:State.CurrentRunFolder
+        ThresholdSeconds = $threshold
+        Directions = @($params.Directions)
+        Queue = [string]$params.Queue
+        Division = [string]$params.Division
+        User = [string]$params.User
+        Campaign = [string]$params.Campaign
+        ExportMarkdown = $true
+        ExportJson = $true
+        ExportCsv = $true
+        ExportExcel = $true
+    }
+    $result = Invoke-ShortVoiceConversationPostProcess @postParams
+
+    $script:State.ShortVoiceResult = $result
+    _RenderShortVoiceResult -Result $result
+
+    $tail = _BuildShortVoiceEventTail -RunFolder $script:State.CurrentRunFolder
+    _Dispatch {
+        if ($null -ne $script:TxtShortVoiceEventTail) {
+            $script:TxtShortVoiceEventTail.Text = $tail
+        }
+    }
+
+    return $result
+}
+
+function _GetShortVoiceElasticConfigForUi {
+    $repoRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:UIAppDir, '..', '..'))
+    $configPath = [System.IO.Path]::Combine($repoRoot, 'config', 'short-voice-conversation-rollup.example.json')
+    if (-not [System.IO.File]::Exists($configPath)) { return $null }
+
+    try {
+        $cfg = (Get-Content -Path $configPath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 100)
+        if ($null -eq $cfg.Elastic) { return $null }
+        return @{
+            Enabled = [bool]$cfg.Elastic.Enabled
+            Uri = [string]$cfg.Elastic.Uri
+            IndexName = [string]$cfg.Elastic.IndexName
+            UseDailyIndexSuffix = [bool]$cfg.Elastic.UseDailyIndexSuffix
+            AuthMode = [string]$cfg.Elastic.AuthMode
+            ApiKeyEnvironmentVariable = [string]$cfg.Elastic.ApiKeyEnvironmentVariable
+            UsernameEnvironmentVariable = [string]$cfg.Elastic.UsernameEnvironmentVariable
+            PasswordEnvironmentVariable = [string]$cfg.Elastic.PasswordEnvironmentVariable
+            ValidateTls = [bool]$cfg.Elastic.ValidateTls
+            DryRun = [bool]$cfg.Elastic.DryRun
+            BulkBatchSize = [int]$cfg.Elastic.BulkBatchSize
+        }
+    }
+    catch {
+        return $null
+    }
+}
+
+function _RunShortVoiceFromUi {
+    try {
+        $bundle = _BuildShortVoiceDatasetParameters
+        $threshold = _GetShortVoiceThreshold
+        Update-AppConfig -Key 'ShortVoiceThresholdSeconds' -Value $threshold
+
+        $script:State.ShortVoiceParams = [pscustomobject]@{
+            Interval = $bundle.Interval
+            Threshold = $threshold
+            Directions = @($bundle.Directions)
+            Queue = $bundle.Queue
+            Division = $bundle.Division
+            User = $bundle.User
+            Campaign = $bundle.Campaign
+        }
+        $script:State.ShortVoicePending = $true
+        $script:State.ShortVoiceResult = $null
+
+        _Dispatch {
+            if ($null -ne $script:TxtShortVoiceStatus) { $script:TxtShortVoiceStatus.Text = 'Running...' }
+            if ($null -ne $script:PrgShortVoice) { $script:PrgShortVoice.Value = 10 }
+            if ($null -ne $script:TxtShortVoiceEventTail) { $script:TxtShortVoiceEventTail.Text = '' }
+            if ($null -ne $script:TxtShortVoiceRollupPreview) { $script:TxtShortVoiceRollupPreview.Text = '' }
+            if ($null -ne $script:DgShortVoiceDetails) { $script:DgShortVoiceDetails.ItemsSource = $null }
+        }
+
+        _StartRunInBackground -RunType 'full' -DatasetParameters $bundle.DatasetParameters
+    }
+    catch {
+        $script:State.ShortVoicePending = $false
+        _SetStatus 'Short Voice run validation failed'
+        [System.Windows.MessageBox]::Show($_.Exception.Message, 'Short Voice') | Out-Null
+    }
+}
+
+function _ExportShortVoiceArtifacts {
+    if ($null -eq $script:State.ShortVoiceResult) {
+        [System.Windows.MessageBox]::Show('No short voice analysis results are available to export.', 'Short Voice') | Out-Null
+        return
+    }
+
+    $paths = @(
+        [string]$script:State.ShortVoiceResult.SummaryPath,
+        [string]$script:State.ShortVoiceResult.RollupPath,
+        [string]$script:State.ShortVoiceResult.DetailPath,
+        [string]$script:State.ShortVoiceResult.MarkdownPath,
+        [string]$script:State.ShortVoiceResult.CsvPath,
+        [string]$script:State.ShortVoiceResult.XlsxPath
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and [System.IO.File]::Exists($_) }
+
+    if (@($paths).Count -eq 0) {
+        [System.Windows.MessageBox]::Show('No export artifacts were found in the run folder.', 'Short Voice') | Out-Null
+        return
+    }
+
+    $dir = [System.IO.Path]::GetDirectoryName($paths[0])
+    Start-Process explorer.exe $dir | Out-Null
+}
+
+function _SendShortVoiceRollupToElasticNow {
+    if ($null -eq $script:State.ShortVoiceResult) {
+        [System.Windows.MessageBox]::Show('Run Short Voice analysis first.', 'Short Voice') | Out-Null
+        return
+    }
+
+    $elasticConfig = _GetShortVoiceElasticConfigForUi
+    if ($null -eq $elasticConfig -or [string]::IsNullOrWhiteSpace([string]$elasticConfig.Uri)) {
+        [System.Windows.MessageBox]::Show('Elastic config is missing. Update config/short-voice-conversation-rollup.example.json.', 'Short Voice') | Out-Null
+        return
+    }
+
+    try {
+        $threshold = _GetShortVoiceThreshold
+        $params = $script:State.ShortVoiceParams
+        $elasticConfig.Enabled = $true
+        $elasticParams = @{
+            RunFolder = $script:State.CurrentRunFolder
+            ThresholdSeconds = $threshold
+            Directions = @($params.Directions)
+            Queue = [string]$params.Queue
+            Division = [string]$params.Division
+            User = [string]$params.User
+            Campaign = [string]$params.Campaign
+            ExportMarkdown = $true
+            ExportJson = $true
+            ElasticEnabled = $true
+            ElasticConfig = $elasticConfig
+        }
+        $result = Invoke-ShortVoiceConversationPostProcess @elasticParams
+
+        $script:State.ShortVoiceResult = $result
+        _RenderShortVoiceResult -Result $result
+
+        $msg = if ($null -ne $result.ElasticPublish) {
+            if ($result.ElasticPublish.DryRun) {
+                "Elastic dry-run payload created: $($result.ElasticPublish.BulkPayloadPath)"
+            } else {
+                "Elastic publish complete. Docs: $($result.ElasticPublish.DocumentCount)"
+            }
+        } else {
+            'Elastic publish did not return status.'
+        }
+        _SetStatus $msg
+        [System.Windows.MessageBox]::Show($msg, 'Short Voice') | Out-Null
+    }
+    catch {
+        _SetStatus 'Elastic publish failed'
+        [System.Windows.MessageBox]::Show(("Elastic publish failed: {0}" -f $_.Exception.Message), 'Short Voice') | Out-Null
+    }
+}
+
 function _SetRunning {
     param([bool]$IsRunning)
     $script:State.IsRunning = $IsRunning
@@ -5829,6 +6204,12 @@ function _SetRunning {
         $script:BtnRun.IsEnabled        = $coreReady -and (-not $IsRunning)
         $script:BtnPreviewRun.IsEnabled = $coreReady -and (-not $IsRunning)
         $script:BtnCancelRun.IsEnabled  = $IsRunning
+        if ($null -ne $script:BtnShortVoiceRun) {
+            $script:BtnShortVoiceRun.IsEnabled = $coreReady -and (-not $IsRunning)
+        }
+        if ($null -ne $script:BtnShortVoiceCancel) {
+            $script:BtnShortVoiceCancel.IsEnabled = $IsRunning
+        }
         if (-not $IsRunning) {
             $script:PrgRun.Value = 0
         }
@@ -5983,6 +6364,13 @@ function _PollBackgroundRun {
         if ($events.Count -gt 0) {
             _Dispatch {
                 $script:DgRunEvents.ItemsSource = [System.Collections.ObjectModel.ObservableCollection[object]]($events)
+                if ($script:State.ShortVoicePending -and $null -ne $script:TxtShortVoiceEventTail) {
+                    $script:TxtShortVoiceEventTail.Text = [string]::Join([Environment]::NewLine, @($events | Select-Object -Last 12 | ForEach-Object {
+                        $t = if ($_.PSObject.Properties['timestamp']) { [string]$_.timestamp } else { '' }
+                        $e = if ($_.PSObject.Properties['eventType']) { [string]$_.eventType } else { '' }
+                        ("{0} {1}" -f $t, $e).Trim()
+                    }))
+                }
             }
         }
     } else {
@@ -6073,6 +6461,7 @@ function _PollBackgroundRun {
         $script:State.BackgroundRunOutputRoot = ''
         $script:State.BackgroundRunStartedUtc = $null
         $script:State.PendingRunConversationId = ''
+        $script:State.ShortVoicePending = $false
         return
     }
 
@@ -6096,6 +6485,31 @@ function _PollBackgroundRun {
                 -RunFolder               $script:State.CurrentRunFolder `
                 -PreferredConversationId $preferredConversationId `
                 -RunLoadResult           $runLoadResult
+        }
+
+        if ($script:State.ShortVoicePending) {
+            try {
+                if ($null -ne $script:TxtShortVoiceStatus) {
+                    $script:TxtShortVoiceStatus.Text = 'Post-processing...'
+                }
+                if ($null -ne $script:PrgShortVoice) {
+                    $script:PrgShortVoice.Value = 75
+                }
+                _RunShortVoicePostProcessFromCurrentRun | Out-Null
+                $script:State.ShortVoicePending = $false
+            }
+            catch {
+                $script:State.ShortVoicePending = $false
+                _SetStatus 'Short Voice post-processing failed'
+                _Dispatch {
+                    if ($null -ne $script:TxtShortVoiceStatus) {
+                        $script:TxtShortVoiceStatus.Text = 'Failed'
+                    }
+                    if ($null -ne $script:TxtShortVoiceRollupPreview) {
+                        $script:TxtShortVoiceRollupPreview.Text = "Post-processing failed: $($_.Exception.Message)"
+                    }
+                }
+            }
         }
     }
 
@@ -6168,6 +6582,7 @@ function _CancelBackgroundRun {
     $script:State.BackgroundRunDataset = ''
     $script:State.BackgroundRunOutputRoot = ''
     $script:State.BackgroundRunStartedUtc = $null
+    $script:State.ShortVoicePending = $false
 
     if ($null -ne $script:State.PollingTimer) {
         try { $script:State.PollingTimer.Stop() } catch { }
@@ -7216,6 +7631,22 @@ if ($null -ne $script:BtnCancelTimelineRun) {
     })
 }
 
+if ($null -ne $script:BtnShortVoiceRun) {
+    $script:BtnShortVoiceRun.Add_Click({ _RunShortVoiceFromUi })
+}
+
+if ($null -ne $script:BtnShortVoiceCancel) {
+    $script:BtnShortVoiceCancel.Add_Click({ _CancelBackgroundRun })
+}
+
+if ($null -ne $script:BtnShortVoiceExport) {
+    $script:BtnShortVoiceExport.Add_Click({ _ExportShortVoiceArtifacts })
+}
+
+if ($null -ne $script:BtnShortVoiceSendElastic) {
+    $script:BtnShortVoiceSendElastic.Add_Click({ _SendShortVoiceRollupToElasticNow })
+}
+
 if ($null -ne $script:DgTimelineConversations) {
     $script:DgTimelineConversations.Add_SelectionChanged({
         $selected = $script:DgTimelineConversations.SelectedItem
@@ -7485,6 +7916,27 @@ if ($cfg.LastEndDate) {
 $script:TxtStartTime.Text = if ([string]::IsNullOrWhiteSpace([string]$cfg.LastStartTime)) { '00:00:00' } else { [string]$cfg.LastStartTime }
 $script:TxtEndTime.Text   = if ([string]::IsNullOrWhiteSpace([string]$cfg.LastEndTime))   { '23:59:59' } else { [string]$cfg.LastEndTime }
 _SyncTrendWindowDefaultsFromQueryRange
+
+if ($null -ne $script:DpShortVoiceStartDate) {
+    $script:DpShortVoiceStartDate.SelectedDate = $script:DtpStartDate.SelectedDate
+}
+if ($null -ne $script:DpShortVoiceEndDate) {
+    $script:DpShortVoiceEndDate.SelectedDate = $script:DtpEndDate.SelectedDate
+}
+if ($null -ne $script:TxtShortVoiceStartTime -and [string]::IsNullOrWhiteSpace([string]$script:TxtShortVoiceStartTime.Text)) {
+    $script:TxtShortVoiceStartTime.Text = '00:00:00'
+}
+if ($null -ne $script:TxtShortVoiceEndTime -and [string]::IsNullOrWhiteSpace([string]$script:TxtShortVoiceEndTime.Text)) {
+    $script:TxtShortVoiceEndTime.Text = '23:59:59'
+}
+if ($null -ne $script:TxtShortVoiceThreshold -and [string]::IsNullOrWhiteSpace([string]$script:TxtShortVoiceThreshold.Text)) {
+    $script:TxtShortVoiceThreshold.Text = [string]$cfg.ShortVoiceThresholdSeconds
+}
+
+$elasticUiConfig = _GetShortVoiceElasticConfigForUi
+if ($null -ne $script:BtnShortVoiceSendElastic) {
+    $script:BtnShortVoiceSendElastic.IsEnabled = ($null -ne $elasticUiConfig -and -not [string]::IsNullOrWhiteSpace([string]$elasticUiConfig.Uri))
+}
 
 _RefreshRecentRuns
 _RefreshActiveCaseStatus

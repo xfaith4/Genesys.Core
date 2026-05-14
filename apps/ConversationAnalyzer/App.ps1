@@ -33,6 +33,7 @@ Import-Module (Join-Path $AppDir 'modules\App.CoreAdapter.psm1')  -Force -ErrorA
 Import-Module (Join-Path $AppDir 'modules\App.Index.psm1')        -Force -ErrorAction Stop -DisableNameChecking
 Import-Module (Join-Path $AppDir 'modules\App.Export.psm1')       -Force -ErrorAction Stop
 Import-Module (Join-Path $AppDir 'modules\App.Reporting.psm1')    -Force -ErrorAction Stop
+Import-Module (Join-Path $AppDir 'modules\App.ShortVoice.psm1')   -Force -ErrorAction Stop
 Import-Module (Join-Path $AppDir 'modules\App.Database.psm1')     -Force -ErrorAction Stop
 
 # ── Bootstrap: auto-clone Genesys.Core if it has never been set up ───────────

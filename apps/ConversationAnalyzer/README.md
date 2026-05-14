@@ -89,6 +89,94 @@ Environment variables override the persisted Core paths at runtime:
 - SQLite-backed case management for imports, notes, findings, bookmarks, tags, saved views, and report snapshots
 - Investigation report tabs for queue performance, agent performance, transfer chains, flow containment, wrapup intelligence, quality overlay, trend comparison, and timeline analysis
 
+## Short Voice Conversation Analyzer
+
+The app includes a dedicated short-call workflow that stays Core-first:
+
+- Data collection still runs through `Invoke-Dataset` (conversation-details query).
+- Post-processing reads run artifacts from the active Core run folder.
+- Output is written back into the same run folder for traceability.
+
+Generated artifacts:
+
+- `short-voice-conversations-summary.json`
+- `short-voice-conversations-rollup.json`
+- `short-voice-conversations-detail.jsonl`
+- `short-voice-conversations-report.md`
+- Optional exports: `short-voice-conversations.csv`, `short-voice-conversations.xlsx`
+- Optional Elastic bulk payload: `short-voice-elastic-bulk.ndjson`
+
+### Desktop Workflow (WPF Tab)
+
+1. Open the **Short Voice Conversations** tab.
+2. Set threshold (seconds), interval, and optional filters (direction, queue, division, user, campaign, ANI, DNIS, wrap-up, disconnect).
+3. Run query from the tab. The app starts a Core dataset run.
+4. After run completion, post-processing executes and fills summary, rollups, and detail preview.
+5. Use export buttons for Markdown/JSON/CSV/XLSX and optional Elastic publish.
+
+Notes:
+
+- Threshold logic is strict less-than (`duration < threshold`).
+- Incomplete conversations are excluded by default from short-call counting.
+
+### Headless Workflow (Scheduled Telemetry)
+
+Use `scripts/Start-ShortVoiceConversationRollupJob.ps1` to run the same Core + post-process pipeline without UI.
+
+Example:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Start-ShortVoiceConversationRollupJob.ps1 -ConfigPath ./config/short-voice-conversation-rollup.json
+```
+
+Register a Windows Scheduled Task with `scripts/Register-ShortVoiceConversationRollupScheduledTask.ps1`.
+
+Example:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Register-ShortVoiceConversationRollupScheduledTask.ps1 -ConfigPath ./config/short-voice-conversation-rollup.json -DailyAt '06:00'
+```
+
+Config baseline: `config/short-voice-conversation-rollup.example.json`.
+
+### Elastic Publishing
+
+Short voice rollups can be sent to Elastic bulk API with deterministic `_id` values per run/document type/dimension key.
+
+Supported settings in config:
+
+- `Elastic.Enabled`
+- `Elastic.Uri`
+- `Elastic.IndexName`
+- `Elastic.UseDailyIndexSuffix`
+- `Elastic.AuthMode` (`ApiKey` or `Basic`)
+- `Elastic.ApiKeyEnvironmentVariable` or Basic auth env var names
+- `Elastic.BulkBatchSize`
+- `Elastic.DryRun`
+- `Elastic.ValidateTls`
+
+When `DryRun = true`, the NDJSON payload is produced but not sent.
+
+### Troubleshooting
+
+- No output files created:
+    Ensure the Core run folder has `manifest.json`, `summary.json`, and `data/*.jsonl` with conversation details rows.
+- Short-call count appears low:
+    Confirm threshold is in seconds and strict less-than; exactly equal durations are excluded.
+- Missing-end conversations not counted:
+    This is expected unless `IncludeIncompleteConversations` is enabled.
+- Elastic publish fails:
+    Validate `Elastic.Uri`, auth env vars, index permissions, and TLS policy (`ValidateTls`).
+- Empty rollups with non-empty source:
+    Check active filters (queue/division/user/campaign/ANI/DNIS/wrap-up/disconnect).
+
+### Known Limitations
+
+- Duration derivation currently prefers `conversationStart` / `conversationEnd`.
+- XLSX export requires `ImportExcel` module availability.
+- Rollups are run-folder scoped and do not merge across multiple runs automatically.
+- Elastic error handling retries transient failures, but does not yet inspect per-item failure reasons for selective replay.
+
 ## Case-Driven Pivot Workflow
 
 All interactive analysis runs against a **local SQLite case store** (`cases.sqlite`), not by re-querying Genesys Cloud on every pivot. The store ships pre-built (`lib/cases.seed.sqlite`) and is copied into `%LOCALAPPDATA%\GenesysConversationAnalysis\` on first launch. The store is the investigation substrate: latest-state browsing stays simple, while import lineage remains queryable.

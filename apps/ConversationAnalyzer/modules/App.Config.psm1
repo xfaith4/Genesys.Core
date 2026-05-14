@@ -192,6 +192,7 @@ function Get-AppConfig {
         LastEndDate     = ''
         LastStartTime   = '00:00:00'
         LastEndTime     = '23:59:59'
+        ShortVoiceThresholdSeconds = 5
         PkceClientId    = ''
         PkceRedirectUri = 'http://localhost:8080/callback'
     }

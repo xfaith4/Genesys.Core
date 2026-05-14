@@ -25,6 +25,13 @@ the engineering teams that automate against them.
 
 ## 2. Recently Completed
 
+- [x] Short Voice Conversation Analyzer (2026-05-14): Added a Core-first
+      short-call workflow for the Conversation Analyzer app with a dedicated
+      desktop tab, shared post-processing module, run-folder artifact outputs
+      (summary/rollup/detail/report), optional CSV/XLSX exports, deterministic
+      Elastic bulk payload + publish path, headless runner script, scheduled
+      task registration script, and fixture-driven unit tests under
+      `tests/unit/ShortVoiceConversationAnalyzer.Tests.ps1`.
 - [x] Release 1.4 operator console + packaging (2026-05-12): added
       `apps/InvestigationConsole/index.html` as a unified offline console for
       Agent, Conversation, and Queue runs with run history, summary, and

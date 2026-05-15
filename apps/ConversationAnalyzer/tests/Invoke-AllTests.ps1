@@ -219,6 +219,20 @@ ArchCheck 'ARCH-18F' 'Drilldown workspace selection uses TabWorkspace.SelectedIt
     ($uiPs -notmatch 'TabDrilldownWorkspace\.SelectedIndex')
 }
 
+ArchCheck 'ARCH-18G' 'Load-time selector defaults use guarded helper instead of raw SelectedIndex writes' {
+    ($uiPs -match 'function _TrySetSelectorIndex') -and
+    ($uiPs -match '_TrySetSelectorIndex -Control \$script:CmbQueuePerfDivision -Index 0') -and
+    ($uiPs -match '_TrySetSelectorIndex -Control \$script:CmbAgentPerfDivision -Index 0') -and
+    ($uiPs -match '_TrySetSelectorIndex -Control \$script:CmbTransferType -Index 0') -and
+    ($uiPs -match '_TrySetSelectorIndex -Control \$script:CmbFlowType -Index 0') -and
+    ($uiPs -match '_TrySetSelectorIndex -Control \$script:CmbTrendDivision -Index 0') -and
+    ($uiPs -notmatch '\$script:CmbQueuePerfDivision\.SelectedIndex') -and
+    ($uiPs -notmatch '\$script:CmbAgentPerfDivision\.SelectedIndex') -and
+    ($uiPs -notmatch '\$script:CmbTransferType\.SelectedIndex') -and
+    ($uiPs -notmatch '\$script:CmbFlowType\.SelectedIndex') -and
+    ($uiPs -notmatch '\$script:CmbTrendDivision\.SelectedIndex')
+}
+
 # ── Architecture: export streaming ────────────────────────────────────────────
 Write-Host "`n--- Export streaming ---" -ForegroundColor DarkCyan
 

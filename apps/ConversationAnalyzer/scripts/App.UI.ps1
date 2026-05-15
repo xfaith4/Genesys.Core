@@ -953,7 +953,34 @@ function _SelectComboContent {
             return
         }
     }
-    if ($Combo.Items.Count -gt 0 -and -not $Content) { $Combo.SelectedIndex = 0 }
+    if ($Combo.Items.Count -gt 0 -and -not $Content) { [void](_TrySetSelectorIndex -Control $Combo -Index 0) }
+}
+
+function _TrySetSelectorIndex {
+    param(
+        [object]$Control,
+        [int]$Index
+    )
+
+    if ($null -eq $Control -or $Index -lt 0) { return $false }
+    $selectorType = [System.Windows.Controls.Primitives.Selector]
+    if ($Control -isnot $selectorType) { return $false }
+
+    $itemCount = 0
+    try { $itemCount = [int]$Control.Items.Count } catch { return $false }
+    if ($itemCount -le $Index) { return $false }
+
+    try {
+        $Control.SelectedIndex = $Index
+        return $true
+    } catch {
+        try {
+            $Control.SelectedItem = $Control.Items[$Index]
+            return $true
+        } catch {
+            return $false
+        }
+    }
 }
 
 function _ClearConversationDisplayFilters {
@@ -1926,7 +1953,7 @@ function _PopulateQueuePerfDivisionFilter {
         foreach ($d in $divRows) { $items.Add($d) }
         _SetItemsSource -Control $script:CmbQueuePerfDivision -Items $items
         $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
-        $script:CmbQueuePerfDivision.SelectedIndex = 0
+        [void](_TrySetSelectorIndex -Control $script:CmbQueuePerfDivision -Index 0)
         return
     }
 
@@ -1957,13 +1984,13 @@ function _PopulateQueuePerfDivisionFilter {
 
     _SetItemsSource -Control $script:CmbQueuePerfDivision -Items $items
     $script:CmbQueuePerfDivision.DisplayMemberPath = 'Name'
-    $script:CmbQueuePerfDivision.SelectedIndex = 0
+    [void](_TrySetSelectorIndex -Control $script:CmbQueuePerfDivision -Index 0)
 
     # Re-select previously chosen division if still present
     if ($prevSel) {
         for ($i = 1; $i -lt $items.Count; $i++) {
             if ($items[$i].DivisionId -eq $prevSel) {
-                $script:CmbQueuePerfDivision.SelectedIndex = $i
+                [void](_TrySetSelectorIndex -Control $script:CmbQueuePerfDivision -Index $i)
                 break
             }
         }
@@ -2221,7 +2248,7 @@ function _PopulateAgentPerfDivisionFilter {
         foreach ($d in $divRows) { $items.Add($d) }
         _SetItemsSource -Control $script:CmbAgentPerfDivision -Items $items
         $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
-        $script:CmbAgentPerfDivision.SelectedIndex = 0
+        [void](_TrySetSelectorIndex -Control $script:CmbAgentPerfDivision -Index 0)
         return
     }
 
@@ -2249,12 +2276,12 @@ function _PopulateAgentPerfDivisionFilter {
 
     _SetItemsSource -Control $script:CmbAgentPerfDivision -Items $items
     $script:CmbAgentPerfDivision.DisplayMemberPath = 'Name'
-    $script:CmbAgentPerfDivision.SelectedIndex     = 0
+    [void](_TrySetSelectorIndex -Control $script:CmbAgentPerfDivision -Index 0)
 
     if ($prevSel) {
         for ($i = 1; $i -lt $items.Count; $i++) {
             if ($items[$i].DivisionId -eq $prevSel) {
-                $script:CmbAgentPerfDivision.SelectedIndex = $i
+                [void](_TrySetSelectorIndex -Control $script:CmbAgentPerfDivision -Index $i)
                 break
             }
         }
@@ -2371,7 +2398,7 @@ function _EnsureTransferTypeFilter {
 
     $script:CmbTransferType.ItemsSource       = $items
     $script:CmbTransferType.DisplayMemberPath = 'Name'
-    $script:CmbTransferType.SelectedIndex     = 0
+    [void](_TrySetSelectorIndex -Control $script:CmbTransferType -Index 0)
 }
 
 function _ClearTransferGrid {
@@ -2673,7 +2700,7 @@ function _EnsureFlowTypeFilter {
 
     $script:CmbFlowType.ItemsSource       = $items
     $script:CmbFlowType.DisplayMemberPath = 'Name'
-    $script:CmbFlowType.SelectedIndex     = 0
+    [void](_TrySetSelectorIndex -Control $script:CmbFlowType -Index 0)
 }
 
 function _ClearFlowContainmentGrid {
@@ -3417,7 +3444,7 @@ function _PopulateTrendDivisionFilter {
         foreach ($d in $divRows) { $items.Add($d) }
         _SetItemsSource -Control $script:CmbTrendDivision -Items $items
         $script:CmbTrendDivision.DisplayMemberPath = 'Name'
-        $script:CmbTrendDivision.SelectedIndex = 0
+        [void](_TrySetSelectorIndex -Control $script:CmbTrendDivision -Index 0)
         return
     }
 
@@ -3445,12 +3472,12 @@ function _PopulateTrendDivisionFilter {
 
     _SetItemsSource -Control $script:CmbTrendDivision -Items $items
     $script:CmbTrendDivision.DisplayMemberPath = 'Name'
-    $script:CmbTrendDivision.SelectedIndex = 0
+    [void](_TrySetSelectorIndex -Control $script:CmbTrendDivision -Index 0)
 
     if ($prevSel) {
         for ($i = 1; $i -lt $items.Count; $i++) {
             if ($items[$i].DivisionId -eq $prevSel) {
-                $script:CmbTrendDivision.SelectedIndex = $i
+                [void](_TrySetSelectorIndex -Control $script:CmbTrendDivision -Index $i)
                 break
             }
         }
@@ -5185,7 +5212,7 @@ function _SelectDrilldownWorkspace {
     if ($null -ne $script:TabDrilldownWorkspace) {
         $tabCtrl.SelectedItem = $script:TabDrilldownWorkspace
     } else {
-        $tabCtrl.SelectedIndex = 1
+        [void](_TrySetSelectorIndex -Control $tabCtrl -Index 1)
     }
 }
 
@@ -7675,7 +7702,7 @@ if ($null -ne $script:BtnClearQueryBody) {
         $script:TxtQueryBody.Text = ''
         # Reset template selector to (none)
         if ($null -ne $script:CmbQueryTemplate -and $script:CmbQueryTemplate.Items.Count -gt 0) {
-            $script:CmbQueryTemplate.SelectedIndex = 0
+            [void](_TrySetSelectorIndex -Control $script:CmbQueryTemplate -Index 0)
         }
     })
 }

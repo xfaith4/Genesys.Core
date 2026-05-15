@@ -5,8 +5,9 @@
 >
 > Release shape: Agent Investigation shipped in 1.0 (proves the composition
 > model). Conversation Investigation shipped in 1.1 with redaction hardening.
-> Queue Investigation shipped in 1.2 with reporting-contract cleanup. Their
-> designs are documented here in full so the contract stays explicit.
+> Queue Investigation shipped in 1.2 with reporting-contract cleanup.
+> Campaign Investigation extends the same contract for outbound operations.
+> Their designs are documented here in full so the contract stays explicit.
 
 ## 1. Purpose
 
@@ -111,9 +112,9 @@ Required fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `investigationKey` | string | Stable key, matches the output directory name (`agent-investigation`, `conversation-investigation`, `queue-investigation`) |
+| `investigationKey` | string | Stable key, matches the output directory name (`agent-investigation`, `campaign-investigation`, `conversation-investigation`, `queue-investigation`) |
 | `runId` | string | Unique per-run identifier; same value as the directory segment |
-| `subjectType` | string | `agent`, `conversation`, or `queue` |
+| `subjectType` | string | `agent`, `campaign`, `conversation`, or `queue` |
 | `subjectId` | string | Resolved GUID. Name-based inputs are resolved by the Ops cmdlet wrapper before reaching the composer |
 | `window.since` | ISO-8601 string \| null | `null` for point-in-time investigations (e.g. Conversation) |
 | `window.until` | ISO-8601 string \| null | Same |
@@ -216,11 +217,28 @@ The `routing-queue-members` catalog dataset added in 1.2 wraps
 `queue-investigation-members` redaction profile strips the deep contact
 fields carried over by user records embedded under each membership entry.
 
+### 4.4 Campaign investigation
+
+**Cmdlet:** `Get-GenesysCampaignInvestigation -CampaignId <x> -Since <window>`
+**InvestigationKey:** `campaign-investigation`
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| campaign | `outbound.get.campaigns` | seed | Campaign status, dialing mode, queue, caller ID, and configured abandon threshold |
+| contactList | `outbound.get.contact.lists` | `contactListId` | Contact-list identity and size for reconciliation context |
+| queue | `routing.get.single.queue.config` | `queueId` | Connected queue metadata for answer-handling context |
+| diagnostics | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Live outbound diagnostics snapshot for pacing / health triage |
+| outboundEvents | `outbound.get.events` | `campaignId` | Dialer events and dispositions for the campaign |
+| auditChanges | `audit-logs` (EntityId=`campaignId`) | `campaignId` | Recent audit changes affecting the campaign |
+| conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
+| outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:
 
 - `samples/demo-agent-investigation/` — standard run artifacts for the enriched Agent Investigation.
+- `samples/demo-campaign-investigation/` — standard run artifacts for the Campaign Investigation.
 - `samples/demo-conversation-investigation-run/` — standard run artifacts for the Conversation Investigation.
 - `samples/demo-conversation-investigation/` — packaged conversation-investigation deliverable (HTML/XLSX/CSV/PCAP-oriented example).
 - `samples/demo-queue-investigation/` — standard run artifacts for the enriched Queue Investigation.

@@ -179,22 +179,22 @@
     "composerOverrides": []
   },
   "outputArtifacts": {
-    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\manifest.json",
-    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\events.jsonl",
-    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\summary.json",
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\summary.json",
     "dataPaths": {
-      "queue": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\queue.jsonl",
-      "members": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\members.jsonl",
-      "wrapupCodes": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\wrapupCodes.jsonl",
-      "observations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\observations.jsonl",
-      "sla": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\sla.jsonl",
-      "abandons": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\abandons.jsonl",
-      "transfers": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\transfers.jsonl",
-      "wrapupDistribution": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\wrapupDistribution.jsonl",
-      "activeAgents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-404481a8b21047c0a78bbba0ab50a81f\\queue-investigation\\demo-run\\data\\activeAgents.jsonl"
+      "queue": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\queue.jsonl",
+      "members": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\members.jsonl",
+      "wrapupCodes": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\wrapupCodes.jsonl",
+      "observations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\observations.jsonl",
+      "sla": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\sla.jsonl",
+      "abandons": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\abandons.jsonl",
+      "transfers": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\transfers.jsonl",
+      "wrapupDistribution": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\wrapupDistribution.jsonl",
+      "activeAgents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\queue-demo-4cf0799080e845a294f7f9cb6fd58d02\\queue-investigation\\demo-run\\data\\activeAgents.jsonl"
     }
   },
-  "startedAt": "2026-05-12T10:20:56.0069513Z",
-  "finishedAt": "2026-05-12T10:20:56.2580608Z",
+  "startedAt": "2026-05-15T03:30:29.1320775Z",
+  "finishedAt": "2026-05-15T03:30:29.2726752Z",
   "composerVersion": "1.0.0"
 }

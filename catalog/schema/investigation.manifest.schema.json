@@ -32,7 +32,7 @@
     },
     "subjectType": {
       "type": "string",
-      "enum": ["agent", "conversation", "queue"]
+      "enum": ["agent", "campaign", "conversation", "queue"]
     },
     "subjectId": {
       "type": "string",

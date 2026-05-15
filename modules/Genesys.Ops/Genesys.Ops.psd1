@@ -163,6 +163,7 @@
 
         # Investigations (Release 1.0 Track B + Release 1.1 + Release 1.2)
         'Get-GenesysAgentInvestigation'
+        'Get-GenesysCampaignInvestigation'
         'Get-GenesysConversationInvestigation'
         'Export-GenesysInvestigationPackage'
         'Export-GenesysInvestigationDiagnosticsBundle'

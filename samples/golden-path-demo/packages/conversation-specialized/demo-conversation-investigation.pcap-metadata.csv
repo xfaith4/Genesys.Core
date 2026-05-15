@@ -1,4 +1,0 @@
-"date","method","callid","fromUser","toUser","contactUser","userAgent","cseq","via1","sourceIp","sourcePort","conversationId"
-"2026-05-01T14:00:20.000Z","INVITE","demo-call-001","+15551230000","+15559870000","demo.agent@example.invalid","Demo WebRTC Client","1 INVITE","SIP/2.0/TLS edge.example.invalid","203.0.113.10","19000","demo-conversation-001"
-"2026-05-01T14:00:25.000Z",,"demo-call-001","+15551230000","+15559870000",,"Demo Edge","1 INVITE","SIP/2.0/TLS edge.example.invalid",,,"demo-conversation-001"
-"2026-05-01T14:00:30.000Z",,"demo-call-001","+15551230000","+15559870000",,"Demo SBC","1 INVITE","SIP/2.0/TLS edge.example.invalid",,,"demo-conversation-001"

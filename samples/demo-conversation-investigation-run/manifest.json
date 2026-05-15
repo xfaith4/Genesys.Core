@@ -178,22 +178,22 @@
     "composerOverrides": []
   },
   "outputArtifacts": {
-    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\manifest.json",
-    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\events.jsonl",
-    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\summary.json",
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\summary.json",
     "dataPaths": {
-      "conversationLookup": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\conversationLookup.jsonl",
-      "conversation": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\conversation.jsonl",
-      "participants": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\participants.jsonl",
-      "agents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\agents.jsonl",
-      "divisions": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\divisions.jsonl",
-      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\skills.jsonl",
-      "recordings": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\recordings.jsonl",
-      "evaluations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\evaluations.jsonl",
-      "surveys": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-063086418b4048b5b325176f72ce2ad3\\conversation-investigation\\demo-run\\data\\surveys.jsonl"
+      "conversationLookup": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\conversationLookup.jsonl",
+      "conversation": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\conversation.jsonl",
+      "participants": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\participants.jsonl",
+      "agents": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\agents.jsonl",
+      "divisions": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\divisions.jsonl",
+      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\skills.jsonl",
+      "recordings": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\recordings.jsonl",
+      "evaluations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\evaluations.jsonl",
+      "surveys": "C:\\Users\\benfu\\AppData\\Local\\Temp\\conversation-demo-2cd7f3e8d0f34ae3b0246a7aba471f3b\\conversation-investigation\\demo-run\\data\\surveys.jsonl"
     }
   },
-  "startedAt": "2026-05-12T10:20:54.7969412Z",
-  "finishedAt": "2026-05-12T10:20:55.0546315Z",
+  "startedAt": "2026-05-15T03:30:11.8729714Z",
+  "finishedAt": "2026-05-15T03:30:12.0031606Z",
   "composerVersion": "1.0.0"
 }

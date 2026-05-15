@@ -1,2 +1,0 @@
-"conversationId","conversationStart","conversationEnd","participants"
-"conv-demo-001","2026-04-05T13:10:00.0000000Z","2026-04-05T13:27:00.0000000Z","[{""userId"":""agent-demo-001"",""purpose"":""agent"",""queueId"":""queue-demo-1"",""divisionId"":""div-demo-1""},{""purpose"":""customer""}]"

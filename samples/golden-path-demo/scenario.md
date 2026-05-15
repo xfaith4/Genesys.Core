@@ -7,6 +7,6 @@
 5. Hand off the diagnostics JSON from `samples/golden-path-demo/diagnostics/support-bundle.json`.
 
 Generated artifacts:
-- Runs: .\samples\golden-path-demo\runs
-- Generic packages: .\samples\golden-path-demo\packages
-- Diagnostics: .\samples\golden-path-demo\diagnostics\support-bundle.json
+- Runs: G:\Development\20_Staging\GenesysCloud\Genesys.Core\samples\golden-path-demo\runs
+- Generic packages: G:\Development\20_Staging\GenesysCloud\Genesys.Core\samples\golden-path-demo\packages
+- Diagnostics: G:\Development\20_Staging\GenesysCloud\Genesys.Core\samples\golden-path-demo\diagnostics\support-bundle.json

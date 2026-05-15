@@ -26,24 +26,26 @@ New-Item -Path $packagesRoot -ItemType Directory -Force | Out-Null
 New-Item -Path $diagnosticsRoot -ItemType Directory -Force | Out-Null
 
 $agentRun = Join-Path $runsRoot 'agent-investigation'
+$campaignRun = Join-Path $runsRoot 'campaign-investigation'
 $conversationRun = Join-Path $runsRoot 'conversation-investigation'
 $queueRun = Join-Path $runsRoot 'queue-investigation'
 
 & (Join-Path $PSScriptRoot 'New-DemoAgentInvestigation.ps1') -Destination $agentRun
+& (Join-Path $PSScriptRoot 'New-DemoCampaignInvestigation.ps1') -Destination $campaignRun
 & (Join-Path $PSScriptRoot 'New-DemoConversationInvestigation.ps1') -Destination $conversationRun
 & (Join-Path $PSScriptRoot 'New-DemoQueueInvestigation.ps1') -Destination $queueRun
 
-$genericPackages = & (Join-Path $PSScriptRoot 'Export-InvestigationPackage.ps1') -RunFolder @($agentRun, $conversationRun, $queueRun) -DestinationRoot $packagesRoot -Force
+$genericPackages = & (Join-Path $PSScriptRoot 'Export-InvestigationPackage.ps1') -RunFolder @($agentRun, $campaignRun, $conversationRun, $queueRun) -DestinationRoot $packagesRoot -Force
 $specialConversationPackage = & (Join-Path $PSScriptRoot 'New-DemoConversationInvestigationPackage.ps1') -OutputDirectory (Join-Path $packagesRoot 'conversation-specialized') -Force:$Force
-$diagnostics = & (Join-Path $PSScriptRoot 'Copy-InvestigationDiagnosticsBundle.ps1') -RunFolder @($agentRun, $conversationRun, $queueRun) -OutputPath (Join-Path $diagnosticsRoot 'support-bundle.json') -PassThru
+$diagnostics = & (Join-Path $PSScriptRoot 'Copy-InvestigationDiagnosticsBundle.ps1') -RunFolder @($agentRun, $campaignRun, $conversationRun, $queueRun) -OutputPath (Join-Path $diagnosticsRoot 'support-bundle.json') -PassThru
 
 $scenarioPath = Join-Path $Destination 'scenario.md'
 $scenarioLines = @(
     '# Golden-Path Demo Scenario',
     '',
     '1. Open `apps/InvestigationConsole/index.html` in a browser and import the run artifacts from `samples/golden-path-demo/runs/` (or use **Load Demo** for the embedded offline fixtures).',
-    '2. Walk the operator through the Overview dashboard, then the Agent, Conversation, and Queue tabs.',
-    '3. Show the generic Markdown/XLSX packages under `samples/golden-path-demo/packages/` for offline handoff.',
+    '2. Walk the operator through the Overview dashboard, then the Agent, Campaign, Conversation, and Queue tabs.',
+    '3. Show the generic Markdown/HTML/XLSX packages plus Elastic and Power BI handoff artifacts under `samples/golden-path-demo/packages/`.',
     '4. Show the specialized conversation package under `samples/golden-path-demo/packages/conversation-specialized/` for SIP/PCAP evidence packaging.',
     '5. Hand off the diagnostics JSON from `samples/golden-path-demo/diagnostics/support-bundle.json`.',
     '',
@@ -57,7 +59,7 @@ Set-Content -Path $scenarioPath -Value $scenarioLines -Encoding utf8
 return [pscustomobject]@{
     Destination                   = (Resolve-Path $Destination).Path
     ScenarioPath                  = $scenarioPath
-    RunFolders                    = @($agentRun, $conversationRun, $queueRun)
+    RunFolders                    = @($agentRun, $campaignRun, $conversationRun, $queueRun)
     GenericPackages               = @($genericPackages)
     SpecializedConversationPackage = $specialConversationPackage
     Diagnostics                   = $diagnostics

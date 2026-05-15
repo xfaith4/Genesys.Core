@@ -353,6 +353,7 @@
   <div id="nav-tabs">
     <button class="tab-btn active" data-tab="overview">🏠 Overview</button>
     <button class="tab-btn" data-tab="agent">👤 Agent</button>
+    <button class="tab-btn" data-tab="campaign">📣 Campaign</button>
     <button class="tab-btn" data-tab="conversation">💬 Conversation</button>
     <button class="tab-btn" data-tab="queue">📞 Queue</button>
     <button class="tab-btn" data-tab="history">📚 Runs</button>
@@ -395,8 +396,8 @@
       </div>
       <div class="workflow-grid">
         <div class="command-card">
-          <h3>Excel + Markdown package</h3>
-          <p class="muted mt8">Builds a generic operator package for any run folder.</p>
+          <h3>Standard package export</h3>
+          <p class="muted mt8">Builds a generic operator package with Excel, HTML, Markdown, Elastic bulk payload, and Power BI import bundle outputs.</p>
           <pre class="mono">pwsh -NoProfile -File .\scripts\Export-InvestigationPackage.ps1 -RunFolder .\samples\demo-agent-investigation -DestinationRoot .\samples\release-1.4-packages -Force</pre>
           <div class="actions actions-start mt10">
             <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Export-InvestigationPackage.ps1 -RunFolder .\samples\demo-agent-investigation -DestinationRoot .\samples\release-1.4-packages -Force">Copy command</button>
@@ -405,9 +406,9 @@
         <div class="command-card">
           <h3>Diagnostics handoff</h3>
           <p class="muted mt8">Writes a redacted support bundle and copies it to the clipboard when available.</p>
-          <pre class="mono">pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json</pre>
+          <pre class="mono">pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-campaign-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json</pre>
           <div class="actions actions-start mt10">
-            <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json">Copy command</button>
+            <button class="btn ghost small" data-copy-command="pwsh -NoProfile -File .\scripts\Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder .\samples\demo-agent-investigation,.\samples\demo-campaign-investigation,.\samples\demo-queue-investigation -OutputPath .\out\investigation-diagnostics.json">Copy command</button>
           </div>
         </div>
         <div class="command-card">
@@ -449,6 +450,17 @@
         <select id="select-agent" class="btn ghost"></select>
       </div>
       <div id="agent-detail"><div class="empty">No Agent Investigation runs loaded.</div></div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── CAMPAIGN ──────────────────────── -->
+  <section id="tab-campaign" class="tab-panel hide">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>📣 Campaign Investigation</h2>
+        <select id="select-campaign" class="btn ghost"></select>
+      </div>
+      <div id="campaign-detail"><div class="empty">No Campaign Investigation runs loaded.</div></div>
     </div>
   </section>
 
@@ -534,8 +546,8 @@
 // ─── Demo dataset (inlined sanitized fixtures) ─────────────────────────────
 //
 // These match the byte-equivalent committed samples under
-// `samples/demo-agent-investigation/`, `samples/demo-conversation-investigation-run/`,
-// and `samples/demo-queue-investigation/`. Keeping them inline means the
+// `samples/demo-agent-investigation/`, `samples/demo-campaign-investigation/`,
+// `samples/demo-conversation-investigation-run/`, and `samples/demo-queue-investigation/`. Keeping them inline means the
 // console works offline and from `file://` with no Pages workflow needed.
 //
 const DEMO_RUNS = [
@@ -624,6 +636,43 @@ const DEMO_RUNS = [
   },
   {
     manifest: {
+      investigationKey: "campaign-investigation",
+      runId: "demo-run",
+      subjectType: "campaign",
+      subjectId: "campaign-demo-1",
+      window: { since: "2026-05-01T00:00:00Z", until: "2026-05-12T00:00:00Z" },
+      datasetsInvoked: [
+        { stepName: "campaign",              datasetKey: "outbound.get.campaigns",                    validationStatus: "unvalidated", recordCount: 1, required: true,  status: "ok" },
+        { stepName: "contactList",           datasetKey: "outbound.get.contact.lists",                validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "queue",                 datasetKey: "routing.get.single.queue.config",           validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "diagnostics",           datasetKey: "outbound.get.campaign.diagnostics.summary", validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "outboundEvents",        datasetKey: "outbound.get.events",                       validationStatus: "unvalidated", recordCount: 4, required: false, status: "ok" },
+        { stepName: "auditChanges",          datasetKey: "audit-logs",                                validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "conversationAnalytics", datasetKey: "analytics-conversation-details-query",      validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" },
+        { stepName: "outboundAbandons",      datasetKey: "(derived)",                                 validationStatus: "unvalidated", recordCount: 1, required: false, status: "ok" }
+      ],
+      joinPlan: [],
+      redactionProfile: { datasets: {}, composerOverrides: [] },
+      startedAt:  "2026-05-12T10:20:55.4069513Z",
+      finishedAt: "2026-05-12T10:20:55.6580608Z",
+      composerVersion: "1.0.0"
+    },
+    summary: {
+      campaign:              [{ id: "campaign-demo-1", name: "Spring Renewal", campaignStatus: "on", dialingMode: "power", contactListId: "contact-list-demo-1", queueId: "queue-demo-1", abandonRate: 3 }],
+      contactList:           [{ id: "contact-list-demo-1", name: "Renewals Q2", size: 2400 }],
+      queue:                 [{ id: "queue-demo-1", name: "Outbound Sales" }],
+      diagnostics:           [{ campaignId: "campaign-demo-1", health: "healthy", pacingMode: "power", errorCount: 0, contactableRate: 78.1 }],
+      outboundEvents:        [{ id: "evt-1", campaignId: "campaign-demo-1", timestamp: "2026-05-10T14:00:00Z", type: "campaignStart", callResult: null },
+                              { id: "evt-2", campaignId: "campaign-demo-1", timestamp: "2026-05-10T14:01:00Z", type: "contactCallCompleted", callResult: "Connected" },
+                              { id: "evt-3", campaignId: "campaign-demo-1", timestamp: "2026-05-10T14:02:00Z", type: "contactCallCompleted", callResult: "NoAnswer" },
+                              { id: "evt-4", campaignId: "campaign-demo-1", timestamp: "2026-05-10T14:03:00Z", type: "contactCallAbandon", callResult: "OutboundAbandon" }],
+      auditChanges:          [{ id: "audit-1", entityId: "campaign-demo-1", entityType: "Campaign", action: "UPDATE_OUTBOUND_CAMPAIGN", serviceName: "outbound", timestamp: "2026-05-10T13:45:00Z" }],
+      conversationAnalytics: [{ conversationId: "conv-campaign-1", originatingDirection: "outbound", participants: [{ userId: "agent-demo-001", campaignId: "campaign-demo-1" }] }],
+      outboundAbandons:      [{ id: "evt-4", campaignId: "campaign-demo-1", timestamp: "2026-05-10T14:03:00Z", type: "contactCallAbandon", callResult: "OutboundAbandon" }]
+    }
+  },
+  {
+    manifest: {
       investigationKey: "queue-investigation",
       runId: "demo-run",
       subjectType: "queue",
@@ -673,12 +722,14 @@ const state = {
 
 const KIND_LABEL = {
   'agent-investigation':        'Agent',
+  'campaign-investigation':     'Campaign',
   'conversation-investigation': 'Conversation',
   'queue-investigation':        'Queue'
 };
 
 const KIND_ICON = {
   'agent-investigation':        '👤',
+  'campaign-investigation':     '📣',
   'conversation-investigation': '💬',
   'queue-investigation':        '📞'
 };
@@ -833,6 +884,7 @@ function runsByKind(kind) {
 function renderAll() {
   renderOverview();
   renderAgent();
+  renderCampaign();
   renderConversation();
   renderQueue();
   renderHistory();
@@ -913,6 +965,7 @@ function renderOverview() {
 function goToDetail(run) {
   const tab = ({
     'agent-investigation':        'agent',
+    'campaign-investigation':     'campaign',
     'conversation-investigation': 'conversation',
     'queue-investigation':        'queue'
   })[run.manifest.investigationKey];
@@ -1086,6 +1139,92 @@ function renderAgent() {
         { label: 'Entity',  get: r => `${r.entityType} ${r.entityId}` }
       ])
     ]));
+  }
+}
+
+function renderCampaign() {
+  const target = $('#campaign-detail');
+  const runs = runsByKind('campaign-investigation');
+  if (!runs.length) {
+    target.innerHTML = '<div class="empty">No Campaign Investigation runs loaded.</div>';
+    $('#select-campaign').innerHTML = '';
+    return;
+  }
+  const sel = populateSelect('select-campaign', runs);
+  sel.onchange = () => paintCampaign(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+  paintCampaign(runs.find(r => r.manifest.runId === sel.value) || runs[0]);
+
+  function paintCampaign(run) {
+    target.innerHTML = '';
+    target.appendChild(manifestPanel(run.manifest));
+    const s = run.summary || {};
+    const grid = el('div', { class: 'detail-grid' });
+
+    const campaign = (s.campaign || [])[0] || {};
+    const diagnostics = (s.diagnostics || [])[0] || {};
+    const abandonCount = (s.outboundAbandons || []).length;
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Campaign' }),
+      el('div', { class: 'kpi-grid' }, [
+        kpi('Name', campaign.name || '—'),
+        kpi('Status', campaign.campaignStatus || '—'),
+        kpi('Dialing mode', campaign.dialingMode || '—'),
+        kpi('Queue', campaign.queueId || '—'),
+        kpi('Contact list', campaign.contactListId || '—'),
+        kpi('Configured abandon %', campaign.abandonRate ?? '—')
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Diagnostics' }),
+      el('div', { class: 'kpi-grid' }, [
+        kpi('Health', diagnostics.health || '—'),
+        kpi('Pacing', diagnostics.pacingMode || '—'),
+        kpi('Errors', diagnostics.errorCount ?? '—'),
+        kpi('Contactable %', diagnostics.contactableRate ?? '—'),
+        kpi('Audit changes', (s.auditChanges || []).length),
+        kpi('Outbound abandons', abandonCount)
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Outbound events' }),
+      dataTable(s.outboundEvents || [], [
+        { label: 'When', get: r => fmtDate(r.timestamp) },
+        { label: 'Type', get: r => r.type },
+        { label: 'Result', get: r => r.callResult }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Recent audit changes' }),
+      dataTable(s.auditChanges || [], [
+        { label: 'When', get: r => fmtDate(r.timestamp) },
+        { label: 'Action', get: r => r.action },
+        { label: 'Entity', get: r => `${r.entityType} ${r.entityId}` }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Conversation analytics' }),
+      dataTable(s.conversationAnalytics || [], [
+        { label: 'Conversation', get: r => r.conversationId },
+        { label: 'Direction', get: r => r.originatingDirection },
+        { label: 'Participants', get: r => (r.participants || []).length }
+      ])
+    ]));
+
+    grid.appendChild(el('div', { class: 'panel' }, [
+      el('h2', { text: 'Derived outbound abandon evidence' }),
+      dataTable(s.outboundAbandons || [], [
+        { label: 'When', get: r => fmtDate(r.timestamp) },
+        { label: 'Type', get: r => r.type },
+        { label: 'Result', get: r => r.callResult }
+      ])
+    ]));
+
+    target.appendChild(grid);
   }
 }
 

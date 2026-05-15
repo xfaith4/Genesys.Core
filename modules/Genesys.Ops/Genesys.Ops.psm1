@@ -5632,6 +5632,7 @@ function Test-GenesysOpsDatasetCoverage {
         @{ Function = 'Get-GenesysOutboundCampaignPerformance';Dataset = '(composite)'; Composite = $true }
         @{ Function = 'Get-GenesysFlowOutcomeKpiCorrelation';  Dataset = '(composite)'; Composite = $true }
         @{ Function = 'Get-GenesysAgentInvestigation';         Dataset = '(composite)'; Composite = $true }
+        @{ Function = 'Get-GenesysCampaignInvestigation';      Dataset = '(composite)'; Composite = $true }
     )
 
     # Resolve catalog
@@ -5838,7 +5839,7 @@ function Invoke-Investigation {
         [string] $InvestigationKey,
 
         [Parameter(Mandatory)]
-        [ValidateSet('agent', 'conversation', 'queue')]
+        [ValidateSet('agent', 'campaign', 'conversation', 'queue')]
         [string] $SubjectType,
 
         [Parameter(Mandatory)]
@@ -8199,14 +8200,232 @@ function New-GenesysInvestigationPackageMarkdown {
     return $sb.ToString()
 }
 
+function New-GenesysInvestigationPackageHtml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object] $Manifest,
+        [Parameter(Mandatory)][object] $Overview,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+        [Parameter(Mandatory)] $Sections,
+        [AllowEmptyCollection()][object[]] $Warnings = @()
+    )
+
+    $investigationKey = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
+    $subjectType = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
+    $subjectId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
+    $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
+    $window = Get-GenesysOpsPropertyValue $Manifest @('window')
+    $since = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('since'))
+    $until = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('until'))
+    $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+
+    $warningHtml = if (@($Warnings).Count -gt 0) {
+        '<section><h2>Warnings</h2><ul>' + ((@($Warnings) | ForEach-Object { '<li>' + (ConvertTo-GenesysOpsHtmlText $_) + '</li>' }) -join '') + '</ul></section>'
+    } else {
+        ''
+    }
+
+    $sectionHtml = foreach ($section in $Sections.GetEnumerator()) {
+        @"
+<section>
+<h2>$(ConvertTo-GenesysOpsHtmlText $section.Key)</h2>
+$(ConvertTo-GenesysHtmlTable -Rows @($section.Value) -Limit 100)
+</section>
+"@
+    }
+
+    @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Investigation Package - $investigationKey</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
+body { margin: 0; }
+header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
+header p { margin: 0; color: #deefe8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #d6dee6; border-radius: 10px; padding: 14px; }
+.metric .label { color: #5a6673; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce3ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef3f7; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.meta { color: #5f6c79; font-size: 13px; margin-bottom: 18px; }
+.empty { color: #6b7582; font-style: italic; }
+ul { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<header>
+<h1>Investigation Package</h1>
+<p>$investigationKey | $subjectType / $subjectId | Run $runId | Generated $generatedAt</p>
+</header>
+<main>
+<section>
+<h2>Overview</h2>
+<p class="meta">Window: $(if ($since -or $until) { "$since -> $until" } else { 'Not scoped' })</p>
+<div class="grid">
+<div class="metric"><div class="label">Steps</div><div class="value">$(ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('StepCount')))</div></div>
+<div class="metric"><div class="label">Failed Steps</div><div class="value">$(ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('FailedSteps')))</div></div>
+<div class="metric"><div class="label">Records</div><div class="value">$(ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('RecordsCollected')))</div></div>
+<div class="metric"><div class="label">Sections</div><div class="value">$(ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('SectionCount')))</div></div>
+</div>
+</section>
+$warningHtml
+<section>
+<h2>Step Status</h2>
+$(ConvertTo-GenesysHtmlTable -Rows $StepRows -Limit 100)
+</section>
+$($sectionHtml -join [Environment]::NewLine)
+</main>
+</body>
+</html>
+"@
+}
+
+function New-GenesysInvestigationElasticDocuments {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object] $Manifest,
+        [Parameter(Mandatory)][object] $Overview,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+        [Parameter(Mandatory)] $Sections
+    )
+
+    $investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
+    $subjectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
+    $subjectId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
+    $runId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
+    $generatedAt = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+
+    $documents = [System.Collections.Generic.List[object]]::new()
+    $documents.Add([pscustomobject]@{
+        _id               = "$investigationKey::$runId::overview"
+        investigationKey  = $investigationKey
+        subjectType       = $subjectType
+        subjectId         = $subjectId
+        runId             = $runId
+        generatedAtUtc    = $generatedAt
+        documentType      = 'overview'
+        overview          = $Overview
+    }) | Out-Null
+
+    foreach ($step in @($StepRows)) {
+        $stepName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('StepName'))
+        $documents.Add([pscustomobject]@{
+            _id               = "$investigationKey::$runId::step::$stepName"
+            investigationKey  = $investigationKey
+            subjectType       = $subjectType
+            subjectId         = $subjectId
+            runId             = $runId
+            generatedAtUtc    = $generatedAt
+            documentType      = 'step'
+            stepName          = $stepName
+            payload           = $step
+        }) | Out-Null
+    }
+
+    foreach ($section in $Sections.GetEnumerator()) {
+        $index = 0
+        foreach ($row in @($section.Value)) {
+            $documents.Add([pscustomobject]@{
+                _id               = "$investigationKey::$runId::section::$($section.Key)::$index"
+                investigationKey  = $investigationKey
+                subjectType       = $subjectType
+                subjectId         = $subjectId
+                runId             = $runId
+                generatedAtUtc    = $generatedAt
+                documentType      = 'section-row'
+                sectionName       = [string]$section.Key
+                rowIndex          = $index
+                payload           = $row
+            }) | Out-Null
+            $index++
+        }
+    }
+
+    $documents.ToArray()
+}
+
+function Export-GenesysInvestigationElasticBulk {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Documents,
+        [string] $IndexName = 'genesys-investigations'
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($document in @($Documents)) {
+        $meta = [ordered]@{ index = [ordered]@{ _index = $IndexName; _id = (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $document @('_id'))) } }
+        $body = [ordered]@{}
+        foreach ($prop in $document.PSObject.Properties) {
+            if ($prop.Name -eq '_id') { continue }
+            $body[$prop.Name] = $prop.Value
+        }
+        $lines.Add(($meta | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
+        $lines.Add(($body | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
+    }
+    Set-Content -Path $Path -Value ($lines -join [Environment]::NewLine) -Encoding utf8
+}
+
+function Export-GenesysInvestigationPowerBiBundle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Directory,
+        [Parameter(Mandatory)][object] $Overview,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+        [Parameter(Mandatory)] $Sections
+    )
+
+    New-Item -Path $Directory -ItemType Directory -Force | Out-Null
+
+    $tables = [System.Collections.Generic.List[object]]::new()
+    $overviewPath = Join-Path $Directory 'overview.csv'
+    Export-GenesysOpsRowsCsv -Rows @($Overview) -Path $overviewPath
+    $tables.Add([pscustomobject]@{ Name = 'overview'; File = 'overview.csv' }) | Out-Null
+
+    $stepsPath = Join-Path $Directory 'steps.csv'
+    Export-GenesysOpsRowsCsv -Rows $StepRows -Path $stepsPath
+    $tables.Add([pscustomobject]@{ Name = 'steps'; File = 'steps.csv' }) | Out-Null
+
+    foreach ($section in $Sections.GetEnumerator()) {
+        $fileName = ($section.Key -replace '[^A-Za-z0-9._-]+', '-') + '.csv'
+        $path = Join-Path $Directory $fileName
+        Export-GenesysOpsRowsCsv -Rows @($section.Value) -Path $path
+        $tables.Add([pscustomobject]@{ Name = [string]$section.Key; File = $fileName }) | Out-Null
+    }
+
+    $dataset = [ordered]@{
+        bundleType      = 'powerbi-investigation-import'
+        generatedAtUtc  = [DateTime]::UtcNow.ToString('o')
+        tables          = $tables.ToArray()
+    }
+    $datasetPath = Join-Path $Directory 'dataset.json'
+    Set-Content -Path $datasetPath -Value ($dataset | ConvertTo-Json -Depth 100) -Encoding utf8
+    return [pscustomobject]@{
+        Directory   = $Directory
+        DatasetPath = $datasetPath
+        Tables      = $tables.ToArray()
+    }
+}
+
 function Export-GenesysInvestigationPackage {
     <#
     .SYNOPSIS
-        Builds a generic Markdown and Excel package from any investigation run folder.
+        Builds a generic investigation package from any investigation run folder.
     .DESCRIPTION
         Reads the standard investigation artifact contract from a run folder and
         writes a demo/operator-friendly package containing raw artifacts, per-section
-        CSVs, an XLSX workbook, a Markdown summary, and a package manifest.
+        CSVs, an XLSX workbook, a Markdown summary, an HTML report, an Elastic
+        bulk payload, a Power BI import bundle, and a package manifest.
     .EXAMPLE
         Export-GenesysInvestigationPackage -RunFolder './out/agent-investigation/demo-run' -OutputDirectory './out/agent-package' -Force
     #>
@@ -8301,10 +8520,14 @@ function Export-GenesysInvestigationPackage {
     }
 
     $markdownPath = Join-Path $OutputDirectory "$resolvedPackageName.md"
+    $htmlPath = Join-Path $OutputDirectory "$resolvedPackageName.html"
     $workbookPath = Join-Path $OutputDirectory "$resolvedPackageName.xlsx"
+    $elasticPath = Join-Path $OutputDirectory "$resolvedPackageName.elastic-bulk.ndjson"
+    $powerBiDirectory = Join-Path $OutputDirectory 'powerbi'
     $packageJsonPath = Join-Path $OutputDirectory "$resolvedPackageName.package.json"
 
     Set-Content -Path $markdownPath -Value (New-GenesysInvestigationPackageMarkdown -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
+    Set-Content -Path $htmlPath -Value (New-GenesysInvestigationPackageHtml -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
 
     $workbookSheets = @(
         [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
@@ -8314,6 +8537,10 @@ function Export-GenesysInvestigationPackage {
         $workbookSheets += [pscustomobject]@{ Name = $sectionName; Rows = @($sectionRows[$sectionName]) }
     }
     Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
+
+    $elasticDocuments = @(New-GenesysInvestigationElasticDocuments -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows)
+    Export-GenesysInvestigationElasticBulk -Path $elasticPath -Documents $elasticDocuments
+    $powerBiBundle = Export-GenesysInvestigationPowerBiBundle -Directory $powerBiDirectory -Overview $overview -StepRows $stepRows -Sections $sectionRows
 
     $package = [ordered]@{
         packageType      = 'investigation-package'
@@ -8330,11 +8557,17 @@ function Export-GenesysInvestigationPackage {
         }
         files            = [ordered]@{
             markdown  = (Split-Path -Path $markdownPath -Leaf)
+            html      = (Split-Path -Path $htmlPath -Leaf)
             workbook  = (Split-Path -Path $workbookPath -Leaf)
+            elasticBulk = (Split-Path -Path $elasticPath -Leaf)
             manifest  = 'manifest.json'
             summary   = 'summary.json'
             events    = if (Test-Path $eventsPath) { 'events.jsonl' } else { $null }
             csv       = $csvFiles
+            powerBi   = [ordered]@{
+                directory = (Split-Path -Path $powerBiDirectory -Leaf)
+                dataset   = (Split-Path -Path $powerBiBundle.DatasetPath -Leaf)
+            }
             dataFolder = if (Test-Path $dataFolder) { 'data' } else { $null }
             packageJson = (Split-Path -Path $packageJsonPath -Leaf)
         }
@@ -8351,7 +8584,10 @@ function Export-GenesysInvestigationPackage {
         RunFolder       = $resolvedRunFolder
         OutputDirectory = (Resolve-Path -Path $OutputDirectory).Path
         MarkdownPath    = $markdownPath
+        HtmlPath        = $htmlPath
         WorkbookPath    = $workbookPath
+        ElasticBulkPath = $elasticPath
+        PowerBiDirectory = $powerBiDirectory
         PackageJsonPath = $packageJsonPath
         CsvDirectory    = $csvDirectory
         Overview        = $overview
@@ -8466,6 +8702,281 @@ function Export-GenesysInvestigationDiagnosticsBundle {
         OutputPath = $resolvedOutputPath
         Json       = $json
     }
+}
+
+function Get-GenesysCampaignInvestigationStepDefinition {
+    <#
+    .SYNOPSIS
+        Returns the ordered step descriptors for the Campaign Investigation flagship.
+    .DESCRIPTION
+        Centralised so the public cmdlet and integration tests share the same
+        contract. Designed for the investigation composer — each step is a
+        hashtable consumed by Invoke-Investigation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $CampaignId,
+
+        [datetime] $Since,
+
+        [datetime] $Until
+    )
+
+    $idMatchesCampaign = { param($r, $s)
+        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.CampaignId)
+    }
+    $idMatchesContactList = { param($r, $s)
+        if (-not $s.ContainsKey('ContactListId')) { return $false }
+        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.ContactListId)
+    }
+    $queueIdMatches = { param($r, $s)
+        if (-not $s.ContainsKey('QueueId')) { return $false }
+        $qp = $r.PSObject.Properties['id']
+        $qp -and [string]$qp.Value -eq $s.QueueId
+    }
+    $eventMatchesCampaign = { param($r, $s)
+        Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId
+    }
+    $eventMatchesCampaignAbandon = { param($r, $s)
+        if (-not (Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId)) { return $false }
+        (($r | ConvertTo-Json -Depth 20 -Compress) -match '(?i)abandon')
+    }
+    $auditMatchesCampaign = { param($r, $s)
+        Test-AnyNestedPropertyValue $r @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $s.CampaignId
+    }
+    $conversationMatchesCampaign = { param($r, $s)
+        if (Test-AnyNestedPropertyValue $r @('campaignId') $s.CampaignId) { return $true }
+        $participants = @()
+        if ($r.PSObject.Properties['participants']) {
+            $participants = @($r.participants)
+        }
+        foreach ($participant in $participants) {
+            if (Test-AnyNestedPropertyValue $participant @('campaignId') $s.CampaignId) { return $true }
+            $sessions = @()
+            if ($participant.PSObject.Properties['sessions']) {
+                $sessions = @($participant.sessions)
+            }
+            foreach ($session in $sessions) {
+                if (Test-AnyNestedPropertyValue $session @('campaignId') $s.CampaignId) { return $true }
+                $segments = @()
+                if ($session.PSObject.Properties['segments']) {
+                    $segments = @($session.segments)
+                }
+                foreach ($segment in $segments) {
+                    if (Test-AnyNestedPropertyValue $segment @('campaignId') $s.CampaignId) { return $true }
+                }
+            }
+        }
+        return $false
+    }
+    $singleCampaignParameters = {
+        param($subject, $sections, $window)
+        @{ Query = @{ campaignId = [string]$subject['CampaignId'] } }
+    }
+    $queueParameters = {
+        param($subject, $sections, $window)
+        if (-not $subject.ContainsKey('QueueId') -or [string]::IsNullOrWhiteSpace([string]$subject['QueueId'])) {
+            @{ Query = @{ queueId = '__missing-queue__' } }
+        } else {
+            @{ Query = @{ queueId = [string]$subject['QueueId'] } }
+        }
+    }
+    $auditParameters = {
+        param($subject, $sections, $window)
+        @{
+            StartUtc  = ConvertTo-IsoUtcTimestamp $window['Since']
+            EndUtc    = ConvertTo-IsoUtcTimestamp $window['Until']
+            EntityIds = @([string]$subject['CampaignId'])
+        }
+    }
+    $campaignConversationParameters = {
+        param($subject, $sections, $window)
+        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+        @{
+            Body = [ordered]@{
+                interval       = "$sinceIso/$untilIso"
+                order          = 'asc'
+                orderBy        = 'conversationStart'
+                paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'or'
+                        predicates = @(
+                            [ordered]@{
+                                type      = 'dimension'
+                                dimension = 'campaignId'
+                                operator  = 'matches'
+                                value     = [string]$subject['CampaignId']
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+    $updateSubjectFromCampaign = {
+        param($records, $subject)
+        $campaign = @($records | Select-Object -First 1)
+        if ($campaign.Count -eq 0) { return @{} }
+        $updates = @{}
+        foreach ($pair in @(
+            @{ Property = 'contactListId'; Key = 'ContactListId' },
+            @{ Property = 'queueId'; Key = 'QueueId' },
+            @{ Property = 'name'; Key = 'CampaignName' }
+        )) {
+            $prop = $campaign[0].PSObject.Properties[$pair.Property]
+            if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+                $updates[$pair.Key] = [string]$prop.Value
+            }
+        }
+        $updates
+    }
+    @(
+        @{
+            Name           = 'campaign'
+            DatasetKey     = 'outbound.get.campaigns'
+            SubjectFilter  = $idMatchesCampaign
+            SubjectUpdater = $updateSubjectFromCampaign
+            EmitAs         = 'campaign'
+            Required       = $true
+            JoinKind       = 'Seed'
+            JoinOn         = @{ Left = $null; Right = 'id' }
+            SortKey        = 'id'
+        }
+        @{
+            Name          = 'contactList'
+            DatasetKey    = 'outbound.get.contact.lists'
+            SubjectFilter = $idMatchesContactList
+            EmitAs        = 'contactList'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.contactListId'; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'queue'
+            DatasetKey    = 'routing.get.single.queue.config'
+            Parameters    = $queueParameters
+            SubjectFilter = $queueIdMatches
+            EmitAs        = 'queue'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.queueId'; Right = 'id' }
+            SortKey       = 'id'
+        }
+        @{
+            Name          = 'diagnostics'
+            DatasetKey    = 'outbound.get.campaign.diagnostics.summary'
+            Parameters    = $singleCampaignParameters
+            EmitAs        = 'diagnostics'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
+            SortKey       = 'campaignId'
+        }
+        @{
+            Name          = 'outboundEvents'
+            DatasetKey    = 'outbound.get.events'
+            SubjectFilter = $eventMatchesCampaign
+            EmitAs        = 'outboundEvents'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
+            SortKey       = 'timestamp'
+        }
+        @{
+            Name          = 'auditChanges'
+            DatasetKey    = 'audit-logs'
+            Parameters    = $auditParameters
+            SubjectFilter = $auditMatchesCampaign
+            EmitAs        = 'auditChanges'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.id'; Right = 'entity.id' }
+            SortKey       = 'timestamp'
+        }
+        @{
+            Name          = 'conversationAnalytics'
+            DatasetKey    = 'analytics-conversation-details-query'
+            Parameters    = $campaignConversationParameters
+            SubjectFilter = $conversationMatchesCampaign
+            EmitAs        = 'conversationAnalytics'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.id'; Right = 'participants.campaignId' }
+            SortKey       = 'conversationId'
+        }
+        @{
+            Name          = 'outboundAbandons'
+            DatasetKey    = 'outbound.get.events'
+            SubjectFilter = $eventMatchesCampaignAbandon
+            EmitAs        = 'outboundAbandons'
+            Required      = $false
+            JoinKind      = 'Left'
+            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
+            SortKey       = 'timestamp'
+        }
+    )
+}
+
+function Get-GenesysCampaignInvestigation {
+    <#
+    .SYNOPSIS
+        Run the Campaign Investigation flagship — joins campaign configuration,
+        diagnostics, outbound events, audit changes, conversation analytics, and
+        derived outbound-abandon evidence for one outbound campaign.
+    .DESCRIPTION
+        Composes campaign-scoped catalog datasets via Invoke-Investigation and
+        emits the standard run-artifact set under out/campaign-investigation/<runId>/.
+
+        Resolves -CampaignName to a CampaignId before invoking the composer. Use
+        -DatasetInvoker (a scriptblock returning fixture data) to drive
+        determinism / integration tests without touching the live API.
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
+    param(
+        [Parameter(ParameterSetName = 'ById', Mandatory)]
+        [string] $CampaignId,
+
+        [Parameter(ParameterSetName = 'ByName', Mandatory)]
+        [string] $CampaignName,
+
+        [datetime] $Since,
+        [datetime] $Until,
+        [string]   $OutputRoot = 'out',
+        [string]   $RunId,
+        [scriptblock] $DatasetInvoker
+    )
+
+    if (-not $Until) { $Until = Get-Date }
+    if (-not $Since) { $Since = $Until.AddDays(-7) }
+
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+        $matches = @(Get-GenesysOutboundCampaign | Where-Object { $_.name -eq $CampaignName })
+        if ($matches.Count -eq 0) { throw "No Genesys outbound campaign matched '$CampaignName'." }
+        if ($matches.Count -gt 1) {
+            $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
+            throw "Ambiguous outbound campaign name '$CampaignName' — $($matches.Count) matches: $ids"
+        }
+        $CampaignId = $matches[0].id
+    }
+
+    if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+    $steps = Get-GenesysCampaignInvestigationStepDefinition -CampaignId $CampaignId -Since $Since -Until $Until
+
+    Invoke-Investigation `
+        -InvestigationKey 'campaign-investigation' `
+        -SubjectType      'campaign' `
+        -Subject          @{ SubjectId = $CampaignId; CampaignId = $CampaignId } `
+        -Window           @{ Since = $Since; Until = $Until } `
+        -Steps            $steps `
+        -OutputRoot       $OutputRoot `
+        -RunId            $RunId `
+        -DatasetInvoker   $DatasetInvoker
 }
 
 function Get-GenesysQueueInvestigationStepDefinition {

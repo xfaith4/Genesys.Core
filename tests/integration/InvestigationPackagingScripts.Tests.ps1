@@ -13,25 +13,31 @@ Describe 'Release 1.4 packaging and diagnostics scripts' {
         }
     }
 
-    It 'exports markdown/xlsx packages for agent, conversation, and queue runs' {
+    It 'exports markdown/html/xlsx packages plus Elastic and Power BI handoff artifacts for agent, conversation, queue, and campaign runs' {
         $destinationRoot = Join-Path $script:TempRoot 'packages'
         $result = & $script:ExportScript -RunFolder @(
             (Join-Path $script:RepoRoot 'samples/demo-agent-investigation'),
             (Join-Path $script:RepoRoot 'samples/demo-conversation-investigation-run'),
-            (Join-Path $script:RepoRoot 'samples/demo-queue-investigation')
+            (Join-Path $script:RepoRoot 'samples/demo-queue-investigation'),
+            (Join-Path $script:RepoRoot 'samples/demo-campaign-investigation')
         ) -DestinationRoot $destinationRoot -Force
 
-        @($result).Count | Should -Be 3
+        @($result).Count | Should -Be 4
         foreach ($package in @($result)) {
             Test-Path $package.MarkdownPath | Should -BeTrue
+            Test-Path $package.HtmlPath | Should -BeTrue
             Test-Path $package.WorkbookPath | Should -BeTrue
+            Test-Path $package.ElasticBulkPath | Should -BeTrue
+            Test-Path $package.PowerBiDirectory | Should -BeTrue
             Test-Path $package.PackageJsonPath | Should -BeTrue
             Test-Path $package.CsvDirectory | Should -BeTrue
 
             $packageJson = Get-Content -Path $package.PackageJsonPath -Raw | ConvertFrom-Json
             $packageJson.packageType | Should -Be 'investigation-package'
             $packageJson.files.markdown | Should -Match '\.md$'
+            $packageJson.files.html | Should -Match '\.html$'
             $packageJson.files.workbook | Should -Match '\.xlsx$'
+            $packageJson.files.elasticBulk | Should -Match '\.ndjson$'
         }
     }
 

@@ -561,6 +561,19 @@
         "profile": "default"
       }
     },
+    "outbound.get.campaign.diagnostics.summary": {
+      "description": "Campaign diagnostics summary for a single outbound campaign \u2014 health, pacing, and current error indicators used for campaign investigation triage.",
+      "endpoint": "getOutboundDiagnosticsCampaignSummary",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
     "flows.get.all.flows": {
       "description": "Get All Architect Flows \u2014 IVR, inbound call, outbound call, bot, and in-queue flows.",
       "endpoint": "flows.get.all.flows",

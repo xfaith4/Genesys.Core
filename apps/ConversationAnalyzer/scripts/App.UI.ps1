@@ -4202,14 +4202,7 @@ function _OpenLowScoreConversation {
     if ($null -eq $script:DgLowScoreConversations -or $null -eq $script:DgLowScoreConversations.SelectedItem) { return }
     $convId = [string]$script:DgLowScoreConversations.SelectedItem.ConversationId
     if ([string]::IsNullOrWhiteSpace($convId)) { return }
-    _Dispatch {
-        if ($null -ne $script:TabWorkspace) {
-            $script:TabWorkspace.SelectedIndex = 0
-        }
-        if ($null -ne $script:TabDrilldownWorkspace) {
-            $script:TabDrilldownWorkspace.SelectedIndex = 1
-        }
-    }
+    _SelectDrilldownWorkspace
     _LoadDrilldown -ConversationId $convId
 }
 

@@ -213,6 +213,12 @@ ArchCheck 'ARCH-18E' 'Run completion displays saved artifact directories and cle
     ($uiPs -match 'Run display filters reset')
 }
 
+ArchCheck 'ARCH-18F' 'Drilldown workspace selection uses TabWorkspace.SelectedItem instead of TabItem.SelectedIndex' {
+    ($uiPs -match 'function _SelectDrilldownWorkspace') -and
+    ($uiPs -match 'TabWorkspace\.SelectedItem = \$script:TabDrilldownWorkspace') -and
+    ($uiPs -notmatch 'TabDrilldownWorkspace\.SelectedIndex')
+}
+
 # ── Architecture: export streaming ────────────────────────────────────────────
 Write-Host "`n--- Export streaming ---" -ForegroundColor DarkCyan
 

@@ -3564,7 +3564,7 @@ function _DrawTrendHourlyVolume {
         if ($null -eq $dt) { continue }
         $hour = $dt.ToUniversalTime().Hour
         if (-not $hourBuckets.ContainsKey($hour)) {
-            $hourBuckets[$hour] = [ordered]@{ Hour = $hour; WindowA = 0; WindowB = 0 }
+            $hourBuckets[$hour] = [pscustomobject]@{ Hour = $hour; WindowA = 0.0; WindowB = 0.0 }
         }
         $hourBuckets[$hour].WindowA += [double]$row.WindowAOffered
         $hourBuckets[$hour].WindowB += [double]$row.WindowBOffered

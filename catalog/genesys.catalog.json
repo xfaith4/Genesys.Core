@@ -1297,6 +1297,123 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot and digital agent aggregate metrics \u2014 nSessions, nSessionsContained, nSessionsEscalated, tSession grouped by botId, flowId, or queue. Primary source for self-service rate and bot effectiveness before queue escalation.",
+      "endpoint": "postAnalyticsBotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.flow.aggregates.inbound": {
+      "description": "Architect flow aggregate metrics \u2014 nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone grouped by flowId and flowType. Primary source for IVR self-service rate, containment measurement, and flow performance analytics.",
+      "endpoint": "postAnalyticsFlowsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.sessions": {
+      "description": "Bot flow sessions listing \u2014 all bot interactions for a botFlowId in a date window. Sessions carry conversationId for joining to conversation analytics. Use to reconstruct the pre-agent bot path in a conversation deep dive.",
+      "endpoint": "getAnalyticsBotflowSessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.reporting.turns": {
+      "description": "Bot flow dialogue turns grouped by session \u2014 per-turn intent recognition, confidence scores, and user input for a specific botFlowId. Filter by sessionId to get the turn-by-turn transcript for a single conversation\u2019s bot leg.",
+      "endpoint": "getAnalyticsBotflowDivisionsReportingturns",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.knowledge.aggregates": {
+      "description": "Knowledge base usage aggregates \u2014 nKnowledgeSessions, document searches, article hit rates, and feedback scores grouped by queueId or userId. Measures agent assist (Knowledge) utilization and article effectiveness.",
+      "endpoint": "postAnalyticsKnowledgeAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "external.contacts.get.contact": {
+      "description": "Fetch a single external contact by contactId \u2014 CRM identity: name, phone, email, external organisation, and linked notes. Use when a conversation carries an externalContactId to enrich the investigation with customer CRM data.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "external.contacts.get.journey.sessions": {
+      "description": "All journey sessions for an external contact \u2014 prior website visits, bot interactions, and conversations across all channels in reverse chronological order. Gives full customer journey context for BYOI and CRM-linked conversation investigations.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.agent.scorecard": {
+      "description": "Gamification performance scorecard for a single agent on a specific workday \u2014 metric scores, points earned, and objective achievement within the active performance profile. Use in agent investigation for holistic performance context. Requires Gamification license.",
+      "endpoint": "getGamificationScorecardsUser",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "Quality calibration sessions \u2014 evaluator assignments, calibration conversations, scoring status, and expert evaluator designation. Use in queue investigation to understand QM calibration health and evaluator consistency.",
+      "endpoint": "getQualityCalibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

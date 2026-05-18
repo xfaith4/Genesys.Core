@@ -1297,6 +1297,116 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.traces": {
+      "description": "Query SIP trace records by conversation ID and date range \u2014 first step in the PCAP download chain. Returns trace IDs and metadata needed before requesting the binary PCAP download.",
+      "endpoint": "getTelephonySiptraces",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "telephony.post.sip.trace.download.request": {
+      "description": "Initiate a PCAP package download for one or more SIP trace IDs \u2014 returns a downloadId for polling. Requires telephony:pcap:add permission. Second step in the three-step PCAP chain.",
+      "endpoint": "postTelephonySiptracesDownload",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "telephony.get.sip.trace.download.status": {
+      "description": "Poll the PCAP download job status and retrieve the signed download URL \u2014 final step in the SIP trace PCAP chain. Requires telephony:pcap:view permission.",
+      "endpoint": "getTelephonySiptracesDownloadDownloadId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "externalcontacts.get.contact": {
+      "description": "Full external contact record \u2014 CRM person details (name, phone, email, company, custom fields) for an externalContactId found in conversation participants. Key join for CRM enrichment.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "externalcontacts.get.organization": {
+      "description": "External organization record \u2014 CRM company details including name, address, industry, and linked contacts for an externalOrganizationId found in a contact or participant.",
+      "endpoint": "getExternalcontactsOrganization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "externalcontacts.reverse.whitepages.lookup": {
+      "description": "Reverse lookup external contacts and organizations by phone number, email address, or Twitter handle \u2014 identifies the CRM record from a conversation ANI or caller details without knowing the contactId.",
+      "endpoint": "getExternalcontactsReversewhitepageslookup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot and virtual agent aggregate performance metrics \u2014 nBotSessions, tBotSession, nBotTransferred, nBotContained, nBotInteractions grouped by flowId and mediaType. Covers Architect Digital Bot, Google CCAI, Amazon Lex, and Nuance integrations.",
+      "endpoint": "postAnalyticsBotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "analytics.get.botflow.sessions": {
+      "description": "Detailed per-session records for a single bot flow \u2014 each session captures turn count, outcome category, escalation path, and conversation linkage. Use after bot aggregates to drill into individual bot interactions.",
+      "endpoint": "getAnalyticsBotflowSessions",
+      "itemsPath": "$.sessions",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "flows.get.single.flow": {
+      "description": "Full configuration for a single Architect flow \u2014 type (InboundCall, InboundShortMessage, Bot, InQueue), publishing status, version pointer, and division. Resolves flowId references from analytics and lets investigators understand the routing logic applied to a conversation.",
+      "endpoint": "getFlow",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "quality.get.calibrations": {
+      "description": "Quality calibration sessions \u2014 joint evaluations where supervisors and evaluators score the same interaction to calibrate scoring consistency. Use to assess QM programme rigour alongside evaluation coverage metrics.",
+      "endpoint": "getQualityCalibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     }
   },
   "profiles": {

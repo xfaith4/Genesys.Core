@@ -519,6 +519,353 @@ The matrix below shows which datasets are used across which investigations and r
 
 ---
 
+## 11. Voice Engineer Infrastructure Health Investigation
+
+**Subject:** Organisation-wide or Edge-specific  
+**Use case:** A voice engineer receives reports of intermittent call quality issues, failed call set-ups, or audio degradation and needs to determine whether the problem is an Edge appliance, a SIP trunk, or a specific site. This is infrastructure-first, not conversation-first.
+
+**Core question:** *Is the problem the Edge, the trunk, the network path, or the call configuration?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `telephony.get.edges` | seed | All Edge appliances with registration status, version, site assignment |
+| 2 | `telephony.get.expired.edges` | seed | Edges that are 4+ firmware versions behind — primary upgrade-risk flag |
+| 3 | `telephony.get.edge.version.report` | seed | Full firmware version inventory across all edges |
+| 4 | `telephony.get.edge.performance.metrics` | `edgeId` | CPU, memory, active call count on any Edge under suspicion |
+| 5 | `telephony.get.trunks` | seed | All SIP trunks with connection state |
+| 6 | `telephony.get.trunk.metrics.summary` | seed | Aggregate trunk utilisation, errors, and capacity |
+| 7 | `telephony.get.sip.trace.metadata` | `conversationId` / time window | Available SIP traces — confirms whether a trace exists before requesting PCAP |
+| 8 | `telephony.get.sip.messages.for.conversation` | `conversationId` | In-platform SIP message viewer for a specific conversation |
+| 9 *(PCAP needed)* | `telephony.request.sip.pcap.download` | `conversationId` | Submit async job to generate PCAP file |
+| 10 *(PCAP needed)* | `telephony.get.sip.pcap.download.url` | `downloadId` | Retrieve S3 pre-signed URL for Wireshark analysis |
+| 11 *(network suspected)* | `telephony.get.edge.diagnostic.nslookup` | `edgeId` | DNS resolution from the Edge — confirms SBC/PSTN hostname resolution |
+| 12 *(network suspected)* | `telephony.get.edge.diagnostic.tracepath` | `edgeId` | Hop-by-hop path from Edge to SBC/carrier — identifies network latency source |
+| 13 | `alerting.get.alerts` | seed | Platform alerts currently firing — Edge offline, trunk error rate threshold |
+
+### PCAP Retrieval Chain
+
+```
+telephony.get.sip.trace.metadata (query by conversationId or time window)
+  → telephony.request.sip.pcap.download (submit job, returns downloadId)
+  → poll until status = complete
+  → telephony.get.sip.pcap.download.url (returns pre-signed S3 URL)
+  → download and open in Wireshark
+```
+
+### Analytical Questions Answered
+
+- Which Edges are running outdated firmware that could cause instability?
+- Is the SIP trunk over-utilised or reporting errors?
+- Did the Edge's CPU or memory spike during the reported call quality window?
+- Can the Edge resolve the carrier SBC hostname? (nslookup)
+- What is the network hop count and latency from Edge to carrier? (tracepath)
+- Is there a platform alert that correlates with the customer complaint?
+
+---
+
+## 12. AI-Assisted Conversation Triage (QM Light)
+
+**Subject:** One or many `conversationId` values (post-conversation)  
+**Use case:** A QM team needs to prioritise which conversations to review in full (recording + evaluation form) without listening to every call. AI summaries and STA category/sentiment signals let a QM analyst triage dozens of conversations in minutes.
+
+**Core question:** *Which conversations need full QM review, and what happened in the high-priority ones?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` | queue/agent/window filter | Candidate conversations with handle times, transfer flags, hold events |
+| 2 | `conversations.get.conversation.ai.summaries` | `conversationId` | AI-generated topic, outcome, action items — fast triage signal |
+| 3 | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment status, STA analysis coverage, topic categories |
+| 4 | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Specific STA categories matched with confidence scores |
+| 5 | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Per-utterance sentiment timeline — agent vs customer breakdown |
+| 6 *(high-priority only)* | `quality.get.evaluations.query` | `conversationId` | Existing evaluation if this conversation was already scored |
+| 7 *(high-priority only)* | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording ID for full playback in QM tool |
+| 8 *(high-priority only)* | `conversations.get.conversation.recording.annotations` | `conversationId` + `recordingId` | Prior analyst annotations flagging specific moments |
+
+### Triage Scoring Pattern
+
+Rank conversations by composite risk score:
+```
+risk_score = (
+  sentiment_score < -0.5 ? 3 : 0          // negative customer sentiment
+  + hold_count > 2 ? 2 : 0                 // repeated holds
+  + was_transferred ? 2 : 0                // transfer event
+  + tHandle > p90_tHandle ? 1 : 0          // long handle time
+  + 'Escalation' in categories ? 3 : 0    // STA escalation category
+  + 'Complaint' in categories ? 3 : 0     // STA complaint category
+)
+```
+
+### Analytical Questions Answered
+
+- What was this conversation about? (AI summary)
+- Was the customer satisfied at the end? (sentiment score)
+- Did the STA system flag a complaint, escalation, or compliance keyword?
+- Was the conversation already evaluated? If so, what was the score?
+- Which conversations have the highest composite risk and need immediate QM attention?
+
+---
+
+## 13. External Contact / CRM Context Enrichment
+
+**Subject:** One `conversationId` where a participant is linked to an external contact  
+**Use case:** A complaint is received about a customer experience. The investigator needs to see not just what happened in the conversation, but who the customer is, their prior interactions, notes left by other agents, and whether they had already tried self-service before calling.
+
+**Core question:** *Who is this customer, what is their history, and what did they try before calling?*
+
+### How to Identify External Contact Linkage
+
+`conversations.get.conversation.object` returns `participants[].externalContactId` when a conversation participant has been matched to an External Contact record.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants including `externalContactId` if CRM-linked |
+| 2 | `externalcontacts.get.contact` | `externalContactId` | Customer name, organisation, phone, email, custom CRM fields |
+| 3 | `externalcontacts.get.contact.notes` | `externalContactId` | Agent-authored notes from prior interactions — complaint history |
+| 4 | `externalcontacts.get.contact.journey.sessions` | `externalContactId` | Digital sessions linked to this contact — web, chat, self-service attempts |
+| 5 *(if sessions found)* | `journey.get.session.events` | `sessionId` | Events within each digital session — pages visited, forms submitted, chatbot turns |
+| 6 | `analytics-conversation-details-query` (externalContactId filter) | `externalContactId` | All prior voice/digital conversations linked to this contact |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id (customer enrichment)
+  → externalcontacts.get.contact.notes.contactId (history)
+  → externalcontacts.get.contact.journey.sessions.contactId (digital pre-contact)
+
+externalcontacts.get.contact.journey.sessions[].id
+  → journey.get.session.events.sessionId (digital event detail)
+```
+
+### Analytical Questions Answered
+
+- Who is this customer and what are their contact details?
+- What notes have other agents left about this customer?
+- Did the customer try the website or chatbot before calling? What did they do?
+- How many prior conversations has this customer had, and what were the outcomes?
+- Is there a pattern of repeat contacts that might indicate an unresolved issue?
+
+---
+
+## 14. WFM Adherence Gap Investigation
+
+**Subject:** One `managementUnitId` + date range  
+**Use case:** A workforce manager notices that a team is consistently understaffed during a specific interval, or an individual agent's time-in-state data shows unexplained non-adherence. They need to compare the published schedule against actual agent behaviour.
+
+**Core question:** *Where is the schedule adherence breaking down and why?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `workforce.get.management.units` | seed → `managementUnitId` | Management unit identity and business unit linkage |
+| 2 | `workforce.get.management.unit.users` | `managementUnitId` | All agents in the management unit |
+| 3 | `workforce.get.management.unit.adherence` | `managementUnitId` | Live adherence state: scheduled activity vs actual presence per agent |
+| 4 | `workforce.historical.adherence.query` | `managementUnitId` + date range | Historical adherence variance over the investigation window |
+| 5 | `workforce.get.agent.schedule.search` | `businessUnitId` + agent list | Published schedule shifts for the investigation window |
+| 6 | `analytics.query.user.aggregates.login.activity` | `userId` list | Actual time-in-state: tSystemPresence, tAgentRoutingStatus breakdown |
+| 7 | `analytics.query.user.details.activity.report` | `userId` | Login/logout/on-queue event timeline per agent |
+
+### Key Joins
+
+```
+workforce.get.management.unit.users[].userId
+  → workforce.historical.adherence.query.userId (actual vs scheduled delta)
+  → workforce.get.agent.schedule.search.agentId (what was scheduled)
+  → analytics.query.user.aggregates.login.activity.userId (how they actually spent time)
+```
+
+### Analytical Questions Answered
+
+- Which agents had the largest adherence variance in the investigation window?
+- What was an agent scheduled to do vs what their routing status showed?
+- Is non-adherence clustered in a specific interval (e.g. end of shift)?
+- How does actual on-queue time compare to scheduled on-queue time?
+
+---
+
+## 15. Bot / Self-Service Containment Analysis
+
+**Subject:** One or more `flowId` values (IVR / bot flows) + time window  
+**Use case:** Operations leadership asks what percentage of contacts self-served without reaching an agent. This investigation measures bot and IVR containment, identifies the most common failure/exit points, and quantifies how much agent volume those failures created.
+
+**Core question:** *How effective is our self-service, and where does it fail?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `flows.get.all.flows` | seed | Flow catalog — identify the IVR/bot flows in scope |
+| 2 | `flows.get.flow.outcomes` | seed | Outcome definitions: what does a "contained" vs "escalated" outcome mean? |
+| 3 | `flows.get.flow.milestones` | seed | Milestone definitions — named checkpoints to measure partial completion |
+| 4 | `analytics.query.flow.execution.aggregates` | `flowId` | nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone per flow |
+| 5 | `analytics.query.bot.aggregates` | `flowId` / `botId` | nBotSessions, nFlowOut (transfers to agent), bot session duration |
+| 6 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` (receiving queue) | How many conversations arrived via flow transfer? nOffered contributed by IVR |
+| 7 *(trend needed)* | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | Execution metrics trend over the window — detect flow regression |
+
+### Containment Rate Formula
+
+```
+Containment Rate = (nFlow - nFlowOut) / nFlow × 100
+Bot Escalation Rate = nFlowOut / nBotSessions × 100
+Flow Failure Rate = nFlowOutcomeFailed / nFlowOutcome × 100
+```
+
+### Analytical Questions Answered
+
+- What percentage of IVR sessions completed without transferring to an agent?
+- At which milestone do the most sessions exit to agent queue?
+- Is the bot escalation rate increasing or decreasing week-over-week?
+- How many agent-handled conversations originated from failed self-service attempts?
+- Which outcomes are most common, and do they correlate with high-satisfaction vs low-satisfaction flows?
+
+---
+
+## 16. Quality Calibration Consistency Audit
+
+**Subject:** Organisation-wide or one `queueId` + time window  
+**Use case:** A QM manager suspects that different evaluators are scoring the same criteria inconsistently. Calibration sessions (where multiple evaluators score the same conversation) expose inter-rater variance. This investigation audits that variance.
+
+**Core question:** *Are our evaluators scoring consistently, and which criteria have the most variance?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `quality.get.published.evaluation.forms` | seed | Active evaluation forms and their scoring criteria |
+| 2 | `quality.get.calibrations` | seed → time window | All calibration sessions in the window — conversation + evaluator list |
+| 3 | `quality.get.evaluations.query` | `calibrationId` / `conversationId` | Individual scores from each evaluator on the calibration conversation |
+| 4 | `quality.get.evaluators.activity` | seed → time window | Evaluator workload — who is scoring the most / least? |
+| 5 | `analytics.query.evaluations.aggregates` | `queueId` / `userId` | Aggregate score distribution by evaluator for bias detection |
+
+### Variance Analysis Pattern
+
+```
+For each calibration session:
+  scores = [evaluator1.score, evaluator2.score, ...]
+  mean = avg(scores)
+  std_dev = stddev(scores)
+  
+  Flag session if std_dev > threshold (e.g. 10 points on 100-point scale)
+  Drill into question-level scores to identify which criteria vary most
+```
+
+### Analytical Questions Answered
+
+- Which calibration sessions showed the highest score variance across evaluators?
+- Which evaluation form questions are scored most inconsistently?
+- Are specific evaluators consistently higher or lower than the group mean?
+- Is there a correlation between evaluator workload (evaluations/week) and calibration variance?
+
+---
+
+## 17. First Contact Resolution (FCR) Investigation
+
+**Subject:** One `queueId` (or organisation-wide) + time window  
+**Use case:** Leadership wants to know what percentage of customers resolved their issue in one contact. This investigation cross-references resolution signals with repeat contact patterns.
+
+**Core question:** *What is our first contact resolution rate and which contact types drive repeat calls?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.resolutions.aggregates` | `queueId` + window | nResolved, nUnresolved — system-level FCR signals |
+| 2 | `analytics-conversation-details-query` | `queueId` + window | Individual conversations with participant attributes |
+| 3 | `conversations.search.participant.attributes` | `conversationId` | IVR-captured issue type, account, reason codes — repeat contact indicator fields |
+| 4 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup code distribution — "Resolved", "Callback Required", "Escalated" codes |
+| 5 | `routing.get.queue.wrapup.codes.by.queue` | `queueId` | Labels for the wrapup codes to classify resolution vs non-resolution outcomes |
+| 6 *(contact-level only)* | `externalcontacts.get.contact` | `externalContactId` | Contact-level repeat contact history — prior conversation count |
+
+### FCR Computation Pattern
+
+```
+Resolution wrapup codes: define via step 5 (e.g. "Resolved", "Information Provided")
+Non-resolution codes: "Callback Required", "Transferred", "Escalated", "Follow-up Needed"
+
+FCR = conversations with resolution wrapup / total connected × 100
+Repeat Contact Rate = contacts with >1 conversation in 7-day window / unique contacts × 100
+```
+
+### Analytical Questions Answered
+
+- What percentage of calls end with a resolution wrapup code?
+- Which wrapup codes are most associated with repeat contacts?
+- Which issue types (from IVR participant attributes) have the lowest FCR?
+- Does FCR differ significantly by agent or by time of day?
+
+---
+
+## 18. Agent AI Assist Adoption Investigation
+
+**Subject:** One `userId` or queue scope + time window  
+**Use case:** A contact centre technology manager wants to understand whether agents are using the Agent Copilot and AI suggestions that have been deployed. Low adoption may indicate training gaps, poor suggestion quality, or workflow friction.
+
+**Core question:** *Are agents using the AI assist tools, and is usage correlated with better outcomes?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.agentcopilot.aggregates` | `userId` / `queueId` | nCopilotInteractions, nSuggestionsPresented, nSuggestionsEngaged per agent |
+| 2 | `analytics.query.summaries.aggregates` | `userId` / `queueId` | AI summary generation and engagement rates |
+| 3 | `conversations.get.conversation.ai.summaries` | `conversationId` | Conversation-level summary for spot-checking quality |
+| 4 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | AHT, ACW, talk time — compare adopters vs non-adopters |
+| 5 | `analytics.query.evaluations.aggregates` | `userId` | QM score correlation — do AI-assist users score higher? |
+| 6 *(spot check)* | `conversations.get.conversation.suggestions` | `conversationId` | Individual suggestions shown to agent in a specific conversation |
+
+### Adoption Analysis Pattern
+
+```
+Adoption Rate = nSuggestionsEngaged / nSuggestionsPresented × 100
+Correlation: group agents by adoption quartile → compare mean QM score and AHT
+```
+
+### Analytical Questions Answered
+
+- What percentage of AI suggestions presented to agents are being engaged with?
+- Which agents have the highest and lowest copilot adoption rates?
+- Is higher copilot adoption correlated with lower AHT or higher QM scores?
+- How many conversations have AI summaries, and are agents engaging with them?
+
+---
+
+## 19. Multi-Queue SLA Trend for Executive Review (Extended Rollup)
+
+This pattern extends Section 4 (Executive Reporting Rollup) with FCR, AI assist, and self-service data layers that were not previously documented.
+
+### Additional Layer 6 — Self-Service & Automation
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.flow.execution.aggregates` | `flowId`, daily | Flow containment: nFlow, nFlowOutcome, nFlowOutcomeFailed |
+| `analytics.query.bot.aggregates` | `botId` / `flowId`, daily | Bot containment: nBotSessions, nFlowOut (escalation count) |
+| `analytics.query.summaries.aggregates` | `queueId`, `userId`, daily | AI summary coverage and engagement rate |
+
+### Additional Layer 7 — Quality Depth
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.evaluations.aggregates` | `queueId`, `userId`, daily | nEvaluations, oTotalScore (comparable to quality.get.agents.activity but aggregate) |
+| `analytics.query.surveys.aggregates` | `queueId`, daily | nSurveysCompleted, oSurveyTotalScore — aggregate CSAT by queue |
+| `analytics.query.resolutions.aggregates` | `queueId`, daily | nResolved / nConnected → FCR rate trend |
+
+### Extended Executive Dashboard Metrics
+```
+Additional headline KPIs:
+  - Self-service containment rate: (nFlow - nFlowOut) / nFlow × 100
+  - AI assist adoption: nSuggestionsEngaged / nSuggestionsPresented × 100  
+  - FCR rate: nResolved / nConnected × 100
+  - Survey response rate: nSurveysCompleted / nConnected × 100
+  - Avg survey score: oSurveyTotalScore / nSurveysCompleted
+```
+
+---
+
 ## Appendix: Metric Glossary
 
 | Metric | Meaning | Typical Use |

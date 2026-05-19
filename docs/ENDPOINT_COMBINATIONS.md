@@ -484,6 +484,38 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `conversations.get.conversation.ai.summaries` | ● | | | | | ○ |
+| `conversations.get.conversation.secureattributes` | ○ | | | | | |
+| `conversations.get.conversation.recording.annotations` | ○ | | | | | |
+| `quality.get.calibrations` | | | | | | |
+| `quality.get.evaluators.activity` | | | | ○ | | |
+| `analytics.query.evaluations.aggregates` | | ● | ● | ● | | |
+| `analytics.query.surveys.aggregates` | | ● | | ● | | |
+| `analytics.query.bot.aggregates` | | | | ● | | |
+| `analytics.query.flow.execution.aggregates` | | | | ● | | |
+| `analytics.query.resolutions.aggregates` | | ● | | ● | | |
+| `analytics.query.summaries.aggregates` | | | | ● | | |
+| `analytics.query.agentcopilot.aggregates` | | | ● | ● | | ○ |
+| `telephony.get.sip.trace.metadata` | ○ | | | | | |
+| `telephony.request.sip.pcap.download` | ○ | | | | | |
+| `telephony.get.sip.pcap.download.url` | ○ | | | | | |
+| `telephony.get.edge.version.report` | | | | ○ | | |
+| `telephony.get.expired.edges` | | | | ○ | ● | |
+| `telephony.get.edge.diagnostic.nslookup` | ○ | | | | ○ | |
+| `telephony.get.edge.diagnostic.tracepath` | ○ | | | | ○ | |
+| `speechandtextanalytics.get.conversation.categories` | ● | | | | | |
+| `speechandtextanalytics.search.transcripts` | ○ | | | | | |
+| `externalcontacts.get.contact` | ○ | | | | | |
+| `externalcontacts.get.contact.notes` | ○ | | | | | |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
+| `journey.get.session.events` | ○ | | | | | |
+| `workforce.historical.adherence.query` | | | ● | | | |
+| `workforce.get.agent.schedule.search` | | | ● | | | |
+| `workforce.get.intraday` | | | | ○ | ○ | |
+| `users.get.user.station` | | | | | | ● |
+| `users.get.user.routing.languages` | | | | | | ● |
+| `analytics.query.agent.status.counts` | | | | | ● | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | |
 
 ---
 

@@ -1297,6 +1297,254 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.ai.summaries": {
+      "description": "AI-generated conversation summaries — topic, outcome, action items, and next steps produced by Genesys AI post-interaction. Use as lightweight QM triage before pulling full recording.",
+      "endpoint": "getConversationSummaries",
+      "itemsPath": "$.summaries",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.secureattributes": {
+      "description": "Secure (PCI-scoped) attributes collected during a conversation — data entered via secure IVR sessions, not exposed to agents. Requires elevated permission.",
+      "endpoint": "getConversationSecureattributes",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.recording.annotations": {
+      "description": "Analyst annotations on a specific recording — bookmark timestamps, typed comments, and flagged segments from QM reviewers.",
+      "endpoint": "getConversationRecordingAnnotations",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "QM calibration sessions — group evaluations used to ensure inter-rater reliability. Links to a conversation and multiple evaluators for score comparison.",
+      "endpoint": "quality.get.calibrations",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "quality.get.evaluators.activity": {
+      "description": "QM evaluator workload and activity — number of evaluations completed, pending, and average time-to-score per evaluator. Use to audit QM coverage gaps.",
+      "endpoint": "quality.get.evaluators.activity",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.evaluations.aggregates": {
+      "description": "Aggregate QM evaluation scores by queue, agent, or form — nEvaluations, oTotalCriticalScore, oTotalScore grouped by desired dimension. Core metric for quality rollups.",
+      "endpoint": "analytics.query.evaluations.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.surveys.aggregates": {
+      "description": "Aggregate post-call survey (CSAT/NPS) scores by queue or agent — nSurveysCompleted, oSurveyTotalScore, nSurveySent, nSurveyResponseError. Voice of Customer KPI.",
+      "endpoint": "analytics.query.surveys.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot session aggregates — nBotSessions, tBotConversationDuration, nFlowOut (bot transfer to agent), nBotIntentConfirmed. Measures self-service containment and bot effectiveness.",
+      "endpoint": "analytics.query.bot.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.flow.execution.aggregates": {
+      "description": "Architect flow execution aggregates — nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone grouped by flowId or flowType. Shows IVR completion and failure rates.",
+      "endpoint": "analytics.query.flow.execution.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.resolutions.aggregates": {
+      "description": "First contact resolution aggregates — nResolved, nUnresolved grouped by queue or agent. Combined with repeat-contact analysis to compute FCR rate.",
+      "endpoint": "analytics.query.resolutions.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.summaries.aggregates": {
+      "description": "AI conversation summary analytics aggregates — nSummariesGenerated, nSummariesEngaged, grouped by queue or agent. Measures AI assist adoption.",
+      "endpoint": "analytics.query.summaries.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "analytics.query.agentcopilot.aggregates": {
+      "description": "Agent Copilot usage aggregates — nCopilotInteractions, nCopilotSuggestionsEngaged, nCopilotSuggestionsPresented. Measures AI assist engagement per agent and queue.",
+      "endpoint": "analytics.query.agentcopilot.aggregates",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_details_query" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "telephony.get.sip.trace.metadata": {
+      "description": "SIP trace metadata search — query by conversation ID, time window, or edge to list available SIP traces before requesting a PCAP download. Voice engineer pre-flight step.",
+      "endpoint": "telephony.get.sip.traces",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.request.sip.pcap.download": {
+      "description": "Request a PCAP file download from a SIP trace to an S3 pre-signed URL — async job: submit, poll, retrieve URL. Enables Wireshark-level call analysis for voice engineers.",
+      "endpoint": "postTelephonySiptracesDownload",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.pcap.download.url": {
+      "description": "Retrieve the pre-signed S3 URL for a completed PCAP download job. Final step in the SIP PCAP retrieval chain.",
+      "endpoint": "getTelephonySiptracesDownloadDownloadId",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.edge.version.report": {
+      "description": "Edge firmware version report for all edges in the organisation — current version, target version, and update eligibility. Used for infrastructure health auditing.",
+      "endpoint": "telephony.get.edge.version.report",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "telephony.get.expired.edges": {
+      "description": "List of Edge appliances that are 4 or more firmware versions behind the latest release. Critical input for infrastructure health investigations.",
+      "endpoint": "telephony.get.expired.edges",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "telephony.get.edge.diagnostic.nslookup": {
+      "description": "Run an nslookup network diagnostic from a specific Edge appliance for a target hostname or IP. Voice engineer tool for DNS/SIP connectivity troubleshooting.",
+      "endpoint": "postTelephonyProvidersEdgeDiagnosticNslookup",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.edge.diagnostic.tracepath": {
+      "description": "Run a tracepath/traceroute from a specific Edge appliance to a target IP. Voice engineer tool for hop-by-hop SIP path analysis and latency diagnosis.",
+      "endpoint": "postTelephonyProvidersEdgeDiagnosticTracepath",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "STA-detected categories for a single conversation — matched topic categories with confidence scores. Faster than full transcript; use for conversation triage and routing audit.",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.search.transcripts": {
+      "description": "Full-text search across speech and text analytics transcripts — phrase, speaker, sentiment, and topic filters. Returns matching conversation IDs and offsets.",
+      "endpoint": "postSpeechandtextanalyticsTranscriptsSearch",
+      "itemsPath": "$.results",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Full external contact record — name, organisation, phone, email, custom fields, and source identifiers. Enriches conversation investigations with CRM customer context.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Notes recorded against an external contact — agent-authored and system notes providing interaction history context. Enriches customer journey and complaint investigations.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Journey sessions linked to a specific external contact — digital touchpoints, web sessions, and cross-channel events preceding or following a voice conversation.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.events": {
+      "description": "Events within a single journey session — page views, clicks, form submissions, and custom events. Provides full digital context for a customer's self-service attempt before escalating.",
+      "endpoint": "getJourneySessionEvents",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "pageNumber_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.historical.adherence.query": {
+      "description": "Historical WFM schedule adherence report for a management unit — scheduled vs actual state per agent over a date range. Async job: submit and poll.",
+      "endpoint": "workforce.post.historical.adherence.query",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "transaction": { "profile": "analytics_jobs" },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.schedule.search": {
+      "description": "Published agent schedule search for a business unit — returns shift assignments for specified agents and date range. Used in WFM adherence and staffing investigations.",
+      "endpoint": "workforce.post.agent.schedule.search",
+      "itemsPath": "$.agentSchedules",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.intraday": {
+      "description": "WFM intraday staffing and performance data — forecasted vs actual volume, headcount, occupancy, and shrinkage by interval for a business unit's planning groups.",
+      "endpoint": "workforce.post.intraday",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "users.get.user.station": {
+      "description": "Station and phone assignment for a single agent — associated station, default station, station type (physical/softphone), and SIP line details.",
+      "endpoint": "users.get.user.station",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "users.get.user.routing.languages": {
+      "description": "Routing language proficiencies assigned to an agent — language IDs, names, and proficiency levels used by the language-skill routing engine.",
+      "endpoint": "users.get.user.routing.languages",
+      "itemsPath": "$.entities",
+      "paging": { "profile": "nextUri_default" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.agent.status.counts": {
+      "description": "Count of agents in each status group — breakdown of online, offline, available, busy, and on-queue agents at a point in time. Operations dashboard summary metric.",
+      "endpoint": "analytics.query.agent.status.counts",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" }
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a specific queue — Genesys-calculated prediction of how long the next caller will wait before being answered.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": { "profile": "none" },
+      "retry": { "profile": "rateLimitAware" },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

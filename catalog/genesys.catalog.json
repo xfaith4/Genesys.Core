@@ -304,7 +304,7 @@
     "presence.get.system.presence.definitions": {
       "description": "Get System Presence Definitions (catalog-derived)",
       "endpoint": "presence.get.system.presence.definitions",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
         "profile": "nextUri_default"
       },
@@ -361,9 +361,9 @@
     "organization.get.organization.details": {
       "description": "Get Organization Details (catalog-derived)",
       "endpoint": "organization.get.organization.details",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "paging": {
-        "profile": "nextUri_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "default"
@@ -936,7 +936,7 @@
     "quality.get.agents.activity": {
       "description": "Per-agent quality evaluation activity \u2014 evaluation counts, highest/average/lowest scores, and per-evaluator breakdown.",
       "endpoint": "quality.get.agents.activity",
-      "itemsPath": "$.agents",
+      "itemsPath": "$.entities",
       "paging": {
         "profile": "pageNumber_default"
       },
@@ -1703,9 +1703,9 @@
     "organization.get.organization.details": {
       "method": "GET",
       "path": "/api/v2/organizations/me",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "notes": [
         "Get Organization Details",
         "group: Organization"
@@ -2315,9 +2315,9 @@
     "presence.get.system.presence.definitions": {
       "method": "GET",
       "path": "/api/v2/systempresences",
-      "pagingProfile": "nextUri_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "itemsPath": "$.entities",
+      "itemsPath": "$",
       "notes": [
         "Get System Presence Definitions",
         "group: Presence"
@@ -8973,7 +8973,12 @@
         "Conversations",
         "Search"
       ],
-      "summary": "Search conversations"
+      "summary": "Search conversations",
+      "defaultBody": {
+        "pageSize": 1,
+        "pageNumber": 1,
+        "query": []
+      }
     },
     "getConversation": {
       "method": "GET",
@@ -9334,7 +9339,12 @@
         "Conversations",
         "Search"
       ],
-      "summary": "Search resources."
+      "summary": "Search resources.",
+      "defaultBody": {
+        "pageSize": 1,
+        "pageNumber": 1,
+        "query": []
+      }
     },
     "getConversationsCustomattributesSchemasCoretype": {
       "method": "GET",
@@ -39297,7 +39307,7 @@
     "quality.get.agents.activity": {
       "method": "GET",
       "path": "/api/v2/quality/agents/activity",
-      "itemsPath": "$.agents",
+      "itemsPath": "$.entities",
       "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
       "operationId": "getQualityAgentsActivity",

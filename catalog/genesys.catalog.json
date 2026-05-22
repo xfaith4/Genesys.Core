@@ -1297,6 +1297,190 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.details": {
+      "description": "Full profile for a single external contact \u2014 name, phone numbers, email, title, organisation link, and custom contact-schema fields. Enrich a conversation with the customer's known CRM identity by joining on participant.externalContactId.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Agent-authored CRM notes attached to an external contact \u2014 interaction history, follow-up actions, and escalation context. Provides pre-call context and post-call resolution history for a customer.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Web and mobile journey sessions linked to an external contact \u2014 pages visited, events triggered, and predictive-engagement scores before or during inbound contact. Use to understand the digital path that preceded a voice call.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.details": {
+      "description": "Single customer journey session \u2014 channel, device type, start time, referrer URL, and associated external-contact ID. Seed step when a journey sessionId is known from conversation attributes.",
+      "endpoint": "getJourneySession",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.events": {
+      "description": "All events within a customer journey session \u2014 page views, form interactions, engagement triggers, and predictive engagement scores in chronological order. Rich pre-contact intent signal for conversation triage.",
+      "endpoint": "getJourneySessionEvents",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.botflow.get.sessions": {
+      "description": "Bot flow session list for a specific bot flow \u2014 session IDs, associated conversation IDs, containment outcome (contained / escalated / abandoned), and escalation reason. Seed step for IVR self-service containment investigation.",
+      "endpoint": "getAnalyticsBotflowSessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.botflow.get.reporting.turns": {
+      "description": "Per-turn bot conversation reporting \u2014 intent detected, entities extracted, slot confidence, and NLU model version for each turn in a bot flow session. Use to diagnose why a bot escalated or misrouted a customer.",
+      "endpoint": "getAnalyticsBotflowReportingturns",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot performance aggregate metrics \u2014 nBotTurns, nBotContainedCompletions, nBotEscalations, nBotDisconnectCompletions grouped by botFlowId and queueId. Executive KPI for self-service containment rate and bot effectiveness.",
+      "endpoint": "postAnalyticsBotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.flowexecution.aggregates": {
+      "description": "Flow execution aggregate metrics \u2014 nFlowEntries, nFlowExits, nFlowMilestones, nFlowOutcomes grouped by flowId and flowVersion. Use to measure IVR flow path coverage, outcome distribution, and regression impact after flow changes.",
+      "endpoint": "postAnalyticsFlowexecutionsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topics and interaction categories detected in a single conversation \u2014 category names, confidence scores, and phrase evidence. Answers 'what subjects were discussed?' without reading a transcript.",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries": {
+      "description": "AI-generated conversation summaries \u2014 reason for call, resolution outcome, follow-up actions, and agent empathy signals. Enables rapid triage at scale without listening to recordings. Requires STA summarisation licence.",
+      "endpoint": "getSpeechandtextanalyticsConversationSummaries",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.transcript.urls.all.segments": {
+      "description": "All transcript download URLs for every segment of a single communication leg \u2014 one URL per segment for multi-segment calls. Preferred over the single-URL endpoint for long calls with multiple hold/transfer segments.",
+      "endpoint": "getSpeechandtextanalyticsConversationCommunicationTranscripturls",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.evaluation.detail": {
+      "description": "Full scored evaluation for a single quality evaluation record \u2014 all section scores, evaluator comments, agent acknowledgement flag, and calibration membership. Use when quality.get.evaluations.query returns evaluation IDs and you need the full scored content.",
+      "endpoint": "getQualityConversationEvaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.evaluation.aggregates": {
+      "description": "QM aggregate metrics \u2014 nEvaluations, oEvaluationScore, nEvaluationsWithScores grouped by evaluatee userId, evaluatorUserId, and queueId. Use for QM coverage-rate reporting, score-trend analysis, and evaluator workload distribution.",
+      "endpoint": "postAnalyticsEvaluationsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.agentcopilot.aggregates": {
+      "description": "Agent Copilot performance aggregates \u2014 nCopilotSuggestionsOffered, nCopilotSuggestionsAccepted, nCopilotSuggestionsDeclined, nCopilotKnowledgeArticleViews grouped by userId and queueId. Measures AI-assistance adoption and knowledge-base utilisation.",
+      "endpoint": "postAnalyticsAgentcopilotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

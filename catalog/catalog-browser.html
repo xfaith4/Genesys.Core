@@ -399,6 +399,11 @@
             <span class="chip" data-val="no">— None</span>
         </div>
     </div>
+
+    <div class="filter-row">
+        <span class="filter-label">Investigation</span>
+        <div class="chips" id="investigation-chips"></div>
+    </div>
 </div>
 
 <div class="stats-bar">
@@ -493,15 +498,16 @@ function badgeHtml(text, colors) {
 
 /* ── Application state ───────────────────────────────────────────────────── */
 const state = {
-    all:         [],     // all datasets [{key,domain,description,endpoint,itemsPath,paging,retry,transaction}]
-    search:      '',
-    domains:     new Set(),
-    pagings:     new Set(),
-    retries:     new Set(),
-    transaction: 'all',  // 'all' | 'yes' | 'no'
-    sortCol:     'key',
-    sortDir:     'asc',
-    expanded:    null,
+    all:            [],     // all datasets [{key,domain,description,endpoint,itemsPath,paging,retry,transaction,investigations}]
+    search:         '',
+    domains:        new Set(),
+    pagings:        new Set(),
+    retries:        new Set(),
+    transaction:    'all',  // 'all' | 'yes' | 'no'
+    investigations: new Set(),
+    sortCol:        'key',
+    sortDir:        'asc',
+    expanded:       null,
 };
 
 /* ── Filter + sort ───────────────────────────────────────────────────────── */
@@ -528,6 +534,9 @@ function filtered() {
 
     if (state.transaction === 'yes') rows = rows.filter(d =>  d.transaction);
     if (state.transaction === 'no')  rows = rows.filter(d => !d.transaction);
+
+    if (state.investigations.size > 0)
+        rows = rows.filter(d => d.investigations.some(i => state.investigations.has(i)));
 
     const col = state.sortCol;
     const dir = state.sortDir === 'asc' ? 1 : -1;
@@ -674,6 +683,37 @@ function renderTable() {
                 grid.appendChild(field3);
             }
 
+            if (d.investigations && d.investigations.length > 0) {
+                const fieldInv = makeEl('div', 'detail-field');
+                fieldInv.style.gridColumn = '1 / -1';
+                const invLabel = makeEl('label', null, 'Investigation Patterns');
+                const invWrap  = makeEl('div', null);
+                invWrap.style.display = 'flex';
+                invWrap.style.flexWrap = 'wrap';
+                invWrap.style.gap = '4px';
+                invWrap.style.marginTop = '4px';
+                d.investigations.forEach(inv => {
+                    const colors = INVESTIGATION_COLORS[inv] || { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' };
+                    const tag = makeEl('span', 'badge', INVESTIGATION_LABELS[inv] || inv);
+                    tag.style.background = colors.bg;
+                    tag.style.color      = colors.text;
+                    tag.style.border     = `1px solid ${colors.border}`;
+                    tag.style.cursor     = 'pointer';
+                    tag.title = `Filter by: ${INVESTIGATION_LABELS[inv] || inv}`;
+                    tag.addEventListener('click', e => {
+                        e.stopPropagation();
+                        state.investigations.clear();
+                        state.investigations.add(inv);
+                        const invSet = new Set(state.all.flatMap(d => d.investigations));
+                        rebuildInvestigationChips(invSet);
+                        renderTable();
+                    });
+                    invWrap.appendChild(tag);
+                });
+                fieldInv.append(invLabel, invWrap);
+                grid.appendChild(fieldInv);
+            }
+
             inner.appendChild(grid);
             inner.appendChild(makeEl('div', 'ps-label', 'PowerShell — Invoke-Dataset'));
 
@@ -735,36 +775,92 @@ function rebuildChips(containerId, values, stateSet, onChange) {
 }
 
 /* ── Load catalog ────────────────────────────────────────────────────────── */
+const INVESTIGATION_LABELS = {
+    'single-conversation':   'Single Conversation',
+    'queue-investigation':   'Queue',
+    'division-investigation':'Division / Agent Group',
+    'executive-rollup':      'Executive Rollup',
+    'real-time-monitoring':  'Real-Time Monitoring',
+    'agent-investigation':   'Agent Investigation',
+    'byoi-enrichment':       'BYOI Enrichment',
+    'campaign-investigation':'Campaign',
+    'flow-investigation':    'Flow / IVR',
+    'wfm-adherence':         'WFM Adherence',
+    'api-governance':        'API Governance',
+};
+
+const INVESTIGATION_COLORS = {
+    'single-conversation':   { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
+    'queue-investigation':   { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' },
+    'division-investigation':{ bg: '#fef9c3', text: '#854d0e', border: '#fde68a' },
+    'executive-rollup':      { bg: '#f3e8ff', text: '#6b21a8', border: '#e9d5ff' },
+    'real-time-monitoring':  { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
+    'agent-investigation':   { bg: '#e0f2fe', text: '#075985', border: '#bae6fd' },
+    'byoi-enrichment':       { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+    'campaign-investigation':{ bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+    'flow-investigation':    { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' },
+    'wfm-adherence':         { bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+    'api-governance':        { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+};
+
 function processDatasets(datasets) {
-    const domainSet = new Set();
-    const pagingSet = new Set();
-    const retrySet  = new Set();
+    const domainSet        = new Set();
+    const pagingSet        = new Set();
+    const retrySet         = new Set();
+    const investigationSet = new Set();
 
     const rows = Object.entries(datasets).map(([key, v]) => {
         const domain = extractDomain(key);
         domainSet.add(domain);
         pagingSet.add(v.paging.profile);
         retrySet.add(v.retry.profile);
+        const investigations = Array.isArray(v.investigations) ? v.investigations : [];
+        investigations.forEach(i => investigationSet.add(i));
         return {
             key,
             domain,
-            description: v.description || '',
-            endpoint:    v.endpoint    || '',
-            itemsPath:   v.itemsPath   || '',
-            paging:      v.paging.profile,
-            retry:       v.retry.profile,
-            transaction: v.transaction ? v.transaction.profile : null,
+            description:    v.description    || '',
+            endpoint:       v.endpoint       || '',
+            itemsPath:      v.itemsPath      || '',
+            paging:         v.paging.profile,
+            retry:          v.retry.profile,
+            transaction:    v.transaction ? v.transaction.profile : null,
+            investigations,
         };
     });
 
     state.all = rows;
     document.getElementById('total-count').textContent = rows.length;
 
-    rebuildChips('domain-chips', domainSet, state.domains, renderTable);
-    rebuildChips('paging-chips', pagingSet, state.pagings, renderTable);
-    rebuildChips('retry-chips',  retrySet,  state.retries, renderTable);
+    rebuildChips('domain-chips',        domainSet,        state.domains,        renderTable);
+    rebuildChips('paging-chips',        pagingSet,        state.pagings,        renderTable);
+    rebuildChips('retry-chips',         retrySet,         state.retries,        renderTable);
+    rebuildInvestigationChips(investigationSet);
 
     renderTable();
+}
+
+function rebuildInvestigationChips(values) {
+    const container = document.getElementById('investigation-chips');
+    if (!container) return;
+    const ordered = Object.keys(INVESTIGATION_LABELS).filter(k => values.has(k));
+    let html = `<span class="chip ${state.investigations.size === 0 ? 'active' : ''}" data-val="__all__">All</span>`;
+    for (const v of ordered) {
+        html += `<span class="chip ${state.investigations.has(v) ? 'active' : ''}" data-val="${esc(v)}">${esc(INVESTIGATION_LABELS[v] || v)}</span>`;
+    }
+    container.innerHTML = html;
+    container.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const val = chip.dataset.val;
+            if (val === '__all__') {
+                state.investigations.clear();
+            } else {
+                state.investigations.has(val) ? state.investigations.delete(val) : state.investigations.add(val);
+            }
+            rebuildInvestigationChips(values);
+            renderTable();
+        });
+    });
 }
 
 /* ── Wire events ─────────────────────────────────────────────────────────── */
@@ -779,16 +875,19 @@ document.getElementById('clear-btn').addEventListener('click', () => {
     state.pagings.clear();
     state.retries.clear();
     state.transaction = 'all';
+    state.investigations.clear();
     state.expanded = null;
     document.getElementById('search').value = '';
 
     // Rebuild chips from current dataset values
-    const domainSet = new Set(state.all.map(d => d.domain));
-    const pagingSet = new Set(state.all.map(d => d.paging));
-    const retrySet  = new Set(state.all.map(d => d.retry));
+    const domainSet        = new Set(state.all.map(d => d.domain));
+    const pagingSet        = new Set(state.all.map(d => d.paging));
+    const retrySet         = new Set(state.all.map(d => d.retry));
+    const investigationSet = new Set(state.all.flatMap(d => d.investigations));
     rebuildChips('domain-chips', domainSet, state.domains, renderTable);
     rebuildChips('paging-chips', pagingSet, state.pagings, renderTable);
     rebuildChips('retry-chips',  retrySet,  state.retries, renderTable);
+    rebuildInvestigationChips(investigationSet);
 
     document.querySelectorAll('#tx-chips .chip').forEach(c =>
         c.classList.toggle('active', c.dataset.val === 'all'));

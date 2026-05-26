@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-05-26  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,11 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Bot / IVR Containment Investigation](#11-bot--ivr-containment-investigation)
+12. [Digital Channel Investigation (Email / Messaging)](#12-digital-channel-investigation-email--messaging)
+13. [External Contact Customer Journey](#13-external-contact-customer-journey)
+14. [Executive Rollup Additions — Bot, Digital, WFM](#14-executive-rollup-additions--bot-digital-wfm)
+15. [New Dataset Quick-Reference](#15-new-dataset-quick-reference)
 
 ---
 
@@ -436,54 +441,353 @@ complete the picture.
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+Columns: **Conv** = Conversation Deep Dive · **Queue** = Queue Investigation · **Div** = Division Investigation · **Exec** = Executive Rollup · **RT** = Real-Time Monitoring · **Agent** = Agent Investigation · **Bot** = Bot/IVR Containment · **Digital** = Digital Channel Investigation · **CX360** = External Contact / Customer Journey
+
+| Dataset Key | Conv | Queue | Div | Exec | RT | Agent | Bot | Digital | CX360 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | | ● | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | | ● | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | ● | |
+| `conversations.search.participant.attributes` | ● | | | | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | | | ● | |
+| `conversations.get.call.detail` | ○ | | | | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | | | ● | |
+| `conversations.get.email.messages` | | | | | | | | ○ | |
+| `quality.get.evaluations.query` | ● | ○ | ● | | | ● | | ● | ● |
+| `quality.get.surveys` | ● | | | ● | | | | | |
+| `quality.get.conversation.surveys` | ● | | | | | | | ● | ● |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | | ○ | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | | | ○ | |
+| `analytics.query.conversation.transcripts` | | | | ● | | | | | ● |
+| `routing.get.single.queue.config` | | ● | | | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ○ | | | | |
+| `routing.get.queue.estimated.wait.time.by.media` | | ○ | | | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● | | ● |
+| `analytics.query.conversation.details.by.queue` | | ● | | | | | | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | ● | ● | | | ● | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | | |
+| `routing-queue-members` | | ● | | | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | | |
+| `authorization.get.division.grants` | | | ● | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | | | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | | |
+| `analytics.query.user.aggregates.performance.metrics` | | | ● | ● | | ● | | | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | | |
+| `coaching.get.appointments` | | | ● | | | ○ | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | | | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | | | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | | | |
+| `analytics.query.flow.observations` | | | | | ● | | | | |
+| `analytics.query.flow.aggregates.execution.metrics` | | | | ● | | | ● | | |
+| `flows.get.all.flows` | | | | ○ | | | ● | | |
+| `flows.get.flow.outcomes` | | | | | | | ● | | |
+| `analytics.query.bots.aggregates` | | | | ● | | | ● | | |
+| `analytics.get.botflow.sessions` | | | | | | | ● | | |
+| `analytics.get.botflow.reporting.turns` | | | | | | | ● | | |
+| `externalcontacts.get.contact.profile` | | | | | | | | | ● |
+| `externalcontacts.get.contact.notes` | | | | | | | | | ● |
+| `externalcontacts.get.contact.journey.sessions` | | | | | | | | | ● |
+| `analytics.query.journey.aggregates` | | | | ○ | | | | | ● |
+| `workforce.get.agent.management.unit` | | | | | | ● | | | |
+| `workforce.get.adherence.bulk` | | | | ● | | ● | | | |
+| `workforce.get.management.units` | | | | ● | | | | | |
+| `workforce.get.management.unit.users` | | | | ● | | | | | |
+| `employeeperformance.get.external.metric.definitions` | | | | ○ | | ○ | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | | |
+| `alerting.get.alerts` | | | | ○ | ● | | | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | | | |
+| `users.get.user.routing.skills` | | | | | | ● | | | |
+| `users.get.user.queue.memberships` | | | | | | ● | | | |
+| `users.get.bulk.user.presences` | | | | | | ● | | | |
+| `routing.get.user.utilization` | | | | | | ○ | | | |
+| `audit-logs` | | | | | | ● | | | |
+
+---
+
+## 11. Bot / IVR Containment Investigation
+
+**Subject:** One `botFlowId` (Architect bot flow) + time window  
+**Use case:** An operations manager or automation engineer needs to understand whether a bot or IVR flow is actually containing customers or simply adding friction before agent escalation. This investigation combines bot session analytics, per-turn intent matching, and the downstream queue performance for escalated calls to compute a full deflection picture.
+
+**Core question:** *Is this bot containing customers or just delaying them?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.get.botflow.sessions` | seed → `botFlowId` | Per-session containment outcome (selfServiceComplete, transfer, error), session duration |
+| 2 | `analytics.get.botflow.reporting.turns` | `botFlowId` | Per-turn: matched intent, slot fill result, escalation trigger, utterance category |
+| 3 | `analytics.query.bots.aggregates` | `botFlowId` | Rollup: nBotSessions, nBotSessionsContained, nBotSessionsTransferred, nBotSessionsErrored, tBotSession |
+| 4 | `flows.get.flow.outcomes` | `flowId` | Architect flow outcome labels — maps exit codes to business terms (resolved, escalated, abandoned) |
+| 5 | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | nFlow, nFlowOutcome, nFlowMilestone — where customers drop from the designed path |
+| 6 | `analytics-conversation-details-query` (escalated calls) | `conversationId` | Conversations that transferred from the bot — AHT, wrapup, queue for escalated contacts |
+| 7 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Performance of receiving queues — cost-of-escalation context |
+
+### Key Joins
+
+```
+analytics.get.botflow.sessions[].sessionId
+  → analytics.get.botflow.reporting.turns[].sessionId (turn-level drilldown)
+
+analytics.query.bots.aggregates.results[].group.botFlowId
+  → analytics.get.botflow.sessions[].flowId (session detail overlay)
+
+analytics-conversation-details-query[].conversationId
+  → analytics.query.conversation.aggregates.queue.performance[].queueId (escalation cost)
+```
+
+### Key Metrics Computed
+
+```
+containmentRate%       = nBotSessionsContained / nBotSessions × 100
+escalationRate%        = nBotSessionsTransferred / nBotSessions × 100
+errorRate%             = nBotSessionsErrored / nBotSessions × 100
+avgBotSessionDuration  = tBotSession / nBotSessions (seconds)
+deflectionValue        = escalationRate% × avgAgentHandleTime × agentCostPerSecond
+```
+
+### Voice / Automation Engineer Notes
+
+- `analytics.get.botflow.reporting.turns` identifies the exact utterances and intents that trigger escalation — the foundation for NLU retraining decisions.
+- Sessions with `exitReason = error` indicate backend service timeouts or ASR/DTMF failures, not customer intent to escalate; these inflate the escalation rate and should be treated separately.
+- Correlate `nFlowMilestone` non-completion in step 5 with session turn count in step 2 to identify where customers abandon the designed flow path before reaching a resolution or transfer point.
+- High `tBotSession` with low containment rate = customers are spending time in the bot but leaving unsatisfied; this is worse than a short session with the same outcome.
+
+---
+
+## 12. Digital Channel Investigation (Email / Messaging)
+
+**Subject:** One `conversationId` for an email, messaging, or chat interaction  
+**Use case:** A QM analyst, supervisor, or digital channel manager investigates a specific email or messaging conversation — full thread content, routing path, agent handling time, wrapup, AI summaries, and quality evaluation. Mirrors the Voice Deep Dive (Section 1) but for written channels where the SIP trace is irrelevant and the message thread is the primary forensic artefact.
+
+**Core question:** *What was said, how was it routed, and was it resolved correctly?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Media type confirmation, participant roster, queue, externalTag |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timeline: queue wait, agent assignment, ACW, handle time |
+| 3 *(email only)* | `conversations.get.email.messages` | `conversationId` | Full email thread — every inbound and outbound message with body, sender, timestamps |
+| 4 | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code and notes per agent participant |
+| 5 | `conversations.get.conversation.customattributes` | `conversationId` | Flow/IVR custom attributes — case IDs, intent labels, source system context |
+| 6 | `conversations.get.conversation.summaries` | `conversationId` | Copilot / Agent Assist AI summary — reason for contact, resolution notes |
+| 7 *(S&TA enabled)* | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Text analytics category classifications — topics and intents in written interactions |
+| 8 | `quality.get.evaluations.query` | `conversationId` | QM evaluation score, form, evaluator |
+| 9 | `quality.get.conversation.surveys` | `conversationId` | Post-interaction CSAT/NPS survey result |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].id
+  → conversations.get.conversation.participant.wrapup.participantId (per-participant)
+
+analytics.get.single.conversation.analytics.participants[].sessions[].communicationId
+  → conversations.get.email.messages (email channel communicationId)
+```
+
+### Condition Notes
+
+- Step 3 (`conversations.get.email.messages`) runs only when `conversations.get.conversation.object.mediaType = email`. For messaging/chat, use the participant attributes and AI summary as the content artefact; raw message bodies are not exposed via a standalone endpoint for those media types.
+- Step 7 (S&TA categories) applies to email and messaging conversations when the Text Analytics service is enabled — not just voice.
+- The SIP trace step from the Voice Deep Dive has no equivalent here. If the digital conversation was misrouted, the routing evidence is in `conversations.get.conversation.object.participants[].calls` (empty for digital) and the Architect flow audit log.
+
+### Analytical Questions Answered
+
+- What was the email chain? How many exchanges before resolution?
+- Did the agent respond within SLA? What was the first-response time?
+- What wrapup code did the agent select? Was it appropriate given the thread content?
+- What did the AI summary identify as the reason for contact and resolution?
+- Was the interaction evaluated? What was the QM score?
+- Was the customer surveyed? What was the CSAT?
+
+---
+
+## 13. External Contact Customer Journey
+
+**Subject:** One `externalContactId` from Genesys External Contacts  
+**Use case:** A CX director, account manager, or QM analyst needs a complete picture of a specific customer's history — every conversation they have had across all channels, their notes, their sentiment trends, and their survey scores over time. Requires the customer to have an External Contact record in Genesys Cloud.
+
+**Core question:** *Who is this customer, what is their history with us, and how do they feel about us?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts.get.contact.profile` | seed → `externalContactId` | CRM identity: name, phone, email, title, organisation, tags, custom fields |
+| 2 | `externalcontacts.get.contact.notes` | `contactId` | Agent-entered notes — cross-channel context and prior issue history |
+| 3 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Journey sessions: web sessions, conversation sessions, digital touchpoints |
+| 4 | `analytics-conversation-details-query` (externalContactId filter) | `externalContactId` | All conversations where this contact appeared as an external participant |
+| 5 | `quality.get.evaluations.query` (conversationId list) | `conversationId` | QM evaluations for conversations involving this customer |
+| 6 | `quality.get.conversation.surveys` (conversationId list) | `conversationId` | CSAT/NPS surveys from this customer across all surveyed interactions |
+| 7 | `analytics.query.conversation.transcripts` (conversationId filter) | `conversationId` | Aggregate sentiment and topic trends across all conversations |
+
+### Key Joins
+
+```
+externalcontacts.get.contact.profile.id
+  → analytics-conversation-details-query[].participants[].externalContactId
+
+analytics-conversation-details-query[].conversationId
+  → quality.get.evaluations.query[].conversationId (left join)
+  → quality.get.conversation.surveys[].conversationId (left join)
+  → analytics.query.conversation.transcripts[].conversationId (sentiment overlay)
+```
+
+### Computed Metrics
+
+```
+totalInteractionCount     = COUNT(analytics-conversation-details-query)
+channelMix%               = GROUP BY mediaType / totalInteractionCount
+avgHandleTime             = AVG(tHandle) across all conversations
+repeatContactRate         = interactions within 7 days of a prior interaction / totalInteractionCount
+avgCsatScore              = AVG(csatScore) from surveys
+avgSentimentScore         = AVG(oSentimentScore) from transcript aggregates
+avgQmScore                = AVG(evaluationScore) from evaluations
+```
+
+### Analytical Questions Answered
+
+- How many times has this customer contacted us and on which channels?
+- Are they a repeat caller? Are the interactions for the same issue?
+- What is their long-run sentiment trend? Is it getting worse over time?
+- What CSAT scores have they given? Are they declining?
+- What notes have agents left on this contact?
+- What web sessions or journey touchpoints preceded their voice contacts?
+
+---
+
+## 14. Executive Rollup Additions — Bot, Digital, WFM
+
+This section extends Section 4 (Executive Reporting Rollup) with three additional reporting layers introduced alongside the new datasets. These layers slot into the existing executive dashboard pattern.
+
+### Layer 6 — Bot & Self-Service Performance
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.bots.aggregates` | `botFlowId`, daily | nBotSessions, nBotSessionsContained, nBotSessionsTransferred, containmentRate% |
+| `analytics.query.flow.aggregates.execution.metrics` | `flowId`, daily | nFlow, nFlowOutcome, nFlowMilestone — IVR/bot completion rate |
+| `flows.get.flow.outcomes` | — | Outcome label resolution — map exit codes to business terms |
+
+**Executive headline:** Self-service containment rate (% of bot sessions that did not require an agent), trending daily.
+
+### Layer 7 — Digital Channel Health
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.conversation.aggregates.digital.channels` | `mediaType`, `queueId`, daily | Volume by channel: nOffered, nConnected by voice/chat/email/message |
+| `analytics.query.queue.aggregates.service.level` | `queueId`, `mediaType`, daily | Digital SLA achievement by channel |
+| `analytics.query.conversation.transcripts` | `queueId`, `mediaType`, daily | Sentiment coverage for digital channels |
+
+**Executive headline:** Digital channel mix % of total volume, SLA compliance by channel, and sentiment score for written channels.
+
+### Layer 8 — WFM Adherence & Schedule Efficiency
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `workforce.get.adherence.bulk` | `managementUnitId`, snapshot | adherencePct%, scheduledActivityCategory vs. actual |
+| `workforce.get.management.unit.users` | `managementUnitId` | Agent roster per scheduling team |
+| `analytics.query.user.aggregates.login.activity` | `userId`, daily | tAgentRoutingStatus — on-queue vs off-queue actual time |
+
+**Executive headline:** Org-wide schedule adherence %, on-queue occupancy %, and shrinkage by management unit.
+
+### Extended Dashboard Composition Pattern
+
+```
+Period: Last 28 days, daily granularity
+
+Full executive dashboard:
+  Layer 1: Volume & Efficiency (Section 4)
+  Layer 2: Service Quality (Section 4)
+  Layer 3: Workforce Productivity (Section 4)
+  Layer 4: Quality & Voice-of-Customer (Section 4)
+  Layer 5: Infrastructure Health (Section 4, voice-focused)
+  Layer 6: Bot & Self-Service (Section 14) ← NEW
+  Layer 7: Digital Channel Health (Section 14) ← NEW
+  Layer 8: WFM Adherence (Section 14) ← NEW
+
+Key new derived metrics:
+  - Self-service containment rate: SUM(nBotSessionsContained) / SUM(nBotSessions) × 100
+  - Digital channel mix%: SUM(nOffered by mediaType) / SUM(nOffered total) × 100
+  - Schedule adherence%: AVG(adherencePct) by managementUnit
+  - Omnichannel sentiment: weighted AVG(oSentimentScore) across all media types
+```
+
+---
+
+## 15. New Dataset Quick-Reference
+
+Datasets added in this revision that are not yet reflected in the Dataset Combination Reference Matrix (Section 10).
+
+### Conversation-Scoped (per conversationId)
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `conversations.get.conversation.participant.wrapup` | `GET /api/v2/conversations/{conversationId}/participants/{participantId}/wrapup` | Wrapup code + notes per participant |
+| `conversations.get.call.detail` | `GET /api/v2/conversations/calls/{conversationId}` | Voice call leg: ANI, DNIS, disconnect type, hold events |
+| `conversations.get.conversation.summaries` | `GET /api/v2/conversations/{conversationId}/summaries` | Copilot / Agent Assist AI reason-for-contact + resolution |
+| `conversations.get.email.messages` | `GET /api/v2/conversations/emails/{conversationId}/messages` | Full email thread content |
+| `speechandtextanalytics.get.conversation.categories` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/categories` | S&TA topic category classifications |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/summaries` | S&TA per-leg auto-summaries |
+| `quality.get.conversation.surveys` | `GET /api/v2/quality/conversations/{conversationId}/surveys` | CSAT/NPS surveys for a specific conversation |
+| `analytics.query.conversation.details.by.queue` | `POST /api/v2/analytics/conversations/details/query` | Conversation details query scoped to a queue |
+| `analytics.query.conversation.transcripts` | `POST /api/v2/analytics/transcripts/aggregates/query` | Transcript aggregate analytics (sentiment, topic coverage) |
+
+### Queue-Scoped
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `routing.get.queue.estimated.wait.time` | `GET /api/v2/routing/queues/{queueId}/estimatedwaittime` | Real-time EWT — projected seconds to answer |
+| `routing.get.queue.estimated.wait.time.by.media` | `GET /api/v2/routing/queues/{queueId}/mediatypes/{mediaType}/estimatedwaittime` | EWT per media type within a queue |
+
+### Bot / Flow Analytics
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `analytics.query.bots.aggregates` | `POST /api/v2/analytics/bots/aggregates/query` | Bot aggregate: containment, transfer, error, session duration |
+| `analytics.get.botflow.sessions` | `GET /api/v2/analytics/botflows/{botFlowId}/sessions` | Per-session containment outcome and duration |
+| `analytics.get.botflow.reporting.turns` | `GET /api/v2/analytics/botflows/{botFlowId}/reportingturns` | Per-turn intent, slot fill, escalation trigger |
+
+### Agent / WFM
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `workforce.get.agent.management.unit` | `GET /api/v2/workforcemanagement/agents/{agentId}/managementunit` | WFM team assignment (needed to scope schedule queries) |
+| `workforce.get.adherence.bulk` | `GET /api/v2/workforcemanagement/adherence` | Current adherence state for all agents |
+| `employeeperformance.get.external.metric.definitions` | `GET /api/v2/employeeperformance/externalmetrics/definitions` | Custom KPI definitions for agent scorecards |
+
+### External Contacts / Journey
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `externalcontacts.get.contact.profile` | `GET /api/v2/externalcontacts/contacts/{contactId}` | Customer CRM profile: name, phone, email, org, tags |
+| `externalcontacts.get.contact.notes` | `GET /api/v2/externalcontacts/contacts/{contactId}/notes` | Agent-entered notes on a customer record |
+| `externalcontacts.get.contact.journey.sessions` | `GET /api/v2/externalcontacts/contacts/{contactId}/journey/sessions` | Customer journey sessions across web and conversation channels |
+| `analytics.query.journey.aggregates` | `POST /api/v2/analytics/journeys/aggregates/query` | Journey/predictive engagement aggregate metrics |
+
+### Division / Authorization
+
+| Dataset Key | Endpoint | Adds |
+|-------------|----------|------|
+| `authorization.get.division.grants` | `GET /api/v2/authorization/divisions/{divisionId}/grants` | Who has permissions in a division (audit) |
 
 ---
 
@@ -508,6 +812,16 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nBotSessions` | Total bot / IVR flow sessions | Bot volume denominator |
+| `nBotSessionsContained` | Sessions resolved without agent transfer | Self-service containment numerator |
+| `nBotSessionsTransferred` | Sessions that escalated to an agent | Escalation volume |
+| `nBotSessionsErrored` | Sessions that ended in a bot error | Bot error rate numerator |
+| `tBotSession` | Total bot session duration (ms) | Avg bot interaction time |
+| `containmentRate%` | nBotSessionsContained / nBotSessions × 100 | Primary self-service KPI |
+| `estimatedWaitTimeSeconds` | Projected seconds to answer next caller | Live queue health signal |
+| `adherencePct` | % of time agent was in the scheduled activity | WFM compliance metric |
+| `nFlowOutcome` | Number of times a specific flow outcome was reached | IVR resolution/escalation mix |
+| `nFlowMilestone` | Number of times a flow milestone checkpoint was reached | Flow path completion tracking |
 
 ---
 

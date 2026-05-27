@@ -3,7 +3,7 @@ param(
     [string]$Dataset,
     [string]$CatalogPath,
     [string]$OutputRoot = 'out',
-    [string]$BaseUri = 'https://api.mypurecloud.com',
+    [string]$BaseUri = 'https://api.usw2.pure.cloud',
     [hashtable]$Headers,
     [scriptblock]$RequestInvoker,
     [hashtable]$DatasetParameters,
@@ -38,7 +38,7 @@ function Resolve-OutputRootPath {
     if ([System.IO.Path]::DirectorySeparatorChar -ne '\' -and $effectiveOutputRoot -match '^([A-Za-z]):[\\/](.*)$') {
         $drive = $Matches[1].ToLowerInvariant()
         $rest  = ($Matches[2] -replace '\\', '/').TrimStart('/')
-        $effectiveOutputRoot = "/mnt/$drive/$rest"
+        $effectiveOutputRoot = "runs"
     } elseif ([System.IO.Path]::DirectorySeparatorChar -ne '\') {
         $effectiveOutputRoot = $effectiveOutputRoot -replace '\\', '/'
     }
@@ -61,7 +61,7 @@ function Invoke-Dataset {
 
         [string]$OutputRoot = 'out',
 
-        [string]$BaseUri = 'https://api.mypurecloud.com',
+        [string]$BaseUri = 'https://api.usw2.pure.cloud',
 
         [hashtable]$Headers,
 

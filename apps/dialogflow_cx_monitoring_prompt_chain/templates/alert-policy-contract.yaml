@@ -1,0 +1,75 @@
+contract_name: AlertPolicyContract
+contract_version: 1.0
+phase: alert_design
+
+objective: >
+  Define an alert policy that detects a meaningful failure mode without
+  creating unnecessary operational noise.
+
+inputs_required:
+  - name: failure_mode
+    required: true
+    source: monitoring_strategy
+    validation_rule: must be an actionable operational condition
+  - name: signal_metric_or_log
+    required: true
+    source: evidence_contract
+    validation_rule: must be confirmed telemetry
+  - name: threshold
+    required: true
+    source: alert_design
+    validation_rule: must include rationale
+  - name: duration
+    required: true
+    source: alert_design
+    validation_rule: must mitigate transient noise where appropriate
+  - name: notification_channel
+    required: true
+    source: environment_config
+    validation_rule: must be provided or explicitly placeholdered
+  - name: runbook_hint
+    required: true
+    source: alert_design
+    validation_rule: must describe operator action
+
+allowed_actions:
+  - propose thresholds
+  - recommend disabled-by-default status
+  - classify severity
+  - explain false-positive risks
+
+forbidden_actions:
+  - alert on unconfirmed metrics
+  - alert on single transient cold starts unless critical
+  - create traffic-drop alerts without baseline caveat
+  - use high-cardinality labels
+  - create alerts with no operator action
+
+deliverables:
+  - name: alert_spec
+    format: table row plus explanation
+    required: true
+
+quality_gates:
+  proceed_if:
+    - signal is confirmed
+    - threshold has rationale
+    - alert has a clear operator action
+    - noise risk is documented
+  block_if:
+    - alert has no actionable response
+    - threshold is arbitrary
+    - signal cannot distinguish symptom from cause
+    - telemetry is unverified
+
+risk_controls:
+  - use rolling windows
+  - disable baseline-dependent alerts by default
+  - separate symptom alerts from causal alerts
+  - include runbook hints
+
+open_questions:
+  - What are operational hours?
+  - What is normal traffic volume?
+  - What severity model should be used?
+  - Which notification channels should receive critical alerts?

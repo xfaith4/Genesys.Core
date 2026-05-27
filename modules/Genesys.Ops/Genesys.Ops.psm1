@@ -57,7 +57,8 @@ if (-not (Get-Module -Name 'Genesys.Core')) {
     $script:_gcoreFound = $script:_gcoreCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($script:_gcoreFound) {
         Import-Module $script:_gcoreFound -ErrorAction Stop
-    } else {
+    }
+    else {
         Import-Module 'Genesys.Core' -ErrorAction Stop
     }
     Remove-Variable -Name '_gcoreCandidates', '_gcoreFound' -Scope Script -ErrorAction SilentlyContinue
@@ -96,9 +97,9 @@ function Invoke-GenesysDataset {
         [hashtable] $DatasetParameters
     )
 
-    $ownedTmp  = -not $ArtifactPath
+    $ownedTmp = -not $ArtifactPath
     $outputRoot = if ($ArtifactPath) { $ArtifactPath }
-                  else               { Join-Path $env:TEMP "GenesysOps-$(New-Guid)" }
+    else { Join-Path $env:TEMP "GenesysOps-$(New-Guid)" }
 
     try {
         $invokeParams = @{
@@ -119,8 +120,8 @@ function Invoke-GenesysDataset {
 
         # Locate the data directory: $outputRoot\<DatasetKey>\<RunId>\data\
         $dataDir = Get-ChildItem (Join-Path $outputRoot $Dataset) `
-                       -Recurse -Directory -Filter 'data' -ErrorAction SilentlyContinue |
-                   Select-Object -First 1
+            -Recurse -Directory -Filter 'data' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
         if (-not $dataDir) { return , @() }
 
@@ -130,7 +131,7 @@ function Invoke-GenesysDataset {
                 Get-Content $_.FullName |
                     Where-Object { $_.Trim() } |
                     ForEach-Object { $records.Add(($_ | ConvertFrom-Json)) }
-            }
+                }
 
         return , $records.ToArray()
     }
@@ -141,14 +142,18 @@ function Invoke-GenesysDataset {
     }
 }
 
+### BEGIN: New-GenesysAnalyticsInterval
 function New-GenesysAnalyticsInterval {
     <#
     .SYNOPSIS
         Builds an ISO-8601 interval string ("<start>/<end>") for analytics POST bodies.
     .DESCRIPTION
         When neither bound is supplied, returns a default lookback window ending at
-        the current UTC time.  Both bounds must be provided together if either is
+        the current UTC time. Both bounds must be provided together if either is
         supplied.
+
+        Emits timestamps with exactly three fractional-second digits:
+        yyyy-MM-ddTHH:mm:ss.fffZ
     #>
     [CmdletBinding()]
     param(
@@ -157,25 +162,60 @@ function New-GenesysAnalyticsInterval {
         [int] $DefaultLookbackHours = 24
     )
 
-    if ($null -eq $Since -and $null -eq $Until) {
-        $endUtc = [DateTime]::UtcNow
-        $startUtc = $endUtc.AddHours(-1 * $DefaultLookbackHours)
-        return "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
+    ### BEGIN: New-GenesysAnalyticsInterval
+    function New-GenesysAnalyticsInterval {
+        <#
+    .SYNOPSIS
+        Builds an ISO-8601 interval string ("<start>/<end>") for analytics POST bodies.
+    .DESCRIPTION
+        When neither bound is supplied, returns a default lookback window ending at
+        the current UTC time. Both bounds must be provided together if either is
+        supplied.
+
+        Emits timestamps with exactly three fractional-second digits:
+        yyyy-MM-ddTHH:mm:ss.fffZ
+    #>
+        [CmdletBinding()]
+        param(
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [int] $DefaultLookbackHours = 1
+        )
+
+        function Format-GenesysUtcTimestamp {
+            [CmdletBinding()]
+            param(
+                [Parameter(Mandatory)]
+                [datetime] $Value
+            )
+
+            return $Value.ToUniversalTime().ToString(
+                'yyyy-MM-ddTHH:mm:ss.fffZ',
+                [System.Globalization.CultureInfo]::InvariantCulture
+            )
+        }
+
+        if ($null -eq $Since -and $null -eq $Until) {
+            $endUtc = [DateTime]::UtcNow
+            $startUtc = $endUtc.AddHours(-1 * $DefaultLookbackHours)
+
+            return "$(Format-GenesysUtcTimestamp -Value $startUtc)/$(Format-GenesysUtcTimestamp -Value $endUtc)"
+        }
+
+        if ($null -eq $Since) {
+            throw 'Since is required when Until is provided.'
+        }
+
+        if ($null -eq $Until) {
+            throw 'Until is required when Since is provided.'
+        }
+
+        return "$(Format-GenesysUtcTimestamp -Value $Since.Value)/$(Format-GenesysUtcTimestamp -Value $Until.Value)"
     }
+    ### END: New-GenesysAnalyticsInterval
 
-    if ($null -eq $Since) {
-        throw 'Since is required when Until is provided.'
-    }
-
-    if ($null -eq $Until) {
-        throw 'Until is required when Since is provided.'
-    }
-
-    return "$($Since.Value.ToUniversalTime().ToString('o'))/$($Until.Value.ToUniversalTime().ToString('o'))"
-}
-
-function New-GenesysAnalyticsFilter {
-    <#
+    function New-GenesysAnalyticsFilter {
+        <#
     .SYNOPSIS
         Builds an analytics query filter block from one-or-more dimension values.
     .DESCRIPTION
@@ -187,162 +227,162 @@ function New-GenesysAnalyticsFilter {
           - A compound { type:'and', clauses:[ ... ] } filter when multiple
             dimensions are present, with one OR/AND sub-clause per dimension.
     #>
-    [CmdletBinding()]
-    param(
-        [hashtable] $DimensionValues
-    )
+        [CmdletBinding()]
+        param(
+            [hashtable] $DimensionValues
+        )
 
-    if ($null -eq $DimensionValues -or $DimensionValues.Count -eq 0) {
-        return $null
-    }
-
-    $perDimension = [System.Collections.Generic.List[object]]::new()
-    foreach ($key in $DimensionValues.Keys) {
-        $raw = $DimensionValues[$key]
-        if ($null -eq $raw) {
-            continue
+        if ($null -eq $DimensionValues -or $DimensionValues.Count -eq 0) {
+            return $null
         }
 
-        $values = @(@($raw) |
-            ForEach-Object { [string]$_ } |
-            Where-Object   { -not [string]::IsNullOrWhiteSpace($_) })
-
-        if ($values.Count -eq 0) {
-            continue
-        }
-
-        $predicates = @($values | ForEach-Object {
-            [ordered]@{
-                type      = 'dimension'
-                dimension = [string]$key
-                operator  = 'matches'
-                value     = $_
+        $perDimension = [System.Collections.Generic.List[object]]::new()
+        foreach ($key in $DimensionValues.Keys) {
+            $raw = $DimensionValues[$key]
+            if ($null -eq $raw) {
+                continue
             }
-        })
 
-        $perDimension.Add([pscustomobject]@{
-            Dimension  = $key
-            Predicates = $predicates
-        }) | Out-Null
-    }
+            $values = @(@($raw) |
+                    ForEach-Object { [string]$_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
-    if ($perDimension.Count -eq 0) {
-        return $null
-    }
+            if ($values.Count -eq 0) {
+                continue
+            }
 
-    if ($perDimension.Count -eq 1) {
-        $only = $perDimension[0]
-        $type = if (@($only.Predicates).Count -gt 1) { 'or' } else { 'and' }
+            $predicates = @($values | ForEach-Object {
+                    [ordered]@{
+                        type      = 'dimension'
+                        dimension = [string]$key
+                        operator  = 'matches'
+                        value     = $_
+                    }
+                })
+
+            $perDimension.Add([pscustomobject]@{
+                    Dimension  = $key
+                    Predicates = $predicates
+                }) | Out-Null
+        }
+
+        if ($perDimension.Count -eq 0) {
+            return $null
+        }
+
+        if ($perDimension.Count -eq 1) {
+            $only = $perDimension[0]
+            $type = if (@($only.Predicates).Count -gt 1) { 'or' } else { 'and' }
+            return [ordered]@{
+                type       = $type
+                predicates = @($only.Predicates)
+            }
+        }
+
+        $clauses = @($perDimension | ForEach-Object {
+                $clauseType = if (@($_.Predicates).Count -gt 1) { 'or' } else { 'and' }
+                [ordered]@{
+                    type       = $clauseType
+                    predicates = @($_.Predicates)
+                }
+            })
+
         return [ordered]@{
-            type       = $type
-            predicates = @($only.Predicates)
+            type    = 'and'
+            clauses = $clauses
         }
     }
 
-    $clauses = @($perDimension | ForEach-Object {
-        $clauseType = if (@($_.Predicates).Count -gt 1) { 'or' } else { 'and' }
-        [ordered]@{
-            type       = $clauseType
-            predicates = @($_.Predicates)
+    function New-GenesysConversationDetailDatasetParameters {
+        [CmdletBinding()]
+        param(
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [string] $ConversationId,
+            [string[]] $DivisionId
+        )
+
+        $datasetParameters = @{}
+        if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
+        if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
+        if ($QueueId) { $datasetParameters['QueueIds'] = @($QueueId) }
+        if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
+        if (-not [string]::IsNullOrWhiteSpace($MediaType)) { $datasetParameters['MediaTypes'] = @($MediaType) }
+        if (-not [string]::IsNullOrWhiteSpace($ConversationId)) { $datasetParameters['ConversationId'] = $ConversationId }
+        if ($DivisionId) { $datasetParameters['DivisionIds'] = @($DivisionId) }
+        return $datasetParameters
+    }
+
+    #endregion
+
+    # ---------------------------------------------------------------------------
+    #region Private safe-property helpers (StrictMode-compatible)
+    # ---------------------------------------------------------------------------
+
+    function Test-Property {
+        # Returns $true when $InputObject has a PSObject property named $Name.
+        param([object]$InputObject, [string]$Name)
+        if ($null -eq $InputObject) { return $false }
+        return [bool]($InputObject.PSObject.Properties[$Name])
+    }
+
+    function Get-PropertyValue {
+        # Returns a property value from $InputObject, or $Default if missing/null.
+        param([object]$InputObject, [string]$Name, [object]$Default = $null)
+        if ($null -eq $InputObject) { return $Default }
+        $prop = $InputObject.PSObject.Properties[$Name]
+        if ($prop) { return $prop.Value }
+        return $Default
+    }
+
+    function Get-NestedPropertyValue {
+        # Traverses a dot-separated path (e.g. 'user.email') without throwing on
+        # missing segments or null intermediate values under Set-StrictMode -Version Latest.
+        param([object]$InputObject, [string]$Path, [object]$Default = $null)
+        if ($null -eq $InputObject) { return $Default }
+        $current = $InputObject
+        foreach ($segment in ($Path -split '\.')) {
+            if ($null -eq $current) { return $Default }
+            $prop = $current.PSObject.Properties[$segment]
+            if (-not $prop) { return $Default }
+            $current = $prop.Value
         }
-    })
-
-    return [ordered]@{
-        type    = 'and'
-        clauses = $clauses
+        if ($null -ne $current) { $current } else { $Default }
     }
-}
 
-function New-GenesysConversationDetailDatasetParameters {
-    [CmdletBinding()]
-    param(
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [string] $ConversationId,
-        [string[]] $DivisionId
-    )
+    function Test-AnyNestedPropertyValue {
+        param(
+            [object]$InputObject,
+            [string[]]$Paths,
+            [object]$Expected,
+            [switch]$KeepWhenMissing
+        )
 
-    $datasetParameters = @{}
-    if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
-    if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
-    if ($QueueId) { $datasetParameters['QueueIds'] = @($QueueId) }
-    if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
-    if (-not [string]::IsNullOrWhiteSpace($MediaType)) { $datasetParameters['MediaTypes'] = @($MediaType) }
-    if (-not [string]::IsNullOrWhiteSpace($ConversationId)) { $datasetParameters['ConversationId'] = $ConversationId }
-    if ($DivisionId) { $datasetParameters['DivisionIds'] = @($DivisionId) }
-    return $datasetParameters
-}
+        $foundValue = $false
+        foreach ($path in @($Paths)) {
+            $value = Get-NestedPropertyValue $InputObject $path
+            if ($null -eq $value) { continue }
 
-#endregion
-
-# ---------------------------------------------------------------------------
-#region Private safe-property helpers (StrictMode-compatible)
-# ---------------------------------------------------------------------------
-
-function Test-Property {
-    # Returns $true when $InputObject has a PSObject property named $Name.
-    param([object]$InputObject, [string]$Name)
-    if ($null -eq $InputObject) { return $false }
-    return [bool]($InputObject.PSObject.Properties[$Name])
-}
-
-function Get-PropertyValue {
-    # Returns a property value from $InputObject, or $Default if missing/null.
-    param([object]$InputObject, [string]$Name, [object]$Default = $null)
-    if ($null -eq $InputObject) { return $Default }
-    $prop = $InputObject.PSObject.Properties[$Name]
-    if ($prop) { return $prop.Value }
-    return $Default
-}
-
-function Get-NestedPropertyValue {
-    # Traverses a dot-separated path (e.g. 'user.email') without throwing on
-    # missing segments or null intermediate values under Set-StrictMode -Version Latest.
-    param([object]$InputObject, [string]$Path, [object]$Default = $null)
-    if ($null -eq $InputObject) { return $Default }
-    $current = $InputObject
-    foreach ($segment in ($Path -split '\.')) {
-        if ($null -eq $current) { return $Default }
-        $prop = $current.PSObject.Properties[$segment]
-        if (-not $prop) { return $Default }
-        $current = $prop.Value
-    }
-    if ($null -ne $current) { $current } else { $Default }
-}
-
-function Test-AnyNestedPropertyValue {
-    param(
-        [object]$InputObject,
-        [string[]]$Paths,
-        [object]$Expected,
-        [switch]$KeepWhenMissing
-    )
-
-    $foundValue = $false
-    foreach ($path in @($Paths)) {
-        $value = Get-NestedPropertyValue $InputObject $path
-        if ($null -eq $value) { continue }
-
-        $foundValue = $true
-        if ([string]$value -eq [string]$Expected) {
-            return $true
+            $foundValue = $true
+            if ([string]$value -eq [string]$Expected) {
+                return $true
+            }
         }
+
+        return ($KeepWhenMissing -and -not $foundValue)
     }
 
-    return ($KeepWhenMissing -and -not $foundValue)
-}
+    #endregion
 
-#endregion
+    # ---------------------------------------------------------------------------
+    #region Hardened private dataset helper
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-#region Hardened private dataset helper
-# ---------------------------------------------------------------------------
-
-function Invoke-GenesysOpsDataset {
-    <#
+    function Invoke-GenesysOpsDataset {
+        <#
     .SYNOPSIS
         Hardened internal dataset helper. Validates the dataset key against the
         active catalog before calling Invoke-GenesysDataset and returns a
@@ -360,96 +400,98 @@ function Invoke-GenesysOpsDataset {
     .PARAMETER ArtifactPath
         Passed through to Invoke-GenesysDataset.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $Dataset,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $Dataset,
 
-        [string] $FunctionName,
-        [switch] $AllowEmpty,
-        [switch] $IncludeDiagnostics,
-        [switch] $KeepArtifacts,
-        [string] $ArtifactPath
-    )
+            [string] $FunctionName,
+            [switch] $AllowEmpty,
+            [switch] $IncludeDiagnostics,
+            [switch] $KeepArtifacts,
+            [string] $ArtifactPath
+        )
 
-    $callerName = if ($FunctionName) { $FunctionName } else { '<unknown>' }
+        $callerName = if ($FunctionName) { $FunctionName } else { '<unknown>' }
 
-    $envelope = [PSCustomObject][ordered]@{
-        DatasetKey   = $Dataset
-        FunctionName = $callerName
-        Status       = 'Failed'
-        Records      = @()
-        RecordCount  = 0
-        RunFolder    = $null
-        ManifestPath = $null
-        DataFolder   = $null
-        Error        = $null
-    }
+        $envelope = [PSCustomObject][ordered]@{
+            DatasetKey   = $Dataset
+            FunctionName = $callerName
+            Status       = 'Failed'
+            Records      = @()
+            RecordCount  = 0
+            RunFolder    = $null
+            ManifestPath = $null
+            DataFolder   = $null
+            Error        = $null
+        }
 
-    # Pre-validate dataset key against the active catalog when available.
-    $catalogPath = $script:GC.CatalogPath
-    if ($catalogPath -and (Test-Path $catalogPath)) {
-        try {
-            $catalogObj    = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json
-            $datasetsNode  = Get-PropertyValue $catalogObj 'datasets'
-            if ($datasetsNode) {
-                $datasetEntry = Get-PropertyValue $datasetsNode $Dataset
-                if (-not $datasetEntry) {
-                    $msg = "$($callerName): Dataset key '$($Dataset)' not found in catalog '$($catalogPath)'."
-                    $envelope.Status = 'Unsupported'
-                    $envelope.Error  = $msg
-                    if ($IncludeDiagnostics) { return $envelope }
-                    Write-Warning $msg
-                    return @()
+        # Pre-validate dataset key against the active catalog when available.
+        $catalogPath = $script:GC.CatalogPath
+        if ($catalogPath -and (Test-Path $catalogPath)) {
+            try {
+                $catalogObj = Get-Content -Path $catalogPath -Raw | ConvertFrom-Json
+                $datasetsNode = Get-PropertyValue $catalogObj 'datasets'
+                if ($datasetsNode) {
+                    $datasetEntry = Get-PropertyValue $datasetsNode $Dataset
+                    if (-not $datasetEntry) {
+                        $msg = "$($callerName): Dataset key '$($Dataset)' not found in catalog '$($catalogPath)'."
+                        $envelope.Status = 'Unsupported'
+                        $envelope.Error = $msg
+                        if ($IncludeDiagnostics) { return $envelope }
+                        Write-Warning $msg
+                        return @()
+                    }
                 }
             }
-        } catch {
-            Write-Verbose "$($callerName): Catalog pre-validation skipped — $($_)"
+            catch {
+                Write-Verbose "$($callerName): Catalog pre-validation skipped — $($_)"
+            }
         }
-    }
 
-    # Invoke the dataset via the established Genesys.Core contract.
-    try {
-        $invokeParams = @{ Dataset = $Dataset }
-        if ($KeepArtifacts) { $invokeParams['KeepArtifacts'] = $true }
-        if ($ArtifactPath)  { $invokeParams['ArtifactPath']  = $ArtifactPath }
+        # Invoke the dataset via the established Genesys.Core contract.
+        try {
+            $invokeParams = @{ Dataset = $Dataset }
+            if ($KeepArtifacts) { $invokeParams['KeepArtifacts'] = $true }
+            if ($ArtifactPath) { $invokeParams['ArtifactPath'] = $ArtifactPath }
 
-        $records = Invoke-GenesysDataset @invokeParams
+            $records = Invoke-GenesysDataset @invokeParams
 
-        # Normalize using a List to guarantee a non-null System.Object[] even for empty results.
-        # Direct @($records) collapses to $null under PowerShell 5.1 when records is null/empty.
-        $recordList = [System.Collections.Generic.List[object]]::new()
-        if ($null -ne $records) {
-            foreach ($item in @($records)) { if ($null -ne $item) { $recordList.Add($item) } }
+            # Normalize using a List to guarantee a non-null System.Object[] even for empty results.
+            # Direct @($records) collapses to $null under PowerShell 5.1 when records is null/empty.
+            $recordList = [System.Collections.Generic.List[object]]::new()
+            if ($null -ne $records) {
+                foreach ($item in @($records)) { if ($null -ne $item) { $recordList.Add($item) } }
+            }
+            $envelope.Records = $recordList.ToArray()
+            $envelope.RecordCount = $recordList.Count
+            $envelope.Status = if ($envelope.RecordCount -eq 0) { 'Empty' } else { 'Succeeded' }
+
+            if ($envelope.Status -eq 'Empty' -and -not $AllowEmpty) {
+                Write-Verbose "$($callerName): Dataset '$($Dataset)' returned 0 records."
+            }
         }
-        $envelope.Records     = $recordList.ToArray()
-        $envelope.RecordCount = $recordList.Count
-        $envelope.Status      = if ($envelope.RecordCount -eq 0) { 'Empty' } else { 'Succeeded' }
-
-        if ($envelope.Status -eq 'Empty' -and -not $AllowEmpty) {
-            Write-Verbose "$($callerName): Dataset '$($Dataset)' returned 0 records."
+        catch {
+            $msg = "$($callerName): Dataset '$($Dataset)' failed — $_"
+            $envelope.Status = 'Failed'
+            $envelope.Error = $msg
+            if ($IncludeDiagnostics) { return $envelope }
+            throw $msg
         }
-    } catch {
-        $msg = "$($callerName): Dataset '$($Dataset)' failed — $_"
-        $envelope.Status = 'Failed'
-        $envelope.Error  = $msg
+
         if ($IncludeDiagnostics) { return $envelope }
-        throw $msg
+        # Return a guaranteed non-null array so callers can safely use @() wrapping or .Count.
+        return , $envelope.Records
     }
 
-    if ($IncludeDiagnostics) { return $envelope }
-    # Return a guaranteed non-null array so callers can safely use @() wrapping or .Count.
-    return , $envelope.Records
-}
+    #endregion
 
-#endregion
+    # ---------------------------------------------------------------------------
+    #region Authentication & Session
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-#region Authentication & Session
-# ---------------------------------------------------------------------------
-
-function Connect-GenesysCloud {
-    <#
+    function Connect-GenesysCloud {
+        <#
     .SYNOPSIS
         Establishes a Genesys Cloud session for this PowerShell session.
     .DESCRIPTION
@@ -493,76 +535,76 @@ function Connect-GenesysCloud {
             Disconnect-GenesysCloud
         }
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $AccessToken,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $AccessToken,
 
-        [ValidateNotNullOrEmpty()]
-        [string] $Region = 'usw2.pure.cloud',
+            [ValidateNotNullOrEmpty()]
+            [string] $Region = 'usw2.pure.cloud',
 
-        [string] $CatalogPath,
+            [string] $CatalogPath,
 
-        [string] $CoreModulePath
-    )
+            [string] $CoreModulePath
+        )
 
-    # ---- Load Genesys.Core if not already imported ----
-    if (-not (Get-Module -Name 'Genesys.Core')) {
-        if ($CoreModulePath) {
-            Import-Module $CoreModulePath -ErrorAction Stop
-        }
-        else {
-            $candidates = @(
-                (Join-Path $PSScriptRoot  '../Genesys.Core/Genesys.Core.psd1'),
-                (Join-Path $PSScriptRoot  '../../modules/Genesys.Core/Genesys.Core.psd1'),
-                (Join-Path $PSScriptRoot  'Genesys.Core/Genesys.Core.psd1')
-            )
-            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-            if ($found) {
-                Import-Module $found -ErrorAction Stop
+        # ---- Load Genesys.Core if not already imported ----
+        if (-not (Get-Module -Name 'Genesys.Core')) {
+            if ($CoreModulePath) {
+                Import-Module $CoreModulePath -ErrorAction Stop
             }
             else {
-                Import-Module 'Genesys.Core' -ErrorAction Stop
+                $candidates = @(
+                    (Join-Path $PSScriptRoot '../Genesys.Core/Genesys.Core.psd1'),
+                    (Join-Path $PSScriptRoot '../../modules/Genesys.Core/Genesys.Core.psd1'),
+                    (Join-Path $PSScriptRoot 'Genesys.Core/Genesys.Core.psd1')
+                )
+                $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+                if ($found) {
+                    Import-Module $found -ErrorAction Stop
+                }
+                else {
+                    Import-Module 'Genesys.Core' -ErrorAction Stop
+                }
             }
+        }
+
+        # ---- Resolve catalog — search likely Genesys.Core catalog locations ----
+        $resolvedCatalog = $CatalogPath
+        if (-not $resolvedCatalog) {
+            $catalogCandidates = @(
+                (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
+                (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
+                (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
+                (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json'),
+                (Join-Path $PSScriptRoot 'catalog/genesys.catalog.json'),
+                (Join-Path $PSScriptRoot 'catalog/genesys-core.catalog.json')
+            )
+            $resolvedCatalog = $catalogCandidates |
+                Where-Object { Test-Path $_ } |
+                Select-Object -First 1
+        }
+        if (-not $resolvedCatalog) {
+            Write-Warning "Connect-GenesysCloud: Catalog not found. Dataset key pre-validation will be skipped. Pass -CatalogPath to resolve manually."
+        }
+
+        $script:GC.BaseUri = "https://api.$Region"
+        $script:GC.Headers = @{ Authorization = "Bearer $AccessToken" }
+        $script:GC.CatalogPath = $resolvedCatalog
+        $script:GC.CoreModulePath = $CoreModulePath
+        $script:GC.Connected = $true
+
+        Write-Verbose "Connected — BaseUri: $($script:GC.BaseUri)  Catalog: $($script:GC.CatalogPath)"
+
+        [PSCustomObject]@{
+            Connected   = $true
+            BaseUri     = $script:GC.BaseUri
+            CatalogPath = $script:GC.CatalogPath
         }
     }
 
-    # ---- Resolve catalog — search likely Genesys.Core catalog locations ----
-    $resolvedCatalog = $CatalogPath
-    if (-not $resolvedCatalog) {
-        $catalogCandidates = @(
-            (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
-            (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json'),
-            (Join-Path $PSScriptRoot 'catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot 'catalog/genesys-core.catalog.json')
-        )
-        $resolvedCatalog = $catalogCandidates |
-            Where-Object { Test-Path $_ } |
-            Select-Object -First 1
-    }
-    if (-not $resolvedCatalog) {
-        Write-Warning "Connect-GenesysCloud: Catalog not found. Dataset key pre-validation will be skipped. Pass -CatalogPath to resolve manually."
-    }
-
-    $script:GC.BaseUri       = "https://api.$Region"
-    $script:GC.Headers       = @{ Authorization = "Bearer $AccessToken" }
-    $script:GC.CatalogPath   = $resolvedCatalog
-    $script:GC.CoreModulePath = $CoreModulePath
-    $script:GC.Connected     = $true
-
-    Write-Verbose "Connected — BaseUri: $($script:GC.BaseUri)  Catalog: $($script:GC.CatalogPath)"
-
-    [PSCustomObject]@{
-        Connected   = $true
-        BaseUri     = $script:GC.BaseUri
-        CatalogPath = $script:GC.CatalogPath
-    }
-}
-
-function Disconnect-GenesysCloud {
-    <#
+    function Disconnect-GenesysCloud {
+        <#
     .SYNOPSIS
         Clears the active Genesys Cloud session from memory.
     .DESCRIPTION
@@ -578,18 +620,18 @@ function Disconnect-GenesysCloud {
             Disconnect-GenesysCloud
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    $script:GC.Connected    = $false
-    $script:GC.Headers      = @{}
-    $script:GC.BaseUri      = 'https://api.usw2.pure.cloud'
-    $script:GC.CatalogPath  = $null
-    Write-Verbose 'Genesys Cloud session disconnected and token cleared.'
-}
+        $script:GC.Connected = $false
+        $script:GC.Headers = @{}
+        $script:GC.BaseUri = 'https://api.usw2.pure.cloud'
+        $script:GC.CatalogPath = $null
+        Write-Verbose 'Genesys Cloud session disconnected and token cleared.'
+    }
 
-function Test-GenesysConnection {
-    <#
+    function Test-GenesysConnection {
+        <#
     .SYNOPSIS
         Validates the active session by retrieving organisation details.
     .DESCRIPTION
@@ -602,41 +644,41 @@ function Test-GenesysConnection {
         # Validate silently in a monitoring loop
         if ((Test-GenesysConnection).IsConnected) { Write-Host 'OK' } else { Write-Warning 'DOWN' }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    if (-not $script:GC.Connected) {
-        return [PSCustomObject]@{
-            IsConnected = $false
-            Reason      = 'Not connected.  Run Connect-GenesysCloud.'
+        if (-not $script:GC.Connected) {
+            return [PSCustomObject]@{
+                IsConnected = $false
+                Reason      = 'Not connected.  Run Connect-GenesysCloud.'
+            }
+        }
+
+        try {
+            $org = Get-GenesysOrganization -ErrorAction Stop
+            [PSCustomObject]@{
+                IsConnected = $true
+                OrgName     = $org.name
+                OrgId       = $org.id
+                BaseUri     = $script:GC.BaseUri
+            }
+        }
+        catch {
+            [PSCustomObject]@{
+                IsConnected = $false
+                Reason      = $_.Exception.Message
+            }
         }
     }
 
-    try {
-        $org = Get-GenesysOrganization -ErrorAction Stop
-        [PSCustomObject]@{
-            IsConnected = $true
-            OrgName     = $org.name
-            OrgId       = $org.id
-            BaseUri     = $script:GC.BaseUri
-        }
-    }
-    catch {
-        [PSCustomObject]@{
-            IsConnected = $false
-            Reason      = $_.Exception.Message
-        }
-    }
-}
+    #endregion
 
-#endregion
+    # ---------------------------------------------------------------------------
+    #region Organisation & Administration
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-#region Organisation & Administration
-# ---------------------------------------------------------------------------
-
-function Get-GenesysOrganization {
-    <#
+    function Get-GenesysOrganization {
+        <#
     .SYNOPSIS
         Returns the organisation record for the connected Genesys Cloud org.
     .DESCRIPTION
@@ -650,16 +692,16 @@ function Get-GenesysOrganization {
         Write-Host "Target org: $($org.name)  [$($org.id)]"
         if ($org.name -ne 'Contoso-Production') { throw 'Wrong org — aborting.' }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    $records = Invoke-GenesysDataset -Dataset 'organization.get.organization.details'
-    if ($records.Count -gt 0) { $records[0] } else { $null }
-}
+        Assert-GenesysConnected
+        $records = Invoke-GenesysDataset -Dataset 'organization.get.organization.details'
+        if ($records.Count -gt 0) { $records[0] } else { $null }
+    }
 
-function Get-GenesysOrganizationLimit {
-    <#
+    function Get-GenesysOrganizationLimit {
+        <#
     .SYNOPSIS
         Returns platform limits for the connected organisation.
     .DESCRIPTION
@@ -676,15 +718,15 @@ function Get-GenesysOrganizationLimit {
             Write-Warning "Queue count ($count) is over 80% of the org limit ($limit)"
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'organization.get.organization.limits'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'organization.get.organization.limits'
+    }
 
-function Get-GenesysDivision {
-    <#
+    function Get-GenesysDivision {
+        <#
     .SYNOPSIS
         Lists all divisions in the organisation.
     .DESCRIPTION
@@ -703,25 +745,25 @@ function Get-GenesysDivision {
     .EXAMPLE
         Get-GenesysDivision -Name 'APAC*'
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'authorization.get.all.divisions'
-    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'authorization.get.all.divisions'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        $results
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Users & Agents
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Users & Agents
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAgent {
-    <#
+    function Get-GenesysAgent {
+        <#
     .SYNOPSIS
         Returns agents with their current presence and routing status.
     .DESCRIPTION
@@ -763,30 +805,30 @@ function Get-GenesysAgent {
         # Export full agent roster for an access review
         Get-GenesysAgent -State ACTIVE | Export-Csv .\agents-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [string] $Email,
-        [string] $PresenceStatus,
-        [switch] $OnQueue,
-        [ValidateSet('ACTIVE', 'INACTIVE', 'DELETED')]
-        [string] $State = 'ACTIVE'
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [string] $Email,
+            [string] $PresenceStatus,
+            [switch] $OnQueue,
+            [ValidateSet('ACTIVE', 'INACTIVE', 'DELETED')]
+            [string] $State = 'ACTIVE'
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'users'
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'users'
 
-    if ($State)          { $results = $results | Where-Object { $_.state          -eq  $State          } }
-    if ($Name)           { $results = $results | Where-Object { $_.name           -like $Name          } }
-    if ($Email)          { $results = $results | Where-Object { $_.email          -like $Email         } }
-    if ($PresenceStatus) { $results = $results | Where-Object { $_.presence       -eq  $PresenceStatus } }
-    if ($OnQueue)        { $results = $results | Where-Object { $_.routingStatus  -in  @('IDLE','INTERACTING') } }
+        if ($State) { $results = $results | Where-Object { $_.state -eq $State } }
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($Email) { $results = $results | Where-Object { $_.email -like $Email } }
+        if ($PresenceStatus) { $results = $results | Where-Object { $_.presence -eq $PresenceStatus } }
+        if ($OnQueue) { $results = $results | Where-Object { $_.routingStatus -in @('IDLE', 'INTERACTING') } }
 
-    $results
-}
+        $results
+    }
 
-function Get-GenesysAgentPresence {
-    <#
+    function Get-GenesysAgentPresence {
+        <#
     .SYNOPSIS
         Returns bulk presence records for all agents via the Genesys Cloud presence endpoint.
     .DESCRIPTION
@@ -804,19 +846,19 @@ function Get-GenesysAgentPresence {
             Where-Object { $_.presenceDefinition.systemPresence -notin $known } |
             Select-Object userId, @{n='State';e={$_.presenceDefinition.systemPresence}}
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    # NOTE: Both 'users.get.bulk.user.presences' and 'users.get.bulk.user.presences.genesys.cloud'
-    # exist in the catalog. The Agent Investigation steps use 'users.get.bulk.user.presences'
-    # (with agent-investigation-presences redaction profile). This public cmdlet uses the
-    # '.genesys.cloud' variant which maps to the same endpoint without a redaction profile.
-    Invoke-GenesysDataset -Dataset 'users.get.bulk.user.presences.genesys.cloud'
-}
+        Assert-GenesysConnected
+        # NOTE: Both 'users.get.bulk.user.presences' and 'users.get.bulk.user.presences.genesys.cloud'
+        # exist in the catalog. The Agent Investigation steps use 'users.get.bulk.user.presences'
+        # (with agent-investigation-presences redaction profile). This public cmdlet uses the
+        # '.genesys.cloud' variant which maps to the same endpoint without a redaction profile.
+        Invoke-GenesysDataset -Dataset 'users.get.bulk.user.presences.genesys.cloud'
+    }
 
-function Find-GenesysUser {
-    <#
+    function Find-GenesysUser {
+        <#
     .SYNOPSIS
         Searches for a user by name or email fragment.
     .DESCRIPTION
@@ -835,19 +877,19 @@ function Find-GenesysUser {
         $departed = Find-GenesysUser -Query 'bob.jones@contoso.com'
         if ($departed) { Write-Warning "Account still active: $($departed.name)" }
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $Query
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $Query
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'users.search.users.by.name.or.email'
-    $results | Where-Object { $_.name -like "*$Query*" -or $_.email -like "*$Query*" }
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'users.search.users.by.name.or.email'
+        $results | Where-Object { $_.name -like "*$Query*" -or $_.email -like "*$Query*" }
+    }
 
-function Get-GenesysUserWithDivision {
-    <#
+    function Get-GenesysUserWithDivision {
+        <#
     .SYNOPSIS
         Returns users with their division membership expanded inline.
     .DESCRIPTION
@@ -865,28 +907,28 @@ function Get-GenesysUserWithDivision {
         # Find users not assigned to any division (possible provisioning gap)
         Get-GenesysUserWithDivision | Where-Object { -not $_.division }
     #>
-    [CmdletBinding()]
-    param(
-        [string] $DivisionName
-    )
+        [CmdletBinding()]
+        param(
+            [string] $DivisionName
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'users.division.analysis.get.users.with.division.info'
-    if ($DivisionName) {
-        # Use Get-NestedPropertyValue to avoid StrictMode failures when division is null.
-        $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'division.name') -like $DivisionName }
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'users.division.analysis.get.users.with.division.info'
+        if ($DivisionName) {
+            # Use Get-NestedPropertyValue to avoid StrictMode failures when division is null.
+            $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'division.name') -like $DivisionName }
+        }
+        $results
     }
-    $results
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Presence Definitions
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Presence Definitions
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysSystemPresence {
-    <#
+    function Get-GenesysSystemPresence {
+        <#
     .SYNOPSIS
         Returns the built-in system presence definitions.
     .DESCRIPTION
@@ -896,15 +938,15 @@ function Get-GenesysSystemPresence {
     .EXAMPLE
         Get-GenesysSystemPresence | Select-Object id, systemPresence | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'presence.get.system.presence.definitions'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'presence.get.system.presence.definitions'
+    }
 
-function Get-GenesysCustomPresence {
-    <#
+    function Get-GenesysCustomPresence {
+        <#
     .SYNOPSIS
         Returns organisation-defined custom presence states.
     .DESCRIPTION
@@ -917,21 +959,21 @@ function Get-GenesysCustomPresence {
         # Find custom presences that map to AVAILABLE — useful for SLA calculations
         Get-GenesysCustomPresence | Where-Object systemPresence -eq 'AVAILABLE' | Format-Table name
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'presence.get.organization.presence.definitions'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'presence.get.organization.presence.definitions'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Routing Configuration
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Routing Configuration
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysQueue {
-    <#
+    function Get-GenesysQueue {
+        <#
     .SYNOPSIS
         Returns routing queues with member counts and configuration details.
     .DESCRIPTION
@@ -960,23 +1002,23 @@ function Get-GenesysQueue {
     .EXAMPLE
         Get-GenesysQueue -Name 'Support*' -MinMembers 1 | Format-Table name, memberCount
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [int]    $MinMembers
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [int]    $MinMembers
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'routing-queues'
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'routing-queues'
 
-    if ($Name)       { $results = $results | Where-Object { $_.name        -like $Name      } }
-    if ($MinMembers) { $results = $results | Where-Object { $_.memberCount -ge   $MinMembers } }
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($MinMembers) { $results = $results | Where-Object { $_.memberCount -ge $MinMembers } }
 
-    $results
-}
+        $results
+    }
 
-function Get-GenesysRoutingSkill {
-    <#
+    function Get-GenesysRoutingSkill {
+        <#
     .SYNOPSIS
         Returns all routing skills defined in the organisation.
     .DESCRIPTION
@@ -995,19 +1037,19 @@ function Get-GenesysRoutingSkill {
         Get-GenesysRoutingSkill | Select-Object id, name |
             Export-Csv .\skills-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'routing.get.all.routing.skills'
-    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'routing.get.all.routing.skills'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        $results
+    }
 
-function Get-GenesysWrapupCode {
-    <#
+    function Get-GenesysWrapupCode {
+        <#
     .SYNOPSIS
         Returns all wrap-up codes defined in the organisation.
     .DESCRIPTION
@@ -1028,19 +1070,19 @@ function Get-GenesysWrapupCode {
         $allCodes = Get-GenesysWrapupCode
         Write-Host "Total wrap-up codes: $($allCodes.Count)"
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'routing.get.all.wrapup.codes'
-    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'routing.get.all.wrapup.codes'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        $results
+    }
 
-function Get-GenesysLanguage {
-    <#
+    function Get-GenesysLanguage {
+        <#
     .SYNOPSIS
         Returns all routing languages defined in the organisation.
     .DESCRIPTION
@@ -1049,21 +1091,21 @@ function Get-GenesysLanguage {
     .EXAMPLE
         Get-GenesysLanguage | Format-Table id, name
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'routing.get.all.languages'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'routing.get.all.languages'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Active Conversations (real-time)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Active Conversations (real-time)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysActiveConversation {
-    <#
+    function Get-GenesysActiveConversation {
+        <#
     .SYNOPSIS
         Returns all active (in-flight) conversations across every channel.
     .DESCRIPTION
@@ -1080,15 +1122,15 @@ function Get-GenesysActiveConversation {
             Start-Sleep 30
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.active.conversations'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.active.conversations'
+    }
 
-function Get-GenesysActiveCall {
-    <#
+    function Get-GenesysActiveCall {
+        <#
     .SYNOPSIS
         Returns active voice calls.
     .DESCRIPTION
@@ -1105,30 +1147,30 @@ function Get-GenesysActiveCall {
                 @{ n='Duration'; e={ [int]((Get-Date) - [datetime]$_.startTime).TotalSeconds } } |
             Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.active.calls'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.active.calls'
+    }
 
-function Get-GenesysActiveChat {
-    <#
+    function Get-GenesysActiveChat {
+        <#
     .SYNOPSIS
         Returns active web-chat conversations.
     .EXAMPLE
         $chats = Get-GenesysActiveChat
         Write-Host "Live chats: $($chats.Count)"
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.active.chats'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.active.chats'
+    }
 
-function Get-GenesysActiveEmail {
-    <#
+    function Get-GenesysActiveEmail {
+        <#
     .SYNOPSIS
         Returns active email conversations awaiting agent response.
     .EXAMPLE
@@ -1137,15 +1179,15 @@ function Get-GenesysActiveEmail {
             Write-Warning "Email queue is high: $($emails.Count) in-flight"
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.active.emails'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.active.emails'
+    }
 
-function Get-GenesysActiveCallback {
-    <#
+    function Get-GenesysActiveCallback {
+        <#
     .SYNOPSIS
         Returns active callback conversations.
     .DESCRIPTION
@@ -1163,15 +1205,15 @@ function Get-GenesysActiveCallback {
             Where-Object AgeMinutes -gt 30 |
             Sort-Object AgeMinutes -Descending | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.active.callbacks'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.active.callbacks'
+    }
 
-function Get-GenesysCallHistory {
-    <#
+    function Get-GenesysCallHistory {
+        <#
     .SYNOPSIS
         Returns recent call history records.
     .DESCRIPTION
@@ -1180,21 +1222,21 @@ function Get-GenesysCallHistory {
     .EXAMPLE
         Get-GenesysCallHistory | Select-Object -First 20 | Format-Table id, startTime, endTime
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'conversations.get.call.history'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'conversations.get.call.history'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Analytics (async jobs)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Analytics (async jobs)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysConversationDetail {
-    <#
+    function Get-GenesysConversationDetail {
+        <#
     .SYNOPSIS
         Retrieves detailed conversation analytics for the past 24 hours.
     .DESCRIPTION
@@ -1233,39 +1275,39 @@ function Get-GenesysConversationDetail {
         # Persist artifacts for a nightly ETL job
         Get-GenesysConversationDetail -ArtifactPath 'D:\ETL\genesys\today' | Out-Null
     #>
-    [CmdletBinding()]
-    param(
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [string] $ConversationId,
-        [string[]] $DivisionId,
-        [switch] $KeepArtifacts,
-        [string] $ArtifactPath
-    )
+        [CmdletBinding()]
+        param(
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [string] $ConversationId,
+            [string[]] $DivisionId,
+            [switch] $KeepArtifacts,
+            [string] $ArtifactPath
+        )
 
-    Assert-GenesysConnected
-    $keep = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
-    $datasetParameters = New-GenesysConversationDetailDatasetParameters -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -ConversationId $ConversationId -DivisionId $DivisionId
-    $invokeParams = @{
-        Dataset       = 'analytics-conversation-details'
-        KeepArtifacts = $keep
-        ArtifactPath  = $ArtifactPath
+        Assert-GenesysConnected
+        $keep = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
+        $datasetParameters = New-GenesysConversationDetailDatasetParameters -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -ConversationId $ConversationId -DivisionId $DivisionId
+        $invokeParams = @{
+            Dataset       = 'analytics-conversation-details'
+            KeepArtifacts = $keep
+            ArtifactPath  = $ArtifactPath
+        }
+        if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
+        Invoke-GenesysDataset @invokeParams
     }
-    if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
-    Invoke-GenesysDataset @invokeParams
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Audit Logs
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Audit Logs
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAuditEvent {
-    <#
+    function Get-GenesysAuditEvent {
+        <#
     .SYNOPSIS
         Returns audit log events for the past hour.
     .DESCRIPTION
@@ -1304,49 +1346,49 @@ function Get-GenesysAuditEvent {
         Get-GenesysAuditEvent -Username 'bob.jones@contoso.com' |
             Sort-Object timestamp | Format-Table timestamp, action, entityType, entityName
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Action,
-        [string] $Username,
-        [string] $EntityType,
-        [string] $EntityId,
-        [string] $UserId,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Action,
+            [string] $Username,
+            [string] $EntityType,
+            [string] $EntityId,
+            [string] $UserId,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
-    $datasetParameters = @{}
-    if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
-    if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
-    if ($EntityType) { $datasetParameters['EntityTypes'] = @($EntityType) }
-    if ($EntityId) { $datasetParameters['EntityIds'] = @($EntityId) }
-    if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
-    if ($Action -and $EntityType -and $Action -notmatch '[*?]') { $datasetParameters['Actions'] = @($Action) }
+        Assert-GenesysConnected
+        $datasetParameters = @{}
+        if ($Since.HasValue) { $datasetParameters['StartUtc'] = $Since.Value.ToUniversalTime().ToString('o') }
+        if ($Until.HasValue) { $datasetParameters['EndUtc'] = $Until.Value.ToUniversalTime().ToString('o') }
+        if ($EntityType) { $datasetParameters['EntityTypes'] = @($EntityType) }
+        if ($EntityId) { $datasetParameters['EntityIds'] = @($EntityId) }
+        if ($UserId) { $datasetParameters['UserIds'] = @($UserId) }
+        if ($Action -and $EntityType -and $Action -notmatch '[*?]') { $datasetParameters['Actions'] = @($Action) }
 
-    $invokeParams = @{ Dataset = 'audit-logs' }
-    if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
-    $results = Invoke-GenesysDataset @invokeParams
+        $invokeParams = @{ Dataset = 'audit-logs' }
+        if ($datasetParameters.Count -gt 0) { $invokeParams['DatasetParameters'] = $datasetParameters }
+        $results = Invoke-GenesysDataset @invokeParams
 
-    # Use safe nested property access to avoid StrictMode failures when
-    # user or serviceContext sub-objects are absent from a record.
-    if ($Action)     { $results = $results | Where-Object { (Get-PropertyValue $_ 'action')                                -like $Action     } }
-    if ($Username)   { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'user.email')                     -like $Username   } }
-    if ($EntityType) { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityType', 'entity.type', 'entityType') $EntityType -KeepWhenMissing } }
-    if ($EntityId)   { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $EntityId -KeepWhenMissing } }
-    if ($UserId)     { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('user.id', 'userId', 'actor.id') $UserId -KeepWhenMissing } }
+        # Use safe nested property access to avoid StrictMode failures when
+        # user or serviceContext sub-objects are absent from a record.
+        if ($Action) { $results = $results | Where-Object { (Get-PropertyValue $_ 'action') -like $Action } }
+        if ($Username) { $results = $results | Where-Object { (Get-NestedPropertyValue $_ 'user.email') -like $Username } }
+        if ($EntityType) { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityType', 'entity.type', 'entityType') $EntityType -KeepWhenMissing } }
+        if ($EntityId) { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $EntityId -KeepWhenMissing } }
+        if ($UserId) { $results = $results | Where-Object { Test-AnyNestedPropertyValue $_ @('user.id', 'userId', 'actor.id') $UserId -KeepWhenMissing } }
 
-    $results
-}
+        $results
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region API Usage
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region API Usage
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysApiUsage {
-    <#
+    function Get-GenesysApiUsage {
+        <#
     .SYNOPSIS
         Returns the organisation-level API usage summary.
     .DESCRIPTION
@@ -1364,16 +1406,16 @@ function Get-GenesysApiUsage {
             if ($pct -gt 80) { Write-Warning "API quota at ${pct}% — review client activity." }
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    $records = Invoke-GenesysDataset -Dataset 'usage.get.api.usage.organization.summary'
-    if ($records.Count -gt 0) { $records[0] } else { $null }
-}
+        Assert-GenesysConnected
+        $records = Invoke-GenesysDataset -Dataset 'usage.get.api.usage.organization.summary'
+        if ($records.Count -gt 0) { $records[0] } else { $null }
+    }
 
-function Get-GenesysApiUsageByClient {
-    <#
+    function Get-GenesysApiUsageByClient {
+        <#
     .SYNOPSIS
         Returns API request counts broken down by OAuth client.
     .DESCRIPTION
@@ -1391,19 +1433,19 @@ function Get-GenesysApiUsageByClient {
             Where-Object requestCount -gt 10000 |
             Format-Table name, clientId, requestCount
     #>
-    [CmdletBinding()]
-    param(
-        [switch] $SortByCount
-    )
+        [CmdletBinding()]
+        param(
+            [switch] $SortByCount
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'usage.get.api.usage.by.client'
-    if ($SortByCount) { $results = $results | Sort-Object requestCount -Descending }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'usage.get.api.usage.by.client'
+        if ($SortByCount) { $results = $results | Sort-Object requestCount -Descending }
+        $results
+    }
 
-function Get-GenesysApiUsageByUser {
-    <#
+    function Get-GenesysApiUsageByUser {
+        <#
     .SYNOPSIS
         Returns API request counts broken down by user account.
     .DESCRIPTION
@@ -1415,21 +1457,21 @@ function Get-GenesysApiUsageByUser {
             Sort-Object requestCount -Descending |
             Select-Object -First 20 | Format-Table userName, userId, requestCount
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'usage.get.api.usage.by.user'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'usage.get.api.usage.by.user'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Notifications
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Notifications
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysNotificationTopic {
-    <#
+    function Get-GenesysNotificationTopic {
+        <#
     .SYNOPSIS
         Lists available notification topics for real-time WebSocket subscriptions.
     .DESCRIPTION
@@ -1449,19 +1491,19 @@ function Get-GenesysNotificationTopic {
         # Topics relevant to queue monitoring
         Get-GenesysNotificationTopic -Filter '*queue*' | Format-Table id, description
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Filter
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Filter
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'notifications.get.available.notification.topics'
-    if ($Filter) { $results = $results | Where-Object { $_.id -like $Filter } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'notifications.get.available.notification.topics'
+        if ($Filter) { $results = $results | Where-Object { $_.id -like $Filter } }
+        $results
+    }
 
-function Get-GenesysNotificationSubscription {
-    <#
+    function Get-GenesysNotificationSubscription {
+        <#
     .SYNOPSIS
         Returns active notification subscriptions for the authenticated client.
     .DESCRIPTION
@@ -1470,21 +1512,21 @@ function Get-GenesysNotificationSubscription {
     .EXAMPLE
         Get-GenesysNotificationSubscription | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'notifications.get.notification.subscriptions'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'notifications.get.notification.subscriptions'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Composite Operational Commands
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Composite Operational Commands
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysContactCentreStatus {
-    <#
+    function Get-GenesysContactCentreStatus {
+        <#
     .SYNOPSIS
         Returns a real-time contact centre health snapshot in a single object.
     .DESCRIPTION
@@ -1519,92 +1561,98 @@ function Get-GenesysContactCentreStatus {
             Write-Warning "$($status.EmptyQueues) queues have no agents joined"
         }
     #>
-    [CmdletBinding()]
-    param(
-        [switch] $FailFast
-    )
+        [CmdletBinding()]
+        param(
+            [switch] $FailFast
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $diag = [System.Collections.Generic.List[object]]::new()
+        $diag = [System.Collections.Generic.List[object]]::new()
 
-    # Collect each section independently; failures populate $diag but do not abort.
-    function Add-Diag {
-        param([string]$Section, [string]$Status, $Count, [string]$Error)
-        $diag.Add([PSCustomObject]@{ Section = $Section; Status = $Status; Count = $Count; Error = $Error })
+        # Collect each section independently; failures populate $diag but do not abort.
+        function Add-Diag {
+            param([string]$Section, [string]$Status, $Count, [string]$Error)
+            $diag.Add([PSCustomObject]@{ Section = $Section; Status = $Status; Count = $Count; Error = $Error })
+        }
+
+        Write-Verbose 'Fetching agents...'
+        $agents = [System.Object[]]@()
+        try {
+            $agents = [System.Object[]]@(Get-GenesysAgent)
+            Add-Diag 'Agents' 'OK' $agents.Count $null
+        }
+        catch { Add-Diag 'Agents' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Agents: $_"; if ($FailFast) { throw } }
+
+        Write-Verbose 'Fetching queues...'
+        $queues = [System.Object[]]@()
+        try {
+            $queues = [System.Object[]]@(Get-GenesysQueue)
+            Add-Diag 'Queues' 'OK' $queues.Count $null
+        }
+        catch { Add-Diag 'Queues' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Queues: $_"; if ($FailFast) { throw } }
+
+        Write-Verbose 'Fetching active calls...'
+        $calls = [System.Object[]]@()
+        try {
+            $calls = [System.Object[]]@(Get-GenesysActiveCall)
+            Add-Diag 'ActiveCalls' 'OK' $calls.Count $null
+        }
+        catch { Add-Diag 'ActiveCalls' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveCalls: $_"; if ($FailFast) { throw } }
+
+        Write-Verbose 'Fetching active chats...'
+        $chats = [System.Object[]]@()
+        try {
+            $chats = [System.Object[]]@(Get-GenesysActiveChat)
+            Add-Diag 'ActiveChats' 'OK' $chats.Count $null
+        }
+        catch { Add-Diag 'ActiveChats' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveChats: $_"; if ($FailFast) { throw } }
+
+        Write-Verbose 'Fetching active emails...'
+        $emails = [System.Object[]]@()
+        try {
+            $emails = [System.Object[]]@(Get-GenesysActiveEmail)
+            Add-Diag 'ActiveEmails' 'OK' $emails.Count $null
+        }
+        catch { Add-Diag 'ActiveEmails' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveEmails: $_"; if ($FailFast) { throw } }
+
+        Write-Verbose 'Fetching active callbacks...'
+        $callbacks = [System.Object[]]@()
+        $callbackFailed = $false
+        try {
+            $callbacks = [System.Object[]]@(Get-GenesysActiveCallback)
+            Add-Diag 'ActiveCallbacks' 'OK' $callbacks.Count $null
+        }
+        catch {
+            $callbackFailed = $true
+            Add-Diag 'ActiveCallbacks' 'Failed' $null "$($_.Exception.Message)"
+            Write-Warning "ActiveCallbacks: $_"
+            if ($FailFast) { throw }
+        }
+
+        $callbackCount = if ($callbackFailed) { 0 } else { $callbacks.Count }
+        $activeCallbacksValue = if ($callbackFailed) { $null } else { $callbackCount }
+        $callbackCountForTotal = $callbackCount
+
+        [PSCustomObject]@{
+            Timestamp           = Get-Date -Format 'o'
+            TotalAgents         = $agents.Count
+            AgentsOnQueue       = @($agents | Where-Object { $_.routingStatus -in @('IDLE', 'INTERACTING') }).Count
+            AgentsAvailable     = @($agents | Where-Object { $_.presence -eq 'AVAILABLE' }).Count
+            AgentsOffline       = @($agents | Where-Object { $_.presence -eq 'OFFLINE' }).Count
+            TotalQueues         = $queues.Count
+            EmptyQueues         = @($queues | Where-Object { $_.memberCount -eq 0 }).Count
+            ActiveCalls         = $calls.Count
+            ActiveChats         = $chats.Count
+            ActiveEmails        = $emails.Count
+            ActiveCallbacks     = $activeCallbacksValue
+            TotalActiveContacts = $calls.Count + $chats.Count + $emails.Count + $callbackCountForTotal
+            Diagnostics         = $diag.ToArray()
+        }
     }
 
-    Write-Verbose 'Fetching agents...'
-    $agents = [System.Object[]]@()
-    try {
-        $agents = [System.Object[]]@(Get-GenesysAgent)
-        Add-Diag 'Agents' 'OK' $agents.Count $null
-    } catch { Add-Diag 'Agents' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Agents: $_"; if ($FailFast) { throw } }
-
-    Write-Verbose 'Fetching queues...'
-    $queues = [System.Object[]]@()
-    try {
-        $queues = [System.Object[]]@(Get-GenesysQueue)
-        Add-Diag 'Queues' 'OK' $queues.Count $null
-    } catch { Add-Diag 'Queues' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "Queues: $_"; if ($FailFast) { throw } }
-
-    Write-Verbose 'Fetching active calls...'
-    $calls = [System.Object[]]@()
-    try {
-        $calls = [System.Object[]]@(Get-GenesysActiveCall)
-        Add-Diag 'ActiveCalls' 'OK' $calls.Count $null
-    } catch { Add-Diag 'ActiveCalls' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveCalls: $_"; if ($FailFast) { throw } }
-
-    Write-Verbose 'Fetching active chats...'
-    $chats = [System.Object[]]@()
-    try {
-        $chats = [System.Object[]]@(Get-GenesysActiveChat)
-        Add-Diag 'ActiveChats' 'OK' $chats.Count $null
-    } catch { Add-Diag 'ActiveChats' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveChats: $_"; if ($FailFast) { throw } }
-
-    Write-Verbose 'Fetching active emails...'
-    $emails = [System.Object[]]@()
-    try {
-        $emails = [System.Object[]]@(Get-GenesysActiveEmail)
-        Add-Diag 'ActiveEmails' 'OK' $emails.Count $null
-    } catch { Add-Diag 'ActiveEmails' 'Failed' $null "$($_.Exception.Message)"; Write-Warning "ActiveEmails: $_"; if ($FailFast) { throw } }
-
-    Write-Verbose 'Fetching active callbacks...'
-    $callbacks = [System.Object[]]@()
-    $callbackFailed = $false
-    try {
-        $callbacks = [System.Object[]]@(Get-GenesysActiveCallback)
-        Add-Diag 'ActiveCallbacks' 'OK' $callbacks.Count $null
-    } catch {
-        $callbackFailed = $true
-        Add-Diag 'ActiveCallbacks' 'Failed' $null "$($_.Exception.Message)"
-        Write-Warning "ActiveCallbacks: $_"
-        if ($FailFast) { throw }
-    }
-
-    $callbackCount          = if ($callbackFailed) { 0 } else { $callbacks.Count }
-    $activeCallbacksValue   = if ($callbackFailed) { $null } else { $callbackCount }
-    $callbackCountForTotal  = $callbackCount
-
-    [PSCustomObject]@{
-        Timestamp           = Get-Date -Format 'o'
-        TotalAgents         = $agents.Count
-        AgentsOnQueue       = @($agents | Where-Object { $_.routingStatus -in @('IDLE','INTERACTING') }).Count
-        AgentsAvailable     = @($agents | Where-Object { $_.presence -eq 'AVAILABLE'                 }).Count
-        AgentsOffline       = @($agents | Where-Object { $_.presence -eq 'OFFLINE'                   }).Count
-        TotalQueues         = $queues.Count
-        EmptyQueues         = @($queues | Where-Object { $_.memberCount -eq 0                        }).Count
-        ActiveCalls         = $calls.Count
-        ActiveChats         = $chats.Count
-        ActiveEmails        = $emails.Count
-        ActiveCallbacks     = $activeCallbacksValue
-        TotalActiveContacts = $calls.Count + $chats.Count + $emails.Count + $callbackCountForTotal
-        Diagnostics         = $diag.ToArray()
-    }
-}
-
-function Invoke-GenesysDailyHealthReport {
-    <#
+    function Invoke-GenesysDailyHealthReport {
+        <#
     .SYNOPSIS
         Generates a daily operations health report.
     .DESCRIPTION
@@ -1640,100 +1688,106 @@ function Invoke-GenesysDailyHealthReport {
             Write-Warning "$($report.RecentAudit.DeleteCount) DELETE audit events in the last hour!"
         }
     #>
-    [CmdletBinding()]
-    param(
-        [string] $OutputPath,
-        [switch] $PassThru,
-        [switch] $FailFast
-    )
+        [CmdletBinding()]
+        param(
+            [string] $OutputPath,
+            [switch] $PassThru,
+            [switch] $FailFast
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $diag = [System.Collections.Generic.List[object]]::new()
+        $diag = [System.Collections.Generic.List[object]]::new()
 
-    function Invoke-ReportSection {
-        param([string]$Name, [scriptblock]$Action)
-        try {
-            $r = & $Action
-            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK'; Error = $null })
-            return $r
-        } catch {
-            $msg = "$($Name): $_"
-            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Error = $msg })
-            Write-Warning $msg
-            if ($FailFast) { throw $msg }
-            return $null
+        function Invoke-ReportSection {
+            param([string]$Name, [scriptblock]$Action)
+            try {
+                $r = & $Action
+                $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK'; Error = $null })
+                return $r
+            }
+            catch {
+                $msg = "$($Name): $_"
+                $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Error = $msg })
+                Write-Warning $msg
+                if ($FailFast) { throw $msg }
+                return $null
+            }
         }
+
+        Write-Verbose 'Collecting organisation details...'
+        $org = Invoke-ReportSection 'Organisation' { Get-GenesysOrganization }
+
+        Write-Verbose 'Collecting agent roster...'
+        $agents = Invoke-ReportSection 'Agents' { @(Get-GenesysAgent) }
+
+        Write-Verbose 'Collecting queue details...'
+        $queues = Invoke-ReportSection 'Queues' { @(Get-GenesysQueue) }
+
+        Write-Verbose 'Collecting API usage...'
+        $usage = Invoke-ReportSection 'ApiUsage' { Get-GenesysApiUsage }
+
+        Write-Verbose 'Collecting recent audit events...'
+        $audit = Invoke-ReportSection 'Audit' { @(Get-GenesysAuditEvent) }
+
+        $presenceBreakdown = if ($agents) {
+            $agents |
+                Group-Object presence |
+                Sort-Object Count -Descending |
+                ForEach-Object { [PSCustomObject]@{ Presence = $_.Name; Count = $_.Count } }
+        }
+        else { $null }
+
+        $report = [PSCustomObject]@{
+            GeneratedAt  = Get-Date -Format 'o'
+            Organisation = if ($org) {
+                [PSCustomObject]@{
+                    Name            = (Get-PropertyValue $org 'name')
+                    Id              = (Get-PropertyValue $org 'id')
+                    DefaultLanguage = (Get-PropertyValue $org 'defaultLanguage')
+                }
+            }
+            else { $null }
+            Agents       = if ($agents) {
+                [PSCustomObject]@{
+                    Total             = $agents.Count
+                    Active            = @($agents | Where-Object { $_.state -eq 'ACTIVE' }).Count
+                    OnQueue           = @($agents | Where-Object { $_.routingStatus -in @('IDLE', 'INTERACTING') }).Count
+                    PresenceBreakdown = $presenceBreakdown
+                }
+            }
+            else { $null }
+            Queues       = if ($queues) {
+                [PSCustomObject]@{
+                    Total        = $queues.Count
+                    EmptyCount   = @($queues | Where-Object { $_.memberCount -eq 0 }).Count
+                    TopByMembers = ($queues | Sort-Object memberCount -Descending | Select-Object -First 5 |
+                            Select-Object name, memberCount)
+                }
+            }
+            else { $null }
+            ApiUsage     = $usage
+            RecentAudit  = if ($audit) {
+                [PSCustomObject]@{
+                    TotalEvents = $audit.Count
+                    LoginCount  = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like '*LOGIN*' }).Count
+                    DeleteCount = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like 'DELETE_*' }).Count
+                }
+            }
+            else { $null }
+            Diagnostics  = $diag.ToArray()
+        }
+
+        if ($OutputPath) {
+            $report | ConvertTo-Json -Depth 8 | Set-Content -Path $OutputPath -Encoding UTF8
+            Write-Verbose "Report saved: $($OutputPath)"
+        }
+
+        if ($PassThru -or -not $OutputPath) { $report }
     }
 
-    Write-Verbose 'Collecting organisation details...'
-    $org    = Invoke-ReportSection 'Organisation' { Get-GenesysOrganization }
-
-    Write-Verbose 'Collecting agent roster...'
-    $agents = Invoke-ReportSection 'Agents' { @(Get-GenesysAgent) }
-
-    Write-Verbose 'Collecting queue details...'
-    $queues = Invoke-ReportSection 'Queues' { @(Get-GenesysQueue) }
-
-    Write-Verbose 'Collecting API usage...'
-    $usage  = Invoke-ReportSection 'ApiUsage' { Get-GenesysApiUsage }
-
-    Write-Verbose 'Collecting recent audit events...'
-    $audit  = Invoke-ReportSection 'Audit' { @(Get-GenesysAuditEvent) }
-
-    $presenceBreakdown = if ($agents) {
-        $agents |
-            Group-Object presence |
-            Sort-Object Count -Descending |
-            ForEach-Object { [PSCustomObject]@{ Presence = $_.Name; Count = $_.Count } }
-    } else { $null }
-
-    $report = [PSCustomObject]@{
-        GeneratedAt  = Get-Date -Format 'o'
-        Organisation = if ($org) {
-            [PSCustomObject]@{
-                Name            = (Get-PropertyValue $org 'name')
-                Id              = (Get-PropertyValue $org 'id')
-                DefaultLanguage = (Get-PropertyValue $org 'defaultLanguage')
-            }
-        } else { $null }
-        Agents       = if ($agents) {
-            [PSCustomObject]@{
-                Total             = $agents.Count
-                Active            = @($agents | Where-Object { $_.state         -eq 'ACTIVE'               }).Count
-                OnQueue           = @($agents | Where-Object { $_.routingStatus -in @('IDLE','INTERACTING') }).Count
-                PresenceBreakdown = $presenceBreakdown
-            }
-        } else { $null }
-        Queues       = if ($queues) {
-            [PSCustomObject]@{
-                Total        = $queues.Count
-                EmptyCount   = @($queues | Where-Object { $_.memberCount -eq 0 }).Count
-                TopByMembers = ($queues | Sort-Object memberCount -Descending | Select-Object -First 5 |
-                                   Select-Object name, memberCount)
-            }
-        } else { $null }
-        ApiUsage     = $usage
-        RecentAudit  = if ($audit) {
-            [PSCustomObject]@{
-                TotalEvents  = $audit.Count
-                LoginCount   = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like '*LOGIN*'  }).Count
-                DeleteCount  = @($audit | Where-Object { (Get-PropertyValue $_ 'action') -like 'DELETE_*' }).Count
-            }
-        } else { $null }
-        Diagnostics  = $diag.ToArray()
-    }
-
-    if ($OutputPath) {
-        $report | ConvertTo-Json -Depth 8 | Set-Content -Path $OutputPath -Encoding UTF8
-        Write-Verbose "Report saved: $($OutputPath)"
-    }
-
-    if ($PassThru -or -not $OutputPath) { $report }
-}
-
-function Export-GenesysConfigurationSnapshot {
-    <#
+    function Export-GenesysConfigurationSnapshot {
+        <#
     .SYNOPSIS
         Exports a complete configuration snapshot (queues, skills, wrapup codes,
         languages, divisions) to a folder as individual CSV files.
@@ -1763,185 +1817,187 @@ function Export-GenesysConfigurationSnapshot {
         $a = Import-Csv "$after\queues.csv"
         Compare-Object $b $a -Property name -PassThru | Format-Table SideIndicator, name
     #>
-    [CmdletBinding(SupportsShouldProcess)]
-    param(
-        [Parameter(Mandatory)]
-        [string] $OutputFolder,
+        [CmdletBinding(SupportsShouldProcess)]
+        param(
+            [Parameter(Mandatory)]
+            [string] $OutputFolder,
 
-        [switch] $FailFast
-    )
+            [switch] $FailFast
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    if ($PSCmdlet.ShouldProcess($OutputFolder, 'Write configuration snapshot CSVs')) {
-        $resolvedFolder = if ([System.IO.Path]::IsPathRooted($OutputFolder)) {
-            [System.IO.Path]::GetFullPath($OutputFolder)
-        } else {
-            [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputFolder))
-        }
-        if (-not (Test-Path $resolvedFolder)) {
-            $null = New-Item -ItemType Directory -Path $resolvedFolder -Force
-        }
+        if ($PSCmdlet.ShouldProcess($OutputFolder, 'Write configuration snapshot CSVs')) {
+            $resolvedFolder = if ([System.IO.Path]::IsPathRooted($OutputFolder)) {
+                [System.IO.Path]::GetFullPath($OutputFolder)
+            }
+            else {
+                [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputFolder))
+            }
+            if (-not (Test-Path $resolvedFolder)) {
+                $null = New-Item -ItemType Directory -Path $resolvedFolder -Force
+            }
 
-        $stamp    = Get-Date -Format 'o'
-        $sections = [System.Collections.Generic.List[object]]::new()
+            $stamp = Get-Date -Format 'o'
+            $sections = [System.Collections.Generic.List[object]]::new()
 
-        function Export-Section {
-            param([string]$Name, [string]$File, [scriptblock]$Action, [string[]]$Fields)
-            $csvPath = Join-Path $resolvedFolder $File
-            try {
-                $data = & $Action
-                $data | Select-Object $Fields | Export-Csv $csvPath -NoTypeInformation
-                $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'OK';     Count = @($data).Count; Error = $null })
-            } catch {
-                $msg = "$($Name): $_"
-                $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'Failed'; Count = $null;          Error = $msg  })
-                Write-Warning $msg
-                if ($FailFast) { throw $msg }
+            function Export-Section {
+                param([string]$Name, [string]$File, [scriptblock]$Action, [string[]]$Fields)
+                $csvPath = Join-Path $resolvedFolder $File
+                try {
+                    $data = & $Action
+                    $data | Select-Object $Fields | Export-Csv $csvPath -NoTypeInformation
+                    $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'OK'; Count = @($data).Count; Error = $null })
+                }
+                catch {
+                    $msg = "$($Name): $_"
+                    $sections.Add([PSCustomObject]@{ Section = $Name; File = $File; Status = 'Failed'; Count = $null; Error = $msg })
+                    Write-Warning $msg
+                    if ($FailFast) { throw $msg }
+                }
+            }
+
+            Write-Verbose 'Exporting queues...'
+            Export-Section 'Queues' 'queues.csv' { Get-GenesysQueue } @('id', 'name', 'divisionId', 'memberCount')
+
+            Write-Verbose 'Exporting routing skills...'
+            Export-Section 'RoutingSkills' 'routing-skills.csv' { Get-GenesysRoutingSkill } @('id', 'name')
+
+            Write-Verbose 'Exporting wrapup codes...'
+            Export-Section 'WrapupCodes' 'wrapup-codes.csv' { Get-GenesysWrapupCode } @('id', 'name')
+
+            Write-Verbose 'Exporting languages...'
+            Export-Section 'Languages' 'languages.csv' { Get-GenesysLanguage } @('id', 'name')
+
+            Write-Verbose 'Exporting divisions...'
+            Export-Section 'Divisions' 'divisions.csv' { Get-GenesysDivision } @('id', 'name')
+
+            Write-Verbose 'Exporting agents...'
+            Export-Section 'Agents' 'agents.csv' { Get-GenesysAgent } @('id', 'name', 'email', 'state')
+
+            # Write manifest
+            $csvFiles = (Get-ChildItem $resolvedFolder -Filter '*.csv').Name
+            $manifest = [PSCustomObject]@{
+                SnapshotTimestamp = $stamp
+                OutputFolder      = $resolvedFolder
+                Files             = $csvFiles
+                Sections          = $sections.ToArray()
+            }
+            $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $resolvedFolder 'manifest.json') -Encoding UTF8
+
+            Write-Verbose "Snapshot complete: $($resolvedFolder)"
+
+            [PSCustomObject]@{
+                OutputFolder = $resolvedFolder
+                Files        = $csvFiles
+                Sections     = $sections.ToArray()
             }
         }
-
-        Write-Verbose 'Exporting queues...'
-        Export-Section 'Queues'         'queues.csv'         { Get-GenesysQueue }         @('id','name','divisionId','memberCount')
-
-        Write-Verbose 'Exporting routing skills...'
-        Export-Section 'RoutingSkills'  'routing-skills.csv' { Get-GenesysRoutingSkill }  @('id','name')
-
-        Write-Verbose 'Exporting wrapup codes...'
-        Export-Section 'WrapupCodes'    'wrapup-codes.csv'   { Get-GenesysWrapupCode }    @('id','name')
-
-        Write-Verbose 'Exporting languages...'
-        Export-Section 'Languages'      'languages.csv'      { Get-GenesysLanguage }      @('id','name')
-
-        Write-Verbose 'Exporting divisions...'
-        Export-Section 'Divisions'      'divisions.csv'      { Get-GenesysDivision }      @('id','name')
-
-        Write-Verbose 'Exporting agents...'
-        Export-Section 'Agents'         'agents.csv'         { Get-GenesysAgent }         @('id','name','email','state')
-
-        # Write manifest
-        $csvFiles = (Get-ChildItem $resolvedFolder -Filter '*.csv').Name
-        $manifest = [PSCustomObject]@{
-            SnapshotTimestamp = $stamp
-            OutputFolder      = $resolvedFolder
-            Files             = $csvFiles
-            Sections          = $sections.ToArray()
-        }
-        $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $resolvedFolder 'manifest.json') -Encoding UTF8
-
-        Write-Verbose "Snapshot complete: $($resolvedFolder)"
-
-        [PSCustomObject]@{
-            OutputFolder = $resolvedFolder
-            Files        = $csvFiles
-            Sections     = $sections.ToArray()
-        }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Private normalizers — analytics result flatteners (not exported)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Private normalizers — analytics result flatteners (not exported)
+    # ---------------------------------------------------------------------------
 
-function ConvertFrom-ObservationResult {
-    <#
+    function ConvertFrom-ObservationResult {
+        <#
     Private. Flattens a Genesys analytics observation result record
     { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count}}]}] }
     into a single PSCustomObject with group dimensions + each metric as a named
     property (using the raw metric name, e.g. oInteracting, oWaiting).
     Uses safe property access to avoid StrictMode failures on partial API results.
     #>
-    param(
-        [Parameter(ValueFromPipeline)]
-        [object] $InputObject
-    )
-    process {
-        $r = $InputObject
-        if ($null -eq $r) { return }
-        $props = [ordered]@{}
-        $group = Get-PropertyValue $r 'group'
-        if ($group) {
-            $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
-        }
-        $data = Get-PropertyValue $r 'data'
-        if ($data -and @($data).Count -gt 0) {
-            $firstData = @($data)[0]
-            $props['Interval'] = Get-PropertyValue $firstData 'interval'
-            $metrics = Get-PropertyValue $firstData 'metrics'
-            if ($metrics) {
-                foreach ($m in @($metrics)) {
-                    $metricName = Get-PropertyValue $m 'metric'
-                    if (-not $metricName) { continue }
-                    $stats = Get-PropertyValue $m 'stats'
-                    $props[$metricName] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
+        param(
+            [Parameter(ValueFromPipeline)]
+            [object] $InputObject
+        )
+        process {
+            $r = $InputObject
+            if ($null -eq $r) { return }
+            $props = [ordered]@{}
+            $group = Get-PropertyValue $r 'group'
+            if ($group) {
+                $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
+            }
+            $data = Get-PropertyValue $r 'data'
+            if ($data -and @($data).Count -gt 0) {
+                $firstData = @($data)[0]
+                $props['Interval'] = Get-PropertyValue $firstData 'interval'
+                $metrics = Get-PropertyValue $firstData 'metrics'
+                if ($metrics) {
+                    foreach ($m in @($metrics)) {
+                        $metricName = Get-PropertyValue $m 'metric'
+                        if (-not $metricName) { continue }
+                        $stats = Get-PropertyValue $m 'stats'
+                        $props[$metricName] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
+                    }
                 }
             }
+            [PSCustomObject]$props
         }
-        [PSCustomObject]$props
     }
-}
 
-function ConvertFrom-AggregateResult {
-    <#
+    function ConvertFrom-AggregateResult {
+        <#
     Private. Flattens a Genesys analytics aggregate result record
     { group:{dimA, dimB}, data:[{interval, metrics:[{metric, stats:{count,sum,min,max}}]}] }
     into one PSCustomObject per group+interval with columns:
         <metric>_count, <metric>_sum, <metric>_min, <metric>_max
     Uses safe property access to avoid StrictMode failures on partial API results.
     #>
-    param(
-        [Parameter(ValueFromPipeline)]
-        [object] $InputObject
-    )
-    process {
-        $r = $InputObject
-        if ($null -eq $r) { return }
-        $group = Get-PropertyValue $r 'group'
-        $data  = Get-PropertyValue $r 'data'
-        if (-not $data) { return }
-        foreach ($d in @($data)) {
-            if ($null -eq $d) { continue }
-            $props = [ordered]@{ Interval = Get-PropertyValue $d 'interval' }
-            if ($group) {
-                $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
-            }
-            $metrics = Get-PropertyValue $d 'metrics'
-            if ($metrics) {
-                foreach ($m in @($metrics)) {
-                    if ($null -eq $m) { continue }
-                    $key   = Get-PropertyValue $m 'metric'
-                    if (-not $key) { continue }
-                    $stats = Get-PropertyValue $m 'stats'
-                    $props["${key}_count"] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
-                    $props["${key}_sum"]   = if ($stats) { Get-PropertyValue $stats 'sum'   } else { $null }
-                    $props["${key}_min"]   = if ($stats) { Get-PropertyValue $stats 'min'   } else { $null }
-                    $props["${key}_max"]   = if ($stats) { Get-PropertyValue $stats 'max'   } else { $null }
+        param(
+            [Parameter(ValueFromPipeline)]
+            [object] $InputObject
+        )
+        process {
+            $r = $InputObject
+            if ($null -eq $r) { return }
+            $group = Get-PropertyValue $r 'group'
+            $data = Get-PropertyValue $r 'data'
+            if (-not $data) { return }
+            foreach ($d in @($data)) {
+                if ($null -eq $d) { continue }
+                $props = [ordered]@{ Interval = Get-PropertyValue $d 'interval' }
+                if ($group) {
+                    $group.PSObject.Properties | ForEach-Object { $props[$_.Name] = $_.Value }
                 }
+                $metrics = Get-PropertyValue $d 'metrics'
+                if ($metrics) {
+                    foreach ($m in @($metrics)) {
+                        if ($null -eq $m) { continue }
+                        $key = Get-PropertyValue $m 'metric'
+                        if (-not $key) { continue }
+                        $stats = Get-PropertyValue $m 'stats'
+                        $props["${key}_count"] = if ($stats) { Get-PropertyValue $stats 'count' } else { $null }
+                        $props["${key}_sum"] = if ($stats) { Get-PropertyValue $stats 'sum' } else { $null }
+                        $props["${key}_min"] = if ($stats) { Get-PropertyValue $stats 'min' } else { $null }
+                        $props["${key}_max"] = if ($stats) { Get-PropertyValue $stats 'max' } else { $null }
+                    }
+                }
+                [PSCustomObject]$props
             }
-            [PSCustomObject]$props
         }
     }
-}
 
-function Get-MosCategory ([object]$Mos) {
-    if ($null -eq $Mos) { return 'Unknown' }
-    $v = [double]$Mos
-    if ($v -ge 4.0) { return 'Good' }
-    if ($v -ge 3.6) { return 'Fair' }
-    if ($v -ge 3.1) { return 'Poor' }
-    return 'Bad'
-}
+    function Get-MosCategory ([object]$Mos) {
+        if ($null -eq $Mos) { return 'Unknown' }
+        $v = [double]$Mos
+        if ($v -ge 4.0) { return 'Good' }
+        if ($v -ge 3.6) { return 'Fair' }
+        if ($v -ge 3.1) { return 'Poor' }
+        return 'Bad'
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Operational Events — Observations & Aggregates
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Operational Events — Observations & Aggregates
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysQueueObservation {
-    <#
+    function Get-GenesysQueueObservation {
+        <#
     .SYNOPSIS
         Returns real-time queue observation metrics.
     .DESCRIPTION
@@ -1969,33 +2025,33 @@ function Get-GenesysQueueObservation {
     .EXAMPLE
         Get-GenesysQueueObservation -QueueId '11111111-2222-3333-4444-555555555555' -MediaType voice
     #>
-    [CmdletBinding()]
-    param(
-        [string[]] $QueueId,
-        [string]   $MediaType
-    )
+        [CmdletBinding()]
+        param(
+            [string[]] $QueueId,
+            [string]   $MediaType
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        metrics = @('oInteracting', 'oWaiting', 'oOnQueueUsers', 'oOffQueueUsers', 'oActiveUsers')
+        $body = [ordered]@{
+            metrics = @('oInteracting', 'oWaiting', 'oOnQueueUsers', 'oOffQueueUsers', 'oActiveUsers')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            queueId   = $QueueId
+            mediaType = $MediaType
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        Invoke-GenesysDataset -Dataset 'analytics.query.queue.observations.real.time.stats' `
+            -DatasetParameters @{ Body = $body } |
+            ConvertFrom-ObservationResult
     }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        queueId   = $QueueId
-        mediaType = $MediaType
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    Invoke-GenesysDataset -Dataset 'analytics.query.queue.observations.real.time.stats' `
-                          -DatasetParameters @{ Body = $body } |
-        ConvertFrom-ObservationResult
-}
-
-function Get-GenesysUserObservation {
-    <#
+    function Get-GenesysUserObservation {
+        <#
     .SYNOPSIS
         Returns real-time agent observation records (presence and routing status).
     .DESCRIPTION
@@ -2013,29 +2069,29 @@ function Get-GenesysUserObservation {
     .EXAMPLE
         Get-GenesysUserObservation | Format-Table UserId, Interval, oUserPresence, oUserRoutingStatus
     #>
-    [CmdletBinding()]
-    param(
-        [string[]] $UserId
-    )
+        [CmdletBinding()]
+        param(
+            [string[]] $UserId
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        metrics = @('oUserPresence', 'oUserRoutingStatus')
+        $body = [ordered]@{
+            metrics = @('oUserPresence', 'oUserRoutingStatus')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        Invoke-GenesysDataset -Dataset 'analytics.query.user.observations.real.time.status' `
+            -DatasetParameters @{ Body = $body } |
+            ConvertFrom-ObservationResult
     }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    Invoke-GenesysDataset -Dataset 'analytics.query.user.observations.real.time.status' `
-                          -DatasetParameters @{ Body = $body } |
-        ConvertFrom-ObservationResult
-}
-
-function Get-GenesysQueuePerformance {
-    <#
+    function Get-GenesysQueuePerformance {
+        <#
     .SYNOPSIS
         Returns historical queue conversation aggregate metrics.
     .DESCRIPTION
@@ -2071,48 +2127,48 @@ function Get-GenesysQueuePerformance {
             @{ n='AvgHandleSec'; e={ if ($_.nConnected_count) { [int]($_.tHandle_sum / $_.nConnected_count / 1000) } } } |
             Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $QueueId,
-        [string]             $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string]             $Granularity
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $QueueId,
+            [string]             $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string]             $Granularity
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('queueId')
-        metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('queueId')
+            metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+            $body.granularity = $Granularity
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            queueId   = $QueueId
+            mediaType = $MediaType
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
+            -DatasetParameters @{ Body = $body } |
+            ConvertFrom-AggregateResult
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
-        $body.granularity = $Granularity
-    }
+    #endregion
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        queueId   = $QueueId
-        mediaType = $MediaType
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+    # ---------------------------------------------------------------------------
+    #region OAuth Clients & Authorizations
+    # ---------------------------------------------------------------------------
 
-    Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
-                          -DatasetParameters @{ Body = $body } |
-        ConvertFrom-AggregateResult
-}
-
-#endregion
-
-# ---------------------------------------------------------------------------
-#region OAuth Clients & Authorizations
-# ---------------------------------------------------------------------------
-
-function Get-GenesysOAuthClient {
-    <#
+    function Get-GenesysOAuthClient {
+        <#
     .SYNOPSIS
         Returns all OAuth client applications registered in the organisation.
     .DESCRIPTION
@@ -2148,21 +2204,21 @@ function Get-GenesysOAuthClient {
         # Find clients with no description (undocumented integrations)
         Get-GenesysOAuthClient | Where-Object { -not $_.description } | Format-Table id, name
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [string] $GrantType
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [string] $GrantType
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'oauth.get.clients'
-    if ($Name)      { $results = $results | Where-Object { $_.name -like $Name } }
-    if ($GrantType) { $results = $results | Where-Object { $_.authorizedGrantTypes -contains $GrantType } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'oauth.get.clients'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($GrantType) { $results = $results | Where-Object { $_.authorizedGrantTypes -contains $GrantType } }
+        $results
+    }
 
-function Get-GenesysOAuthAuthorization {
-    <#
+    function Get-GenesysOAuthAuthorization {
+        <#
     .SYNOPSIS
         Returns active OAuth authorization grants issued to users.
     .DESCRIPTION
@@ -2184,15 +2240,15 @@ function Get-GenesysOAuthAuthorization {
         $clientId = (Get-GenesysOAuthClient -Name 'Reporting Bot').id
         Get-GenesysOAuthAuthorization | Where-Object { $_.client.id -eq $clientId }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'oauth.get.authorizations'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'oauth.get.authorizations'
+    }
 
-function Get-GenesysRateLimitEvent {
-    <#
+    function Get-GenesysRateLimitEvent {
+        <#
     .SYNOPSIS
         Returns API rate-limit aggregate data (errors and over-limit events).
     .DESCRIPTION
@@ -2216,22 +2272,22 @@ function Get-GenesysRateLimitEvent {
         $limits | Select-Object userId, Interval, nOverLimit_count |
             Sort-Object nOverLimit_count -Descending | Select-Object -First 10 | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'analytics.query.rate.limit.aggregates' |
-        ConvertFrom-AggregateResult
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'analytics.query.rate.limit.aggregates' |
+            ConvertFrom-AggregateResult
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Outbound Campaigns & Events
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Outbound Campaigns & Events
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysOutboundCampaign {
-    <#
+    function Get-GenesysOutboundCampaign {
+        <#
     .SYNOPSIS
         Returns outbound dialing campaigns with current status and configuration.
     .DESCRIPTION
@@ -2260,22 +2316,22 @@ function Get-GenesysOutboundCampaign {
     .EXAMPLE
         Get-GenesysOutboundCampaign | Sort-Object campaignStatus | Format-Table name, campaignStatus, dialingMode
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [ValidateSet('on','off','complete','stopping','invalid')]
-        [string] $Status
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [ValidateSet('on', 'off', 'complete', 'stopping', 'invalid')]
+            [string] $Status
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'outbound.get.campaigns'
-    if ($Name)   { $results = $results | Where-Object { $_.name           -like $Name   } }
-    if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq   $Status } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'outbound.get.campaigns'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq $Status } }
+        $results
+    }
 
-function Get-GenesysOutboundContactList {
-    <#
+    function Get-GenesysOutboundContactList {
+        <#
     .SYNOPSIS
         Returns outbound contact list definitions.
     .DESCRIPTION
@@ -2298,19 +2354,19 @@ function Get-GenesysOutboundContactList {
             Where-Object { $_.importStatus.importState -eq 'Failed' } |
             Format-Table name, id
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'outbound.get.contact.lists'
-    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'outbound.get.contact.lists'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        $results
+    }
 
-function Get-GenesysOutboundEvent {
-    <#
+    function Get-GenesysOutboundEvent {
+        <#
     .SYNOPSIS
         Returns outbound dialer events — campaign and contact disposition records.
     .DESCRIPTION
@@ -2333,19 +2389,19 @@ function Get-GenesysOutboundEvent {
         # Find all connected outbound calls for reconciliation
         Get-GenesysOutboundEvent | Where-Object { $_.callResult -eq 'Connected' } | Format-Table timestamp, campaignId, contactId
     #>
-    [CmdletBinding()]
-    param(
-        [string] $EventType
-    )
+        [CmdletBinding()]
+        param(
+            [string] $EventType
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'outbound.get.events'
-    if ($EventType) { $results = $results | Where-Object { $_.type -like $EventType } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'outbound.get.events'
+        if ($EventType) { $results = $results | Where-Object { $_.type -like $EventType } }
+        $results
+    }
 
-function Get-GenesysMessagingCampaign {
-    <#
+    function Get-GenesysMessagingCampaign {
+        <#
     .SYNOPSIS
         Returns outbound messaging (SMS / digital) campaigns.
     .DESCRIPTION
@@ -2367,27 +2423,27 @@ function Get-GenesysMessagingCampaign {
     .EXAMPLE
         Get-GenesysMessagingCampaign -Status 'on' | Select-Object name, smsConfig | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [string] $Status
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [string] $Status
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'outbound.get.messaging.campaigns'
-    if ($Name)   { $results = $results | Where-Object { $_.name           -like $Name   } }
-    if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq   $Status } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'outbound.get.messaging.campaigns'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($Status) { $results = $results | Where-Object { $_.campaignStatus -eq $Status } }
+        $results
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Flow / Architect Performance
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Flow / Architect Performance
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysFlow {
-    <#
+    function Get-GenesysFlow {
+        <#
     .SYNOPSIS
         Returns all Architect flow definitions.
     .DESCRIPTION
@@ -2417,21 +2473,21 @@ function Get-GenesysFlow {
         # Find flows without a published version (draft / broken)
         Get-GenesysFlow | Where-Object { -not $_.publishedVersion } | Format-Table name, type, id
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [string] $FlowType
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [string] $FlowType
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'flows.get.all.flows'
-    if ($Name)     { $results = $results | Where-Object { $_.name -like $Name     } }
-    if ($FlowType) { $results = $results | Where-Object { $_.type -eq   $FlowType } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'flows.get.all.flows'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        if ($FlowType) { $results = $results | Where-Object { $_.type -eq $FlowType } }
+        $results
+    }
 
-function Get-GenesysFlowOutcome {
-    <#
+    function Get-GenesysFlowOutcome {
+        <#
     .SYNOPSIS
         Returns flow outcome definitions.
     .DESCRIPTION
@@ -2448,19 +2504,19 @@ function Get-GenesysFlowOutcome {
         # Build a lookup table for enriching flow aggregate reports
         $outcomeMap = Get-GenesysFlowOutcome | Group-Object id -AsHashTable -AsString
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name
+        )
 
-    Assert-GenesysConnected
-    $results = Invoke-GenesysDataset -Dataset 'flows.get.flow.outcomes'
-    if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
-    $results
-}
+        Assert-GenesysConnected
+        $results = Invoke-GenesysDataset -Dataset 'flows.get.flow.outcomes'
+        if ($Name) { $results = $results | Where-Object { $_.name -like $Name } }
+        $results
+    }
 
-function Get-GenesysFlowMilestone {
-    <#
+    function Get-GenesysFlowMilestone {
+        <#
     .SYNOPSIS
         Returns flow milestone definitions.
     .DESCRIPTION
@@ -2472,15 +2528,15 @@ function Get-GenesysFlowMilestone {
     .EXAMPLE
         Get-GenesysFlowMilestone | Format-Table id, name, description
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'flows.get.flow.milestones'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'flows.get.flow.milestones'
+    }
 
-function Get-GenesysFlowAggregate {
-    <#
+    function Get-GenesysFlowAggregate {
+        <#
     .SYNOPSIS
         Returns Architect flow execution aggregate metrics.
     .DESCRIPTION
@@ -2509,16 +2565,16 @@ function Get-GenesysFlowAggregate {
             Select-Object @{n='FlowName';e={$flowMap[$_.flowId].name}}, nFlow_count, nFlowOutcomeFailed_count |
             Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'analytics.query.flow.aggregates.execution.metrics' |
-        ConvertFrom-AggregateResult
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'analytics.query.flow.aggregates.execution.metrics' |
+            ConvertFrom-AggregateResult
+    }
 
-function Get-GenesysFlowObservation {
-    <#
+    function Get-GenesysFlowObservation {
+        <#
     .SYNOPSIS
         Returns real-time Architect flow observation metrics.
     .DESCRIPTION
@@ -2543,44 +2599,44 @@ function Get-GenesysFlowObservation {
         Get-GenesysFlowObservation | Where-Object { $_.oFlowDisconnect -gt 0 } |
             Format-Table flowId, oFlow, oFlowDisconnect
     #>
-    [CmdletBinding()]
-    param(
-        [string]   $FlowType,
-        [string[]] $FlowId,
-        [string]   $Interval
-    )
+        [CmdletBinding()]
+        param(
+            [string]   $FlowType,
+            [string[]] $FlowId,
+            [string]   $Interval
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        metrics = @('oFlow', 'oFlowDisconnect')
+        $body = [ordered]@{
+            metrics = @('oFlow', 'oFlowDisconnect')
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($Interval)) {
+            $body.interval = $Interval
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            flowType = $FlowType
+            flowId   = $FlowId
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        Invoke-GenesysDataset -Dataset 'analytics.query.flow.observations' `
+            -DatasetParameters @{ Body = $body } |
+            ConvertFrom-ObservationResult
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($Interval)) {
-        $body.interval = $Interval
-    }
+    #endregion
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        flowType = $FlowType
-        flowId   = $FlowId
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+    # ---------------------------------------------------------------------------
+    #region Agent Performance & Voice Quality
+    # ---------------------------------------------------------------------------
 
-    Invoke-GenesysDataset -Dataset 'analytics.query.flow.observations' `
-                          -DatasetParameters @{ Body = $body } |
-        ConvertFrom-ObservationResult
-}
-
-#endregion
-
-# ---------------------------------------------------------------------------
-#region Agent Performance & Voice Quality
-# ---------------------------------------------------------------------------
-
-function Get-GenesysAgentPerformance {
-    <#
+    function Get-GenesysAgentPerformance {
+        <#
     .SYNOPSIS
         Returns historical agent performance metrics from conversation aggregates.
     .DESCRIPTION
@@ -2631,99 +2687,99 @@ function Get-GenesysAgentPerformance {
                           ConversationsHandled, AvgHandleSec, AvgTalkSec, AvgAcwSec |
             Sort-Object ConversationsHandled -Descending | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [int] $MinConversations = 0,
+        [CmdletBinding()]
+        param(
+            [int] $MinConversations = 0,
 
-        [string[]]           $UserId,
-        [string]             $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string]             $Granularity
-    )
+            [string[]]           $UserId,
+            [string]             $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string]             $Granularity
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('userId')
-        metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
-    }
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('userId')
+            metrics  = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'nOffered')
+        }
 
-    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
-        $body.granularity = $Granularity
-    }
+        if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+            $body.granularity = $Granularity
+        }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        userId    = $UserId
-        mediaType = $MediaType
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            userId    = $UserId
+            mediaType = $MediaType
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
 
-    $raw = Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.performance.metrics' `
-                                 -DatasetParameters @{ Body = $body }
+        $raw = Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.performance.metrics' `
+            -DatasetParameters @{ Body = $body }
 
-    $records = foreach ($r in @($raw)) {
-        # Use safe property access to avoid StrictMode failures on partial records.
-        $group = Get-PropertyValue $r 'group'
-        $data  = Get-PropertyValue $r 'data'
-        foreach ($d in @($data)) {
-            if ($null -eq $d) { continue }
-            $mHash = @{}
-            foreach ($m in @(Get-PropertyValue $d 'metrics')) {
-                if ($null -eq $m) { continue }
-                $mName  = Get-PropertyValue $m 'metric'
-                $mStats = Get-PropertyValue $m 'stats'
-                if ($mName) { $mHash[$mName] = $mStats }
-            }
+        $records = foreach ($r in @($raw)) {
+            # Use safe property access to avoid StrictMode failures on partial records.
+            $group = Get-PropertyValue $r 'group'
+            $data = Get-PropertyValue $r 'data'
+            foreach ($d in @($data)) {
+                if ($null -eq $d) { continue }
+                $mHash = @{}
+                foreach ($m in @(Get-PropertyValue $d 'metrics')) {
+                    if ($null -eq $m) { continue }
+                    $mName = Get-PropertyValue $m 'metric'
+                    $mStats = Get-PropertyValue $m 'stats'
+                    if ($mName) { $mHash[$mName] = $mStats }
+                }
 
-            $handled  = if ($mHash['nConnected']) { [int](Get-PropertyValue $mHash['nConnected'] 'count') } else { 0 }
-            $handleMs = if ($mHash['tHandle'])    { Get-PropertyValue $mHash['tHandle']   'sum' } else { $null }
-            $talkMs   = if ($mHash['tTalk'])      { Get-PropertyValue $mHash['tTalk']     'sum' } else { $null }
-            $acwMs    = if ($mHash['tAcw'])       { Get-PropertyValue $mHash['tAcw']      'sum' } else { $null }
-            $ansMs    = if ($mHash['tAnswered'])   { Get-PropertyValue $mHash['tAnswered'] 'sum' } else { $null }
+                $handled = if ($mHash['nConnected']) { [int](Get-PropertyValue $mHash['nConnected'] 'count') } else { 0 }
+                $handleMs = if ($mHash['tHandle']) { Get-PropertyValue $mHash['tHandle'] 'sum' } else { $null }
+                $talkMs = if ($mHash['tTalk']) { Get-PropertyValue $mHash['tTalk'] 'sum' } else { $null }
+                $acwMs = if ($mHash['tAcw']) { Get-PropertyValue $mHash['tAcw'] 'sum' } else { $null }
+                $ansMs = if ($mHash['tAnswered']) { Get-PropertyValue $mHash['tAnswered'] 'sum' } else { $null }
 
-            [PSCustomObject]@{
-                UserId               = if ($group) { Get-PropertyValue $group 'userId'    } else { $null }
-                MediaType            = if ($group) { Get-PropertyValue $group 'mediaType' } else { $null }
-                Interval             = Get-PropertyValue $d 'interval'
-                ConversationsHandled = $handled
-                TotalHandleMs        = $handleMs
-                TotalTalkMs          = $talkMs
-                TotalAcwMs           = $acwMs
-                TotalAnsweredMs      = $ansMs
-                AvgHandleSec         = if ($handled -and $handleMs) { [int]($handleMs / $handled / 1000) } else { $null }
-                AvgTalkSec           = if ($handled -and $talkMs)   { [int]($talkMs   / $handled / 1000) } else { $null }
-                AvgAcwSec            = if ($handled -and $acwMs)    { [int]($acwMs    / $handled / 1000) } else { $null }
+                [PSCustomObject]@{
+                    UserId               = if ($group) { Get-PropertyValue $group 'userId' } else { $null }
+                    MediaType            = if ($group) { Get-PropertyValue $group 'mediaType' } else { $null }
+                    Interval             = Get-PropertyValue $d 'interval'
+                    ConversationsHandled = $handled
+                    TotalHandleMs        = $handleMs
+                    TotalTalkMs          = $talkMs
+                    TotalAcwMs           = $acwMs
+                    TotalAnsweredMs      = $ansMs
+                    AvgHandleSec         = if ($handled -and $handleMs) { [int]($handleMs / $handled / 1000) } else { $null }
+                    AvgTalkSec           = if ($handled -and $talkMs) { [int]($talkMs / $handled / 1000) } else { $null }
+                    AvgAcwSec            = if ($handled -and $acwMs) { [int]($acwMs / $handled / 1000) } else { $null }
+                }
             }
         }
-    }
 
-    if ($MinConversations -gt 0) { $records = $records | Where-Object { $_.ConversationsHandled -ge $MinConversations } }
-    if ($UserId)   { $records = $records | Where-Object { $_.UserId    -eq $UserId   } }
-    if ($MediaType){ $records = $records | Where-Object { $_.MediaType -eq $MediaType } }
+        if ($MinConversations -gt 0) { $records = $records | Where-Object { $_.ConversationsHandled -ge $MinConversations } }
+        if ($UserId) { $records = $records | Where-Object { $_.UserId -eq $UserId } }
+        if ($MediaType) { $records = $records | Where-Object { $_.MediaType -eq $MediaType } }
 
-    if ($IncludeDiagnostics) {
-        # Wrap in a diagnostic envelope for consistency
-        return [PSCustomObject][ordered]@{
-            DatasetKey   = 'analytics.query.user.aggregates.performance.metrics'
-            FunctionName = 'Get-GenesysAgentPerformance'
-            Status       = if (@($records).Count -gt 0) { 'Succeeded' } else { 'Empty' }
-            Records      = @($records)
-            RecordCount  = @($records).Count
-            RunFolder    = $null
-            ManifestPath = $null
-            DataFolder   = $null
-            Error        = $null
+        if ($IncludeDiagnostics) {
+            # Wrap in a diagnostic envelope for consistency
+            return [PSCustomObject][ordered]@{
+                DatasetKey   = 'analytics.query.user.aggregates.performance.metrics'
+                FunctionName = 'Get-GenesysAgentPerformance'
+                Status       = if (@($records).Count -gt 0) { 'Succeeded' } else { 'Empty' }
+                Records      = @($records)
+                RecordCount  = @($records).Count
+                RunFolder    = $null
+                ManifestPath = $null
+                DataFolder   = $null
+                Error        = $null
+            }
         }
+        $records
     }
-    $records
-}
 
-function Get-GenesysUserActivity {
-    <#
+    function Get-GenesysUserActivity {
+        <#
     .SYNOPSIS
         Returns detailed agent activity records (presence state timeline).
     .DESCRIPTION
@@ -2748,15 +2804,15 @@ function Get-GenesysUserActivity {
     .EXAMPLE
         Get-GenesysUserActivity | Select-Object userId, @{n='Records';e={@($_.presenceDetail).Count}} | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    Invoke-GenesysDataset -Dataset 'analytics.query.user.details.activity.report'
-}
+        Assert-GenesysConnected
+        Invoke-GenesysDataset -Dataset 'analytics.query.user.details.activity.report'
+    }
 
-function Get-GenesysAgentVoiceQuality {
-    <#
+    function Get-GenesysAgentVoiceQuality {
+        <#
     .SYNOPSIS
         Extracts per-session voice quality metrics (MOS, WebRTC errors, disconnect
         codes, latency indicators) from conversation detail records.
@@ -2839,109 +2895,109 @@ function Get-GenesysAgentVoiceQuality {
                           ConversationStart, SessionMos, MosCategory, Provider, ErrorCode |
             Sort-Object SessionMos | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromPipeline)]
-        [object[]] $InputObject,
+        [CmdletBinding()]
+        param(
+            [Parameter(ValueFromPipeline)]
+            [object[]] $InputObject,
 
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType = 'voice',
-        [string[]] $DivisionId,
-        [switch] $KeepArtifacts,
-        [string] $ArtifactPath
-    )
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType = 'voice',
+            [string[]] $DivisionId,
+            [switch] $KeepArtifacts,
+            [string] $ArtifactPath
+        )
 
-    begin {
-        $buffer = [System.Collections.Generic.List[object]]::new()
-    }
-
-    process {
-        if ($null -ne $InputObject) {
-            foreach ($item in $InputObject) { $buffer.Add($item) }
-        }
-    }
-
-    end {
-        # If nothing piped in, fetch internally
-        $conversations = if ($buffer.Count -gt 0) {
-            $buffer.ToArray()
-        }
-        else {
-            Assert-GenesysConnected
-            $keepArtifactsForFetch = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
-            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId -KeepArtifacts:$keepArtifactsForFetch -ArtifactPath $ArtifactPath)
+        begin {
+            $buffer = [System.Collections.Generic.List[object]]::new()
         }
 
-        foreach ($conv in $conversations) {
-            # Use safe property access for optional fields that may be absent
-            # from the API response under StrictMode -Version Latest.
-            $convMos = Get-PropertyValue $conv 'mediaStatsMinConversationMos'
-            $divIds  = Get-PropertyValue $conv 'divisionIds'
-            $divId   = if ($divIds -and @($divIds).Count -gt 0) { @($divIds)[0] } else { $null }
+        process {
+            if ($null -ne $InputObject) {
+                foreach ($item in $InputObject) { $buffer.Add($item) }
+            }
+        }
 
-            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
-                if ($null -eq $p) { continue }
-                $purpose = Get-PropertyValue $p 'purpose'
-                $userId  = Get-PropertyValue $p 'userId'
-                # Only agent legs (users) on voice
-                if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
-                if (-not $userId) { continue }
+        end {
+            # If nothing piped in, fetch internally
+            $conversations = if ($buffer.Count -gt 0) {
+                $buffer.ToArray()
+            }
+            else {
+                Assert-GenesysConnected
+                $keepArtifactsForFetch = $KeepArtifacts -or (-not [string]::IsNullOrWhiteSpace($ArtifactPath))
+                @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId -KeepArtifacts:$keepArtifactsForFetch -ArtifactPath $ArtifactPath)
+            }
 
-                foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
-                    if ($null -eq $sess) { continue }
-                    if ((Get-PropertyValue $sess 'mediaType') -ne 'voice') { continue }
+            foreach ($conv in $conversations) {
+                # Use safe property access for optional fields that may be absent
+                # from the API response under StrictMode -Version Latest.
+                $convMos = Get-PropertyValue $conv 'mediaStatsMinConversationMos'
+                $divIds = Get-PropertyValue $conv 'divisionIds'
+                $divId = if ($divIds -and @($divIds).Count -gt 0) { @($divIds)[0] } else { $null }
 
-                    $segmentsRaw  = Get-PropertyValue $sess 'segments'
-                    $segments     = @(if ($segmentsRaw) { $segmentsRaw } else { @() })
-                    $lastSeg      = if ($segments.Count -gt 0) { $segments[-1] } else { $null }
+                foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                    if ($null -eq $p) { continue }
+                    $purpose = Get-PropertyValue $p 'purpose'
+                    $userId = Get-PropertyValue $p 'userId'
+                    # Only agent legs (users) on voice
+                    if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
+                    if (-not $userId) { continue }
 
-                    # Last segment that carries an errorCode
-                    $errorSeg     = $segments | Where-Object { Get-PropertyValue $_ 'errorCode' } | Select-Object -Last 1
+                    foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                        if ($null -eq $sess) { continue }
+                        if ((Get-PropertyValue $sess 'mediaType') -ne 'voice') { continue }
 
-                    # Queue from first ACD segment
-                    $acdSeg       = $segments | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
+                        $segmentsRaw = Get-PropertyValue $sess 'segments'
+                        $segments = @(if ($segmentsRaw) { $segmentsRaw } else { @() })
+                        $lastSeg = if ($segments.Count -gt 0) { $segments[-1] } else { $null }
 
-                    $sessionMos   = Get-PropertyValue $sess 'mediaStatsMinConversationMos'
-                    $effectiveMos = if ($null -ne $sessionMos) { $sessionMos }
-                                   elseif ($null -ne $convMos) { $convMos    }
-                                   else                        { $null       }
+                        # Last segment that carries an errorCode
+                        $errorSeg = $segments | Where-Object { Get-PropertyValue $_ 'errorCode' } | Select-Object -Last 1
 
-                    [PSCustomObject]@{
-                        ConversationId    = Get-PropertyValue $conv 'conversationId'
-                        ConversationStart = Get-PropertyValue $conv 'conversationStart'
-                        AgentUserId       = $userId
-                        ParticipantId     = Get-PropertyValue $p    'participantId'
-                        SessionId         = Get-PropertyValue $sess  'sessionId'
-                        Provider          = Get-PropertyValue $sess  'provider'
-                        MediaType         = Get-PropertyValue $sess  'mediaType'
-                        SessionMos        = $sessionMos
-                        ConversationMos   = $convMos
-                        MosCategory       = Get-MosCategory $effectiveMos
-                        RFactor           = Get-PropertyValue $sess  'mediaStatsMinConversationRFactor'
-                        DisconnectType    = if ($lastSeg)  { Get-PropertyValue $lastSeg  'disconnectType' } else { $null }
-                        ErrorCode         = if ($errorSeg) { Get-PropertyValue $errorSeg 'errorCode'      } else { $null }
-                        SegmentCount      = $segments.Count
-                        QueueId           = if ($acdSeg)  { Get-PropertyValue $acdSeg 'queueId'   } else { $null }
-                        QueueName         = if ($acdSeg)  { Get-PropertyValue $acdSeg 'queueName' } else { $null }
-                        DivisionId        = $divId
+                        # Queue from first ACD segment
+                        $acdSeg = $segments | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
+
+                        $sessionMos = Get-PropertyValue $sess 'mediaStatsMinConversationMos'
+                        $effectiveMos = if ($null -ne $sessionMos) { $sessionMos }
+                        elseif ($null -ne $convMos) { $convMos }
+                        else { $null }
+
+                        [PSCustomObject]@{
+                            ConversationId    = Get-PropertyValue $conv 'conversationId'
+                            ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                            AgentUserId       = $userId
+                            ParticipantId     = Get-PropertyValue $p 'participantId'
+                            SessionId         = Get-PropertyValue $sess 'sessionId'
+                            Provider          = Get-PropertyValue $sess 'provider'
+                            MediaType         = Get-PropertyValue $sess 'mediaType'
+                            SessionMos        = $sessionMos
+                            ConversationMos   = $convMos
+                            MosCategory       = Get-MosCategory $effectiveMos
+                            RFactor           = Get-PropertyValue $sess 'mediaStatsMinConversationRFactor'
+                            DisconnectType    = if ($lastSeg) { Get-PropertyValue $lastSeg 'disconnectType' } else { $null }
+                            ErrorCode         = if ($errorSeg) { Get-PropertyValue $errorSeg 'errorCode' } else { $null }
+                            SegmentCount      = $segments.Count
+                            QueueId           = if ($acdSeg) { Get-PropertyValue $acdSeg 'queueId' } else { $null }
+                            QueueName         = if ($acdSeg) { Get-PropertyValue $acdSeg 'queueName' } else { $null }
+                            DivisionId        = $divId
+                        }
                     }
                 }
             }
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Edge / Telephony Telemetry  (Roadmap ideas 1–5)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Edge / Telephony Telemetry  (Roadmap ideas 1–5)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysEdge {
-    <#
+    function Get-GenesysEdge {
+        <#
     .SYNOPSIS
         Returns all Edge appliances with registration and connectivity status.
     .DESCRIPTION
@@ -2969,15 +3025,15 @@ function Get-GenesysEdge {
         # Count edges per edge group
         Get-GenesysEdge | Group-Object { $_.edgeGroup.name } | Select-Object Name, Count | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'telephony.get.edges')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'telephony.get.edges')
+    }
 
-function Get-GenesysTrunk {
-    <#
+    function Get-GenesysTrunk {
+        <#
     .SYNOPSIS
         Returns all SIP trunks across the organisation.
     .DESCRIPTION
@@ -2995,15 +3051,15 @@ function Get-GenesysTrunk {
         # Show only active external trunks
         Get-GenesysTrunk | Where-Object { $_.trunkType -eq 'EXTERNAL' -and $_.state -eq 'ACTIVE' } | Format-Table name, edge
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'telephony.get.trunks')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'telephony.get.trunks')
+    }
 
-function Get-GenesysTrunkMetrics {
-    <#
+    function Get-GenesysTrunkMetrics {
+        <#
     .SYNOPSIS
         Returns aggregate SIP trunk utilisation and capacity metrics.
     .DESCRIPTION
@@ -3027,15 +3083,15 @@ function Get-GenesysTrunkMetrics {
             }
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'telephony.get.trunk.metrics.summary')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'telephony.get.trunk.metrics.summary')
+    }
 
-function Get-GenesysStation {
-    <#
+    function Get-GenesysStation {
+        <#
     .SYNOPSIS
         Returns all station (phone/softphone) registrations and statuses.
     .DESCRIPTION
@@ -3056,15 +3112,15 @@ function Get-GenesysStation {
         # Find all unassigned stations
         Get-GenesysStation | Where-Object { -not $_.userId } | Format-Table id, name, type
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'stations.get.stations')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'stations.get.stations')
+    }
 
-function Get-GenesysEdgeHealthSnapshot {
-    <#
+    function Get-GenesysEdgeHealthSnapshot {
+        <#
     .SYNOPSIS
         Returns a combined edge + trunk health summary suitable for a dashboard widget.
     .DESCRIPTION
@@ -3089,30 +3145,30 @@ function Get-GenesysEdgeHealthSnapshot {
             Write-Warning "ALERT: $($snap.EdgesOffline) edges offline: $($snap.OfflineEdgeNames -join ', ')"
         }
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $edges  = @(Get-GenesysEdge)
-    $trunks = @(Get-GenesysTrunk)
+        $edges = @(Get-GenesysEdge)
+        $trunks = @(Get-GenesysTrunk)
 
-    $offlineEdges = @($edges | Where-Object { $_.onlineStatus -ne 'ONLINE' })
+        $offlineEdges = @($edges | Where-Object { $_.onlineStatus -ne 'ONLINE' })
 
-    [PSCustomObject]@{
-        Timestamp        = Get-Date -Format 'o'
-        EdgesTotal       = $edges.Count
-        EdgesOnline      = @($edges | Where-Object { $_.onlineStatus -eq 'ONLINE'  }).Count
-        EdgesOffline     = $offlineEdges.Count
-        TrunksTotal      = $trunks.Count
-        TrunksActive     = @($trunks | Where-Object { $_.state -eq 'ACTIVE'        }).Count
-        TrunksInactive   = @($trunks | Where-Object { $_.state -ne 'ACTIVE'        }).Count
-        OfflineEdgeNames = $offlineEdges | ForEach-Object { $_.name }
+        [PSCustomObject]@{
+            Timestamp        = Get-Date -Format 'o'
+            EdgesTotal       = $edges.Count
+            EdgesOnline      = @($edges | Where-Object { $_.onlineStatus -eq 'ONLINE' }).Count
+            EdgesOffline     = $offlineEdges.Count
+            TrunksTotal      = $trunks.Count
+            TrunksActive     = @($trunks | Where-Object { $_.state -eq 'ACTIVE' }).Count
+            TrunksInactive   = @($trunks | Where-Object { $_.state -ne 'ACTIVE' }).Count
+            OfflineEdgeNames = $offlineEdges | ForEach-Object { $_.name }
+        }
     }
-}
 
-function Get-GenesysEdgeEvent {
-    <#
+    function Get-GenesysEdgeEvent {
+        <#
     .SYNOPSIS
         Returns a normalized NOC event feed for Edge, trunk, alert, and Edge log-job signals.
     .DESCRIPTION
@@ -3138,163 +3194,163 @@ function Get-GenesysEdgeEvent {
     .EXAMPLE
         Get-GenesysEdgeEvent -EdgeId 'edge-123' -LogJobId 'job-456'
     #>
-    [CmdletBinding()]
-    param(
-        [string[]] $EdgeId,
-        [string] $LogJobId,
-        [switch] $IncludeHealthy
-    )
-
-    Assert-GenesysConnected
-
-    $observedUtc = [DateTime]::UtcNow.ToString('o')
-    $events = [System.Collections.Generic.List[object]]::new()
-    $edgeFilter = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($id in @($EdgeId)) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$id)) {
-            $edgeFilter.Add([string]$id) | Out-Null
-        }
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($LogJobId) -and $edgeFilter.Count -eq 0) {
-        throw 'EdgeId is required when LogJobId is provided.'
-    }
-
-    $newEvent = {
+        [CmdletBinding()]
         param(
-            [string] $Severity,
-            [string] $EventType,
-            [string] $SourceType,
-            [string] $SourceId,
-            [string] $SourceName,
-            [string] $Status,
-            [string] $Message,
-            [object] $Details
+            [string[]] $EdgeId,
+            [string] $LogJobId,
+            [switch] $IncludeHealthy
         )
 
-        [PSCustomObject][ordered]@{
-            ObservedUtc = $observedUtc
-            Severity    = $Severity
-            EventType   = $EventType
-            SourceType  = $SourceType
-            SourceId    = $SourceId
-            SourceName  = $SourceName
-            Status      = $Status
-            Message     = $Message
-            Details     = $Details
-        }
-    }
+        Assert-GenesysConnected
 
-    try {
-        foreach ($edge in @(Get-GenesysEdge)) {
-            $id = [string](Get-PropertyValue $edge 'id' '')
-            if ($edgeFilter.Count -gt 0 -and -not $edgeFilter.Contains($id)) { continue }
-
-            $name = [string](Get-PropertyValue $edge 'name' $id)
-            $onlineStatus = [string](Get-PropertyValue $edge 'onlineStatus' '')
-            $state = [string](Get-PropertyValue $edge 'state' '')
-            $isOffline = -not [string]::IsNullOrWhiteSpace($onlineStatus) -and $onlineStatus -ne 'ONLINE'
-            $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
-
-            if ($isOffline) {
-                $events.Add((& $newEvent 'Critical' 'EdgeOffline' 'edge' $id $name $onlineStatus "Edge '$name' is not online ($onlineStatus)." $edge)) | Out-Null
-                continue
-            }
-
-            if ($isInactive) {
-                $events.Add((& $newEvent 'Warning' 'EdgeState' 'edge' $id $name $state "Edge '$name' is not active ($state)." $edge)) | Out-Null
-                continue
-            }
-
-            if ($IncludeHealthy) {
-                $status = if (-not [string]::IsNullOrWhiteSpace($onlineStatus)) { $onlineStatus } else { $state }
-                $events.Add((& $newEvent 'Info' 'EdgeHealthy' 'edge' $id $name $status "Edge '$name' is healthy." $edge)) | Out-Null
-            }
-        }
-    }
-    catch {
-        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edge' '' 'Get-GenesysEdge' 'Failed' "Edge inventory collection failed: $($_.Exception.Message)" $null)) | Out-Null
-    }
-
-    try {
-        foreach ($trunk in @(Get-GenesysTrunk)) {
-            $trunkEdgeId = [string](Get-NestedPropertyValue $trunk 'edge.id' '')
-            if ([string]::IsNullOrWhiteSpace($trunkEdgeId)) {
-                $trunkEdgeId = [string](Get-PropertyValue $trunk 'edgeId' '')
-            }
-            if ($edgeFilter.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($trunkEdgeId) -and -not $edgeFilter.Contains($trunkEdgeId)) { continue }
-
-            $id = [string](Get-PropertyValue $trunk 'id' '')
-            $name = [string](Get-PropertyValue $trunk 'name' $id)
-            $state = [string](Get-PropertyValue $trunk 'state' '')
-            $inService = Get-PropertyValue $trunk 'inService' $null
-            $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
-            $isOutOfService = $null -ne $inService -and [bool]$inService -eq $false
-
-            if ($isInactive -or $isOutOfService) {
-                $statusParts = @()
-                if (-not [string]::IsNullOrWhiteSpace($state)) { $statusParts += $state }
-                if ($null -ne $inService) { $statusParts += "inService=$inService" }
-                $status = if ($statusParts.Count -gt 0) { $statusParts -join '; ' } else { 'Unknown' }
-                $events.Add((& $newEvent 'Warning' 'TrunkState' 'trunk' $id $name $status "Trunk '$name' needs attention ($status)." $trunk)) | Out-Null
-                continue
-            }
-
-            if ($IncludeHealthy) {
-                $status = if (-not [string]::IsNullOrWhiteSpace($state)) { $state } else { 'Healthy' }
-                $events.Add((& $newEvent 'Info' 'TrunkHealthy' 'trunk' $id $name $status "Trunk '$name' is healthy." $trunk)) | Out-Null
-            }
-        }
-    }
-    catch {
-        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'trunk' '' 'Get-GenesysTrunk' 'Failed' "Trunk collection failed: $($_.Exception.Message)" $null)) | Out-Null
-    }
-
-    try {
-        foreach ($alert in @(Get-GenesysAlert)) {
-            $endDate = Get-PropertyValue $alert 'endDate' $null
-            if ($null -ne $endDate -and -not $IncludeHealthy) { continue }
-
-            $id = [string](Get-PropertyValue $alert 'id' '')
-            $name = [string](Get-PropertyValue $alert 'name' $id)
-            $status = if ($null -eq $endDate) { 'ACTIVE' } else { 'CLEARED' }
-            $severity = if ($status -eq 'ACTIVE') { 'Warning' } else { 'Info' }
-            $events.Add((& $newEvent $severity 'ActiveAlert' 'alert' $id $name $status "Alert '$name' is $status." $alert)) | Out-Null
-        }
-    }
-    catch {
-        $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'alert' '' 'Get-GenesysAlert' 'Failed' "Alert collection failed: $($_.Exception.Message)" $null)) | Out-Null
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($LogJobId)) {
+        $observedUtc = [DateTime]::UtcNow.ToString('o')
+        $events = [System.Collections.Generic.List[object]]::new()
+        $edgeFilter = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($id in @($EdgeId)) {
-            if ([string]::IsNullOrWhiteSpace([string]$id)) { continue }
-            try {
-                $records = @(Invoke-GenesysDataset -Dataset 'telephony.get.edge.logs.job' -DatasetParameters @{ Query = @{ edgeId = [string]$id; jobId = $LogJobId } })
-                foreach ($record in $records) {
-                    $status = [string](Get-PropertyValue $record 'status' '')
-                    if ([string]::IsNullOrWhiteSpace($status)) { $status = [string](Get-PropertyValue $record 'state' '') }
-                    if ([string]::IsNullOrWhiteSpace($status)) { $status = 'Unknown' }
-                    $events.Add((& $newEvent 'Info' 'EdgeLogJob' 'edgeLogJob' $LogJobId $LogJobId $status "Edge log job '$LogJobId' for Edge '$id' is $status." $record)) | Out-Null
+            if (-not [string]::IsNullOrWhiteSpace([string]$id)) {
+                $edgeFilter.Add([string]$id) | Out-Null
+            }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($LogJobId) -and $edgeFilter.Count -eq 0) {
+            throw 'EdgeId is required when LogJobId is provided.'
+        }
+
+        $newEvent = {
+            param(
+                [string] $Severity,
+                [string] $EventType,
+                [string] $SourceType,
+                [string] $SourceId,
+                [string] $SourceName,
+                [string] $Status,
+                [string] $Message,
+                [object] $Details
+            )
+
+            [PSCustomObject][ordered]@{
+                ObservedUtc = $observedUtc
+                Severity    = $Severity
+                EventType   = $EventType
+                SourceType  = $SourceType
+                SourceId    = $SourceId
+                SourceName  = $SourceName
+                Status      = $Status
+                Message     = $Message
+                Details     = $Details
+            }
+        }
+
+        try {
+            foreach ($edge in @(Get-GenesysEdge)) {
+                $id = [string](Get-PropertyValue $edge 'id' '')
+                if ($edgeFilter.Count -gt 0 -and -not $edgeFilter.Contains($id)) { continue }
+
+                $name = [string](Get-PropertyValue $edge 'name' $id)
+                $onlineStatus = [string](Get-PropertyValue $edge 'onlineStatus' '')
+                $state = [string](Get-PropertyValue $edge 'state' '')
+                $isOffline = -not [string]::IsNullOrWhiteSpace($onlineStatus) -and $onlineStatus -ne 'ONLINE'
+                $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
+
+                if ($isOffline) {
+                    $events.Add((& $newEvent 'Critical' 'EdgeOffline' 'edge' $id $name $onlineStatus "Edge '$name' is not online ($onlineStatus)." $edge)) | Out-Null
+                    continue
+                }
+
+                if ($isInactive) {
+                    $events.Add((& $newEvent 'Warning' 'EdgeState' 'edge' $id $name $state "Edge '$name' is not active ($state)." $edge)) | Out-Null
+                    continue
+                }
+
+                if ($IncludeHealthy) {
+                    $status = if (-not [string]::IsNullOrWhiteSpace($onlineStatus)) { $onlineStatus } else { $state }
+                    $events.Add((& $newEvent 'Info' 'EdgeHealthy' 'edge' $id $name $status "Edge '$name' is healthy." $edge)) | Out-Null
                 }
             }
-            catch {
-                $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edgeLogJob' $LogJobId $LogJobId 'Failed' "Edge log job '$LogJobId' collection failed for Edge '$id': $($_.Exception.Message)" $null)) | Out-Null
+        }
+        catch {
+            $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edge' '' 'Get-GenesysEdge' 'Failed' "Edge inventory collection failed: $($_.Exception.Message)" $null)) | Out-Null
+        }
+
+        try {
+            foreach ($trunk in @(Get-GenesysTrunk)) {
+                $trunkEdgeId = [string](Get-NestedPropertyValue $trunk 'edge.id' '')
+                if ([string]::IsNullOrWhiteSpace($trunkEdgeId)) {
+                    $trunkEdgeId = [string](Get-PropertyValue $trunk 'edgeId' '')
+                }
+                if ($edgeFilter.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($trunkEdgeId) -and -not $edgeFilter.Contains($trunkEdgeId)) { continue }
+
+                $id = [string](Get-PropertyValue $trunk 'id' '')
+                $name = [string](Get-PropertyValue $trunk 'name' $id)
+                $state = [string](Get-PropertyValue $trunk 'state' '')
+                $inService = Get-PropertyValue $trunk 'inService' $null
+                $isInactive = -not [string]::IsNullOrWhiteSpace($state) -and $state -ne 'ACTIVE'
+                $isOutOfService = $null -ne $inService -and [bool]$inService -eq $false
+
+                if ($isInactive -or $isOutOfService) {
+                    $statusParts = @()
+                    if (-not [string]::IsNullOrWhiteSpace($state)) { $statusParts += $state }
+                    if ($null -ne $inService) { $statusParts += "inService=$inService" }
+                    $status = if ($statusParts.Count -gt 0) { $statusParts -join '; ' } else { 'Unknown' }
+                    $events.Add((& $newEvent 'Warning' 'TrunkState' 'trunk' $id $name $status "Trunk '$name' needs attention ($status)." $trunk)) | Out-Null
+                    continue
+                }
+
+                if ($IncludeHealthy) {
+                    $status = if (-not [string]::IsNullOrWhiteSpace($state)) { $state } else { 'Healthy' }
+                    $events.Add((& $newEvent 'Info' 'TrunkHealthy' 'trunk' $id $name $status "Trunk '$name' is healthy." $trunk)) | Out-Null
+                }
             }
         }
+        catch {
+            $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'trunk' '' 'Get-GenesysTrunk' 'Failed' "Trunk collection failed: $($_.Exception.Message)" $null)) | Out-Null
+        }
+
+        try {
+            foreach ($alert in @(Get-GenesysAlert)) {
+                $endDate = Get-PropertyValue $alert 'endDate' $null
+                if ($null -ne $endDate -and -not $IncludeHealthy) { continue }
+
+                $id = [string](Get-PropertyValue $alert 'id' '')
+                $name = [string](Get-PropertyValue $alert 'name' $id)
+                $status = if ($null -eq $endDate) { 'ACTIVE' } else { 'CLEARED' }
+                $severity = if ($status -eq 'ACTIVE') { 'Warning' } else { 'Info' }
+                $events.Add((& $newEvent $severity 'ActiveAlert' 'alert' $id $name $status "Alert '$name' is $status." $alert)) | Out-Null
+            }
+        }
+        catch {
+            $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'alert' '' 'Get-GenesysAlert' 'Failed' "Alert collection failed: $($_.Exception.Message)" $null)) | Out-Null
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($LogJobId)) {
+            foreach ($id in @($EdgeId)) {
+                if ([string]::IsNullOrWhiteSpace([string]$id)) { continue }
+                try {
+                    $records = @(Invoke-GenesysDataset -Dataset 'telephony.get.edge.logs.job' -DatasetParameters @{ Query = @{ edgeId = [string]$id; jobId = $LogJobId } })
+                    foreach ($record in $records) {
+                        $status = [string](Get-PropertyValue $record 'status' '')
+                        if ([string]::IsNullOrWhiteSpace($status)) { $status = [string](Get-PropertyValue $record 'state' '') }
+                        if ([string]::IsNullOrWhiteSpace($status)) { $status = 'Unknown' }
+                        $events.Add((& $newEvent 'Info' 'EdgeLogJob' 'edgeLogJob' $LogJobId $LogJobId $status "Edge log job '$LogJobId' for Edge '$id' is $status." $record)) | Out-Null
+                    }
+                }
+                catch {
+                    $events.Add((& $newEvent 'Warning' 'CollectorFailure' 'edgeLogJob' $LogJobId $LogJobId 'Failed' "Edge log job '$LogJobId' collection failed for Edge '$id': $($_.Exception.Message)" $null)) | Out-Null
+                }
+            }
+        }
+
+        return $events.ToArray()
     }
 
-    return $events.ToArray()
-}
+    #endregion
 
-#endregion
+    # ---------------------------------------------------------------------------
+    #region Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-#region Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
-# ---------------------------------------------------------------------------
-
-function Get-GenesysQueueAbandonRate {
-    <#
+    function Get-GenesysQueueAbandonRate {
+        <#
     .SYNOPSIS
         Returns per-queue abandon rate metrics for a given interval.
     .DESCRIPTION
@@ -3324,60 +3380,61 @@ function Get-GenesysQueueAbandonRate {
             Where-Object { $_.AbandonRate -gt 10 } |
             ForEach-Object { Write-Warning "Queue $($_.QueueId) abandon rate: $($_.AbandonRate)%" }
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $QueueId,
-        [string]             $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $QueueId,
+            [string]             $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('queueId')
-        metrics  = @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned')
-    }
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('queueId')
+            metrics  = @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned')
+        }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        queueId   = $QueueId
-        mediaType = $MediaType
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            queueId   = $QueueId
+            mediaType = $MediaType
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.abandon.metrics' `
-                                   -DatasetParameters @{ Body = $body } |
-             ConvertFrom-AggregateResult)
+        $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.abandon.metrics' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
 
-    foreach ($r in $raw) {
-        $offered   = if ($r.nOffered_count)    { $r.nOffered_count    } else { 0 }
-        $abandoned = if ($r.nAbandoned_count)  { $r.nAbandoned_count  } else { 0 }
-        $connected = if ($r.nConnected_count)  { $r.nConnected_count  } else { 0 }
-        $tAbandon  = if ($r.tAbandoned_sum)    { $r.tAbandoned_sum    } else { $null }
+        foreach ($r in $raw) {
+            $offered = if ($r.nOffered_count) { $r.nOffered_count } else { 0 }
+            $abandoned = if ($r.nAbandoned_count) { $r.nAbandoned_count } else { 0 }
+            $connected = if ($r.nConnected_count) { $r.nConnected_count } else { 0 }
+            $tAbandon = if ($r.tAbandoned_sum) { $r.tAbandoned_sum } else { $null }
 
-        $rate = if ($offered -gt 0) { [math]::Round($abandoned / $offered * 100, 1) } else { 0.0 }
-        $avgAbandonSec = if ($abandoned -gt 0 -and $null -ne $tAbandon) {
-            [math]::Round($tAbandon / $abandoned / 1000, 1)
-        } else { $null }
+            $rate = if ($offered -gt 0) { [math]::Round($abandoned / $offered * 100, 1) } else { 0.0 }
+            $avgAbandonSec = if ($abandoned -gt 0 -and $null -ne $tAbandon) {
+                [math]::Round($tAbandon / $abandoned / 1000, 1)
+            }
+            else { $null }
 
-        [PSCustomObject]@{
-            QueueId       = $r.queueId
-            MediaType     = $r.mediaType
-            Interval      = $r.Interval
-            nOffered      = $offered
-            nAbandoned    = $abandoned
-            nConnected    = $connected
-            AbandonRate   = $rate
-            AvgAbandonSec = $avgAbandonSec
+            [PSCustomObject]@{
+                QueueId       = $r.queueId
+                MediaType     = $r.mediaType
+                Interval      = $r.Interval
+                nOffered      = $offered
+                nAbandoned    = $abandoned
+                nConnected    = $connected
+                AbandonRate   = $rate
+                AvgAbandonSec = $avgAbandonSec
+            }
         }
     }
-}
 
-function Get-GenesysQueueServiceLevel {
-    <#
+    function Get-GenesysQueueServiceLevel {
+        <#
     .SYNOPSIS
         Returns queue service level (SLA) metrics — percentage answered within threshold.
     .DESCRIPTION
@@ -3404,62 +3461,62 @@ function Get-GenesysQueueServiceLevel {
             Where-Object { $_.ServiceLevel30Pct -lt 80 -and $_.nOffered -gt 0 } |
             Format-Table QueueId, nOffered, ServiceLevel30Pct
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $QueueId,
-        [string]             $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $QueueId,
+            [string]             $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('queueId')
-        metrics  = @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60')
-    }
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('queueId')
+            metrics  = @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60')
+        }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        queueId   = $QueueId
-        mediaType = $MediaType
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            queueId   = $QueueId
+            mediaType = $MediaType
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.queue.aggregates.service.level' `
-                                   -DatasetParameters @{ Body = $body } |
-             ConvertFrom-AggregateResult)
+        $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.queue.aggregates.service.level' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
 
-    foreach ($r in $raw) {
-        $offered = if ($r.nOffered_count) { $r.nOffered_count } else { 0 }
+        foreach ($r in $raw) {
+            $offered = if ($r.nOffered_count) { $r.nOffered_count } else { 0 }
 
-        $in20 = if ($r.nAnsweredIn20_count) { $r.nAnsweredIn20_count } else { 0 }
-        $in30 = if ($r.nAnsweredIn30_count) { $r.nAnsweredIn30_count } else { 0 }
-        $in60 = if ($r.nAnsweredIn60_count) { $r.nAnsweredIn60_count } else { 0 }
+            $in20 = if ($r.nAnsweredIn20_count) { $r.nAnsweredIn20_count } else { 0 }
+            $in30 = if ($r.nAnsweredIn30_count) { $r.nAnsweredIn30_count } else { 0 }
+            $in60 = if ($r.nAnsweredIn60_count) { $r.nAnsweredIn60_count } else { 0 }
 
-        $sl20 = if ($offered -gt 0) { [math]::Round($in20 / $offered * 100, 1) } else { $null }
-        $sl30 = if ($offered -gt 0) { [math]::Round($in30 / $offered * 100, 1) } else { $null }
-        $sl60 = if ($offered -gt 0) { [math]::Round($in60 / $offered * 100, 1) } else { $null }
+            $sl20 = if ($offered -gt 0) { [math]::Round($in20 / $offered * 100, 1) } else { $null }
+            $sl30 = if ($offered -gt 0) { [math]::Round($in30 / $offered * 100, 1) } else { $null }
+            $sl60 = if ($offered -gt 0) { [math]::Round($in60 / $offered * 100, 1) } else { $null }
 
-        [PSCustomObject]@{
-            QueueId           = $r.queueId
-            MediaType         = $r.mediaType
-            Interval          = $r.Interval
-            nOffered          = $offered
-            nAnsweredIn20     = $in20
-            nAnsweredIn30     = $in30
-            nAnsweredIn60     = $in60
-            ServiceLevel20Pct = $sl20
-            ServiceLevel30Pct = $sl30
-            ServiceLevel60Pct = $sl60
+            [PSCustomObject]@{
+                QueueId           = $r.queueId
+                MediaType         = $r.mediaType
+                Interval          = $r.Interval
+                nOffered          = $offered
+                nAnsweredIn20     = $in20
+                nAnsweredIn30     = $in30
+                nAnsweredIn60     = $in60
+                ServiceLevel20Pct = $sl20
+                ServiceLevel30Pct = $sl30
+                ServiceLevel60Pct = $sl60
+            }
         }
     }
-}
 
-function Get-GenesysTransferAnalysis {
-    <#
+    function Get-GenesysTransferAnalysis {
+        <#
     .SYNOPSIS
         Returns transfer rate metrics (blind, consult) per queue.
     .DESCRIPTION
@@ -3482,53 +3539,53 @@ function Get-GenesysTransferAnalysis {
             Where-Object { $_.nConnected -gt 0 -and $_.nBlindTransferred / $_.nConnected -gt 0.15 } |
             Format-Table QueueId, nConnected, nBlindTransferred, TransferRate
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $QueueId,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $QueueId,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('queueId')
-        metrics  = @('nConnected', 'nTransferred', 'nBlindTransferred', 'nConsultTransferred')
-    }
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('queueId')
+            metrics  = @('nConnected', 'nTransferred', 'nBlindTransferred', 'nConsultTransferred')
+        }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ queueId = $QueueId }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{ queueId = $QueueId }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
 
-    $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.transfer.metrics' `
-                                   -DatasetParameters @{ Body = $body } |
-             ConvertFrom-AggregateResult)
+        $raw = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.transfer.metrics' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
 
-    foreach ($r in $raw) {
-        $connected  = if ($r.nConnected_count)          { $r.nConnected_count          } else { 0 }
-        $xfer       = if ($r.nTransferred_count)        { $r.nTransferred_count        } else { 0 }
-        $blind      = if ($r.nBlindTransferred_count)   { $r.nBlindTransferred_count   } else { 0 }
-        $consult    = if ($r.nConsultTransferred_count) { $r.nConsultTransferred_count } else { 0 }
+        foreach ($r in $raw) {
+            $connected = if ($r.nConnected_count) { $r.nConnected_count } else { 0 }
+            $xfer = if ($r.nTransferred_count) { $r.nTransferred_count } else { 0 }
+            $blind = if ($r.nBlindTransferred_count) { $r.nBlindTransferred_count } else { 0 }
+            $consult = if ($r.nConsultTransferred_count) { $r.nConsultTransferred_count } else { 0 }
 
-        $rate = if ($connected -gt 0) { [math]::Round($xfer / $connected * 100, 1) } else { 0.0 }
+            $rate = if ($connected -gt 0) { [math]::Round($xfer / $connected * 100, 1) } else { 0.0 }
 
-        [PSCustomObject]@{
-            QueueId             = $r.queueId
-            MediaType           = $r.mediaType
-            Interval            = $r.Interval
-            nConnected          = $connected
-            nTransferred        = $xfer
-            nBlindTransferred   = $blind
-            nConsultTransferred = $consult
-            TransferRate        = $rate
+            [PSCustomObject]@{
+                QueueId             = $r.queueId
+                MediaType           = $r.mediaType
+                Interval            = $r.Interval
+                nConnected          = $connected
+                nTransferred        = $xfer
+                nBlindTransferred   = $blind
+                nConsultTransferred = $consult
+                TransferRate        = $rate
+            }
         }
     }
-}
 
-function Get-GenesysWrapupDistribution {
-    <#
+    function Get-GenesysWrapupDistribution {
+        <#
     .SYNOPSIS
         Returns wrapup code usage distribution per queue.
     .DESCRIPTION
@@ -3548,37 +3605,37 @@ function Get-GenesysWrapupDistribution {
         # Export for a weekly report
         Get-GenesysWrapupDistribution | Export-Csv .\wrapup-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $QueueId,
-        [string[]]           $WrapupCodeId,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $QueueId,
+            [string[]]           $WrapupCodeId,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('queueId', 'wrapUpCode')
-        metrics  = @('nConnected', 'tHandle')
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('queueId', 'wrapUpCode')
+            metrics  = @('nConnected', 'tHandle')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            queueId    = $QueueId
+            wrapUpCode = $WrapupCodeId
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.wrapup.distribution' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
     }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        queueId    = $QueueId
-        wrapUpCode = $WrapupCodeId
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.wrapup.distribution' `
-                            -DatasetParameters @{ Body = $body } |
-      ConvertFrom-AggregateResult)
-}
-
-function Get-GenesysDigitalChannelVolume {
-    <#
+    function Get-GenesysDigitalChannelVolume {
+        <#
     .SYNOPSIS
         Returns conversation volume trends broken down by media type (channel).
     .DESCRIPTION
@@ -3599,33 +3656,33 @@ function Get-GenesysDigitalChannelVolume {
             Select-Object Name, @{n='TotalOffered';e={($_.Group|Measure-Object nOffered_count -Sum).Sum}} |
             Sort-Object TotalOffered -Descending | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [string]             $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string]             $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('mediaType', 'queueId')
-        metrics  = @('nOffered', 'nConnected', 'nAbandoned', 'tHandle')
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('mediaType', 'queueId')
+            metrics  = @('nOffered', 'nConnected', 'nAbandoned', 'tHandle')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{ mediaType = $MediaType }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.digital.channels' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
     }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ mediaType = $MediaType }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.digital.channels' `
-                            -DatasetParameters @{ Body = $body } |
-      ConvertFrom-AggregateResult)
-}
-
-function Export-GenesysMonthlyChannelVolume {
-    <#
+    function Export-GenesysMonthlyChannelVolume {
+        <#
     .SYNOPSIS
         Exports monthly conversation volume by media type and originating direction.
     .DESCRIPTION
@@ -3655,137 +3712,141 @@ function Export-GenesysMonthlyChannelVolume {
         Export-GenesysMonthlyChannelVolume -Since '2026-01-01' -Until '2026-05-01' `
             -OutputPath '.\exports\monthly-channel-volume.csv' -MediaType voice,message
     #>
-    [CmdletBinding(SupportsShouldProcess)]
-    param(
-        [Parameter(Mandatory)]
-        [Nullable[datetime]] $Since,
+        [CmdletBinding(SupportsShouldProcess)]
+        param(
+            [Parameter(Mandatory)]
+            [Nullable[datetime]] $Since,
 
-        [Parameter(Mandatory)]
-        [Nullable[datetime]] $Until,
+            [Parameter(Mandatory)]
+            [Nullable[datetime]] $Until,
 
-        [Parameter(Mandatory)]
-        [string] $OutputPath,
+            [Parameter(Mandatory)]
+            [string] $OutputPath,
 
-        [string[]] $MediaType,
+            [string[]] $MediaType,
 
-        [ValidateSet('inbound', 'outbound')]
-        [string[]] $OriginatingDirection,
+            [ValidateSet('inbound', 'outbound')]
+            [string[]] $OriginatingDirection,
 
-        [string[]] $QueueId,
+            [string[]] $QueueId,
 
-        [switch] $PassThru
-    )
+            [switch] $PassThru
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $sinceDate = [datetime]$Since
-    $untilDate = [datetime]$Until
+        $sinceDate = [datetime]$Since
+        $untilDate = [datetime]$Until
 
-    if ($sinceDate -ge $untilDate) {
-        throw 'Until must be later than Since.'
-    }
-
-    $body = [ordered]@{
-        interval    = "$($sinceDate.ToUniversalTime().ToString('o'))/$($untilDate.ToUniversalTime().ToString('o'))"
-        granularity = 'P1M'
-        groupBy     = @('mediaType', 'originatingDirection')
-        metrics     = @('nOffered', 'nConnected', 'nOutbound', 'nAbandoned')
-    }
-
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{
-        mediaType            = $MediaType
-        originatingDirection = $OriginatingDirection
-        queueId              = $QueueId
-    }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    $aggregateRows = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
-                                             -DatasetParameters @{ Body = $body } |
-                       ConvertFrom-AggregateResult)
-
-    $rows = @($aggregateRows | ForEach-Object {
-        $interval = [string](Get-PropertyValue $_ 'Interval' '')
-        $intervalStart = ''
-        $month = ''
-        if (-not [string]::IsNullOrWhiteSpace($interval)) {
-            $intervalStart = @($interval -split '/', 2)[0]
-            try {
-                $month = ([datetime]::Parse(
-                    $intervalStart,
-                    [System.Globalization.CultureInfo]::InvariantCulture,
-                    [System.Globalization.DateTimeStyles]::AssumeUniversal
-                )).ToUniversalTime().ToString('yyyy-MM')
-            } catch {
-                $month = if ($intervalStart.Length -ge 7) { $intervalStart.Substring(0, 7) } else { $intervalStart }
-            }
+        if ($sinceDate -ge $untilDate) {
+            throw 'Until must be later than Since.'
         }
 
-        $media = [string](Get-PropertyValue $_ 'mediaType' '')
-        $direction = [string](Get-PropertyValue $_ 'originatingDirection' '')
-        $offered = [long](Get-PropertyValue $_ 'nOffered_count' 0)
-        $connected = [long](Get-PropertyValue $_ 'nConnected_count' 0)
-        $outbound = [long](Get-PropertyValue $_ 'nOutbound_count' 0)
-        $abandoned = [long](Get-PropertyValue $_ 'nAbandoned_count' 0)
-        $volume = if ($direction -eq 'outbound' -and $outbound -gt 0) {
-            $outbound
-        } elseif ($offered -gt 0) {
-            $offered
-        } else {
-            $connected
+        $body = [ordered]@{
+            interval    = "$($sinceDate.ToUniversalTime().ToString('o'))/$($untilDate.ToUniversalTime().ToString('o'))"
+            granularity = 'P1M'
+            groupBy     = @('mediaType', 'originatingDirection')
+            metrics     = @('nOffered', 'nConnected', 'nOutbound', 'nAbandoned')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{
+            mediaType            = $MediaType
+            originatingDirection = $OriginatingDirection
+            queueId              = $QueueId
+        }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        $aggregateRows = @(Invoke-GenesysDataset -Dataset 'analytics.query.conversation.aggregates.queue.performance' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
+
+        $rows = @($aggregateRows | ForEach-Object {
+                $interval = [string](Get-PropertyValue $_ 'Interval' '')
+                $intervalStart = ''
+                $month = ''
+                if (-not [string]::IsNullOrWhiteSpace($interval)) {
+                    $intervalStart = @($interval -split '/', 2)[0]
+                    try {
+                        $month = ([datetime]::Parse(
+                                $intervalStart,
+                                [System.Globalization.CultureInfo]::InvariantCulture,
+                                [System.Globalization.DateTimeStyles]::AssumeUniversal
+                            )).ToUniversalTime().ToString('yyyy-MM')
+                    }
+                    catch {
+                        $month = if ($intervalStart.Length -ge 7) { $intervalStart.Substring(0, 7) } else { $intervalStart }
+                    }
+                }
+
+                $media = [string](Get-PropertyValue $_ 'mediaType' '')
+                $direction = [string](Get-PropertyValue $_ 'originatingDirection' '')
+                $offered = [long](Get-PropertyValue $_ 'nOffered_count' 0)
+                $connected = [long](Get-PropertyValue $_ 'nConnected_count' 0)
+                $outbound = [long](Get-PropertyValue $_ 'nOutbound_count' 0)
+                $abandoned = [long](Get-PropertyValue $_ 'nAbandoned_count' 0)
+                $volume = if ($direction -eq 'outbound' -and $outbound -gt 0) {
+                    $outbound
+                }
+                elseif ($offered -gt 0) {
+                    $offered
+                }
+                else {
+                    $connected
+                }
+
+                [PSCustomObject]@{
+                    Month                = $month
+                    IntervalStartUtc     = $intervalStart
+                    Interval             = $interval
+                    MediaType            = $media
+                    OriginatingDirection = $direction
+                    Volume               = $volume
+                    Offered              = $offered
+                    Connected            = $connected
+                    Outbound             = $outbound
+                    Abandoned            = $abandoned
+                }
+            })
+
+        $resolvedPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+            [System.IO.Path]::GetFullPath($OutputPath)
+        }
+        else {
+            [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+        }
+
+        if ($PSCmdlet.ShouldProcess($resolvedPath, 'Export monthly Genesys channel volume CSV')) {
+            $parent = Split-Path -Parent $resolvedPath
+            if ($parent -and -not (Test-Path $parent)) {
+                $null = New-Item -ItemType Directory -Path $parent -Force
+            }
+
+            Export-GenesysOpsRowsCsv -Rows $rows -Path $resolvedPath
+        }
+
+        if ($PassThru) {
+            return $rows
         }
 
         [PSCustomObject]@{
-            Month                = $month
-            IntervalStartUtc     = $intervalStart
-            Interval             = $interval
-            MediaType            = $media
-            OriginatingDirection = $direction
-            Volume               = $volume
-            Offered              = $offered
-            Connected            = $connected
-            Outbound             = $outbound
-            Abandoned            = $abandoned
+            OutputPath  = $resolvedPath
+            RecordCount = $rows.Count
+            Since       = $sinceDate.ToUniversalTime()
+            Until       = $untilDate.ToUniversalTime()
+            DatasetKey  = 'analytics.query.conversation.aggregates.queue.performance'
         }
-    })
-
-    $resolvedPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
-        [System.IO.Path]::GetFullPath($OutputPath)
-    } else {
-        [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
     }
 
-    if ($PSCmdlet.ShouldProcess($resolvedPath, 'Export monthly Genesys channel volume CSV')) {
-        $parent = Split-Path -Parent $resolvedPath
-        if ($parent -and -not (Test-Path $parent)) {
-            $null = New-Item -ItemType Directory -Path $parent -Force
-        }
+    #endregion
 
-        Export-GenesysOpsRowsCsv -Rows $rows -Path $resolvedPath
-    }
+    # ---------------------------------------------------------------------------
+    #region Quality & CSAT  (Roadmap ideas 11–13)
+    # ---------------------------------------------------------------------------
 
-    if ($PassThru) {
-        return $rows
-    }
-
-    [PSCustomObject]@{
-        OutputPath  = $resolvedPath
-        RecordCount = $rows.Count
-        Since       = $sinceDate.ToUniversalTime()
-        Until       = $untilDate.ToUniversalTime()
-        DatasetKey  = 'analytics.query.conversation.aggregates.queue.performance'
-    }
-}
-
-#endregion
-
-# ---------------------------------------------------------------------------
-#region Quality & CSAT  (Roadmap ideas 11–13)
-# ---------------------------------------------------------------------------
-
-function Get-GenesysEvaluation {
-    <#
+    function Get-GenesysEvaluation {
+        <#
     .SYNOPSIS
         Returns quality evaluations for agent interactions.
     .DESCRIPTION
@@ -3813,15 +3874,15 @@ function Get-GenesysEvaluation {
         Get-GenesysEvaluation | Where-Object { $_.totalCriticalScore -lt 70 } |
             Select-Object id, conversation, agent, totalScore, totalCriticalScore | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'quality.get.evaluations.query')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'quality.get.evaluations.query')
+    }
 
-function Get-GenesysSurvey {
-    <#
+    function Get-GenesysSurvey {
+        <#
     .SYNOPSIS
         Returns post-call customer survey results (CSAT / NPS).
     .DESCRIPTION
@@ -3851,15 +3912,15 @@ function Get-GenesysSurvey {
         $completed = @($surveys | Where-Object { $_.status -eq 'FINISHED' }).Count
         "Response rate: $([math]::Round($completed/$total*100,1))%"
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'quality.get.surveys')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'quality.get.surveys')
+    }
 
-function Get-GenesysSentimentTrend {
-    <#
+    function Get-GenesysSentimentTrend {
+        <#
     .SYNOPSIS
         Returns speech-analytics sentiment data for recent conversations.
     .DESCRIPTION
@@ -3881,52 +3942,53 @@ function Get-GenesysSentimentTrend {
         # Show most negative conversations first
         Get-GenesysSentimentTrend | Sort-Object OverallScore | Select-Object -First 10 | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [string[]] $DivisionId
-    )
+        [CmdletBinding()]
+        param(
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [string[]] $DivisionId
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $conversations = @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
+        $conversations = @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
 
-    foreach ($conv in $conversations) {
-        # Collect sentiment scores across all participants using safe property access.
-        $participants = Get-PropertyValue $conv 'participants'
-        $scores = foreach ($p in @($participants)) {
-            if ($null -eq $p) { continue }
-            foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
-                if ($null -eq $sess) { continue }
-                $score = Get-PropertyValue $sess 'sentimentScore'
-                if ($null -ne $score) { $score }
+        foreach ($conv in $conversations) {
+            # Collect sentiment scores across all participants using safe property access.
+            $participants = Get-PropertyValue $conv 'participants'
+            $scores = foreach ($p in @($participants)) {
+                if ($null -eq $p) { continue }
+                foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                    if ($null -eq $sess) { continue }
+                    $score = Get-PropertyValue $sess 'sentimentScore'
+                    if ($null -ne $score) { $score }
+                }
+            }
+            $avgScore = if ($scores -and @($scores).Count -gt 0) {
+                [math]::Round((@($scores) | Measure-Object -Average).Average, 3)
+            }
+            else { $null }
+
+            [PSCustomObject]@{
+                ConversationId    = Get-PropertyValue $conv 'conversationId'
+                ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                OverallScore      = $avgScore
+                ParticipantCount  = @($participants).Count
             }
         }
-        $avgScore = if ($scores -and @($scores).Count -gt 0) {
-            [math]::Round((@($scores) | Measure-Object -Average).Average, 3)
-        } else { $null }
-
-        [PSCustomObject]@{
-            ConversationId    = Get-PropertyValue $conv 'conversationId'
-            ConversationStart = Get-PropertyValue $conv 'conversationStart'
-            OverallScore      = $avgScore
-            ParticipantCount  = @($participants).Count
-        }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Alerting  (Roadmap ideas 14–15)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Alerting  (Roadmap ideas 14–15)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAlertingRule {
-    <#
+    function Get-GenesysAlertingRule {
+        <#
     .SYNOPSIS
         Returns all configured alerting rules (threshold definitions).
     .DESCRIPTION
@@ -3947,15 +4009,15 @@ function Get-GenesysAlertingRule {
         # List all disabled rules (potential oversight)
         Get-GenesysAlertingRule | Where-Object { -not $_.enabled } | Select-Object name, id | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'alerting.get.rules')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'alerting.get.rules')
+    }
 
-function Get-GenesysAlert {
-    <#
+    function Get-GenesysAlert {
+        <#
     .SYNOPSIS
         Returns all currently firing platform alerts.
     .DESCRIPTION
@@ -3978,21 +4040,21 @@ function Get-GenesysAlert {
         # Count active alerts by type
         Get-GenesysAlert | Group-Object alertTypes | Select-Object Name, Count | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'alerting.get.alerts')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'alerting.get.alerts')
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Agent Insights  (Roadmap ideas 16–18)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Agent Insights  (Roadmap ideas 16–18)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAgentLoginActivity {
-    <#
+    function Get-GenesysAgentLoginActivity {
+        <#
     .SYNOPSIS
         Returns per-agent login and queue-time activity metrics.
     .DESCRIPTION
@@ -4023,33 +4085,33 @@ function Get-GenesysAgentLoginActivity {
                 $_.tIdleTime_sum / $_.tOnQueueTime_sum -gt 0.5
             } | Format-Table UserId, Interval
     #>
-    [CmdletBinding()]
-    param(
-        [string[]]           $UserId,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]]           $UserId,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $body = [ordered]@{
-        interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
-        groupBy  = @('userId')
-        metrics  = @('tOnQueueTime', 'tOffQueueTime', 'tIdleTime', 'tNotRespondingTime', 'nConnected')
+        $body = [ordered]@{
+            interval = New-GenesysAnalyticsInterval -Since $Since -Until $Until -DefaultLookbackHours 24
+            groupBy  = @('userId')
+            metrics  = @('tOnQueueTime', 'tOffQueueTime', 'tIdleTime', 'tNotRespondingTime', 'nConnected')
+        }
+
+        $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
+        if ($null -ne $filter) {
+            $body.filter = $filter
+        }
+
+        @(Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.login.activity' `
+                -DatasetParameters @{ Body = $body } |
+                ConvertFrom-AggregateResult)
     }
 
-    $filter = New-GenesysAnalyticsFilter -DimensionValues @{ userId = $UserId }
-    if ($null -ne $filter) {
-        $body.filter = $filter
-    }
-
-    @(Invoke-GenesysDataset -Dataset 'analytics.query.user.aggregates.login.activity' `
-                            -DatasetParameters @{ Body = $body } |
-      ConvertFrom-AggregateResult)
-}
-
-function Get-GenesysLongHandleConversation {
-    <#
+    function Get-GenesysLongHandleConversation {
+        <#
     .SYNOPSIS
         Returns conversations whose total handle time exceeds a threshold.
     .DESCRIPTION
@@ -4080,83 +4142,85 @@ function Get-GenesysLongHandleConversation {
         $convs = Get-GenesysConversationDetail
         $convs | Get-GenesysLongHandleConversation -ThresholdSeconds 600 | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [int] $ThresholdSeconds = 600,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [string[]] $DivisionId,
+        [CmdletBinding()]
+        param(
+            [int] $ThresholdSeconds = 600,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [string[]] $DivisionId,
 
-        [Parameter(ValueFromPipeline)]
-        [object[]] $InputObject
-    )
+            [Parameter(ValueFromPipeline)]
+            [object[]] $InputObject
+        )
 
-    begin {
-        $buffer = [System.Collections.Generic.List[object]]::new()
-    }
-    process {
-        if ($null -ne $InputObject) {
-            foreach ($item in $InputObject) { $buffer.Add($item) }
+        begin {
+            $buffer = [System.Collections.Generic.List[object]]::new()
         }
-    }
-    end {
-        $conversations = if ($buffer.Count -gt 0) {
-            $buffer.ToArray()
-        } else {
-            Assert-GenesysConnected
-            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
+        process {
+            if ($null -ne $InputObject) {
+                foreach ($item in $InputObject) { $buffer.Add($item) }
+            }
         }
+        end {
+            $conversations = if ($buffer.Count -gt 0) {
+                $buffer.ToArray()
+            }
+            else {
+                Assert-GenesysConnected
+                @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
+            }
 
-        foreach ($conv in $conversations) {
-            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
-                if ($null -eq $p) { continue }
-                $purpose = Get-PropertyValue $p 'purpose'
-                $userId  = Get-PropertyValue $p 'userId'
-                if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
-                if (-not $userId) { continue }
+            foreach ($conv in $conversations) {
+                foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                    if ($null -eq $p) { continue }
+                    $purpose = Get-PropertyValue $p 'purpose'
+                    $userId = Get-PropertyValue $p 'userId'
+                    if ($purpose -ne 'agent' -and $purpose -ne 'user') { continue }
+                    if (-not $userId) { continue }
 
-                foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
-                    if ($null -eq $sess) { continue }
-                    $segsRaw = Get-PropertyValue $sess 'segments'
-                    $segs    = @(if ($segsRaw) { $segsRaw } else { @() })
-                    $acdSeg  = $segs | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
+                    foreach ($sess in @(Get-PropertyValue $p 'sessions')) {
+                        if ($null -eq $sess) { continue }
+                        $segsRaw = Get-PropertyValue $sess 'segments'
+                        $segs = @(if ($segsRaw) { $segsRaw } else { @() })
+                        $acdSeg = $segs | Where-Object { Get-PropertyValue $_ 'queueId' } | Select-Object -First 1
 
-                    # Sum segment durations for this session
-                    $handleMs = 0
-                    foreach ($seg in $segs) {
-                        $segStart = Get-PropertyValue $seg 'segmentStart'
-                        $segEnd   = Get-PropertyValue $seg 'segmentEnd'
-                        if ($segStart -and $segEnd) {
-                            try {
-                                $start = [datetime]::Parse($segStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                                $end   = [datetime]::Parse($segEnd,   $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                                $handleMs += ($end - $start).TotalMilliseconds
-                            } catch { }
+                        # Sum segment durations for this session
+                        $handleMs = 0
+                        foreach ($seg in $segs) {
+                            $segStart = Get-PropertyValue $seg 'segmentStart'
+                            $segEnd = Get-PropertyValue $seg 'segmentEnd'
+                            if ($segStart -and $segEnd) {
+                                try {
+                                    $start = [datetime]::Parse($segStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                    $end = [datetime]::Parse($segEnd, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                                    $handleMs += ($end - $start).TotalMilliseconds
+                                }
+                                catch { }
+                            }
                         }
-                    }
 
-                    $handleSec = [math]::Round($handleMs / 1000, 1)
-                    if ($handleSec -ge $ThresholdSeconds) {
-                        [PSCustomObject]@{
-                            ConversationId    = Get-PropertyValue $conv 'conversationId'
-                            ConversationStart = Get-PropertyValue $conv 'conversationStart'
-                            AgentUserId       = $userId
-                            HandleSec         = $handleSec
-                            QueueId           = if ($acdSeg) { Get-PropertyValue $acdSeg 'queueId' } else { $null }
-                            MediaType         = Get-PropertyValue $sess 'mediaType'
+                        $handleSec = [math]::Round($handleMs / 1000, 1)
+                        if ($handleSec -ge $ThresholdSeconds) {
+                            [PSCustomObject]@{
+                                ConversationId    = Get-PropertyValue $conv 'conversationId'
+                                ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                                AgentUserId       = $userId
+                                HandleSec         = $handleSec
+                                QueueId           = if ($acdSeg) { Get-PropertyValue $acdSeg 'queueId' } else { $null }
+                                MediaType         = Get-PropertyValue $sess 'mediaType'
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
 
-function Get-GenesysRepeatCaller {
-    <#
+    function Get-GenesysRepeatCaller {
+        <#
     .SYNOPSIS
         Detects customers who contacted the centre more than once within a window.
     .DESCRIPTION
@@ -4185,86 +4249,87 @@ function Get-GenesysRepeatCaller {
         # Top 10 most frequent callers
         Get-GenesysRepeatCaller | Sort-Object CallCount -Descending | Select-Object -First 10 | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [int] $MinCallCount = 2,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [string[]] $DivisionId,
+        [CmdletBinding()]
+        param(
+            [int] $MinCallCount = 2,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [string[]] $DivisionId,
 
-        [Parameter(ValueFromPipeline)]
-        [object[]] $InputObject
-    )
+            [Parameter(ValueFromPipeline)]
+            [object[]] $InputObject
+        )
 
-    begin {
-        $buffer = [System.Collections.Generic.List[object]]::new()
-    }
-    process {
-        if ($null -ne $InputObject) {
-            foreach ($item in $InputObject) { $buffer.Add($item) }
+        begin {
+            $buffer = [System.Collections.Generic.List[object]]::new()
         }
-    }
-    end {
-        $conversations = if ($buffer.Count -gt 0) {
-            $buffer.ToArray()
-        } else {
-            Assert-GenesysConnected
-            @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
-        }
-
-        # Extract ANI from customer participants using safe property access.
-        $byAni = @{}
-        foreach ($conv in $conversations) {
-            $allParts = Get-PropertyValue $conv 'participants'
-            $custPart = @($allParts) | Where-Object { (Get-PropertyValue $_ 'purpose') -eq 'customer' } | Select-Object -First 1
-            if (-not $custPart) { continue }
-
-            $ani = $null
-            foreach ($sess in @(Get-PropertyValue $custPart 'sessions')) {
-                if ($null -eq $sess) { continue }
-                $aniVal  = Get-PropertyValue $sess 'ani'
-                $dnisVal = Get-PropertyValue $sess 'dnis'
-                if ($aniVal)  { $ani = $aniVal;  break }
-                if ($dnisVal) { $ani = $dnisVal; break }
+        process {
+            if ($null -ne $InputObject) {
+                foreach ($item in $InputObject) { $buffer.Add($item) }
             }
-            if (-not $ani) { continue }
-
-            if (-not $byAni.ContainsKey($ani)) {
-                $byAni[$ani] = [System.Collections.Generic.List[object]]::new()
-            }
-            $byAni[$ani].Add([PSCustomObject]@{
-                ConversationId    = Get-PropertyValue $conv 'conversationId'
-                ConversationStart = Get-PropertyValue $conv 'conversationStart'
-            })
         }
+        end {
+            $conversations = if ($buffer.Count -gt 0) {
+                $buffer.ToArray()
+            }
+            else {
+                Assert-GenesysConnected
+                @(Get-GenesysConversationDetail -Since $Since -Until $Until -QueueId $QueueId -UserId $UserId -MediaType $MediaType -DivisionId $DivisionId)
+            }
 
-        foreach ($ani in $byAni.Keys) {
-            $records = @($byAni[$ani])
-            if ($records.Count -ge $MinCallCount) {
-                $sorted = $records | Sort-Object ConversationStart
-                [PSCustomObject]@{
-                    CallerAni       = $ani
-                    CallCount       = $records.Count
-                    ConversationIds = $records | ForEach-Object { $_.ConversationId }
-                    FirstContact    = $sorted[0].ConversationStart
-                    LastContact     = $sorted[-1].ConversationStart
+            # Extract ANI from customer participants using safe property access.
+            $byAni = @{}
+            foreach ($conv in $conversations) {
+                $allParts = Get-PropertyValue $conv 'participants'
+                $custPart = @($allParts) | Where-Object { (Get-PropertyValue $_ 'purpose') -eq 'customer' } | Select-Object -First 1
+                if (-not $custPart) { continue }
+
+                $ani = $null
+                foreach ($sess in @(Get-PropertyValue $custPart 'sessions')) {
+                    if ($null -eq $sess) { continue }
+                    $aniVal = Get-PropertyValue $sess 'ani'
+                    $dnisVal = Get-PropertyValue $sess 'dnis'
+                    if ($aniVal) { $ani = $aniVal; break }
+                    if ($dnisVal) { $ani = $dnisVal; break }
+                }
+                if (-not $ani) { continue }
+
+                if (-not $byAni.ContainsKey($ani)) {
+                    $byAni[$ani] = [System.Collections.Generic.List[object]]::new()
+                }
+                $byAni[$ani].Add([PSCustomObject]@{
+                        ConversationId    = Get-PropertyValue $conv 'conversationId'
+                        ConversationStart = Get-PropertyValue $conv 'conversationStart'
+                    })
+            }
+
+            foreach ($ani in $byAni.Keys) {
+                $records = @($byAni[$ani])
+                if ($records.Count -ge $MinCallCount) {
+                    $sorted = $records | Sort-Object ConversationStart
+                    [PSCustomObject]@{
+                        CallerAni       = $ani
+                        CallCount       = $records.Count
+                        ConversationIds = $records | ForEach-Object { $_.ConversationId }
+                        FirstContact    = $sorted[0].ConversationStart
+                        LastContact     = $sorted[-1].ConversationStart
+                    }
                 }
             }
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region WebRTC & Media Quality Trending  (Roadmap ideas 19–20)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region WebRTC & Media Quality Trending  (Roadmap ideas 19–20)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysWebRtcDisconnectSummary {
-    <#
+    function Get-GenesysWebRtcDisconnectSummary {
+        <#
     .SYNOPSIS
         Summarises WebRTC disconnect events by error code and time bucket.
     .DESCRIPTION
@@ -4288,55 +4353,57 @@ function Get-GenesysWebRtcDisconnectSummary {
         $q = Get-GenesysConversationDetail | Get-GenesysAgentVoiceQuality
         $q | Get-GenesysWebRtcDisconnectSummary | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromPipeline)]
-        [object[]] $InputObject
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(ValueFromPipeline)]
+            [object[]] $InputObject
+        )
 
-    begin {
-        $buffer = [System.Collections.Generic.List[object]]::new()
-    }
-    process {
-        if ($null -ne $InputObject) {
-            foreach ($item in $InputObject) { $buffer.Add($item) }
+        begin {
+            $buffer = [System.Collections.Generic.List[object]]::new()
         }
-    }
-    end {
-        $qualityRecords = if ($buffer.Count -gt 0) {
-            $buffer.ToArray()
-        } else {
-            Assert-GenesysConnected
-            @(Get-GenesysAgentVoiceQuality)
+        process {
+            if ($null -ne $InputObject) {
+                foreach ($item in $InputObject) { $buffer.Add($item) }
+            }
         }
+        end {
+            $qualityRecords = if ($buffer.Count -gt 0) {
+                $buffer.ToArray()
+            }
+            else {
+                Assert-GenesysConnected
+                @(Get-GenesysAgentVoiceQuality)
+            }
 
-        # Filter to WebRTC sessions with an error code
-        $errored = $qualityRecords | Where-Object {
-            $_.Provider -eq 'WebRTC' -and $_.ErrorCode
-        }
+            # Filter to WebRTC sessions with an error code
+            $errored = $qualityRecords | Where-Object {
+                $_.Provider -eq 'WebRTC' -and $_.ErrorCode
+            }
 
-        $groups = $errored | Group-Object {
-            # Truncate to hour
-            try {
-                $dt = [datetime]::Parse($_.ConversationStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                $dt.ToString('yyyy-MM-ddTHH:00')
-            } catch { $_.ConversationStart }
-        }, ErrorCode, DisconnectType
+            $groups = $errored | Group-Object {
+                # Truncate to hour
+                try {
+                    $dt = [datetime]::Parse($_.ConversationStart, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    $dt.ToString('yyyy-MM-ddTHH:00')
+                }
+                catch { $_.ConversationStart }
+            }, ErrorCode, DisconnectType
 
-        foreach ($g in $groups) {
-            $parts = $g.Name -split ', '
-            [PSCustomObject]@{
-                Hour           = if ($parts.Count -ge 1) { $parts[0] } else { $g.Name }
-                ErrorCode      = if ($parts.Count -ge 2) { $parts[1] } else { $null }
-                DisconnectType = if ($parts.Count -ge 3) { $parts[2] } else { $null }
-                Count          = $g.Count
+            foreach ($g in $groups) {
+                $parts = $g.Name -split ', '
+                [PSCustomObject]@{
+                    Hour           = if ($parts.Count -ge 1) { $parts[0] } else { $g.Name }
+                    ErrorCode      = if ($parts.Count -ge 2) { $parts[1] } else { $null }
+                    DisconnectType = if ($parts.Count -ge 3) { $parts[2] } else { $null }
+                    Count          = $g.Count
+                }
             }
         }
     }
-}
 
-function Get-GenesysConversationLatencyTrend {
-    <#
+    function Get-GenesysConversationLatencyTrend {
+        <#
     .SYNOPSIS
         Returns hourly conversation latency (handle time, talk time, ACW) trends.
     .DESCRIPTION
@@ -4360,42 +4427,42 @@ function Get-GenesysConversationLatencyTrend {
         # Find the peak handle-time hour across all queues
         Get-GenesysConversationLatencyTrend | Sort-Object AvgHandleSec -Descending | Select-Object -First 5 | Format-Table
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $raw = @(Get-GenesysQueuePerformance)
+        $raw = @(Get-GenesysQueuePerformance)
 
-    foreach ($r in $raw) {
-        $n = if ($r.nConnected_count) { $r.nConnected_count } else { 0 }
+        foreach ($r in $raw) {
+            $n = if ($r.nConnected_count) { $r.nConnected_count } else { 0 }
 
-        $avgHandle = if ($n -gt 0 -and $r.tHandle_sum)   { [math]::Round($r.tHandle_sum   / $n / 1000, 1) } else { $null }
-        $avgTalk   = if ($n -gt 0 -and $r.tTalk_sum)     { [math]::Round($r.tTalk_sum     / $n / 1000, 1) } else { $null }
-        $avgAcw    = if ($n -gt 0 -and $r.tAcw_sum)      { [math]::Round($r.tAcw_sum      / $n / 1000, 1) } else { $null }
-        $avgAnswer = if ($n -gt 0 -and $r.tAnswered_sum) { [math]::Round($r.tAnswered_sum / $n / 1000, 1) } else { $null }
+            $avgHandle = if ($n -gt 0 -and $r.tHandle_sum) { [math]::Round($r.tHandle_sum / $n / 1000, 1) } else { $null }
+            $avgTalk = if ($n -gt 0 -and $r.tTalk_sum) { [math]::Round($r.tTalk_sum / $n / 1000, 1) } else { $null }
+            $avgAcw = if ($n -gt 0 -and $r.tAcw_sum) { [math]::Round($r.tAcw_sum / $n / 1000, 1) } else { $null }
+            $avgAnswer = if ($n -gt 0 -and $r.tAnswered_sum) { [math]::Round($r.tAnswered_sum / $n / 1000, 1) } else { $null }
 
-        [PSCustomObject]@{
-            QueueId      = $r.queueId
-            MediaType    = $r.mediaType
-            Interval     = $r.Interval
-            AvgHandleSec = $avgHandle
-            AvgTalkSec   = $avgTalk
-            AvgAcwSec    = $avgAcw
-            AvgAnswerSec = $avgAnswer
-            nConnected   = $n
+            [PSCustomObject]@{
+                QueueId      = $r.queueId
+                MediaType    = $r.mediaType
+                Interval     = $r.Interval
+                AvgHandleSec = $avgHandle
+                AvgTalkSec   = $avgTalk
+                AvgAcwSec    = $avgAcw
+                AvgAnswerSec = $avgAnswer
+                nConnected   = $n
+            }
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region ACW Anomaly Detection  (Roadmap idea 21)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region ACW Anomaly Detection  (Roadmap idea 21)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAgentAcwAnomaly {
-    <#
+    function Get-GenesysAgentAcwAnomaly {
+        <#
     .SYNOPSIS
         Identifies agents with unusually high after-call work (ACW) time.
     .DESCRIPTION
@@ -4420,48 +4487,48 @@ function Get-GenesysAgentAcwAnomaly {
     .EXAMPLE
         Get-GenesysAgentAcwAnomaly -StdDevMultiplier 1.5 | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [double] $StdDevMultiplier = 2.0
-    )
+        [CmdletBinding()]
+        param(
+            [double] $StdDevMultiplier = 2.0
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $perf = @(Get-GenesysAgentPerformance | Where-Object { $_.ConversationsHandled -gt 0 })
-    if ($perf.Count -eq 0) { return }
+        $perf = @(Get-GenesysAgentPerformance | Where-Object { $_.ConversationsHandled -gt 0 })
+        if ($perf.Count -eq 0) { return }
 
-    $agentAcw = foreach ($a in $perf) {
-        $avgAcwSec = if ($a.AvgAcwSec) { $a.AvgAcwSec } else { 0.0 }
-        [PSCustomObject]@{ UserId = $a.UserId; AvgAcwSec = $avgAcwSec; nHandled = $a.ConversationsHandled }
-    }
+        $agentAcw = foreach ($a in $perf) {
+            $avgAcwSec = if ($a.AvgAcwSec) { $a.AvgAcwSec } else { 0.0 }
+            [PSCustomObject]@{ UserId = $a.UserId; AvgAcwSec = $avgAcwSec; nHandled = $a.ConversationsHandled }
+        }
 
-    $mean     = ($agentAcw | Measure-Object AvgAcwSec -Average).Average
-    $variance = ($agentAcw | ForEach-Object { [math]::Pow($_.AvgAcwSec - $mean, 2) } | Measure-Object -Average).Average
-    $stdDev   = [math]::Sqrt($variance)
-    $threshold = $mean + $StdDevMultiplier * $stdDev
+        $mean = ($agentAcw | Measure-Object AvgAcwSec -Average).Average
+        $variance = ($agentAcw | ForEach-Object { [math]::Pow($_.AvgAcwSec - $mean, 2) } | Measure-Object -Average).Average
+        $stdDev = [math]::Sqrt($variance)
+        $threshold = $mean + $StdDevMultiplier * $stdDev
 
-    foreach ($a in $agentAcw) {
-        $deviation = if ($mean -gt 0) { [math]::Round(($a.AvgAcwSec - $mean) / $mean * 100, 1) } else { 0.0 }
-        if ($a.AvgAcwSec -ge $threshold) {
-            [PSCustomObject]@{
-                UserId       = $a.UserId
-                AvgAcwSec    = [math]::Round($a.AvgAcwSec, 1)
-                OrgAvgAcwSec = [math]::Round($mean, 1)
-                DeviationPct = $deviation
-                nHandled     = $a.nHandled
+        foreach ($a in $agentAcw) {
+            $deviation = if ($mean -gt 0) { [math]::Round(($a.AvgAcwSec - $mean) / $mean * 100, 1) } else { 0.0 }
+            if ($a.AvgAcwSec -ge $threshold) {
+                [PSCustomObject]@{
+                    UserId       = $a.UserId
+                    AvgAcwSec    = [math]::Round($a.AvgAcwSec, 1)
+                    OrgAvgAcwSec = [math]::Round($mean, 1)
+                    DeviationPct = $deviation
+                    nHandled     = $a.nHandled
+                }
             }
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Workforce Management  (Roadmap idea 22)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Workforce Management  (Roadmap idea 22)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysWorkforceManagementUnit {
-    <#
+    function Get-GenesysWorkforceManagementUnit {
+        <#
     .SYNOPSIS
         Returns WFM management units (team groupings for scheduling).
     .DESCRIPTION
@@ -4480,21 +4547,21 @@ function Get-GenesysWorkforceManagementUnit {
         # Find management units with no agents
         Get-GenesysWorkforceManagementUnit | Where-Object { $_.agentCount -eq 0 } | Format-Table name, id
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'workforce.get.management.units')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'workforce.get.management.units')
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Journey / Predictive Engagement  (Roadmap idea 23)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Journey / Predictive Engagement  (Roadmap idea 23)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysJourneyActionMap {
-    <#
+    function Get-GenesysJourneyActionMap {
+        <#
     .SYNOPSIS
         Returns Journey action maps (predictive engagement triggers).
     .DESCRIPTION
@@ -4520,21 +4587,21 @@ function Get-GenesysJourneyActionMap {
             $_.endDate -and [datetime]$_.endDate -lt $now
         } | Format-Table displayName, endDate
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
-    @(Invoke-GenesysDataset -Dataset 'journey.get.action.maps')
-}
+        Assert-GenesysConnected
+        @(Invoke-GenesysDataset -Dataset 'journey.get.action.maps')
+    }
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Peak Hour Load Analysis  (Roadmap idea 27)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Peak Hour Load Analysis  (Roadmap idea 27)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysPeakHourLoad {
-    <#
+    function Get-GenesysPeakHourLoad {
+        <#
     .SYNOPSIS
         Identifies peak traffic intervals (staffing-gap hotspots) across queues.
     .DESCRIPTION
@@ -4574,49 +4641,49 @@ function Get-GenesysPeakHourLoad {
             Where-Object MediaType -eq 'voice' |
             Sort-Object nConnected -Descending | Format-Table
     #>
-    [CmdletBinding()]
-    param(
-        [int]    $TopN   = 5,
-        [ValidateSet('nConnected','AvgHandleSec','AvgTalkSec')]
-        [string] $SortBy = 'nConnected'
-    )
+        [CmdletBinding()]
+        param(
+            [int]    $TopN = 5,
+            [ValidateSet('nConnected', 'AvgHandleSec', 'AvgTalkSec')]
+            [string] $SortBy = 'nConnected'
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $trend = @(Get-GenesysConversationLatencyTrend)
-    if ($trend.Count -eq 0) { return }
+        $trend = @(Get-GenesysConversationLatencyTrend)
+        if ($trend.Count -eq 0) { return }
 
-    # Group by queue+media and rank intervals within each group
-    $groups = $trend | Group-Object QueueId, MediaType
+        # Group by queue+media and rank intervals within each group
+        $groups = $trend | Group-Object QueueId, MediaType
 
-    foreach ($g in $groups) {
-        $sorted = @($g.Group | Sort-Object $SortBy -Descending)
-        $top    = if ($sorted.Count -le $TopN) { $sorted } else { $sorted[0..($TopN - 1)] }
-        $rank   = 1
-        foreach ($r in $top) {
-            [PSCustomObject]@{
-                QueueId      = $r.QueueId
-                MediaType    = $r.MediaType
-                Interval     = $r.Interval
-                nConnected   = $r.nConnected
-                AvgHandleSec = $r.AvgHandleSec
-                AvgTalkSec   = $r.AvgTalkSec
-                AvgAcwSec    = $r.AvgAcwSec
-                Rank         = $rank
+        foreach ($g in $groups) {
+            $sorted = @($g.Group | Sort-Object $SortBy -Descending)
+            $top = if ($sorted.Count -le $TopN) { $sorted } else { $sorted[0..($TopN - 1)] }
+            $rank = 1
+            foreach ($r in $top) {
+                [PSCustomObject]@{
+                    QueueId      = $r.QueueId
+                    MediaType    = $r.MediaType
+                    Interval     = $r.Interval
+                    nConnected   = $r.nConnected
+                    AvgHandleSec = $r.AvgHandleSec
+                    AvgTalkSec   = $r.AvgTalkSec
+                    AvgAcwSec    = $r.AvgAcwSec
+                    Rank         = $rank
+                }
+                $rank++
             }
-            $rank++
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Configuration Change Audit Feed  (Roadmap idea 28)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Configuration Change Audit Feed  (Roadmap idea 28)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysChangeAuditFeed {
-    <#
+    function Get-GenesysChangeAuditFeed {
+        <#
     .SYNOPSIS
         Returns a risk-categorised feed of recent admin configuration changes.
     .DESCRIPTION
@@ -4652,83 +4719,83 @@ function Get-GenesysChangeAuditFeed {
         Get-GenesysChangeAuditFeed -Risk HIGH |
             ForEach-Object { Send-Teams -Message "⚠️ $($_.Risk): $($_.Summary)" }
     #>
-    [CmdletBinding()]
-    param(
-        [string] $EntityType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [ValidateSet('HIGH','MEDIUM','LOW')]
-        [string] $Risk
-    )
+        [CmdletBinding()]
+        param(
+            [string] $EntityType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [ValidateSet('HIGH', 'MEDIUM', 'LOW')]
+            [string] $Risk
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $filterParams = @{}
-    if ($EntityType) { $filterParams['EntityType'] = $EntityType }
-    if ($Since.HasValue) { $filterParams['Since'] = $Since }
-    if ($Until.HasValue) { $filterParams['Until'] = $Until }
+        $filterParams = @{}
+        if ($EntityType) { $filterParams['EntityType'] = $EntityType }
+        if ($Since.HasValue) { $filterParams['Since'] = $Since }
+        if ($Until.HasValue) { $filterParams['Until'] = $Until }
 
-    $events = @(Get-GenesysAuditEvent @filterParams)
-    if ($events.Count -eq 0) { return }
+        $events = @(Get-GenesysAuditEvent @filterParams)
+        if ($events.Count -eq 0) { return }
 
-    # Entity types considered sensitive for risk elevation
-    $highRiskEntities = @('USER','FLOW','OAUTH_CLIENT','DIVISION','ROLE')
-    $mediumRiskEntities = @('QUEUE','ROUTING_SKILL','WRAPUP_CODE','SCHEDULE','STATION')
+        # Entity types considered sensitive for risk elevation
+        $highRiskEntities = @('USER', 'FLOW', 'OAUTH_CLIENT', 'DIVISION', 'ROLE')
+        $mediumRiskEntities = @('QUEUE', 'ROUTING_SKILL', 'WRAPUP_CODE', 'SCHEDULE', 'STATION')
 
-    foreach ($ev in $events) {
-        # Use safe property access to avoid StrictMode failures when serviceContext or user is absent.
-        $action     = [string](Get-PropertyValue $ev 'action')
-        $entityType = [string](Get-NestedPropertyValue $ev 'serviceContext.entityType')
-        $entityName = [string](Get-NestedPropertyValue $ev 'serviceContext.entityName')
+        foreach ($ev in $events) {
+            # Use safe property access to avoid StrictMode failures when serviceContext or user is absent.
+            $action = [string](Get-PropertyValue $ev 'action')
+            $entityType = [string](Get-NestedPropertyValue $ev 'serviceContext.entityType')
+            $entityName = [string](Get-NestedPropertyValue $ev 'serviceContext.entityName')
 
-        # Classify risk
-        $riskLevel = 'LOW'
-        $isHighAction   = $action -like 'DELETE_*' -or $action -like 'REVOKE_*'
-        $isMediumAction = $action -like 'CREATE_*' -or $action -like 'UPDATE_*' -or $action -like 'ADD_*'
+            # Classify risk
+            $riskLevel = 'LOW'
+            $isHighAction = $action -like 'DELETE_*' -or $action -like 'REVOKE_*'
+            $isMediumAction = $action -like 'CREATE_*' -or $action -like 'UPDATE_*' -or $action -like 'ADD_*'
 
-        if ($isHighAction -and $entityType -in $highRiskEntities)    { $riskLevel = 'HIGH'   }
-        elseif ($isHighAction)                                         { $riskLevel = 'MEDIUM' }
-        elseif ($isMediumAction -and $entityType -in $highRiskEntities){ $riskLevel = 'MEDIUM' }
-        elseif ($isMediumAction -and $entityType -in $mediumRiskEntities) { $riskLevel = 'LOW' }
+            if ($isHighAction -and $entityType -in $highRiskEntities) { $riskLevel = 'HIGH' }
+            elseif ($isHighAction) { $riskLevel = 'MEDIUM' }
+            elseif ($isMediumAction -and $entityType -in $highRiskEntities) { $riskLevel = 'MEDIUM' }
+            elseif ($isMediumAction -and $entityType -in $mediumRiskEntities) { $riskLevel = 'LOW' }
 
-        # Compose summary using safe access for user sub-object
-        $actor   = Get-NestedPropertyValue $ev 'user.email'
-        $actor   = if ($actor) { $actor } else { 'unknown' }
-        $summary = "$($action) on $($entityType) '$($entityName)' by $($actor)"
+            # Compose summary using safe access for user sub-object
+            $actor = Get-NestedPropertyValue $ev 'user.email'
+            $actor = if ($actor) { $actor } else { 'unknown' }
+            $summary = "$($action) on $($entityType) '$($entityName)' by $($actor)"
 
-        $record = [PSCustomObject]@{
-            Timestamp  = Get-PropertyValue $ev 'timestamp'
-            Risk       = $riskLevel
-            Action     = $action
-            EntityType = $entityType
-            EntityName = $entityName
-            Actor      = $actor
-            Summary    = $summary
-            IpAddress  = Get-NestedPropertyValue $ev 'user.ipAddress'
-        }
-
-        # Apply risk filter if requested
-        $include = $true
-        if ($Risk) {
-            $include = switch ($Risk) {
-                'HIGH'   { $riskLevel -eq 'HIGH' }
-                'MEDIUM' { $riskLevel -in @('HIGH','MEDIUM') }
-                'LOW'    { $true }
+            $record = [PSCustomObject]@{
+                Timestamp  = Get-PropertyValue $ev 'timestamp'
+                Risk       = $riskLevel
+                Action     = $action
+                EntityType = $entityType
+                EntityName = $entityName
+                Actor      = $actor
+                Summary    = $summary
+                IpAddress  = Get-NestedPropertyValue $ev 'user.ipAddress'
             }
+
+            # Apply risk filter if requested
+            $include = $true
+            if ($Risk) {
+                $include = switch ($Risk) {
+                    'HIGH' { $riskLevel -eq 'HIGH' }
+                    'MEDIUM' { $riskLevel -in @('HIGH', 'MEDIUM') }
+                    'LOW' { $true }
+                }
+            }
+
+            if ($include) { $record }
         }
-
-        if ($include) { $record }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Outbound Campaign Performance  (Roadmap idea 29)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Outbound Campaign Performance  (Roadmap idea 29)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysOutboundCampaignPerformance {
-    <#
+    function Get-GenesysOutboundCampaignPerformance {
+        <#
     .SYNOPSIS
         Returns a per-campaign performance KPI snapshot.
     .DESCRIPTION
@@ -4764,77 +4831,77 @@ function Get-GenesysOutboundCampaignPerformance {
             Where-Object { $_.TotalEvents -gt 0 -and $_.ConnectRate -lt 10 } |
             Format-Table CampaignName, TotalEvents, ConnectRate
     #>
-    [CmdletBinding()]
-    param(
-        [string] $Name,
-        [ValidateSet('on','off','complete','stopping','invalid')]
-        [string] $Status
-    )
+        [CmdletBinding()]
+        param(
+            [string] $Name,
+            [ValidateSet('on', 'off', 'complete', 'stopping', 'invalid')]
+            [string] $Status
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $campaignParams = @{}
-    if ($Name)   { $campaignParams['Name']   = $Name }
-    if ($Status) { $campaignParams['Status'] = $Status }
+        $campaignParams = @{}
+        if ($Name) { $campaignParams['Name'] = $Name }
+        if ($Status) { $campaignParams['Status'] = $Status }
 
-    $campaigns = @(Get-GenesysOutboundCampaign @campaignParams)
-    if ($campaigns.Count -eq 0) { return }
+        $campaigns = @(Get-GenesysOutboundCampaign @campaignParams)
+        if ($campaigns.Count -eq 0) { return }
 
-    $events = @(Get-GenesysOutboundEvent)
+        $events = @(Get-GenesysOutboundEvent)
 
-    # Index events by campaignId
-    $eventIndex = @{}
-    foreach ($ev in $events) {
-        $cid = [string]$ev.campaignId
-        if (-not $eventIndex.ContainsKey($cid)) {
-            $eventIndex[$cid] = [System.Collections.Generic.List[object]]::new()
+        # Index events by campaignId
+        $eventIndex = @{}
+        foreach ($ev in $events) {
+            $cid = [string]$ev.campaignId
+            if (-not $eventIndex.ContainsKey($cid)) {
+                $eventIndex[$cid] = [System.Collections.Generic.List[object]]::new()
+            }
+            $eventIndex[$cid].Add($ev) | Out-Null
         }
-        $eventIndex[$cid].Add($ev) | Out-Null
+
+        foreach ($c in $campaigns) {
+            $cid = [string]$c.id
+            $cEvts = if ($eventIndex.ContainsKey($cid)) { @($eventIndex[$cid]) } else { @() }
+
+            # Tally dispositions — only attempt events carry callResult
+            $attempts = @($cEvts | Where-Object { $null -ne $_.callResult })
+            $total = $attempts.Count
+            $connected = ($attempts | Where-Object { $_.callResult -eq 'Connected' }).Count
+            $noAnswer = ($attempts | Where-Object { $_.callResult -eq 'NoAnswer' }).Count
+            $busy = ($attempts | Where-Object { $_.callResult -eq 'Busy' }).Count
+            $voicemail = ($attempts | Where-Object { $_.callResult -like '*Voicemail*' -or $_.callResult -like '*Machine*' }).Count
+            $other = $total - $connected - $noAnswer - $busy - $voicemail
+
+            $connectRate = if ($total -gt 0) { [math]::Round($connected / $total * 100, 1) } else { $null }
+            $naRate = if ($total -gt 0) { [math]::Round($noAnswer / $total * 100, 1) } else { $null }
+
+            [PSCustomObject]@{
+                CampaignId       = $cid
+                CampaignName     = $c.name
+                Status           = $c.campaignStatus
+                DialingMode      = $c.dialingMode
+                TotalEvents      = $cEvts.Count
+                TotalAttempts    = $total
+                Connected        = $connected
+                NoAnswer         = $noAnswer
+                Busy             = $busy
+                Voicemail        = $voicemail
+                Other            = if ($other -ge 0) { $other } else { 0 }
+                ConnectRate      = $connectRate
+                NoAnswerRate     = $naRate
+                AbandonRateLimit = $c.abandonRate
+            }
+        }
     }
 
-    foreach ($c in $campaigns) {
-        $cid   = [string]$c.id
-        $cEvts = if ($eventIndex.ContainsKey($cid)) { @($eventIndex[$cid]) } else { @() }
+    #endregion
 
-        # Tally dispositions — only attempt events carry callResult
-        $attempts  = @($cEvts | Where-Object { $null -ne $_.callResult })
-        $total     = $attempts.Count
-        $connected = ($attempts | Where-Object { $_.callResult -eq 'Connected'    }).Count
-        $noAnswer  = ($attempts | Where-Object { $_.callResult -eq 'NoAnswer'     }).Count
-        $busy      = ($attempts | Where-Object { $_.callResult -eq 'Busy'         }).Count
-        $voicemail = ($attempts | Where-Object { $_.callResult -like '*Voicemail*' -or $_.callResult -like '*Machine*' }).Count
-        $other     = $total - $connected - $noAnswer - $busy - $voicemail
+    # ---------------------------------------------------------------------------
+    #region Flow Outcome KPI Correlation  (Roadmap idea 30)
+    # ---------------------------------------------------------------------------
 
-        $connectRate = if ($total -gt 0) { [math]::Round($connected / $total * 100, 1) } else { $null }
-        $naRate      = if ($total -gt 0) { [math]::Round($noAnswer  / $total * 100, 1) } else { $null }
-
-        [PSCustomObject]@{
-            CampaignId       = $cid
-            CampaignName     = $c.name
-            Status           = $c.campaignStatus
-            DialingMode      = $c.dialingMode
-            TotalEvents      = $cEvts.Count
-            TotalAttempts    = $total
-            Connected        = $connected
-            NoAnswer         = $noAnswer
-            Busy             = $busy
-            Voicemail        = $voicemail
-            Other            = if ($other -ge 0) { $other } else { 0 }
-            ConnectRate      = $connectRate
-            NoAnswerRate     = $naRate
-            AbandonRateLimit = $c.abandonRate
-        }
-    }
-}
-
-#endregion
-
-# ---------------------------------------------------------------------------
-#region Flow Outcome KPI Correlation  (Roadmap idea 30)
-# ---------------------------------------------------------------------------
-
-function Get-GenesysFlowOutcomeKpiCorrelation {
-    <#
+    function Get-GenesysFlowOutcomeKpiCorrelation {
+        <#
     .SYNOPSIS
         Correlates IVR / bot flow outcomes with CSAT scores and handle time.
     .DESCRIPTION
@@ -4869,68 +4936,70 @@ function Get-GenesysFlowOutcomeKpiCorrelation {
             Where-Object { $_.FailureRate -gt 20 -and $null -ne $_.AvgSurveyScore -and $_.AvgSurveyScore -lt 7 } |
             Format-Table FlowName, FailureRate, AvgSurveyScore
     #>
-    [CmdletBinding()]
-    param()
+        [CmdletBinding()]
+        param()
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $flowAgg  = @(Get-GenesysFlowAggregate)
-    $flows    = @(Get-GenesysFlow)
-    $surveys  = @(Get-GenesysSurvey)
-    $qPerf    = @(Get-GenesysQueuePerformance)
+        $flowAgg = @(Get-GenesysFlowAggregate)
+        $flows = @(Get-GenesysFlow)
+        $surveys = @(Get-GenesysSurvey)
+        $qPerf = @(Get-GenesysQueuePerformance)
 
-    # Build flow name lookup
-    $flowNames = @{}
-    foreach ($f in $flows) { $flowNames[$f.id] = $f.name }
+        # Build flow name lookup
+        $flowNames = @{}
+        foreach ($f in $flows) { $flowNames[$f.id] = $f.name }
 
-    # Aggregate surveys into a single mean score (no per-flow mapping available
-    # from the survey dataset without conversation join; use org-wide mean as proxy)
-    $surveyScores = @($surveys | Where-Object { $null -ne $_.totalScore })
-    $orgAvgSurvey = if ($surveyScores.Count -gt 0) {
-        [math]::Round(($surveyScores | Measure-Object totalScore -Average).Average, 2)
-    } else { $null }
+        # Aggregate surveys into a single mean score (no per-flow mapping available
+        # from the survey dataset without conversation join; use org-wide mean as proxy)
+        $surveyScores = @($surveys | Where-Object { $null -ne $_.totalScore })
+        $orgAvgSurvey = if ($surveyScores.Count -gt 0) {
+            [math]::Round(($surveyScores | Measure-Object totalScore -Average).Average, 2)
+        }
+        else { $null }
 
-    # Aggregate queue performance into a single org-wide avg handle time
-    $qPerfWithData = @($qPerf | Where-Object { $_.nConnected_count -gt 0 -and $_.tHandle_sum })
-    $orgAvgHandle  = if ($qPerfWithData.Count -gt 0) {
-        $totalHandle = ($qPerfWithData | Measure-Object tHandle_sum -Sum).Sum
-        $totalConn   = ($qPerfWithData | Measure-Object nConnected_count -Sum).Sum
-        if ($totalConn -gt 0) { [math]::Round($totalHandle / $totalConn / 1000, 1) } else { $null }
-    } else { $null }
+        # Aggregate queue performance into a single org-wide avg handle time
+        $qPerfWithData = @($qPerf | Where-Object { $_.nConnected_count -gt 0 -and $_.tHandle_sum })
+        $orgAvgHandle = if ($qPerfWithData.Count -gt 0) {
+            $totalHandle = ($qPerfWithData | Measure-Object tHandle_sum -Sum).Sum
+            $totalConn = ($qPerfWithData | Measure-Object nConnected_count -Sum).Sum
+            if ($totalConn -gt 0) { [math]::Round($totalHandle / $totalConn / 1000, 1) } else { $null }
+        }
+        else { $null }
 
-    foreach ($fa in $flowAgg) {
-        $n        = if ($fa.nFlow_count)            { [int]$fa.nFlow_count            } else { 0 }
-        $nOut     = if ($fa.nFlowOutcome_count)     { [int]$fa.nFlowOutcome_count     } else { 0 }
-        $nFailed  = if ($fa.nFlowOutcomeFailed_count){ [int]$fa.nFlowOutcomeFailed_count } else { 0 }
+        foreach ($fa in $flowAgg) {
+            $n = if ($fa.nFlow_count) { [int]$fa.nFlow_count } else { 0 }
+            $nOut = if ($fa.nFlowOutcome_count) { [int]$fa.nFlowOutcome_count } else { 0 }
+            $nFailed = if ($fa.nFlowOutcomeFailed_count) { [int]$fa.nFlowOutcomeFailed_count } else { 0 }
 
-        $selfServeRate = if ($n -gt 0) { [math]::Round($nOut    / $n * 100, 1) } else { $null }
-        $failureRate   = if ($n -gt 0) { [math]::Round($nFailed / $n * 100, 1) } else { $null }
+            $selfServeRate = if ($n -gt 0) { [math]::Round($nOut / $n * 100, 1) } else { $null }
+            $failureRate = if ($n -gt 0) { [math]::Round($nFailed / $n * 100, 1) } else { $null }
 
-        [PSCustomObject]@{
-            FlowId             = $fa.flowId
-            FlowName           = $flowNames[$fa.flowId]
-            FlowType           = $fa.flowType
-            Interval           = $fa.Interval
-            nFlow              = $n
-            nFlowOutcome       = $nOut
-            nFlowOutcomeFailed = $nFailed
-            SelfServeRate      = $selfServeRate
-            FailureRate        = $failureRate
-            AvgSurveyScore     = $orgAvgSurvey
-            SurveyCount        = $surveyScores.Count
-            AvgHandleSec       = $orgAvgHandle
+            [PSCustomObject]@{
+                FlowId             = $fa.flowId
+                FlowName           = $flowNames[$fa.flowId]
+                FlowType           = $fa.flowType
+                Interval           = $fa.Interval
+                nFlow              = $n
+                nFlowOutcome       = $nOut
+                nFlowOutcomeFailed = $nFailed
+                SelfServeRate      = $selfServeRate
+                FailureRate        = $failureRate
+                AvgSurveyScore     = $orgAvgSurvey
+                SurveyCount        = $surveyScores.Count
+                AvgHandleSec       = $orgAvgHandle
+            }
         }
     }
-}
 
-#endregion
+    #endregion
 
-# ---------------------------------------------------------------------------
-#region Composite Dashboard Snapshots  (Roadmap ideas 24–30)
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    #region Composite Dashboard Snapshots  (Roadmap ideas 24–30)
+    # ---------------------------------------------------------------------------
 
-function Get-GenesysAbandonRateDashboard {
-    <#
+    function Get-GenesysAbandonRateDashboard {
+        <#
     .SYNOPSIS
         Returns a multi-queue abandon rate dashboard snapshot.
     .DESCRIPTION
@@ -4955,51 +5024,51 @@ function Get-GenesysAbandonRateDashboard {
             Where-Object { $_.AbandonRate -gt 8 } |
             ForEach-Object { Write-Warning "HIGH ABANDON: $($_.QueueName) — $($_.AbandonRate)%" }
     #>
-    [CmdletBinding()]
-    param(
-        [string[]] $QueueId,
-        [string] $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]] $QueueId,
+            [string] $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $abandonData  = @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
-    $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
-    $queues       = @(Get-GenesysQueue)
+        $abandonData = @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
+        $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
+        $queues = @(Get-GenesysQueue)
 
-    # Index observations by queueId+mediaType
-    $obsIndex = @{}
-    foreach ($o in $observations) {
-        $key = "$($o.QueueId)|$($o.MediaType)"
-        $obsIndex[$key] = $o
-    }
+        # Index observations by queueId+mediaType
+        $obsIndex = @{}
+        foreach ($o in $observations) {
+            $key = "$($o.QueueId)|$($o.MediaType)"
+            $obsIndex[$key] = $o
+        }
 
-    # Index queue names by id
-    $queueNames = @{}
-    foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
+        # Index queue names by id
+        $queueNames = @{}
+        foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
 
-    foreach ($a in $abandonData) {
-        $key = "$($a.QueueId)|$($a.MediaType)"
-        $obs = $obsIndex[$key]
+        foreach ($a in $abandonData) {
+            $key = "$($a.QueueId)|$($a.MediaType)"
+            $obs = $obsIndex[$key]
 
-        [PSCustomObject]@{
-            QueueId      = $a.QueueId
-            QueueName    = $queueNames[$a.QueueId]
-            MediaType    = $a.MediaType
-            Interval     = $a.Interval
-            nOffered     = $a.nOffered
-            nAbandoned   = $a.nAbandoned
-            AbandonRate  = $a.AbandonRate
-            oWaiting     = if ($obs) { $obs.oWaiting     } else { $null }
-            oInteracting = if ($obs) { $obs.oInteracting } else { $null }
+            [PSCustomObject]@{
+                QueueId      = $a.QueueId
+                QueueName    = $queueNames[$a.QueueId]
+                MediaType    = $a.MediaType
+                Interval     = $a.Interval
+                nOffered     = $a.nOffered
+                nAbandoned   = $a.nAbandoned
+                AbandonRate  = $a.AbandonRate
+                oWaiting     = if ($obs) { $obs.oWaiting } else { $null }
+                oInteracting = if ($obs) { $obs.oInteracting } else { $null }
+            }
         }
     }
-}
 
-function Get-GenesysQueueHealthSnapshot {
-    <#
+    function Get-GenesysQueueHealthSnapshot {
+        <#
     .SYNOPSIS
         Returns a multi-queue health snapshot combining observations and SLA.
     .DESCRIPTION
@@ -5028,58 +5097,58 @@ function Get-GenesysQueueHealthSnapshot {
         # Show only queues in RED
         Get-GenesysQueueHealthSnapshot | Where-Object HealthStatus -eq 'RED' | Format-Table QueueName, oWaiting, ServiceLevel30Pct
     #>
-    [CmdletBinding()]
-    param(
-        [string[]] $QueueId,
-        [string] $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until
-    )
+        [CmdletBinding()]
+        param(
+            [string[]] $QueueId,
+            [string] $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
-    $sla          = @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
-    $queues       = @(Get-GenesysQueue)
+        $observations = @(Get-GenesysQueueObservation -QueueId $QueueId -MediaType $MediaType)
+        $sla = @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until)
+        $queues = @(Get-GenesysQueue)
 
-    $queueNames = @{}
-    foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
+        $queueNames = @{}
+        foreach ($q in $queues) { $queueNames[$q.id] = $q.name }
 
-    $slaIndex = @{}
-    foreach ($s in $sla) {
-        $key = "$($s.QueueId)|$($s.MediaType)"
-        if (-not $slaIndex.ContainsKey($key)) { $slaIndex[$key] = $s }
-    }
+        $slaIndex = @{}
+        foreach ($s in $sla) {
+            $key = "$($s.QueueId)|$($s.MediaType)"
+            if (-not $slaIndex.ContainsKey($key)) { $slaIndex[$key] = $s }
+        }
 
-    foreach ($o in $observations) {
-        $key    = "$($o.QueueId)|$($o.MediaType)"
-        $slaRec = $slaIndex[$key]
+        foreach ($o in $observations) {
+            $key = "$($o.QueueId)|$($o.MediaType)"
+            $slaRec = $slaIndex[$key]
 
-        $waiting = if ($o.oWaiting) { [int]$o.oWaiting } else { 0 }
-        $sl30    = if ($slaRec)     { $slaRec.ServiceLevel30Pct } else { $null }
+            $waiting = if ($o.oWaiting) { [int]$o.oWaiting } else { 0 }
+            $sl30 = if ($slaRec) { $slaRec.ServiceLevel30Pct } else { $null }
 
-        $health = 'GREEN'
-        if     ($null -ne $sl30 -and $sl30 -lt 60) { $health = 'RED'   }
-        elseif ($waiting -gt 10)                    { $health = 'RED'   }
-        elseif ($null -ne $sl30 -and $sl30 -lt 80)  { $health = 'AMBER' }
-        elseif ($waiting -ge 5)                     { $health = 'AMBER' }
+            $health = 'GREEN'
+            if ($null -ne $sl30 -and $sl30 -lt 60) { $health = 'RED' }
+            elseif ($waiting -gt 10) { $health = 'RED' }
+            elseif ($null -ne $sl30 -and $sl30 -lt 80) { $health = 'AMBER' }
+            elseif ($waiting -ge 5) { $health = 'AMBER' }
 
-        [PSCustomObject]@{
-            QueueId           = $o.QueueId
-            QueueName         = $queueNames[$o.QueueId]
-            MediaType         = $o.MediaType
-            oWaiting          = $o.oWaiting
-            oInteracting      = $o.oInteracting
-            oOnQueueUsers     = $o.oOnQueueUsers
-            ServiceLevel30Pct = $sl30
-            nOffered          = if ($slaRec) { $slaRec.nOffered } else { $null }
-            HealthStatus      = $health
+            [PSCustomObject]@{
+                QueueId           = $o.QueueId
+                QueueName         = $queueNames[$o.QueueId]
+                MediaType         = $o.MediaType
+                oWaiting          = $o.oWaiting
+                oInteracting      = $o.oInteracting
+                oOnQueueUsers     = $o.oOnQueueUsers
+                ServiceLevel30Pct = $sl30
+                nOffered          = if ($slaRec) { $slaRec.nOffered } else { $null }
+                HealthStatus      = $health
+            }
         }
     }
-}
 
-function Get-GenesysAgentQualitySnapshot {
-    <#
+    function Get-GenesysAgentQualitySnapshot {
+        <#
     .SYNOPSIS
         Returns a per-agent quality KPI snapshot combining performance metrics.
     .DESCRIPTION
@@ -5097,22 +5166,22 @@ function Get-GenesysAgentQualitySnapshot {
     .EXAMPLE
         Get-GenesysAgentQualitySnapshot | Export-Csv .\agent-quality-$(Get-Date -f yyyyMMdd).csv -NoTypeInformation
     #>
-    [CmdletBinding()]
-    param(
-        [int] $MinConversations = 0,
-        [string[]] $UserId,
-        [string] $MediaType,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string] $Granularity
-    )
+        [CmdletBinding()]
+        param(
+            [int] $MinConversations = 0,
+            [string[]] $UserId,
+            [string] $MediaType,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string] $Granularity
+        )
 
-    Assert-GenesysConnected
-    @(Get-GenesysAgentPerformance -MinConversations $MinConversations -UserId $UserId -MediaType $MediaType -Since $Since -Until $Until -Granularity $Granularity)
-}
+        Assert-GenesysConnected
+        @(Get-GenesysAgentPerformance -MinConversations $MinConversations -UserId $UserId -MediaType $MediaType -Since $Since -Until $Until -Granularity $Granularity)
+    }
 
-function Invoke-GenesysOperationsReport {
-    <#
+    function Invoke-GenesysOperationsReport {
+        <#
     .SYNOPSIS
         Generates an enhanced operations report including abandon rate, SLA, and edge health.
     .DESCRIPTION
@@ -5143,113 +5212,119 @@ function Invoke-GenesysOperationsReport {
     .EXAMPLE
         Invoke-GenesysOperationsReport -OutputPath "D:\Reports\OpsReport-$(Get-Date -f yyyyMMdd).json" -PassThru
     #>
-    [CmdletBinding()]
-    param(
-        [string] $OutputPath,
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [string[]] $QueueId,
-        [string] $MediaType,
-        [switch] $PassThru,
-        [switch] $FailFast
-    )
+        [CmdletBinding()]
+        param(
+            [string] $OutputPath,
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [string[]] $QueueId,
+            [string] $MediaType,
+            [switch] $PassThru,
+            [switch] $FailFast
+        )
 
-    Assert-GenesysConnected
+        Assert-GenesysConnected
 
-    $diag = [System.Collections.Generic.List[object]]::new()
+        $diag = [System.Collections.Generic.List[object]]::new()
 
-    function Invoke-OpsSection {
-        param([string]$Name, [scriptblock]$Action)
-        try {
-            $r = & $Action
-            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK';     Count = @($r).Count; Error = $null })
-            return $r
-        } catch {
-            $msg = "$($Name): $_"
-            $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Count = $null;        Error = $msg  })
-            Write-Warning $msg
-            if ($FailFast) { throw $msg }
-            return $null
-        }
-    }
-
-    Write-Verbose 'Collecting organisation details...'
-    $org = Invoke-OpsSection 'Organisation' { Get-GenesysOrganization }
-
-    Write-Verbose 'Collecting contact centre status...'
-    $ccStatus = Invoke-OpsSection 'ContactCentre' { Get-GenesysContactCentreStatus }
-
-    Write-Verbose 'Collecting queue abandon rates...'
-    $abandon = Invoke-OpsSection 'AbandonRate' { @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
-
-    Write-Verbose 'Collecting queue service levels...'
-    $sla = Invoke-OpsSection 'ServiceLevel' { @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
-
-    Write-Verbose 'Collecting edge health...'
-    $edgeSnap = Invoke-OpsSection 'EdgeHealth' { Get-GenesysEdgeHealthSnapshot }
-
-    Write-Verbose 'Collecting active alerts...'
-    $alerts = Invoke-OpsSection 'ActiveAlerts' { @(Get-GenesysAlert) }
-
-    Write-Verbose 'Collecting voice quality / WebRTC disconnects...'
-    $webrtcSummary = Invoke-OpsSection 'WebRtcDisconnects' { @(Get-GenesysWebRtcDisconnectSummary) }
-
-    $highAbandon = if ($abandon) { @($abandon | Where-Object { $_.AbandonRate -gt 10 }) } else { @() }
-    $avgAbandon  = if ($abandon -and @($abandon).Count -gt 0) {
-        [math]::Round((@($abandon) | Measure-Object AbandonRate -Average).Average, 1)
-    } else { $null }
-
-    $belowSla = if ($sla) { @($sla | Where-Object { $_.nOffered -gt 0 -and $_.ServiceLevel30Pct -lt 80 }) } else { @() }
-    $avgSla   = if ($sla -and @($sla).Count -gt 0) {
-        $slaWithData = @($sla | Where-Object { $null -ne $_.ServiceLevel30Pct })
-        if ($slaWithData.Count -gt 0) { [math]::Round(($slaWithData | Measure-Object ServiceLevel30Pct -Average).Average, 1) } else { $null }
-    } else { $null }
-
-    $report = [PSCustomObject]@{
-        GeneratedAt   = Get-Date -Format 'o'
-        Organisation  = if ($org) {
-            [PSCustomObject]@{ Name = (Get-PropertyValue $org 'name'); Id = (Get-PropertyValue $org 'id') }
-        } else { $null }
-        ContactCentre = $ccStatus
-        AbandonRate   = [PSCustomObject]@{
-            AverageAbandonPct   = $avgAbandon
-            QueuesAbove10Pct    = $highAbandon.Count
-            HighAbandonQueueIds = $highAbandon | ForEach-Object { $_.QueueId }
-        }
-        ServiceLevel  = [PSCustomObject]@{
-            AverageSL30Pct      = $avgSla
-            QueuesBelowTarget   = $belowSla.Count
-            BelowTargetQueueIds = $belowSla | ForEach-Object { $_.QueueId }
-        }
-        EdgeHealth    = $edgeSnap
-        ActiveAlerts  = if ($alerts) {
-            [PSCustomObject]@{
-                Count  = @($alerts).Count
-                Alerts = @($alerts) | Select-Object -First 10 | ForEach-Object { Get-PropertyValue $_ 'name' }
+        function Invoke-OpsSection {
+            param([string]$Name, [scriptblock]$Action)
+            try {
+                $r = & $Action
+                $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'OK'; Count = @($r).Count; Error = $null })
+                return $r
             }
-        } else { $null }
-        WebRtcDisconnects = if ($webrtcSummary) {
-            [PSCustomObject]@{
-                TotalErrorEvents = (@($webrtcSummary) | Measure-Object Count -Sum).Sum
-                ByErrorCode      = @($webrtcSummary) |
-                    Group-Object ErrorCode |
-                    Select-Object Name, @{n='Count';e={($_.Group|Measure-Object Count -Sum).Sum}} |
-                    Sort-Object Count -Descending
+            catch {
+                $msg = "$($Name): $_"
+                $diag.Add([PSCustomObject]@{ Section = $Name; Status = 'Failed'; Count = $null; Error = $msg })
+                Write-Warning $msg
+                if ($FailFast) { throw $msg }
+                return $null
             }
-        } else { $null }
-        Diagnostics   = $diag.ToArray()
+        }
+
+        Write-Verbose 'Collecting organisation details...'
+        $org = Invoke-OpsSection 'Organisation' { Get-GenesysOrganization }
+
+        Write-Verbose 'Collecting contact centre status...'
+        $ccStatus = Invoke-OpsSection 'ContactCentre' { Get-GenesysContactCentreStatus }
+
+        Write-Verbose 'Collecting queue abandon rates...'
+        $abandon = Invoke-OpsSection 'AbandonRate' { @(Get-GenesysQueueAbandonRate -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
+
+        Write-Verbose 'Collecting queue service levels...'
+        $sla = Invoke-OpsSection 'ServiceLevel' { @(Get-GenesysQueueServiceLevel -QueueId $QueueId -MediaType $MediaType -Since $Since -Until $Until) }
+
+        Write-Verbose 'Collecting edge health...'
+        $edgeSnap = Invoke-OpsSection 'EdgeHealth' { Get-GenesysEdgeHealthSnapshot }
+
+        Write-Verbose 'Collecting active alerts...'
+        $alerts = Invoke-OpsSection 'ActiveAlerts' { @(Get-GenesysAlert) }
+
+        Write-Verbose 'Collecting voice quality / WebRTC disconnects...'
+        $webrtcSummary = Invoke-OpsSection 'WebRtcDisconnects' { @(Get-GenesysWebRtcDisconnectSummary) }
+
+        $highAbandon = if ($abandon) { @($abandon | Where-Object { $_.AbandonRate -gt 10 }) } else { @() }
+        $avgAbandon = if ($abandon -and @($abandon).Count -gt 0) {
+            [math]::Round((@($abandon) | Measure-Object AbandonRate -Average).Average, 1)
+        }
+        else { $null }
+
+        $belowSla = if ($sla) { @($sla | Where-Object { $_.nOffered -gt 0 -and $_.ServiceLevel30Pct -lt 80 }) } else { @() }
+        $avgSla = if ($sla -and @($sla).Count -gt 0) {
+            $slaWithData = @($sla | Where-Object { $null -ne $_.ServiceLevel30Pct })
+            if ($slaWithData.Count -gt 0) { [math]::Round(($slaWithData | Measure-Object ServiceLevel30Pct -Average).Average, 1) } else { $null }
+        }
+        else { $null }
+
+        $report = [PSCustomObject]@{
+            GeneratedAt       = Get-Date -Format 'o'
+            Organisation      = if ($org) {
+                [PSCustomObject]@{ Name = (Get-PropertyValue $org 'name'); Id = (Get-PropertyValue $org 'id') }
+            }
+            else { $null }
+            ContactCentre     = $ccStatus
+            AbandonRate       = [PSCustomObject]@{
+                AverageAbandonPct   = $avgAbandon
+                QueuesAbove10Pct    = $highAbandon.Count
+                HighAbandonQueueIds = $highAbandon | ForEach-Object { $_.QueueId }
+            }
+            ServiceLevel      = [PSCustomObject]@{
+                AverageSL30Pct      = $avgSla
+                QueuesBelowTarget   = $belowSla.Count
+                BelowTargetQueueIds = $belowSla | ForEach-Object { $_.QueueId }
+            }
+            EdgeHealth        = $edgeSnap
+            ActiveAlerts      = if ($alerts) {
+                [PSCustomObject]@{
+                    Count  = @($alerts).Count
+                    Alerts = @($alerts) | Select-Object -First 10 | ForEach-Object { Get-PropertyValue $_ 'name' }
+                }
+            }
+            else { $null }
+            WebRtcDisconnects = if ($webrtcSummary) {
+                [PSCustomObject]@{
+                    TotalErrorEvents = (@($webrtcSummary) | Measure-Object Count -Sum).Sum
+                    ByErrorCode      = @($webrtcSummary) |
+                        Group-Object ErrorCode |
+                        Select-Object Name, @{n = 'Count'; e = { ($_.Group | Measure-Object Count -Sum).Sum } } |
+                        Sort-Object Count -Descending
+                }
+            }
+            else { $null }
+            Diagnostics       = $diag.ToArray()
+        }
+
+        if ($OutputPath) {
+            $report | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath -Encoding UTF8
+            Write-Verbose "Report saved: $($OutputPath)"
+        }
+
+        if ($PassThru -or -not $OutputPath) { $report }
     }
 
-    if ($OutputPath) {
-        $report | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath -Encoding UTF8
-        Write-Verbose "Report saved: $($OutputPath)"
-    }
-
-    if ($PassThru -or -not $OutputPath) { $report }
-}
-
-function Invoke-GenesysNotRespondingReport {
-    <#
+    function Invoke-GenesysNotRespondingReport {
+        <#
     .SYNOPSIS
         Identifies agents who consistently enter NOT_RESPONDING and the conversations
         active when they did so.
@@ -5295,221 +5370,223 @@ function Invoke-GenesysNotRespondingReport {
         # Save for tracking
         Invoke-GenesysNotRespondingReport -OutputPath ".\nr-$(Get-Date -f yyyyMMdd).json"
     #>
-    [CmdletBinding()]
-    param(
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [double]             $MinTransitionsPerDay = 1.0,
-        [int]                $TopN = 25,
-        [switch]             $IncludeConversations,
-        [string]             $OutputPath,
-        [switch]             $PassThru
-    )
-
-    Assert-GenesysConnected
-
-    $untilUtc = if ($Until.HasValue) { $Until.Value.ToUniversalTime() } else { [datetime]::UtcNow }
-    $sinceUtc = if ($Since.HasValue) { $Since.Value.ToUniversalTime() } else { $untilUtc.AddDays(-14) }
-    $interval = '{0}/{1}' -f `
-        $sinceUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), `
-        $untilUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-
-    Write-Verbose "Submitting user-details NR job over $interval"
-    $userJobBody = [ordered]@{
-        interval             = $interval
-        routingStatusFilters = @(
-            [ordered]@{
-                type       = 'and'
-                predicates = @(
-                    [ordered]@{
-                        dimension = 'routingStatus'
-                        operator  = 'matches'
-                        value     = 'NOT_RESPONDING'
-                    }
-                )
-            }
+        [CmdletBinding()]
+        param(
+            [Nullable[datetime]] $Since,
+            [Nullable[datetime]] $Until,
+            [double]             $MinTransitionsPerDay = 1.0,
+            [int]                $TopN = 25,
+            [switch]             $IncludeConversations,
+            [string]             $OutputPath,
+            [switch]             $PassThru
         )
-    }
 
-    $userDetails = @(Invoke-GenesysDataset `
-        -Dataset 'analytics.post.users.details.jobs' `
-        -DatasetParameters @{ Body = $userJobBody })
+        Assert-GenesysConnected
 
-    Write-Verbose "User-details job returned $($userDetails.Count) user records"
+        $untilUtc = if ($Until.HasValue) { $Until.Value.ToUniversalTime() } else { [datetime]::UtcNow }
+        $sinceUtc = if ($Since.HasValue) { $Since.Value.ToUniversalTime() } else { $untilUtc.AddDays(-14) }
+        $interval = '{0}/{1}' -f `
+            $sinceUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), `
+            $untilUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 
-    $perUser = New-Object System.Collections.Generic.List[object]
-    foreach ($u in $userDetails) {
-        $userId = Get-PropertyValue $u 'userId'
-        if (-not $userId) { continue }
-
-        $segments = @(Get-PropertyValue $u 'routingStatusDetail')
-        $nrSegments = @($segments | Where-Object {
-            (Get-PropertyValue $_ 'routingStatus') -eq 'NOT_RESPONDING'
-        })
-        if ($nrSegments.Count -eq 0) { continue }
-
-        $totalNrMs = 0.0
-        $nrTimestamps = New-Object System.Collections.Generic.List[datetime]
-        foreach ($seg in $nrSegments) {
-            $startStr = Get-PropertyValue $seg 'startTime'
-            if (-not $startStr) { continue }
-            $start = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
-            $nrTimestamps.Add($start)
-            $endStr = Get-PropertyValue $seg 'endTime'
-            if ($endStr) {
-                $end = [datetime]::Parse($endStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
-                $totalNrMs += ($end - $start).TotalMilliseconds
-            }
-        }
-
-        $allDayBuckets = @{}
-        foreach ($seg in $segments) {
-            $startStr = Get-PropertyValue $seg 'startTime'
-            if (-not $startStr) { continue }
-            $d = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal).Date
-            $allDayBuckets[$d.ToString('yyyy-MM-dd')] = $true
-        }
-        $activeDays = [Math]::Max(1, $allDayBuckets.Count)
-
-        $byDay = $nrTimestamps |
-            Group-Object { $_.Date.ToString('yyyy-MM-dd') } |
-            ForEach-Object { [pscustomobject]@{ Date = $_.Name; Count = $_.Count } } |
-            Sort-Object Date
-
-        $count = $nrSegments.Count
-        $tpd   = [math]::Round($count / $activeDays, 2)
-        $avgMs = if ($count -gt 0) { $totalNrMs / $count } else { 0 }
-
-        $perUser.Add([pscustomobject]@{
-            UserId                  = $userId
-            Name                    = $null
-            Division                = $null
-            TransitionCount         = $count
-            ActiveDays              = $activeDays
-            TransitionsPerActiveDay = $tpd
-            TotalNrSeconds          = [int]([math]::Round($totalNrMs / 1000))
-            AvgNrSeconds            = [int]([math]::Round($avgMs / 1000))
-            DailyBreakdown          = @($byDay)
-            Flag                    = if ($tpd -ge $MinTransitionsPerDay) { 'Consistent' } else { '' }
-            ConversationIds         = @()
-            NrStartTimes            = @($nrTimestamps | ForEach-Object { $_.ToString('o') })
-        }) | Out-Null
-    }
-
-    $sorted = @($perUser | Sort-Object TransitionsPerActiveDay, TransitionCount -Descending)
-
-    if ($IncludeConversations -and $sorted.Count -gt 0) {
-        $topIds = @($sorted | Select-Object -First $TopN | ForEach-Object { $_.UserId })
-        Write-Verbose "Pulling conversation-details for top $($topIds.Count) NR users"
-        $convJobBody = [ordered]@{
-            interval       = $interval
-            segmentFilters = @(
+        Write-Verbose "Submitting user-details NR job over $interval"
+        $userJobBody = [ordered]@{
+            interval             = $interval
+            routingStatusFilters = @(
                 [ordered]@{
-                    type       = 'or'
+                    type       = 'and'
                     predicates = @(
-                        $topIds | ForEach-Object {
-                            [ordered]@{
-                                dimension = 'userId'
-                                operator  = 'matches'
-                                value     = $_
-                            }
+                        [ordered]@{
+                            dimension = 'routingStatus'
+                            operator  = 'matches'
+                            value     = 'NOT_RESPONDING'
                         }
                     )
                 }
             )
         }
 
-        try {
-            $conversations = @(Invoke-GenesysDataset `
-                -Dataset 'analytics-conversation-details' `
-                -DatasetParameters @{ Body = $convJobBody })
-        } catch {
-            Write-Warning "Conversation-details job failed: $($_.Exception.Message). Continuing without conversation join."
-            $conversations = @()
-        }
+        $userDetails = @(Invoke-GenesysDataset `
+                -Dataset 'analytics.post.users.details.jobs' `
+                -DatasetParameters @{ Body = $userJobBody })
 
-        $convsByUser = @{}
-        foreach ($conv in $conversations) {
-            $convId = Get-PropertyValue $conv 'conversationId'
-            if (-not $convId) { continue }
-            foreach ($p in @(Get-PropertyValue $conv 'participants')) {
-                if ($null -eq $p) { continue }
-                $uid = Get-PropertyValue $p 'userId'
-                if (-not $uid) { continue }
-                if (-not $convsByUser.ContainsKey($uid)) {
-                    $convsByUser[$uid] = New-Object System.Collections.Generic.HashSet[string]
+        Write-Verbose "User-details job returned $($userDetails.Count) user records"
+
+        $perUser = New-Object System.Collections.Generic.List[object]
+        foreach ($u in $userDetails) {
+            $userId = Get-PropertyValue $u 'userId'
+            if (-not $userId) { continue }
+
+            $segments = @(Get-PropertyValue $u 'routingStatusDetail')
+            $nrSegments = @($segments | Where-Object {
+                    (Get-PropertyValue $_ 'routingStatus') -eq 'NOT_RESPONDING'
+                })
+            if ($nrSegments.Count -eq 0) { continue }
+
+            $totalNrMs = 0.0
+            $nrTimestamps = New-Object System.Collections.Generic.List[datetime]
+            foreach ($seg in $nrSegments) {
+                $startStr = Get-PropertyValue $seg 'startTime'
+                if (-not $startStr) { continue }
+                $start = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+                $nrTimestamps.Add($start)
+                $endStr = Get-PropertyValue $seg 'endTime'
+                if ($endStr) {
+                    $end = [datetime]::Parse($endStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+                    $totalNrMs += ($end - $start).TotalMilliseconds
                 }
-                [void]$convsByUser[$uid].Add($convId)
             }
-        }
-        foreach ($u in $sorted) {
-            if ($convsByUser.ContainsKey($u.UserId)) {
-                $u.ConversationIds = @($convsByUser[$u.UserId] | Sort-Object)
-            }
-        }
-    }
 
-    if ($sorted.Count -gt 0) {
-        Write-Verbose 'Enriching with name/division'
-        try {
-            $roster = @(Get-GenesysAgent -State ACTIVE)
-            $nameById = @{}
-            foreach ($a in $roster) {
-                $id = Get-PropertyValue $a 'id'
-                if ($id) { $nameById[$id] = $a }
+            $allDayBuckets = @{}
+            foreach ($seg in $segments) {
+                $startStr = Get-PropertyValue $seg 'startTime'
+                if (-not $startStr) { continue }
+                $d = [datetime]::Parse($startStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal).Date
+                $allDayBuckets[$d.ToString('yyyy-MM-dd')] = $true
+            }
+            $activeDays = [Math]::Max(1, $allDayBuckets.Count)
+
+            $byDay = $nrTimestamps |
+                Group-Object { $_.Date.ToString('yyyy-MM-dd') } |
+                ForEach-Object { [pscustomobject]@{ Date = $_.Name; Count = $_.Count } } |
+                Sort-Object Date
+
+            $count = $nrSegments.Count
+            $tpd = [math]::Round($count / $activeDays, 2)
+            $avgMs = if ($count -gt 0) { $totalNrMs / $count } else { 0 }
+
+            $perUser.Add([pscustomobject]@{
+                    UserId                  = $userId
+                    Name                    = $null
+                    Division                = $null
+                    TransitionCount         = $count
+                    ActiveDays              = $activeDays
+                    TransitionsPerActiveDay = $tpd
+                    TotalNrSeconds          = [int]([math]::Round($totalNrMs / 1000))
+                    AvgNrSeconds            = [int]([math]::Round($avgMs / 1000))
+                    DailyBreakdown          = @($byDay)
+                    Flag                    = if ($tpd -ge $MinTransitionsPerDay) { 'Consistent' } else { '' }
+                    ConversationIds         = @()
+                    NrStartTimes            = @($nrTimestamps | ForEach-Object { $_.ToString('o') })
+                }) | Out-Null
+        }
+
+        $sorted = @($perUser | Sort-Object TransitionsPerActiveDay, TransitionCount -Descending)
+
+        if ($IncludeConversations -and $sorted.Count -gt 0) {
+            $topIds = @($sorted | Select-Object -First $TopN | ForEach-Object { $_.UserId })
+            Write-Verbose "Pulling conversation-details for top $($topIds.Count) NR users"
+            $convJobBody = [ordered]@{
+                interval       = $interval
+                segmentFilters = @(
+                    [ordered]@{
+                        type       = 'or'
+                        predicates = @(
+                            $topIds | ForEach-Object {
+                                [ordered]@{
+                                    dimension = 'userId'
+                                    operator  = 'matches'
+                                    value     = $_
+                                }
+                            }
+                        )
+                    }
+                )
+            }
+
+            try {
+                $conversations = @(Invoke-GenesysDataset `
+                        -Dataset 'analytics-conversation-details' `
+                        -DatasetParameters @{ Body = $convJobBody })
+            }
+            catch {
+                Write-Warning "Conversation-details job failed: $($_.Exception.Message). Continuing without conversation join."
+                $conversations = @()
+            }
+
+            $convsByUser = @{}
+            foreach ($conv in $conversations) {
+                $convId = Get-PropertyValue $conv 'conversationId'
+                if (-not $convId) { continue }
+                foreach ($p in @(Get-PropertyValue $conv 'participants')) {
+                    if ($null -eq $p) { continue }
+                    $uid = Get-PropertyValue $p 'userId'
+                    if (-not $uid) { continue }
+                    if (-not $convsByUser.ContainsKey($uid)) {
+                        $convsByUser[$uid] = New-Object System.Collections.Generic.HashSet[string]
+                    }
+                    [void]$convsByUser[$uid].Add($convId)
+                }
             }
             foreach ($u in $sorted) {
-                if ($nameById.ContainsKey($u.UserId)) {
-                    $info = $nameById[$u.UserId]
-                    $u.Name     = Get-PropertyValue $info 'name'
-                    $div        = Get-PropertyValue $info 'division'
-                    $u.Division = if ($div) { Get-PropertyValue $div 'name' } else { $null }
+                if ($convsByUser.ContainsKey($u.UserId)) {
+                    $u.ConversationIds = @($convsByUser[$u.UserId] | Sort-Object)
                 }
             }
-        } catch {
-            Write-Warning "Name/division enrichment failed: $($_.Exception.Message)"
         }
+
+        if ($sorted.Count -gt 0) {
+            Write-Verbose 'Enriching with name/division'
+            try {
+                $roster = @(Get-GenesysAgent -State ACTIVE)
+                $nameById = @{}
+                foreach ($a in $roster) {
+                    $id = Get-PropertyValue $a 'id'
+                    if ($id) { $nameById[$id] = $a }
+                }
+                foreach ($u in $sorted) {
+                    if ($nameById.ContainsKey($u.UserId)) {
+                        $info = $nameById[$u.UserId]
+                        $u.Name = Get-PropertyValue $info 'name'
+                        $div = Get-PropertyValue $info 'division'
+                        $u.Division = if ($div) { Get-PropertyValue $div 'name' } else { $null }
+                    }
+                }
+            }
+            catch {
+                Write-Warning "Name/division enrichment failed: $($_.Exception.Message)"
+            }
+        }
+
+        $flaggedCount = @($sorted | Where-Object { $_.Flag -eq 'Consistent' }).Count
+
+        $report = [pscustomobject]@{
+            GeneratedAt            = (Get-Date).ToUniversalTime().ToString('o')
+            Window                 = [pscustomobject]@{
+                Since = $sinceUtc.ToString('o')
+                Until = $untilUtc.ToString('o')
+                Days  = [math]::Round(($untilUtc - $sinceUtc).TotalDays, 2)
+            }
+            Threshold              = [pscustomobject]@{
+                MinTransitionsPerDay = $MinTransitionsPerDay
+            }
+            UsersWithNotResponding = $sorted.Count
+            UsersFlaggedConsistent = $flaggedCount
+            TotalNrTransitions     = (@($sorted | Measure-Object TransitionCount -Sum).Sum)
+            TopUsers               = @($sorted | Select-Object -First $TopN |
+                    Select-Object UserId, Name, Division,
+                    TransitionCount, ActiveDays, TransitionsPerActiveDay,
+                    TotalNrSeconds, AvgNrSeconds, Flag,
+                    DailyBreakdown, ConversationIds)
+            AllUsers               = @($sorted)
+        }
+
+        if ($OutputPath) {
+            $report | ConvertTo-Json -Depth 12 | Set-Content -Path $OutputPath -Encoding UTF8
+            Write-Verbose "Report saved: $OutputPath"
+        }
+
+        if ($PassThru -or -not $OutputPath) { $report }
     }
 
-    $flaggedCount = @($sorted | Where-Object { $_.Flag -eq 'Consistent' }).Count
+    #endregion
 
-    $report = [pscustomobject]@{
-        GeneratedAt           = (Get-Date).ToUniversalTime().ToString('o')
-        Window                = [pscustomobject]@{
-            Since = $sinceUtc.ToString('o')
-            Until = $untilUtc.ToString('o')
-            Days  = [math]::Round(($untilUtc - $sinceUtc).TotalDays, 2)
-        }
-        Threshold             = [pscustomobject]@{
-            MinTransitionsPerDay = $MinTransitionsPerDay
-        }
-        UsersWithNotResponding = $sorted.Count
-        UsersFlaggedConsistent = $flaggedCount
-        TotalNrTransitions     = (@($sorted | Measure-Object TransitionCount -Sum).Sum)
-        TopUsers               = @($sorted | Select-Object -First $TopN |
-            Select-Object UserId, Name, Division,
-                          TransitionCount, ActiveDays, TransitionsPerActiveDay,
-                          TotalNrSeconds, AvgNrSeconds, Flag,
-                          DailyBreakdown, ConversationIds)
-        AllUsers               = @($sorted)
-    }
+    # ---------------------------------------------------------------------------
+    #region Dataset Coverage Audit
+    # ---------------------------------------------------------------------------
 
-    if ($OutputPath) {
-        $report | ConvertTo-Json -Depth 12 | Set-Content -Path $OutputPath -Encoding UTF8
-        Write-Verbose "Report saved: $OutputPath"
-    }
-
-    if ($PassThru -or -not $OutputPath) { $report }
-}
-
-#endregion
-
-# ---------------------------------------------------------------------------
-#region Dataset Coverage Audit
-# ---------------------------------------------------------------------------
-
-function Test-GenesysOpsDatasetCoverage {
-    <#
+    function Test-GenesysOpsDatasetCoverage {
+        <#
     .SYNOPSIS
         Audits Genesys.Ops public cmdlets against the active Genesys.Core catalog.
     .DESCRIPTION
@@ -5542,278 +5619,283 @@ function Test-GenesysOpsDatasetCoverage {
         Test-GenesysOpsDatasetCoverage | Where-Object { $_.InvocationRisk -in @('Unsupported','High') } |
             Format-Table FunctionName, DatasetKey, Notes
     #>
-    [CmdletBinding()]
-    param(
-        [string] $CatalogPath
-    )
-
-    # Cmdlet-to-dataset map.  Composite functions are listed with DatasetKey = '(composite)'.
-    $map = @(
-        @{ Function = 'Get-GenesysOrganization';            Dataset = 'organization.get.organization.details' }
-        @{ Function = 'Get-GenesysOrganizationLimit';       Dataset = 'organization.get.organization.limits' }
-        @{ Function = 'Get-GenesysDivision';                Dataset = 'authorization.get.all.divisions' }
-        @{ Function = 'Get-GenesysAgent';                   Dataset = 'users' }
-        @{ Function = 'Get-GenesysAgentPresence';           Dataset = 'users.get.bulk.user.presences.genesys.cloud' }
-        @{ Function = 'Find-GenesysUser';                   Dataset = 'users.search.users.by.name.or.email' }
-        @{ Function = 'Get-GenesysUserWithDivision';        Dataset = 'users.division.analysis.get.users.with.division.info' }
-        @{ Function = 'Get-GenesysSystemPresence';          Dataset = 'presence.get.system.presence.definitions' }
-        @{ Function = 'Get-GenesysCustomPresence';          Dataset = 'presence.get.organization.presence.definitions' }
-        @{ Function = 'Get-GenesysQueue';                   Dataset = 'routing-queues' }
-        @{ Function = 'Get-GenesysRoutingSkill';            Dataset = 'routing.get.all.routing.skills' }
-        @{ Function = 'Get-GenesysWrapupCode';              Dataset = 'routing.get.all.wrapup.codes' }
-        @{ Function = 'Get-GenesysLanguage';                Dataset = 'routing.get.all.languages' }
-        @{ Function = 'Get-GenesysActiveConversation';      Dataset = 'conversations.get.active.conversations' }
-        @{ Function = 'Get-GenesysActiveCall';              Dataset = 'conversations.get.active.calls' }
-        @{ Function = 'Get-GenesysActiveChat';              Dataset = 'conversations.get.active.chats' }
-        @{ Function = 'Get-GenesysActiveEmail';             Dataset = 'conversations.get.active.emails' }
-        @{ Function = 'Get-GenesysActiveCallback';          Dataset = 'conversations.get.active.callbacks' }
-        @{ Function = 'Get-GenesysCallHistory';             Dataset = 'conversations.get.call.history' }
-        @{ Function = 'Get-GenesysConversationDetail';      Dataset = 'analytics-conversation-details' }
-        @{ Function = 'Get-GenesysAuditEvent';              Dataset = 'audit-logs' }
-        @{ Function = 'Get-GenesysApiUsage';                Dataset = 'usage.get.api.usage.organization.summary' }
-        @{ Function = 'Get-GenesysApiUsageByClient';        Dataset = 'usage.get.api.usage.by.client' }
-        @{ Function = 'Get-GenesysApiUsageByUser';          Dataset = 'usage.get.api.usage.by.user' }
-        @{ Function = 'Get-GenesysNotificationTopic';       Dataset = 'notifications.get.available.notification.topics' }
-        @{ Function = 'Get-GenesysNotificationSubscription';Dataset = 'notifications.get.notification.subscriptions' }
-        @{ Function = 'Get-GenesysOAuthClient';             Dataset = 'oauth.get.clients' }
-        @{ Function = 'Get-GenesysOAuthAuthorization';      Dataset = 'oauth.get.authorizations' }
-        @{ Function = 'Get-GenesysRateLimitEvent';          Dataset = 'analytics.query.rate.limit.aggregates' }
-        @{ Function = 'Get-GenesysOutboundCampaign';        Dataset = 'outbound.get.campaigns' }
-        @{ Function = 'Get-GenesysOutboundContactList';     Dataset = 'outbound.get.contact.lists' }
-        @{ Function = 'Get-GenesysOutboundEvent';           Dataset = 'outbound.get.events' }
-        @{ Function = 'Get-GenesysMessagingCampaign';       Dataset = 'outbound.get.messaging.campaigns' }
-        @{ Function = 'Get-GenesysFlow';                    Dataset = 'flows.get.all.flows' }
-        @{ Function = 'Get-GenesysFlowOutcome';             Dataset = 'flows.get.flow.outcomes' }
-        @{ Function = 'Get-GenesysFlowMilestone';           Dataset = 'flows.get.flow.milestones' }
-        @{ Function = 'Get-GenesysFlowAggregate';           Dataset = 'analytics.query.flow.aggregates.execution.metrics' }
-        @{ Function = 'Get-GenesysFlowObservation';         Dataset = 'analytics.query.flow.observations'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysAgentPerformance';        Dataset = 'analytics.query.user.aggregates.performance.metrics'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysUserActivity';            Dataset = 'analytics.query.user.details.activity.report' }
-        @{ Function = 'Get-GenesysAgentVoiceQuality';       Dataset = 'analytics-conversation-details' }
-        @{ Function = 'Get-GenesysEdge';                    Dataset = 'telephony.get.edges' }
-        @{ Function = 'Get-GenesysTrunk';                   Dataset = 'telephony.get.trunks' }
-        @{ Function = 'Get-GenesysTrunkMetrics';            Dataset = 'telephony.get.trunk.metrics.summary' }
-        @{ Function = 'Get-GenesysStation';                 Dataset = 'stations.get.stations' }
-        @{ Function = 'Get-GenesysEdgeEvent';               Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysQueueAbandonRate';        Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysQueueServiceLevel';       Dataset = 'analytics.query.queue.aggregates.service.level'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysTransferAnalysis';        Dataset = 'analytics.query.conversation.aggregates.transfer.metrics'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysWrapupDistribution';      Dataset = 'analytics.query.conversation.aggregates.wrapup.distribution'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysDigitalChannelVolume';    Dataset = 'analytics.query.conversation.aggregates.digital.channels'; DefaultBody = $true }
-        @{ Function = 'Export-GenesysMonthlyChannelVolume'; Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysEvaluation';              Dataset = 'quality.get.evaluations.query' }
-        @{ Function = 'Get-GenesysSurvey';                  Dataset = 'quality.get.surveys' }
-        @{ Function = 'Get-GenesysAlertingRule';            Dataset = 'alerting.get.rules' }
-        @{ Function = 'Get-GenesysAlert';                   Dataset = 'alerting.get.alerts' }
-        @{ Function = 'Get-GenesysAgentLoginActivity';      Dataset = 'analytics.query.user.aggregates.login.activity'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysQueueObservation';        Dataset = 'analytics.query.queue.observations.real.time.stats'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysUserObservation';         Dataset = 'analytics.query.user.observations.real.time.status'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysQueuePerformance';        Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysWorkforceManagementUnit'; Dataset = 'workforce.get.management.units' }
-        @{ Function = 'Get-GenesysJourneyActionMap';        Dataset = 'journey.get.action.maps' }
-        # Composite/enriched functions
-        @{ Function = 'Get-GenesysContactCentreStatus';        Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Invoke-GenesysDailyHealthReport';       Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Export-GenesysConfigurationSnapshot';   Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysEdgeHealthSnapshot';         Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysQueueAbandonRate';           Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
-        @{ Function = 'Get-GenesysSentimentTrend';             Dataset = 'analytics-conversation-details' }
-        @{ Function = 'Get-GenesysLongHandleConversation';     Dataset = 'analytics-conversation-details' }
-        @{ Function = 'Get-GenesysRepeatCaller';               Dataset = 'analytics-conversation-details' }
-        @{ Function = 'Get-GenesysWebRtcDisconnectSummary';    Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysConversationLatencyTrend';   Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysAgentAcwAnomaly';            Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysChangeAuditFeed';            Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysAbandonRateDashboard';       Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysQueueHealthSnapshot';        Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysAgentQualitySnapshot';       Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Invoke-GenesysOperationsReport';        Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysPeakHourLoad';               Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysOutboundCampaignPerformance';Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysFlowOutcomeKpiCorrelation';  Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysAgentInvestigation';         Dataset = '(composite)'; Composite = $true }
-        @{ Function = 'Get-GenesysCampaignInvestigation';      Dataset = '(composite)'; Composite = $true }
-    )
-
-    # Resolve catalog
-    $resolvedCatalog = $CatalogPath
-    if (-not $resolvedCatalog -and $script:GC.CatalogPath) { $resolvedCatalog = $script:GC.CatalogPath }
-    if (-not $resolvedCatalog) {
-        $candidates = @(
-            (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
-            (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
-            (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json')
+        [CmdletBinding()]
+        param(
+            [string] $CatalogPath
         )
-        $resolvedCatalog = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    }
 
-    $catalogDatasets = $null
-    if ($resolvedCatalog -and (Test-Path $resolvedCatalog)) {
-        try {
-            $catalogObj     = Get-Content -Path $resolvedCatalog -Raw | ConvertFrom-Json
-            $catalogDatasets = Get-PropertyValue $catalogObj 'datasets'
-        } catch {
-            Write-Warning "Test-GenesysOpsDatasetCoverage: Could not load catalog '$($resolvedCatalog)' — $($_)"
+        # Cmdlet-to-dataset map.  Composite functions are listed with DatasetKey = '(composite)'.
+        $map = @(
+            @{ Function = 'Get-GenesysOrganization'; Dataset = 'organization.get.organization.details' }
+            @{ Function = 'Get-GenesysOrganizationLimit'; Dataset = 'organization.get.organization.limits' }
+            @{ Function = 'Get-GenesysDivision'; Dataset = 'authorization.get.all.divisions' }
+            @{ Function = 'Get-GenesysAgent'; Dataset = 'users' }
+            @{ Function = 'Get-GenesysAgentPresence'; Dataset = 'users.get.bulk.user.presences.genesys.cloud' }
+            @{ Function = 'Find-GenesysUser'; Dataset = 'users.search.users.by.name.or.email' }
+            @{ Function = 'Get-GenesysUserWithDivision'; Dataset = 'users.division.analysis.get.users.with.division.info' }
+            @{ Function = 'Get-GenesysSystemPresence'; Dataset = 'presence.get.system.presence.definitions' }
+            @{ Function = 'Get-GenesysCustomPresence'; Dataset = 'presence.get.organization.presence.definitions' }
+            @{ Function = 'Get-GenesysQueue'; Dataset = 'routing-queues' }
+            @{ Function = 'Get-GenesysRoutingSkill'; Dataset = 'routing.get.all.routing.skills' }
+            @{ Function = 'Get-GenesysWrapupCode'; Dataset = 'routing.get.all.wrapup.codes' }
+            @{ Function = 'Get-GenesysLanguage'; Dataset = 'routing.get.all.languages' }
+            @{ Function = 'Get-GenesysActiveConversation'; Dataset = 'conversations.get.active.conversations' }
+            @{ Function = 'Get-GenesysActiveCall'; Dataset = 'conversations.get.active.calls' }
+            @{ Function = 'Get-GenesysActiveChat'; Dataset = 'conversations.get.active.chats' }
+            @{ Function = 'Get-GenesysActiveEmail'; Dataset = 'conversations.get.active.emails' }
+            @{ Function = 'Get-GenesysActiveCallback'; Dataset = 'conversations.get.active.callbacks' }
+            @{ Function = 'Get-GenesysCallHistory'; Dataset = 'conversations.get.call.history' }
+            @{ Function = 'Get-GenesysConversationDetail'; Dataset = 'analytics-conversation-details' }
+            @{ Function = 'Get-GenesysAuditEvent'; Dataset = 'audit-logs' }
+            @{ Function = 'Get-GenesysApiUsage'; Dataset = 'usage.get.api.usage.organization.summary' }
+            @{ Function = 'Get-GenesysApiUsageByClient'; Dataset = 'usage.get.api.usage.by.client' }
+            @{ Function = 'Get-GenesysApiUsageByUser'; Dataset = 'usage.get.api.usage.by.user' }
+            @{ Function = 'Get-GenesysNotificationTopic'; Dataset = 'notifications.get.available.notification.topics' }
+            @{ Function = 'Get-GenesysNotificationSubscription'; Dataset = 'notifications.get.notification.subscriptions' }
+            @{ Function = 'Get-GenesysOAuthClient'; Dataset = 'oauth.get.clients' }
+            @{ Function = 'Get-GenesysOAuthAuthorization'; Dataset = 'oauth.get.authorizations' }
+            @{ Function = 'Get-GenesysRateLimitEvent'; Dataset = 'analytics.query.rate.limit.aggregates' }
+            @{ Function = 'Get-GenesysOutboundCampaign'; Dataset = 'outbound.get.campaigns' }
+            @{ Function = 'Get-GenesysOutboundContactList'; Dataset = 'outbound.get.contact.lists' }
+            @{ Function = 'Get-GenesysOutboundEvent'; Dataset = 'outbound.get.events' }
+            @{ Function = 'Get-GenesysMessagingCampaign'; Dataset = 'outbound.get.messaging.campaigns' }
+            @{ Function = 'Get-GenesysFlow'; Dataset = 'flows.get.all.flows' }
+            @{ Function = 'Get-GenesysFlowOutcome'; Dataset = 'flows.get.flow.outcomes' }
+            @{ Function = 'Get-GenesysFlowMilestone'; Dataset = 'flows.get.flow.milestones' }
+            @{ Function = 'Get-GenesysFlowAggregate'; Dataset = 'analytics.query.flow.aggregates.execution.metrics' }
+            @{ Function = 'Get-GenesysFlowObservation'; Dataset = 'analytics.query.flow.observations'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysAgentPerformance'; Dataset = 'analytics.query.user.aggregates.performance.metrics'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysUserActivity'; Dataset = 'analytics.query.user.details.activity.report' }
+            @{ Function = 'Get-GenesysAgentVoiceQuality'; Dataset = 'analytics-conversation-details' }
+            @{ Function = 'Get-GenesysEdge'; Dataset = 'telephony.get.edges' }
+            @{ Function = 'Get-GenesysTrunk'; Dataset = 'telephony.get.trunks' }
+            @{ Function = 'Get-GenesysTrunkMetrics'; Dataset = 'telephony.get.trunk.metrics.summary' }
+            @{ Function = 'Get-GenesysStation'; Dataset = 'stations.get.stations' }
+            @{ Function = 'Get-GenesysEdgeEvent'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysQueueAbandonRate'; Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysQueueServiceLevel'; Dataset = 'analytics.query.queue.aggregates.service.level'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysTransferAnalysis'; Dataset = 'analytics.query.conversation.aggregates.transfer.metrics'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysWrapupDistribution'; Dataset = 'analytics.query.conversation.aggregates.wrapup.distribution'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysDigitalChannelVolume'; Dataset = 'analytics.query.conversation.aggregates.digital.channels'; DefaultBody = $true }
+            @{ Function = 'Export-GenesysMonthlyChannelVolume'; Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysEvaluation'; Dataset = 'quality.get.evaluations.query' }
+            @{ Function = 'Get-GenesysSurvey'; Dataset = 'quality.get.surveys' }
+            @{ Function = 'Get-GenesysAlertingRule'; Dataset = 'alerting.get.rules' }
+            @{ Function = 'Get-GenesysAlert'; Dataset = 'alerting.get.alerts' }
+            @{ Function = 'Get-GenesysAgentLoginActivity'; Dataset = 'analytics.query.user.aggregates.login.activity'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysQueueObservation'; Dataset = 'analytics.query.queue.observations.real.time.stats'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysUserObservation'; Dataset = 'analytics.query.user.observations.real.time.status'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysQueuePerformance'; Dataset = 'analytics.query.conversation.aggregates.queue.performance'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysWorkforceManagementUnit'; Dataset = 'workforce.get.management.units' }
+            @{ Function = 'Get-GenesysJourneyActionMap'; Dataset = 'journey.get.action.maps' }
+            # Composite/enriched functions
+            @{ Function = 'Get-GenesysContactCentreStatus'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Invoke-GenesysDailyHealthReport'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Export-GenesysConfigurationSnapshot'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysEdgeHealthSnapshot'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysQueueAbandonRate'; Dataset = 'analytics.query.conversation.aggregates.abandon.metrics'; DefaultBody = $true }
+            @{ Function = 'Get-GenesysSentimentTrend'; Dataset = 'analytics-conversation-details' }
+            @{ Function = 'Get-GenesysLongHandleConversation'; Dataset = 'analytics-conversation-details' }
+            @{ Function = 'Get-GenesysRepeatCaller'; Dataset = 'analytics-conversation-details' }
+            @{ Function = 'Get-GenesysWebRtcDisconnectSummary'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysConversationLatencyTrend'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysAgentAcwAnomaly'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysChangeAuditFeed'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysAbandonRateDashboard'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysQueueHealthSnapshot'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysAgentQualitySnapshot'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Invoke-GenesysOperationsReport'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysPeakHourLoad'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysOutboundCampaignPerformance'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysFlowOutcomeKpiCorrelation'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysAgentInvestigation'; Dataset = '(composite)'; Composite = $true }
+            @{ Function = 'Get-GenesysCampaignInvestigation'; Dataset = '(composite)'; Composite = $true }
+        )
+
+        # Resolve catalog
+        $resolvedCatalog = $CatalogPath
+        if (-not $resolvedCatalog -and $script:GC.CatalogPath) { $resolvedCatalog = $script:GC.CatalogPath }
+        if (-not $resolvedCatalog) {
+            $candidates = @(
+                (Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'),
+                (Join-Path $PSScriptRoot '../../catalog/genesys-core.catalog.json'),
+                (Join-Path $PSScriptRoot '../catalog/genesys.catalog.json'),
+                (Join-Path $PSScriptRoot '../catalog/genesys-core.catalog.json')
+            )
+            $resolvedCatalog = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
         }
-    } else {
-        Write-Warning "Test-GenesysOpsDatasetCoverage: No catalog found. Set -CatalogPath or call Connect-GenesysCloud first."
-    }
 
-    # De-duplicate by function name (take first entry)
-    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    $deduped = foreach ($entry in $map) {
-        if ($seen.Add($entry.Function)) { $entry }
-    }
+        $catalogDatasets = $null
+        if ($resolvedCatalog -and (Test-Path $resolvedCatalog)) {
+            try {
+                $catalogObj = Get-Content -Path $resolvedCatalog -Raw | ConvertFrom-Json
+                $catalogDatasets = Get-PropertyValue $catalogObj 'datasets'
+            }
+            catch {
+                Write-Warning "Test-GenesysOpsDatasetCoverage: Could not load catalog '$($resolvedCatalog)' — $($_)"
+            }
+        }
+        else {
+            Write-Warning "Test-GenesysOpsDatasetCoverage: No catalog found. Set -CatalogPath or call Connect-GenesysCloud first."
+        }
 
-    foreach ($entry in $deduped) {
-        $dataset     = [string]$entry.Dataset
-        $isComposite = $entry.ContainsKey('Composite') -and $entry.Composite
-        $hasBody     = $entry.ContainsKey('DefaultBody') -and $entry.DefaultBody
+        # De-duplicate by function name (take first entry)
+        $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $deduped = foreach ($entry in $map) {
+            if ($seen.Add($entry.Function)) { $entry }
+        }
 
-        if ($isComposite) {
+        foreach ($entry in $deduped) {
+            $dataset = [string]$entry.Dataset
+            $isComposite = $entry.ContainsKey('Composite') -and $entry.Composite
+            $hasBody = $entry.ContainsKey('DefaultBody') -and $entry.DefaultBody
+
+            if ($isComposite) {
+                [PSCustomObject]@{
+                    FunctionName    = $entry.Function
+                    DatasetKey      = '(composite)'
+                    IsInCatalog     = $true   # Composites call child functions; no direct dataset
+                    HasRequiredBody = $false
+                    InvocationRisk  = 'Low'
+                    Notes           = 'Composite function — calls multiple child cmdlets. Risk depends on children.'
+                }
+                continue
+            }
+
+            $inCatalog = $false
+            if ($catalogDatasets) {
+                $inCatalog = [bool]($catalogDatasets.PSObject.Properties[$dataset])
+            }
+
+            $risk = if (-not $catalogDatasets) {
+                'Medium'
+            }
+            elseif (-not $inCatalog) {
+                'Unsupported'
+            }
+            elseif ($hasBody) {
+                'Medium'
+            }
+            else {
+                'Low'
+            }
+
+            $notes = switch ($risk) {
+                'Unsupported' { "Dataset key '$($dataset)' not found in catalog '$($resolvedCatalog)'." }
+                'Medium' { if ($hasBody) { "Uses catalog default request body — add parameters or body override for operational use." } else { "Catalog not loaded; risk indeterminate." } }
+                'Low' { "Dataset key validated in catalog." }
+                default { '' }
+            }
+
             [PSCustomObject]@{
                 FunctionName    = $entry.Function
-                DatasetKey      = '(composite)'
-                IsInCatalog     = $true   # Composites call child functions; no direct dataset
-                HasRequiredBody = $false
-                InvocationRisk  = 'Low'
-                Notes           = 'Composite function — calls multiple child cmdlets. Risk depends on children.'
+                DatasetKey      = $dataset
+                IsInCatalog     = $inCatalog
+                HasRequiredBody = $hasBody
+                InvocationRisk  = $risk
+                Notes           = $notes
             }
-            continue
-        }
-
-        $inCatalog = $false
-        if ($catalogDatasets) {
-            $inCatalog = [bool]($catalogDatasets.PSObject.Properties[$dataset])
-        }
-
-        $risk = if (-not $catalogDatasets) {
-            'Medium'
-        } elseif (-not $inCatalog) {
-            'Unsupported'
-        } elseif ($hasBody) {
-            'Medium'
-        } else {
-            'Low'
-        }
-
-        $notes = switch ($risk) {
-            'Unsupported' { "Dataset key '$($dataset)' not found in catalog '$($resolvedCatalog)'." }
-            'Medium'      { if ($hasBody) { "Uses catalog default request body — add parameters or body override for operational use." } else { "Catalog not loaded; risk indeterminate." } }
-            'Low'         { "Dataset key validated in catalog." }
-            default       { '' }
-        }
-
-        [PSCustomObject]@{
-            FunctionName    = $entry.Function
-            DatasetKey      = $dataset
-            IsInCatalog     = $inCatalog
-            HasRequiredBody = $hasBody
-            InvocationRisk  = $risk
-            Notes           = $notes
         }
     }
-}
 
-#endregion
+    #endregion
 
-$script:GcOpsComposerVersion = '1.0.0'
+    $script:GcOpsComposerVersion = '1.0.0'
 
-function ConvertTo-IsoUtcTimestamp {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [object] $Value
-    )
+    function ConvertTo-IsoUtcTimestamp {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [object] $Value
+        )
 
-    if ($Value -is [DateTime]) {
-        return ([DateTime]$Value).ToUniversalTime().ToString('o')
-    }
-
-    $parsed = [DateTime]::Parse([string]$Value)
-    return $parsed.ToUniversalTime().ToString('o')
-}
-
-function Resolve-DatasetValidationStatus {
-    [CmdletBinding()]
-    param(
-        [string] $DatasetKey,
-        [object] $Catalog
-    )
-
-    if (-not $Catalog) { return 'unvalidated' }
-
-    $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
-    if (-not $datasetsProp) { return 'unvalidated' }
-
-    $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
-    if (-not $dataset) { return 'unvalidated' }
-
-    $statusProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'validationStatus' } | Select-Object -First 1
-    if ($statusProp -and $statusProp.Value) { return [string]$statusProp.Value }
-    return 'unvalidated'
-}
-
-function Resolve-DatasetRedactionProfileName {
-    [CmdletBinding()]
-    param(
-        [string] $DatasetKey,
-        [object] $Catalog
-    )
-
-    if (-not $Catalog) { return $null }
-    $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
-    if (-not $datasetsProp) { return $null }
-    $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
-    if (-not $dataset) { return $null }
-    $rpProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'redactionProfile' } | Select-Object -First 1
-    if ($rpProp -and $rpProp.Value) { return [string]$rpProp.Value }
-    return $null
-}
-
-function Get-OpsCatalog {
-    [CmdletBinding()]
-    param()
-
-    $catalogPath = $script:GC.CatalogPath
-    if (-not $catalogPath) {
-        $candidate = Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'
-        if (Test-Path $candidate) { $catalogPath = (Resolve-Path $candidate).Path }
-    }
-    if (-not $catalogPath -or -not (Test-Path $catalogPath)) { return $null }
-    return (Get-Content -Path $catalogPath -Raw | ConvertFrom-Json)
-}
-
-function Sort-RecordsForDeterminism {
-    [CmdletBinding()]
-    param(
-        [object[]] $Records,
-        [string] $SortKey
-    )
-
-    if (-not $Records -or $Records.Count -eq 0) { return @() }
-    if (-not $SortKey) { $SortKey = 'id' }
-
-    $keyed = foreach ($r in $Records) {
-        $value = $null
-        $cursor = $r
-        foreach ($segment in $SortKey -split '\.') {
-            if ($null -eq $cursor) { break }
-            $prop = $cursor.PSObject.Properties | Where-Object { $_.Name -eq $segment } | Select-Object -First 1
-            if (-not $prop) { $cursor = $null; break }
-            $cursor = $prop.Value
+        if ($Value -is [DateTime]) {
+            return ([DateTime]$Value).ToUniversalTime().ToString('o')
         }
-        $value = if ($null -ne $cursor) { [string]$cursor } else { '' }
-        [pscustomobject]@{ key = $value; record = $r }
+
+        $parsed = [DateTime]::Parse([string]$Value)
+        return $parsed.ToUniversalTime().ToString('o')
     }
 
-    $sorted = $keyed | Sort-Object -Property key -Stable
-    return @($sorted | ForEach-Object { $_.record })
-}
+    function Resolve-DatasetValidationStatus {
+        [CmdletBinding()]
+        param(
+            [string] $DatasetKey,
+            [object] $Catalog
+        )
 
-function Invoke-Investigation {
-    <#
+        if (-not $Catalog) { return 'unvalidated' }
+
+        $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
+        if (-not $datasetsProp) { return 'unvalidated' }
+
+        $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
+        if (-not $dataset) { return 'unvalidated' }
+
+        $statusProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'validationStatus' } | Select-Object -First 1
+        if ($statusProp -and $statusProp.Value) { return [string]$statusProp.Value }
+        return 'unvalidated'
+    }
+
+    function Resolve-DatasetRedactionProfileName {
+        [CmdletBinding()]
+        param(
+            [string] $DatasetKey,
+            [object] $Catalog
+        )
+
+        if (-not $Catalog) { return $null }
+        $datasetsProp = $Catalog.PSObject.Properties | Where-Object { $_.Name -eq 'datasets' } | Select-Object -First 1
+        if (-not $datasetsProp) { return $null }
+        $dataset = $datasetsProp.Value.PSObject.Properties | Where-Object { $_.Name -eq $DatasetKey } | Select-Object -First 1
+        if (-not $dataset) { return $null }
+        $rpProp = $dataset.Value.PSObject.Properties | Where-Object { $_.Name -eq 'redactionProfile' } | Select-Object -First 1
+        if ($rpProp -and $rpProp.Value) { return [string]$rpProp.Value }
+        return $null
+    }
+
+    function Get-OpsCatalog {
+        [CmdletBinding()]
+        param()
+
+        $catalogPath = $script:GC.CatalogPath
+        if (-not $catalogPath) {
+            $candidate = Join-Path $PSScriptRoot '../../catalog/genesys.catalog.json'
+            if (Test-Path $candidate) { $catalogPath = (Resolve-Path $candidate).Path }
+        }
+        if (-not $catalogPath -or -not (Test-Path $catalogPath)) { return $null }
+        return (Get-Content -Path $catalogPath -Raw | ConvertFrom-Json)
+    }
+
+    function Sort-RecordsForDeterminism {
+        [CmdletBinding()]
+        param(
+            [object[]] $Records,
+            [string] $SortKey
+        )
+
+        if (-not $Records -or $Records.Count -eq 0) { return @() }
+        if (-not $SortKey) { $SortKey = 'id' }
+
+        $keyed = foreach ($r in $Records) {
+            $value = $null
+            $cursor = $r
+            foreach ($segment in $SortKey -split '\.') {
+                if ($null -eq $cursor) { break }
+                $prop = $cursor.PSObject.Properties | Where-Object { $_.Name -eq $segment } | Select-Object -First 1
+                if (-not $prop) { $cursor = $null; break }
+                $cursor = $prop.Value
+            }
+            $value = if ($null -ne $cursor) { [string]$cursor } else { '' }
+            [pscustomobject]@{ key = $value; record = $r }
+        }
+
+        $sorted = $keyed | Sort-Object -Property key -Stable
+        return @($sorted | ForEach-Object { $_.record })
+    }
+
+    function Invoke-Investigation {
+        <#
     .SYNOPSIS
         Internal composer — runs a sequence of catalog datasets and emits the
         standard investigation run-artifact set.
@@ -5832,318 +5914,330 @@ function Invoke-Investigation {
         path. Receives ($Step, $Subject, $Window) and must return:
             @{ records = @(...); runId = '<id>'; status = 'ok'|'failed'|'skipped'; errorMessage = $null|<text> }
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidatePattern('^[a-z][a-z0-9-]*$')]
-        [string] $InvestigationKey,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [ValidatePattern('^[a-z][a-z0-9-]*$')]
+            [string] $InvestigationKey,
 
-        [Parameter(Mandatory)]
-        [ValidateSet('agent', 'campaign', 'conversation', 'queue')]
-        [string] $SubjectType,
+            [Parameter(Mandatory)]
+            [ValidateSet('agent', 'campaign', 'conversation', 'queue')]
+            [string] $SubjectType,
 
-        [Parameter(Mandatory)]
-        [hashtable] $Subject,
+            [Parameter(Mandatory)]
+            [hashtable] $Subject,
 
-        [hashtable] $Window,
+            [hashtable] $Window,
 
-        [Parameter(Mandatory)]
-        [object[]] $Steps,
+            [Parameter(Mandatory)]
+            [object[]] $Steps,
 
-        [string] $OutputRoot = 'out',
+            [string] $OutputRoot = 'out',
 
-        [string] $RunId,
+            [string] $RunId,
 
-        [scriptblock] $DatasetInvoker
-    )
+            [scriptblock] $DatasetInvoker
+        )
 
-    if (-not $RunId) { $RunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') }
+        if (-not $RunId) { $RunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') }
 
-    $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
-        [System.IO.Path]::GetFullPath($OutputRoot)
-    } else {
-        [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location).Path -ChildPath $OutputRoot))
-    }
-
-    $runFolder    = Join-Path $resolvedOutputRoot (Join-Path $InvestigationKey $RunId)
-    $dataFolder   = Join-Path $runFolder 'data'
-    $manifestPath = Join-Path $runFolder 'manifest.json'
-    $eventsPath   = Join-Path $runFolder 'events.jsonl'
-    $summaryPath  = Join-Path $runFolder 'summary.json'
-
-    New-Item -Path $dataFolder -ItemType Directory -Force | Out-Null
-
-    $catalog = Get-OpsCatalog
-    $startedAt = [DateTime]::UtcNow
-    $startedAtIso = $startedAt.ToString('o')
-
-    $writeEvent = {
-        param($type, $payload)
-        $entry = [ordered]@{
-            timestampUtc     = [DateTime]::UtcNow.ToString('o')
-            investigationKey = $InvestigationKey
-            runId            = $RunId
-            eventType        = $type
-            payload          = $payload
+        $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
+            [System.IO.Path]::GetFullPath($OutputRoot)
         }
-        Add-Content -Path $eventsPath -Value ($entry | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
-    }
-
-    & $writeEvent 'investigation.started' @{
-        subjectType = $SubjectType
-        subjectId   = $Subject.SubjectId
-        window      = $Window
-        stepCount   = $Steps.Count
-    }
-
-    $summarySections = [ordered]@{}
-    $datasetsInvoked = New-Object System.Collections.Generic.List[object]
-    $joinPlan        = New-Object System.Collections.Generic.List[object]
-    $dataPaths       = [ordered]@{}
-    $datasetProfiles = [ordered]@{}
-    $aborted         = $false
-    $abortReason     = $null
-
-    foreach ($step in $Steps) {
-        $stepName    = [string]$step['Name']
-        $isDerived   = $step.ContainsKey('RecordDeriver') -and $step['RecordDeriver']
-        $datasetKey  = if ($isDerived) { '(derived)' } else { [string]$step['DatasetKey'] }
-        $emitAs      = if ($step.ContainsKey('EmitAs') -and $step['EmitAs']) { [string]$step['EmitAs'] } else { $stepName }
-        $required    = if ($step.ContainsKey('Required')) { [bool]$step['Required'] } else { $true }
-        $joinKind    = if ($step.ContainsKey('JoinKind') -and $step['JoinKind']) { [string]$step['JoinKind'] } else { 'Inner' }
-        $sortKey     = if ($step.ContainsKey('SortKey') -and $step['SortKey']) { [string]$step['SortKey'] } else { 'id' }
-        $joinOn      = if ($step.ContainsKey('JoinOn')) { $step['JoinOn'] } else { $null }
-
-        if (-not $isDerived) {
-            $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
+        else {
+            [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location).Path -ChildPath $OutputRoot))
         }
 
-        $leftSource = $null
-        if ($joinOn -and $joinOn.ContainsKey('Source')) {
-            $leftSource = $joinOn.Source
-        } elseif ($joinOn -and $joinOn.ContainsKey('Left') -and $joinOn.Left) {
-            $leftSource = 'identity'
-        }
+        $runFolder = Join-Path $resolvedOutputRoot (Join-Path $InvestigationKey $RunId)
+        $dataFolder = Join-Path $runFolder 'data'
+        $manifestPath = Join-Path $runFolder 'manifest.json'
+        $eventsPath = Join-Path $runFolder 'events.jsonl'
+        $summaryPath = Join-Path $runFolder 'summary.json'
 
-        $joinPlan.Add([ordered]@{
-            stepName   = $stepName
-            leftSource = $leftSource
-            leftKey    = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
-            rightKey   = if ($joinOn -and $joinOn.ContainsKey('Right')) { $joinOn.Right } else { $null }
-            joinKind   = $joinKind
-        }) | Out-Null
+        New-Item -Path $dataFolder -ItemType Directory -Force | Out-Null
 
-        & $writeEvent 'step.started' @{
-            stepName   = $stepName
-            datasetKey = $datasetKey
-            required   = $required
-        }
+        $catalog = Get-OpsCatalog
+        $startedAt = [DateTime]::UtcNow
+        $startedAtIso = $startedAt.ToString('o')
 
-        $resolvedDatasetParameters = $null
-        if (-not $isDerived -and $step.ContainsKey('Parameters') -and $step['Parameters']) {
-            $parameterSource = $step['Parameters']
-            if ($parameterSource -is [scriptblock]) {
-                $resolvedDatasetParameters = & $parameterSource $Subject $summarySections $Window
-            } else {
-                $resolvedDatasetParameters = $parameterSource
+        $writeEvent = {
+            param($type, $payload)
+            $entry = [ordered]@{
+                timestampUtc     = [DateTime]::UtcNow.ToString('o')
+                investigationKey = $InvestigationKey
+                runId            = $RunId
+                eventType        = $type
+                payload          = $payload
             }
+            Add-Content -Path $eventsPath -Value ($entry | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
         }
 
-        $stepResult = $null
-        if ($isDerived) {
-            try {
-                $derived = @(& $step['RecordDeriver'] $summarySections $Subject)
-                $stepResult = @{ records = $derived; runId = $null; status = 'ok'; errorMessage = $null }
-            } catch {
-                $stepResult = @{ records = @(); runId = $null; status = 'failed'; errorMessage = $_.Exception.Message }
+        & $writeEvent 'investigation.started' @{
+            subjectType = $SubjectType
+            subjectId   = $Subject.SubjectId
+            window      = $Window
+            stepCount   = $Steps.Count
+        }
+
+        $summarySections = [ordered]@{}
+        $datasetsInvoked = New-Object System.Collections.Generic.List[object]
+        $joinPlan = New-Object System.Collections.Generic.List[object]
+        $dataPaths = [ordered]@{}
+        $datasetProfiles = [ordered]@{}
+        $aborted = $false
+        $abortReason = $null
+
+        foreach ($step in $Steps) {
+            $stepName = [string]$step['Name']
+            $isDerived = $step.ContainsKey('RecordDeriver') -and $step['RecordDeriver']
+            $datasetKey = if ($isDerived) { '(derived)' } else { [string]$step['DatasetKey'] }
+            $emitAs = if ($step.ContainsKey('EmitAs') -and $step['EmitAs']) { [string]$step['EmitAs'] } else { $stepName }
+            $required = if ($step.ContainsKey('Required')) { [bool]$step['Required'] } else { $true }
+            $joinKind = if ($step.ContainsKey('JoinKind') -and $step['JoinKind']) { [string]$step['JoinKind'] } else { 'Inner' }
+            $sortKey = if ($step.ContainsKey('SortKey') -and $step['SortKey']) { [string]$step['SortKey'] } else { 'id' }
+            $joinOn = if ($step.ContainsKey('JoinOn')) { $step['JoinOn'] } else { $null }
+
+            if (-not $isDerived) {
+                $datasetProfiles[$datasetKey] = Resolve-DatasetRedactionProfileName -DatasetKey $datasetKey -Catalog $catalog
             }
-        } else {
-            try {
-                if ($DatasetInvoker) {
-                    $stepForInvoker = @{}
-                    foreach ($key in $step.Keys) { $stepForInvoker[$key] = $step[$key] }
-                    if ($null -ne $resolvedDatasetParameters) {
-                        $stepForInvoker['DatasetParameters'] = $resolvedDatasetParameters
+
+            $leftSource = $null
+            if ($joinOn -and $joinOn.ContainsKey('Source')) {
+                $leftSource = $joinOn.Source
+            }
+            elseif ($joinOn -and $joinOn.ContainsKey('Left') -and $joinOn.Left) {
+                $leftSource = 'identity'
+            }
+
+            $joinPlan.Add([ordered]@{
+                    stepName   = $stepName
+                    leftSource = $leftSource
+                    leftKey    = if ($joinOn -and $joinOn.ContainsKey('Left')) { $joinOn.Left } else { $null }
+                    rightKey   = if ($joinOn -and $joinOn.ContainsKey('Right')) { $joinOn.Right } else { $null }
+                    joinKind   = $joinKind
+                }) | Out-Null
+
+            & $writeEvent 'step.started' @{
+                stepName   = $stepName
+                datasetKey = $datasetKey
+                required   = $required
+            }
+
+            $resolvedDatasetParameters = $null
+            if (-not $isDerived -and $step.ContainsKey('Parameters') -and $step['Parameters']) {
+                $parameterSource = $step['Parameters']
+                if ($parameterSource -is [scriptblock]) {
+                    $resolvedDatasetParameters = & $parameterSource $Subject $summarySections $Window
+                }
+                else {
+                    $resolvedDatasetParameters = $parameterSource
+                }
+            }
+
+            $stepResult = $null
+            if ($isDerived) {
+                try {
+                    $derived = @(& $step['RecordDeriver'] $summarySections $Subject)
+                    $stepResult = @{ records = $derived; runId = $null; status = 'ok'; errorMessage = $null }
+                }
+                catch {
+                    $stepResult = @{ records = @(); runId = $null; status = 'failed'; errorMessage = $_.Exception.Message }
+                }
+            }
+            else {
+                try {
+                    if ($DatasetInvoker) {
+                        $stepForInvoker = @{}
+                        foreach ($key in $step.Keys) { $stepForInvoker[$key] = $step[$key] }
+                        if ($null -ne $resolvedDatasetParameters) {
+                            $stepForInvoker['DatasetParameters'] = $resolvedDatasetParameters
+                        }
+                        $stepResult = & $DatasetInvoker $stepForInvoker $Subject $Window
                     }
-                    $stepResult = & $DatasetInvoker $stepForInvoker $Subject $Window
-                } else {
-                    $invokeArgs = @{ Dataset = $datasetKey }
-                    if ($null -ne $resolvedDatasetParameters) {
-                        $invokeArgs['DatasetParameters'] = $resolvedDatasetParameters
+                    else {
+                        $invokeArgs = @{ Dataset = $datasetKey }
+                        if ($null -ne $resolvedDatasetParameters) {
+                            $invokeArgs['DatasetParameters'] = $resolvedDatasetParameters
+                        }
+                        $records = Invoke-GenesysDataset @invokeArgs
+                        $stepResult = @{
+                            records      = @($records)
+                            runId        = $null
+                            status       = 'ok'
+                            errorMessage = $null
+                        }
                     }
-                    $records = Invoke-GenesysDataset @invokeArgs
+                }
+                catch {
                     $stepResult = @{
-                        records      = @($records)
+                        records      = @()
                         runId        = $null
-                        status       = 'ok'
-                        errorMessage = $null
+                        status       = 'failed'
+                        errorMessage = $_.Exception.Message
                     }
                 }
-            } catch {
-                $stepResult = @{
-                    records      = @()
-                    runId        = $null
-                    status       = 'failed'
-                    errorMessage = $_.Exception.Message
+            }
+
+            $records = if ($stepResult -and $stepResult.records) { @($stepResult.records) } else { @() }
+
+            if ($step.ContainsKey('SubjectFilter') -and $step['SubjectFilter'] -and $stepResult.status -eq 'ok') {
+                $filter = [scriptblock]$step['SubjectFilter']
+                $records = @($records | Where-Object { & $filter $_ $Subject })
+            }
+
+            $records = @(Sort-RecordsForDeterminism -Records $records -SortKey $sortKey)
+
+            $stepDataPath = Join-Path $dataFolder ("$stepName.jsonl")
+            if ($records.Count -gt 0) {
+                $records | ForEach-Object {
+                    Add-Content -Path $stepDataPath -Value ($_ | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
+                }
+            }
+            else {
+                New-Item -Path $stepDataPath -ItemType File -Force | Out-Null
+            }
+            $dataPaths[$stepName] = $stepDataPath
+
+            $summarySections[$emitAs] = $records
+
+            if ($step.ContainsKey('SubjectUpdater') -and $step['SubjectUpdater']) {
+                $updates = & $step['SubjectUpdater'] $records $Subject
+                if ($updates) {
+                    foreach ($k in $updates.Keys) { $Subject[$k] = $updates[$k] }
+                }
+            }
+
+            $datasetsInvoked.Add([ordered]@{
+                    stepName         = $stepName
+                    datasetKey       = $datasetKey
+                    runId            = $stepResult.runId
+                    validationStatus = (Resolve-DatasetValidationStatus -DatasetKey $datasetKey -Catalog $catalog)
+                    recordCount      = $records.Count
+                    required         = $required
+                    status           = $stepResult.status
+                    errorMessage     = $stepResult.errorMessage
+                }) | Out-Null
+
+            if ($stepResult.status -eq 'failed') {
+                & $writeEvent 'step.failed' @{
+                    stepName     = $stepName
+                    datasetKey   = $datasetKey
+                    errorMessage = $stepResult.errorMessage
+                }
+                if ($required) {
+                    $aborted = $true
+                    $abortReason = "Required step '$stepName' (dataset '$datasetKey') failed: $($stepResult.errorMessage)"
+                    break
+                }
+            }
+            else {
+                & $writeEvent 'step.finished' @{
+                    stepName    = $stepName
+                    datasetKey  = $datasetKey
+                    recordCount = $records.Count
                 }
             }
         }
 
-        $records = if ($stepResult -and $stepResult.records) { @($stepResult.records) } else { @() }
+        $finishedAt = [DateTime]::UtcNow
+        $finishedAtIso = $finishedAt.ToString('o')
 
-        if ($step.ContainsKey('SubjectFilter') -and $step['SubjectFilter'] -and $stepResult.status -eq 'ok') {
-            $filter = [scriptblock]$step['SubjectFilter']
-            $records = @($records | Where-Object { & $filter $_ $Subject })
+        $sinceIso = $null
+        $untilIso = $null
+        if ($Window -and $Window.ContainsKey('Since') -and $null -ne $Window.Since) {
+            $sinceIso = ConvertTo-IsoUtcTimestamp $Window.Since
+        }
+        if ($Window -and $Window.ContainsKey('Until') -and $null -ne $Window.Until) {
+            $untilIso = ConvertTo-IsoUtcTimestamp $Window.Until
         }
 
-        $records = @(Sort-RecordsForDeterminism -Records $records -SortKey $sortKey)
+        $windowObj = [ordered]@{ since = $sinceIso; until = $untilIso }
+        $redactionObj = [ordered]@{ datasets = $datasetProfiles; composerOverrides = @() }
+        $artifactsObj = [ordered]@{
+            manifestPath = $manifestPath
+            eventsPath   = $eventsPath
+            summaryPath  = $summaryPath
+            dataPaths    = $dataPaths
+        }
 
-        $stepDataPath = Join-Path $dataFolder ("$stepName.jsonl")
-        if ($records.Count -gt 0) {
-            $records | ForEach-Object {
-                Add-Content -Path $stepDataPath -Value ($_ | ConvertTo-Json -Depth 100 -Compress) -Encoding utf8
+        $datasetsInvokedArray = $datasetsInvoked.ToArray()
+        $joinPlanArray = $joinPlan.ToArray()
+        $subjectIdString = [string]$Subject['SubjectId']
+
+        $manifest = [ordered]@{}
+        $manifest['investigationKey'] = $InvestigationKey
+        $manifest['runId'] = $RunId
+        $manifest['subjectType'] = $SubjectType
+        $manifest['subjectId'] = $subjectIdString
+        $manifest['window'] = $windowObj
+        $manifest['datasetsInvoked'] = $datasetsInvokedArray
+        $manifest['joinPlan'] = $joinPlanArray
+        $manifest['redactionProfile'] = $redactionObj
+        $manifest['outputArtifacts'] = $artifactsObj
+        $manifest['startedAt'] = $startedAtIso
+        $manifest['finishedAt'] = $finishedAtIso
+        $manifest['composerVersion'] = $script:GcOpsComposerVersion
+
+        Set-Content -Path $manifestPath -Value ($manifest | ConvertTo-Json -Depth 100) -Encoding utf8
+
+        # Schema validation — fail the run on shape violation.
+        $schemaPath = Join-Path $PSScriptRoot '../../catalog/schema/investigation.manifest.schema.json'
+        if (Test-Path $schemaPath) {
+            $schemaRaw = Get-Content -Path $schemaPath -Raw
+            $manifestRaw = Get-Content -Path $manifestPath -Raw
+            try {
+                $valid = $manifestRaw | Test-Json -Schema $schemaRaw -ErrorAction Stop
             }
-        } else {
-            New-Item -Path $stepDataPath -ItemType File -Force | Out-Null
-        }
-        $dataPaths[$stepName] = $stepDataPath
-
-        $summarySections[$emitAs] = $records
-
-        if ($step.ContainsKey('SubjectUpdater') -and $step['SubjectUpdater']) {
-            $updates = & $step['SubjectUpdater'] $records $Subject
-            if ($updates) {
-                foreach ($k in $updates.Keys) { $Subject[$k] = $updates[$k] }
+            catch {
+                $valid = $false
+                & $writeEvent 'manifest.schema.invalid' @{ message = $_.Exception.Message }
+            }
+            if (-not $valid) {
+                throw "Investigation manifest failed schema validation: $manifestPath"
             }
         }
 
-        $datasetsInvoked.Add([ordered]@{
-            stepName         = $stepName
-            datasetKey       = $datasetKey
-            runId            = $stepResult.runId
-            validationStatus = (Resolve-DatasetValidationStatus -DatasetKey $datasetKey -Catalog $catalog)
-            recordCount      = $records.Count
-            required         = $required
-            status           = $stepResult.status
-            errorMessage     = $stepResult.errorMessage
-        }) | Out-Null
+        if ($aborted) {
+            & $writeEvent 'investigation.failed' @{ reason = $abortReason }
+            throw $abortReason
+        }
 
-        if ($stepResult.status -eq 'failed') {
-            & $writeEvent 'step.failed' @{
-                stepName     = $stepName
-                datasetKey   = $datasetKey
-                errorMessage = $stepResult.errorMessage
+        # Custom serializer — every summary section is an array, even when it has 0 or 1 records.
+        # ConvertTo-Json unwraps single-element arrays in PS5.1, so build the JSON manually.
+        $sectionParts = foreach ($entry in $summarySections.GetEnumerator()) {
+            $arr = @($entry.Value)
+            if ($arr.Count -eq 0) {
+                $body = '[]'
             }
-            if ($required) {
-                $aborted = $true
-                $abortReason = "Required step '$stepName' (dataset '$datasetKey') failed: $($stepResult.errorMessage)"
-                break
+            elseif ($arr.Count -eq 1) {
+                $body = '[' + ($arr[0] | ConvertTo-Json -Depth 100 -Compress) + ']'
             }
-        } else {
-            & $writeEvent 'step.finished' @{
-                stepName    = $stepName
-                datasetKey  = $datasetKey
-                recordCount = $records.Count
+            else {
+                $body = $arr | ConvertTo-Json -Depth 100 -Compress
             }
+            '"' + $entry.Key + '":' + $body
+        }
+        $summaryJson = '{' + ($sectionParts -join ',') + '}'
+        Set-Content -Path $summaryPath -Value $summaryJson -Encoding utf8
+
+        $totalRecords = 0
+        foreach ($entry in $datasetsInvoked) { $totalRecords += [int]$entry['recordCount'] }
+        & $writeEvent 'investigation.finished' @{ recordCount = $totalRecords }
+
+        return [pscustomobject]@{
+            InvestigationKey = $InvestigationKey
+            RunId            = $RunId
+            RunFolder        = $runFolder
+            ManifestPath     = $manifestPath
+            EventsPath       = $eventsPath
+            SummaryPath      = $summaryPath
+            DataFolder       = $dataFolder
+            Sections         = $summarySections
         }
     }
 
-    $finishedAt = [DateTime]::UtcNow
-    $finishedAtIso = $finishedAt.ToString('o')
-
-    $sinceIso = $null
-    $untilIso = $null
-    if ($Window -and $Window.ContainsKey('Since') -and $null -ne $Window.Since) {
-        $sinceIso = ConvertTo-IsoUtcTimestamp $Window.Since
-    }
-    if ($Window -and $Window.ContainsKey('Until') -and $null -ne $Window.Until) {
-        $untilIso = ConvertTo-IsoUtcTimestamp $Window.Until
-    }
-
-    $windowObj = [ordered]@{ since = $sinceIso; until = $untilIso }
-    $redactionObj = [ordered]@{ datasets = $datasetProfiles; composerOverrides = @() }
-    $artifactsObj = [ordered]@{
-        manifestPath = $manifestPath
-        eventsPath   = $eventsPath
-        summaryPath  = $summaryPath
-        dataPaths    = $dataPaths
-    }
-
-    $datasetsInvokedArray = $datasetsInvoked.ToArray()
-    $joinPlanArray = $joinPlan.ToArray()
-    $subjectIdString = [string]$Subject['SubjectId']
-
-    $manifest = [ordered]@{}
-    $manifest['investigationKey'] = $InvestigationKey
-    $manifest['runId']            = $RunId
-    $manifest['subjectType']      = $SubjectType
-    $manifest['subjectId']        = $subjectIdString
-    $manifest['window']           = $windowObj
-    $manifest['datasetsInvoked']  = $datasetsInvokedArray
-    $manifest['joinPlan']         = $joinPlanArray
-    $manifest['redactionProfile'] = $redactionObj
-    $manifest['outputArtifacts']  = $artifactsObj
-    $manifest['startedAt']        = $startedAtIso
-    $manifest['finishedAt']       = $finishedAtIso
-    $manifest['composerVersion']  = $script:GcOpsComposerVersion
-
-    Set-Content -Path $manifestPath -Value ($manifest | ConvertTo-Json -Depth 100) -Encoding utf8
-
-    # Schema validation — fail the run on shape violation.
-    $schemaPath = Join-Path $PSScriptRoot '../../catalog/schema/investigation.manifest.schema.json'
-    if (Test-Path $schemaPath) {
-        $schemaRaw = Get-Content -Path $schemaPath -Raw
-        $manifestRaw = Get-Content -Path $manifestPath -Raw
-        try {
-            $valid = $manifestRaw | Test-Json -Schema $schemaRaw -ErrorAction Stop
-        } catch {
-            $valid = $false
-            & $writeEvent 'manifest.schema.invalid' @{ message = $_.Exception.Message }
-        }
-        if (-not $valid) {
-            throw "Investigation manifest failed schema validation: $manifestPath"
-        }
-    }
-
-    if ($aborted) {
-        & $writeEvent 'investigation.failed' @{ reason = $abortReason }
-        throw $abortReason
-    }
-
-    # Custom serializer — every summary section is an array, even when it has 0 or 1 records.
-    # ConvertTo-Json unwraps single-element arrays in PS5.1, so build the JSON manually.
-    $sectionParts = foreach ($entry in $summarySections.GetEnumerator()) {
-        $arr = @($entry.Value)
-        if ($arr.Count -eq 0) {
-            $body = '[]'
-        } elseif ($arr.Count -eq 1) {
-            $body = '[' + ($arr[0] | ConvertTo-Json -Depth 100 -Compress) + ']'
-        } else {
-            $body = $arr | ConvertTo-Json -Depth 100 -Compress
-        }
-        '"' + $entry.Key + '":' + $body
-    }
-    $summaryJson = '{' + ($sectionParts -join ',') + '}'
-    Set-Content -Path $summaryPath -Value $summaryJson -Encoding utf8
-
-    $totalRecords = 0
-    foreach ($entry in $datasetsInvoked) { $totalRecords += [int]$entry['recordCount'] }
-    & $writeEvent 'investigation.finished' @{ recordCount = $totalRecords }
-
-    return [pscustomobject]@{
-        InvestigationKey = $InvestigationKey
-        RunId            = $RunId
-        RunFolder        = $runFolder
-        ManifestPath     = $manifestPath
-        EventsPath       = $eventsPath
-        SummaryPath      = $summaryPath
-        DataFolder       = $dataFolder
-        Sections         = $summarySections
-    }
-}
-
-function Get-GenesysAgentInvestigationStepDefinition {
-    <#
+    function Get-GenesysAgentInvestigationStepDefinition {
+        <#
     .SYNOPSIS
         Returns the ordered step descriptors for the Agent Investigation flagship.
     .DESCRIPTION
@@ -6151,230 +6245,230 @@ function Get-GenesysAgentInvestigationStepDefinition {
         contract.  Designed for the investigation composer — each step is a
         hashtable consumed by Invoke-Investigation.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $UserId,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $UserId,
 
-        [datetime] $Since,
+            [datetime] $Since,
 
-        [datetime] $Until
-    )
+            [datetime] $Until
+        )
 
-    $idMatchesUser  = { param($r, $s) ($r.PSObject.Properties['id']     -and $r.id     -eq $s['UserId']) }
-    $userIdMatches  = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s['UserId']) }
-    $participantMatchesUser = { param($r, $s)
-        if (-not $r.PSObject.Properties['participants']) { return $false }
-        return @($r.participants | Where-Object { $_.userId -eq $s['UserId'] }).Count -gt 0
-    }
-    $singleUserRouteParameters = {
-        param($subject, $sections, $window)
-        @{ Query = @{ userId = [string]$subject['UserId'] } }
-    }
-    $singleUserPresenceParameters = {
-        param($subject, $sections, $window)
-        @{ Query = @{ id = [string]$subject['UserId'] } }
-    }
-    $deriveDivisionFromIdentity = {
-        param($sections, $subject)
-
-        $agent = @($sections['agent'] | Select-Object -First 1)
-        if ($agent.Count -eq 0) { return @() }
-
-        $divisionProp = $agent[0].PSObject.Properties['division']
-        if (-not $divisionProp -or -not $divisionProp.Value) { return @() }
-
-        [pscustomobject]@{
-            id       = [string]$subject['UserId']
-            userId   = [string]$subject['UserId']
-            division = $divisionProp.Value
+        $idMatchesUser = { param($r, $s) ($r.PSObject.Properties['id'] -and $r.id -eq $s['UserId']) }
+        $userIdMatches = { param($r, $s) ($r.PSObject.Properties['userId'] -and $r.userId -eq $s['UserId']) }
+        $participantMatchesUser = { param($r, $s)
+            if (-not $r.PSObject.Properties['participants']) { return $false }
+            return @($r.participants | Where-Object { $_.userId -eq $s['UserId'] }).Count -gt 0
         }
-    }
-    $userDetailsActivityParameters = {
-        param($subject, $sections, $window)
+        $singleUserRouteParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ userId = [string]$subject['UserId'] } }
+        }
+        $singleUserPresenceParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ id = [string]$subject['UserId'] } }
+        }
+        $deriveDivisionFromIdentity = {
+            param($sections, $subject)
 
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval    = "$sinceIso/$untilIso"
-                order       = 'asc'
-                orderBy     = 'userId'
-                paging      = [ordered]@{ pageSize = 100; pageNumber = 1 }
-                userFilters = @(
-                    [ordered]@{
-                        type       = 'or'
-                        predicates = @(
-                            [ordered]@{
-                                type      = 'dimension'
-                                dimension = 'userId'
-                                operator  = 'matches'
-                                value     = [string]$subject['UserId']
-                            }
-                        )
-                    }
-                )
+            $agent = @($sections['agent'] | Select-Object -First 1)
+            if ($agent.Count -eq 0) { return @() }
+
+            $divisionProp = $agent[0].PSObject.Properties['division']
+            if (-not $divisionProp -or -not $divisionProp.Value) { return @() }
+
+            [pscustomobject]@{
+                id       = [string]$subject['UserId']
+                userId   = [string]$subject['UserId']
+                division = $divisionProp.Value
             }
         }
-    }
-    $conversationDetailsParameters = {
-        param($subject, $sections, $window)
+        $userDetailsActivityParameters = {
+            param($subject, $sections, $window)
 
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval       = "$sinceIso/$untilIso"
-                order          = 'asc'
-                orderBy        = 'conversationStart'
-                paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
-                segmentFilters = @(
-                    [ordered]@{
-                        type       = 'or'
-                        predicates = @(
-                            [ordered]@{
-                                type      = 'dimension'
-                                dimension = 'userId'
-                                operator  = 'matches'
-                                value     = [string]$subject['UserId']
-                            }
-                        )
-                    }
-                )
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    order       = 'asc'
+                    orderBy     = 'userId'
+                    paging      = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                    userFilters = @(
+                        [ordered]@{
+                            type       = 'or'
+                            predicates = @(
+                                [ordered]@{
+                                    type      = 'dimension'
+                                    dimension = 'userId'
+                                    operator  = 'matches'
+                                    value     = [string]$subject['UserId']
+                                }
+                            )
+                        }
+                    )
+                }
             }
         }
-    }
-    $auditAccountChangeParameters = {
-        param($subject, $sections, $window)
-        @{
-            StartUtc    = ConvertTo-IsoUtcTimestamp $window['Since']
-            EndUtc      = ConvertTo-IsoUtcTimestamp $window['Until']
-            EntityTypes = @('User')
-            EntityIds   = @([string]$subject['UserId'])
+        $conversationDetailsParameters = {
+            param($subject, $sections, $window)
+
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval       = "$sinceIso/$untilIso"
+                    order          = 'asc'
+                    orderBy        = 'conversationStart'
+                    paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                    segmentFilters = @(
+                        [ordered]@{
+                            type       = 'or'
+                            predicates = @(
+                                [ordered]@{
+                                    type      = 'dimension'
+                                    dimension = 'userId'
+                                    operator  = 'matches'
+                                    value     = [string]$subject['UserId']
+                                }
+                            )
+                        }
+                    )
+                }
+            }
         }
+        $auditAccountChangeParameters = {
+            param($subject, $sections, $window)
+            @{
+                StartUtc    = ConvertTo-IsoUtcTimestamp $window['Since']
+                EndUtc      = ConvertTo-IsoUtcTimestamp $window['Until']
+                EntityTypes = @('User')
+                EntityIds   = @([string]$subject['UserId'])
+            }
+        }
+
+        @(
+            @{
+                Name          = 'identity'
+                DatasetKey    = 'users.get.user.details.with.full.expansion'
+                Parameters    = $singleUserRouteParameters
+                SubjectFilter = $idMatchesUser
+                EmitAs        = 'agent'
+                Required      = $true
+                JoinKind      = 'Seed'
+                JoinOn        = @{ Left = $null; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'division'
+                RecordDeriver = $deriveDivisionFromIdentity
+                EmitAs        = 'division'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name       = 'skills'
+                DatasetKey = 'users.get.user.routing.skills'
+                Parameters = $singleUserRouteParameters
+                EmitAs     = 'skills'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey    = 'id'
+            }
+            @{
+                Name       = 'queues'
+                DatasetKey = 'users.get.user.queue.memberships'
+                Parameters = $singleUserRouteParameters
+                EmitAs     = 'queues'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey    = 'id'
+            }
+            @{
+                Name          = 'presence'
+                DatasetKey    = 'users.get.bulk.user.presences'
+                Parameters    = $singleUserPresenceParameters
+                SubjectFilter = $userIdMatches
+                EmitAs        = 'presence'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name          = 'routingStatus'
+                DatasetKey    = 'users.get.agent.current.routing.status'
+                Parameters    = $singleUserRouteParameters
+                SubjectFilter = $userIdMatches
+                EmitAs        = 'routingStatus'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name          = 'utilization'
+                DatasetKey    = 'routing.get.user.utilization'
+                Parameters    = $singleUserRouteParameters
+                SubjectFilter = $userIdMatches
+                EmitAs        = 'utilization'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name          = 'activity'
+                DatasetKey    = 'analytics.query.user.details.activity.report'
+                Parameters    = $userDetailsActivityParameters
+                SubjectFilter = $userIdMatches
+                EmitAs        = 'activity'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name       = 'activeConversations'
+                DatasetKey = 'users.get.agent.active.conversations'
+                Parameters = $singleUserRouteParameters
+                EmitAs     = 'activeConversations'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'agent.id'; Right = 'userId' }
+                SortKey    = 'id'
+            }
+            @{
+                Name          = 'conversations'
+                DatasetKey    = 'analytics-conversation-details-query'
+                Parameters    = $conversationDetailsParameters
+                SubjectFilter = $participantMatchesUser
+                EmitAs        = 'conversations'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agent.id'; Right = 'participants.userId' }
+                SortKey       = 'conversationId'
+            }
+            @{
+                Name       = 'auditAccountChanges'
+                DatasetKey = 'audit-logs'
+                Parameters = $auditAccountChangeParameters
+                EmitAs     = 'auditAccountChanges'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'agent.id'; Right = 'entity.id' }
+                SortKey    = 'timestamp'
+            }
+        )
     }
 
-    @(
-        @{
-            Name          = 'identity'
-            DatasetKey    = 'users.get.user.details.with.full.expansion'
-            Parameters    = $singleUserRouteParameters
-            SubjectFilter = $idMatchesUser
-            EmitAs        = 'agent'
-            Required      = $true
-            JoinKind      = 'Seed'
-            JoinOn        = @{ Left = $null; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'division'
-            RecordDeriver = $deriveDivisionFromIdentity
-            EmitAs        = 'division'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'userId'
-        }
-        @{
-            Name          = 'skills'
-            DatasetKey    = 'users.get.user.routing.skills'
-            Parameters    = $singleUserRouteParameters
-            EmitAs        = 'skills'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'queues'
-            DatasetKey    = 'users.get.user.queue.memberships'
-            Parameters    = $singleUserRouteParameters
-            EmitAs        = 'queues'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'presence'
-            DatasetKey    = 'users.get.bulk.user.presences'
-            Parameters    = $singleUserPresenceParameters
-            SubjectFilter = $userIdMatches
-            EmitAs        = 'presence'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'userId'
-        }
-        @{
-            Name          = 'routingStatus'
-            DatasetKey    = 'users.get.agent.current.routing.status'
-            Parameters    = $singleUserRouteParameters
-            SubjectFilter = $userIdMatches
-            EmitAs        = 'routingStatus'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'userId'
-        }
-        @{
-            Name          = 'utilization'
-            DatasetKey    = 'routing.get.user.utilization'
-            Parameters    = $singleUserRouteParameters
-            SubjectFilter = $userIdMatches
-            EmitAs        = 'utilization'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'userId'
-        }
-        @{
-            Name          = 'activity'
-            DatasetKey    = 'analytics.query.user.details.activity.report'
-            Parameters    = $userDetailsActivityParameters
-            SubjectFilter = $userIdMatches
-            EmitAs        = 'activity'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'userId'
-        }
-        @{
-            Name          = 'activeConversations'
-            DatasetKey    = 'users.get.agent.active.conversations'
-            Parameters    = $singleUserRouteParameters
-            EmitAs        = 'activeConversations'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'userId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'conversations'
-            DatasetKey    = 'analytics-conversation-details-query'
-            Parameters    = $conversationDetailsParameters
-            SubjectFilter = $participantMatchesUser
-            EmitAs        = 'conversations'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'participants.userId' }
-            SortKey       = 'conversationId'
-        }
-        @{
-            Name          = 'auditAccountChanges'
-            DatasetKey    = 'audit-logs'
-            Parameters    = $auditAccountChangeParameters
-            EmitAs        = 'auditAccountChanges'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'agent.id'; Right = 'entity.id' }
-            SortKey       = 'timestamp'
-        }
-    )
-}
-
-function Get-GenesysAgentInvestigation {
-    <#
+    function Get-GenesysAgentInvestigation {
+        <#
     .SYNOPSIS
         Run the Agent Investigation flagship — joins identity, derived division,
         skills, queue memberships, presence, current routing status,
@@ -6409,52 +6503,52 @@ function Get-GenesysAgentInvestigation {
     .EXAMPLE
         Get-GenesysAgentInvestigation -UserName 'Jane Doe'
     #>
-    [CmdletBinding(DefaultParameterSetName = 'ById')]
-    param(
-        [Parameter(ParameterSetName = 'ById', Mandatory)]
-        [string] $UserId,
+        [CmdletBinding(DefaultParameterSetName = 'ById')]
+        param(
+            [Parameter(ParameterSetName = 'ById', Mandatory)]
+            [string] $UserId,
 
-        [Parameter(ParameterSetName = 'ByName', Mandatory)]
-        [string] $UserName,
+            [Parameter(ParameterSetName = 'ByName', Mandatory)]
+            [string] $UserName,
 
-        [datetime] $Since,
-        [datetime] $Until,
-        [string]   $OutputRoot = 'out',
-        [string]   $RunId,
-        [scriptblock] $DatasetInvoker
-    )
+            [datetime] $Since,
+            [datetime] $Until,
+            [string]   $OutputRoot = 'out',
+            [string]   $RunId,
+            [scriptblock] $DatasetInvoker
+        )
 
-    if (-not $Until) { $Until = Get-Date }
-    if (-not $Since) { $Since = $Until.AddDays(-7) }
+        if (-not $Until) { $Until = Get-Date }
+        if (-not $Since) { $Since = $Until.AddDays(-7) }
 
-    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
-        if (-not $DatasetInvoker) { Assert-GenesysConnected }
-        $matches = @(Find-GenesysUser -Query $UserName)
-        if ($matches.Count -eq 0) { throw "No Genesys user matched '$UserName'." }
-        if ($matches.Count -gt 1) {
-            $names = ($matches | ForEach-Object { "$($_.name) <$($_.email)>" }) -join '; '
-            throw "Ambiguous user name '$UserName' — $($matches.Count) matches: $names"
+        if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+            if (-not $DatasetInvoker) { Assert-GenesysConnected }
+            $matches = @(Find-GenesysUser -Query $UserName)
+            if ($matches.Count -eq 0) { throw "No Genesys user matched '$UserName'." }
+            if ($matches.Count -gt 1) {
+                $names = ($matches | ForEach-Object { "$($_.name) <$($_.email)>" }) -join '; '
+                throw "Ambiguous user name '$UserName' — $($matches.Count) matches: $names"
+            }
+            $UserId = $matches[0].id
         }
-        $UserId = $matches[0].id
+
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+        $steps = Get-GenesysAgentInvestigationStepDefinition -UserId $UserId -Since $Since -Until $Until
+
+        Invoke-Investigation `
+            -InvestigationKey 'agent-investigation' `
+            -SubjectType 'agent' `
+            -Subject @{ SubjectId = $UserId; UserId = $UserId } `
+            -Window @{ Since = $Since; Until = $Until } `
+            -Steps $steps `
+            -OutputRoot $OutputRoot `
+            -RunId $RunId `
+            -DatasetInvoker $DatasetInvoker
     }
 
-    if (-not $DatasetInvoker) { Assert-GenesysConnected }
-
-    $steps = Get-GenesysAgentInvestigationStepDefinition -UserId $UserId -Since $Since -Until $Until
-
-    Invoke-Investigation `
-        -InvestigationKey 'agent-investigation' `
-        -SubjectType      'agent' `
-        -Subject          @{ SubjectId = $UserId; UserId = $UserId } `
-        -Window           @{ Since = $Since; Until = $Until } `
-        -Steps            $steps `
-        -OutputRoot       $OutputRoot `
-        -RunId            $RunId `
-        -DatasetInvoker   $DatasetInvoker
-}
-
-function Get-GenesysConversationInvestigationStepDefinition {
-    <#
+    function Get-GenesysConversationInvestigationStepDefinition {
+        <#
     .SYNOPSIS
         Returns the ordered step descriptors for the Conversation Investigation flagship.
     .DESCRIPTION
@@ -6462,206 +6556,206 @@ function Get-GenesysConversationInvestigationStepDefinition {
         contract.  Designed for the investigation composer — each step is a
         hashtable consumed by Invoke-Investigation.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $ConversationId
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $ConversationId
+        )
 
-    $isTargetConversation = { param($r, $s)
-        $cid = $r.PSObject.Properties['conversationId']
-        if (-not $cid) { $cid = $r.PSObject.Properties['id'] }
-        return $cid -and [string]$cid.Value -eq $s.ConversationId
-    }
-    $isParticipantById = { param($r, $s)
-        if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
-        $pid = $r.PSObject.Properties['id']
-        return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
-    }
-    $isConversationEvaluation = { param($r, $s)
-        $conv = $r.PSObject.Properties['conversation']
-        if (-not $conv) { return $false }
-        $cid = $conv.Value.PSObject.Properties['id']
-        return $cid -and [string]$cid.Value -eq $s.ConversationId
-    }
+        $isTargetConversation = { param($r, $s)
+            $cid = $r.PSObject.Properties['conversationId']
+            if (-not $cid) { $cid = $r.PSObject.Properties['id'] }
+            return $cid -and [string]$cid.Value -eq $s.ConversationId
+        }
+        $isParticipantById = { param($r, $s)
+            if (-not $s.ContainsKey('ParticipantUserIds')) { return $false }
+            $pid = $r.PSObject.Properties['id']
+            return $pid -and ([string]$pid.Value -in $s.ParticipantUserIds)
+        }
+        $isConversationEvaluation = { param($r, $s)
+            $conv = $r.PSObject.Properties['conversation']
+            if (-not $conv) { return $false }
+            $cid = $conv.Value.PSObject.Properties['id']
+            return $cid -and [string]$cid.Value -eq $s.ConversationId
+        }
 
-    $deriveParticipants = {
-        param($sections, $subject)
-        $conversations = @($sections['conversation'])
-        if (-not $conversations -or $conversations.Count -eq 0) { return @() }
-        $seen   = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $result = [System.Collections.Generic.List[object]]::new()
-        foreach ($conv in $conversations) {
-            $partsProp = $conv.PSObject.Properties['participants']
-            if (-not $partsProp) { continue }
-            foreach ($p in @($partsProp.Value)) {
-                $uidProp = $p.PSObject.Properties['userId']
-                if (-not $uidProp -or -not $uidProp.Value) { continue }
-                $uid = [string]$uidProp.Value
-                if ($seen.Add($uid)) {
-                    $purpose = $null
-                    $purposeProp = $p.PSObject.Properties['purpose']
-                    if ($purposeProp) { $purpose = [string]$purposeProp.Value }
-                    $result.Add([pscustomobject]@{ userId = $uid; purpose = $purpose })
+        $deriveParticipants = {
+            param($sections, $subject)
+            $conversations = @($sections['conversation'])
+            if (-not $conversations -or $conversations.Count -eq 0) { return @() }
+            $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $result = [System.Collections.Generic.List[object]]::new()
+            foreach ($conv in $conversations) {
+                $partsProp = $conv.PSObject.Properties['participants']
+                if (-not $partsProp) { continue }
+                foreach ($p in @($partsProp.Value)) {
+                    $uidProp = $p.PSObject.Properties['userId']
+                    if (-not $uidProp -or -not $uidProp.Value) { continue }
+                    $uid = [string]$uidProp.Value
+                    if ($seen.Add($uid)) {
+                        $purpose = $null
+                        $purposeProp = $p.PSObject.Properties['purpose']
+                        if ($purposeProp) { $purpose = [string]$purposeProp.Value }
+                        $result.Add([pscustomobject]@{ userId = $uid; purpose = $purpose })
+                    }
                 }
             }
+            $result.ToArray()
         }
-        $result.ToArray()
+        $updateSubjectWithParticipants = {
+            param($records, $subject)
+            $ids = @($records | ForEach-Object { $_.userId } | Where-Object { $_ })
+            @{ ParticipantUserIds = $ids }
+        }
+        $updateSubjectWithConversationWindow = {
+            param($records, $subject)
+            $conversation = @($records | Select-Object -First 1)
+            if ($conversation.Count -eq 0) { return @{} }
+
+            $start = $null
+            foreach ($name in @('conversationStart', 'startTime', 'startTimeUtc', 'start')) {
+                $prop = $conversation[0].PSObject.Properties[$name]
+                if ($prop -and $prop.Value) { $start = $prop.Value; break }
+            }
+
+            $end = $null
+            foreach ($name in @('conversationEnd', 'endTime', 'endTimeUtc', 'end')) {
+                $prop = $conversation[0].PSObject.Properties[$name]
+                if ($prop -and $prop.Value) { $end = $prop.Value; break }
+            }
+
+            if (-not $start) { throw "Conversation '$($subject.ConversationId)' did not include a start time required for analytics interval derivation." }
+            if (-not $end) { $end = [DateTime]::UtcNow }
+
+            $startUtc = ([DateTime]::Parse([string]$start)).ToUniversalTime()
+            $endUtc = ([DateTime]::Parse([string]$end)).ToUniversalTime()
+            if ($endUtc -le $startUtc) {
+                $endUtc = $startUtc.AddSeconds(1)
+            }
+
+            @{
+                ConversationStartUtc = $startUtc.ToString('o')
+                ConversationEndUtc   = $endUtc.ToString('o')
+                AnalyticsInterval    = "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
+            }
+        }
+        $conversationLookupParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ conversationId = $subject.ConversationId } }
+        }
+        $analyticsConversationParameters = {
+            param($subject, $sections, $window)
+            if (-not $subject.ContainsKey('AnalyticsInterval') -or [string]::IsNullOrWhiteSpace([string]$subject.AnalyticsInterval)) {
+                throw "Conversation '$($subject.ConversationId)' does not have a derived analytics interval. The conversation lookup step must run first."
+            }
+
+            @{
+                ConversationId = $subject.ConversationId
+                Interval       = $subject.AnalyticsInterval
+            }
+        }
+
+        @(
+            @{
+                Name           = 'conversationLookup'
+                DatasetKey     = 'conversations.get.specific.conversation.details'
+                Parameters     = $conversationLookupParameters
+                SubjectFilter  = $isTargetConversation
+                SubjectUpdater = $updateSubjectWithConversationWindow
+                EmitAs         = 'conversationLookup'
+                Required       = $true
+                JoinKind       = 'Seed'
+                JoinOn         = @{ Left = $null; Right = 'id' }
+                SortKey        = 'id'
+            }
+            @{
+                Name          = 'conversation'
+                DatasetKey    = 'analytics-conversation-details-query'
+                Parameters    = $analyticsConversationParameters
+                SubjectFilter = $isTargetConversation
+                EmitAs        = 'conversation'
+                Required      = $true
+                JoinKind      = 'Seed'
+                JoinOn        = @{ Left = $null; Right = 'conversationId' }
+                SortKey       = 'conversationId'
+            }
+            @{
+                Name           = 'participants'
+                RecordDeriver  = $deriveParticipants
+                SubjectUpdater = $updateSubjectWithParticipants
+                EmitAs         = 'participants'
+                Required       = $true
+                JoinKind       = 'Seed'
+                JoinOn         = @{ Left = $null; Right = 'userId' }
+                SortKey        = 'userId'
+            }
+            @{
+                Name          = 'agents'
+                DatasetKey    = 'users'
+                SubjectFilter = $isParticipantById
+                EmitAs        = 'agents'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'divisions'
+                DatasetKey    = 'users.division.analysis.get.users.with.division.info'
+                SubjectFilter = $isParticipantById
+                EmitAs        = 'divisions'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name       = 'skills'
+                DatasetKey = 'routing.get.all.routing.skills'
+                EmitAs     = 'skills'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'participants.userId'; Right = $null }
+                SortKey    = 'id'
+            }
+            @{
+                Name          = 'recordings'
+                DatasetKey    = 'conversations.get.recordings'
+                Parameters    = @{ conversationId = $ConversationId }
+                SubjectFilter = $isTargetConversation
+                EmitAs        = 'recordings'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversationId' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'evaluations'
+                DatasetKey    = 'quality.get.evaluations.query'
+                Parameters    = @{ conversationId = $ConversationId }
+                SubjectFilter = $isConversationEvaluation
+                EmitAs        = 'evaluations'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversation.id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'surveys'
+                DatasetKey    = 'quality.get.surveys'
+                Parameters    = @{ conversationId = $ConversationId }
+                SubjectFilter = $isTargetConversation
+                EmitAs        = 'surveys'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversationId' }
+                SortKey       = 'id'
+            }
+        )
     }
-    $updateSubjectWithParticipants = {
-        param($records, $subject)
-        $ids = @($records | ForEach-Object { $_.userId } | Where-Object { $_ })
-        @{ ParticipantUserIds = $ids }
-    }
-    $updateSubjectWithConversationWindow = {
-        param($records, $subject)
-        $conversation = @($records | Select-Object -First 1)
-        if ($conversation.Count -eq 0) { return @{} }
 
-        $start = $null
-        foreach ($name in @('conversationStart', 'startTime', 'startTimeUtc', 'start')) {
-            $prop = $conversation[0].PSObject.Properties[$name]
-            if ($prop -and $prop.Value) { $start = $prop.Value; break }
-        }
-
-        $end = $null
-        foreach ($name in @('conversationEnd', 'endTime', 'endTimeUtc', 'end')) {
-            $prop = $conversation[0].PSObject.Properties[$name]
-            if ($prop -and $prop.Value) { $end = $prop.Value; break }
-        }
-
-        if (-not $start) { throw "Conversation '$($subject.ConversationId)' did not include a start time required for analytics interval derivation." }
-        if (-not $end) { $end = [DateTime]::UtcNow }
-
-        $startUtc = ([DateTime]::Parse([string]$start)).ToUniversalTime()
-        $endUtc = ([DateTime]::Parse([string]$end)).ToUniversalTime()
-        if ($endUtc -le $startUtc) {
-            $endUtc = $startUtc.AddSeconds(1)
-        }
-
-        @{
-            ConversationStartUtc = $startUtc.ToString('o')
-            ConversationEndUtc   = $endUtc.ToString('o')
-            AnalyticsInterval    = "$($startUtc.ToString('o'))/$($endUtc.ToString('o'))"
-        }
-    }
-    $conversationLookupParameters = {
-        param($subject, $sections, $window)
-        @{ Query = @{ conversationId = $subject.ConversationId } }
-    }
-    $analyticsConversationParameters = {
-        param($subject, $sections, $window)
-        if (-not $subject.ContainsKey('AnalyticsInterval') -or [string]::IsNullOrWhiteSpace([string]$subject.AnalyticsInterval)) {
-            throw "Conversation '$($subject.ConversationId)' does not have a derived analytics interval. The conversation lookup step must run first."
-        }
-
-        @{
-            ConversationId = $subject.ConversationId
-            Interval       = $subject.AnalyticsInterval
-        }
-    }
-
-    @(
-        @{
-            Name          = 'conversationLookup'
-            DatasetKey    = 'conversations.get.specific.conversation.details'
-            Parameters    = $conversationLookupParameters
-            SubjectFilter = $isTargetConversation
-            SubjectUpdater = $updateSubjectWithConversationWindow
-            EmitAs        = 'conversationLookup'
-            Required      = $true
-            JoinKind      = 'Seed'
-            JoinOn        = @{ Left = $null; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'conversation'
-            DatasetKey    = 'analytics-conversation-details-query'
-            Parameters    = $analyticsConversationParameters
-            SubjectFilter = $isTargetConversation
-            EmitAs        = 'conversation'
-            Required      = $true
-            JoinKind      = 'Seed'
-            JoinOn        = @{ Left = $null; Right = 'conversationId' }
-            SortKey       = 'conversationId'
-        }
-        @{
-            Name           = 'participants'
-            RecordDeriver  = $deriveParticipants
-            SubjectUpdater = $updateSubjectWithParticipants
-            EmitAs         = 'participants'
-            Required       = $true
-            JoinKind       = 'Seed'
-            JoinOn         = @{ Left = $null; Right = 'userId' }
-            SortKey        = 'userId'
-        }
-        @{
-            Name          = 'agents'
-            DatasetKey    = 'users'
-            SubjectFilter = $isParticipantById
-            EmitAs        = 'agents'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'divisions'
-            DatasetKey    = 'users.division.analysis.get.users.with.division.info'
-            SubjectFilter = $isParticipantById
-            EmitAs        = 'divisions'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'participants.userId'; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'skills'
-            DatasetKey    = 'routing.get.all.routing.skills'
-            EmitAs        = 'skills'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'participants.userId'; Right = $null }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'recordings'
-            DatasetKey    = 'conversations.get.recordings'
-            Parameters    = @{ conversationId = $ConversationId }
-            SubjectFilter = $isTargetConversation
-            EmitAs        = 'recordings'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversationId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'evaluations'
-            DatasetKey    = 'quality.get.evaluations.query'
-            Parameters    = @{ conversationId = $ConversationId }
-            SubjectFilter = $isConversationEvaluation
-            EmitAs        = 'evaluations'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversation.id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'surveys'
-            DatasetKey    = 'quality.get.surveys'
-            Parameters    = @{ conversationId = $ConversationId }
-            SubjectFilter = $isTargetConversation
-            EmitAs        = 'surveys'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'conversation.conversationId'; Right = 'conversationId' }
-            SortKey       = 'id'
-        }
-    )
-}
-
-function Get-GenesysConversationInvestigation {
-    <#
+    function Get-GenesysConversationInvestigation {
+        <#
     .SYNOPSIS
         Run the Conversation Investigation flagship — joins conversation detail,
         participants, agent identities, divisions, skills, recordings,
@@ -6686,982 +6780,988 @@ function Get-GenesysConversationInvestigation {
     .EXAMPLE
         Get-GenesysConversationInvestigation -ConversationId 'a1b2c3...'
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $ConversationId,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $ConversationId,
 
-        [string]      $OutputRoot = 'out',
-        [string]      $RunId,
-        [scriptblock] $DatasetInvoker
-    )
+            [string]      $OutputRoot = 'out',
+            [string]      $RunId,
+            [scriptblock] $DatasetInvoker
+        )
 
-    if (-not $DatasetInvoker) { Assert-GenesysConnected }
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
 
-    $steps = Get-GenesysConversationInvestigationStepDefinition -ConversationId $ConversationId
+        $steps = Get-GenesysConversationInvestigationStepDefinition -ConversationId $ConversationId
 
-    Invoke-Investigation `
-        -InvestigationKey 'conversation-investigation' `
-        -SubjectType      'conversation' `
-        -Subject          @{ SubjectId = $ConversationId; ConversationId = $ConversationId } `
-        -Window           @{ Since = $null; Until = $null } `
-        -Steps            $steps `
-        -OutputRoot       $OutputRoot `
-        -RunId            $RunId `
-        -DatasetInvoker   $DatasetInvoker
-}
+        Invoke-Investigation `
+            -InvestigationKey 'conversation-investigation' `
+            -SubjectType 'conversation' `
+            -Subject @{ SubjectId = $ConversationId; ConversationId = $ConversationId } `
+            -Window @{ Since = $null; Until = $null } `
+            -Steps $steps `
+            -OutputRoot $OutputRoot `
+            -RunId $RunId `
+            -DatasetInvoker $DatasetInvoker
+    }
 
-function Get-GenesysOpsPropertyValue {
-    [CmdletBinding()]
-    param(
-        [AllowNull()][object] $InputObject,
-        [Parameter(Mandatory)][string[]] $Names,
-        [AllowNull()][object] $Default = $null
-    )
+    function Get-GenesysOpsPropertyValue {
+        [CmdletBinding()]
+        param(
+            [AllowNull()][object] $InputObject,
+            [Parameter(Mandatory)][string[]] $Names,
+            [AllowNull()][object] $Default = $null
+        )
 
-    if ($null -eq $InputObject) { return $Default }
+        if ($null -eq $InputObject) { return $Default }
 
-    if ($InputObject -is [System.Collections.IDictionary]) {
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            foreach ($name in $Names) {
+                if ($InputObject.Contains($name) -and $null -ne $InputObject[$name]) {
+                    return $InputObject[$name]
+                }
+            }
+            return $Default
+        }
+
         foreach ($name in $Names) {
-            if ($InputObject.Contains($name) -and $null -ne $InputObject[$name]) {
-                return $InputObject[$name]
+            $prop = $InputObject.PSObject.Properties[$name]
+            if ($prop -and $null -ne $prop.Value) {
+                return $prop.Value
             }
         }
+
         return $Default
     }
 
-    foreach ($name in $Names) {
-        $prop = $InputObject.PSObject.Properties[$name]
-        if ($prop -and $null -ne $prop.Value) {
-            return $prop.Value
+    function ConvertTo-GenesysOpsText {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
+
+        if ($null -eq $Value) { return '' }
+        if ($Value -is [string]) { return $Value }
+        if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
+        if ($Value -is [bool] -or $Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) {
+            return [string]$Value
+        }
+
+        try {
+            return ($Value | ConvertTo-Json -Depth 20 -Compress)
+        }
+        catch {
+            return [string]$Value
         }
     }
 
-    return $Default
-}
+    function ConvertTo-GenesysOpsUtcText {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-function ConvertTo-GenesysOpsText {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
+        if ($null -eq $Value) { return '' }
+        if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
 
-    if ($null -eq $Value) { return '' }
-    if ($Value -is [string]) { return $Value }
-    if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
-    if ($Value -is [bool] -or $Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) {
-        return [string]$Value
-    }
+        $text = ConvertTo-GenesysOpsText -Value $Value
+        if ([string]::IsNullOrWhiteSpace($text)) { return '' }
 
-    try {
-        return ($Value | ConvertTo-Json -Depth 20 -Compress)
-    } catch {
-        return [string]$Value
-    }
-}
-
-function ConvertTo-GenesysOpsUtcText {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    if ($null -eq $Value) { return '' }
-    if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('o') }
-
-    $text = ConvertTo-GenesysOpsText -Value $Value
-    if ([string]::IsNullOrWhiteSpace($text)) { return '' }
-
-    $parsed = [datetime]::MinValue
-    $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
-    if ([datetime]::TryParse($text, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
-        return $parsed.ToUniversalTime().ToString('o')
-    }
-
-    return $text
-}
-
-function ConvertTo-GenesysOpsHtmlText {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    return [System.Net.WebUtility]::HtmlEncode((ConvertTo-GenesysOpsText -Value $Value))
-}
-
-function ConvertTo-GenesysOpsXmlText {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    return [System.Security.SecurityElement]::Escape((ConvertTo-GenesysOpsText -Value $Value))
-}
-
-function Import-GenesysOpsJsonLines {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string] $Path)
-
-    if (-not (Test-Path $Path)) { return @() }
-
-    $records = [System.Collections.Generic.List[object]]::new()
-    Get-Content -Path $Path | Where-Object { $_.Trim() } | ForEach-Object {
-        $records.Add(($_ | ConvertFrom-Json)) | Out-Null
-    }
-
-    return $records.ToArray()
-}
-
-function Get-GenesysOpsSipHeader {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines,
-        [Parameter(Mandatory)][string[]] $Names
-    )
-
-    foreach ($name in $Names) {
-        $escaped = [regex]::Escape($name)
-        $match = $Lines | Where-Object { $_ -match "^\s*$escaped\s*:" } | Select-Object -First 1
-        if ($match) {
-            return ($match -replace "^\s*$escaped\s*:\s*", '').Trim()
+        $parsed = [datetime]::MinValue
+        $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+        if ([datetime]::TryParse($text, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+            return $parsed.ToUniversalTime().ToString('o')
         }
+
+        return $text
     }
 
-    return $null
-}
+    function ConvertTo-GenesysOpsHtmlText {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-function Get-GenesysOpsSipLineTimestamp {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
+        return [System.Net.WebUtility]::HtmlEncode((ConvertTo-GenesysOpsText -Value $Value))
+    }
 
-    $patterns = @(
-        '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\]?\s+',
-        '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\]?\s+'
-    )
+    function ConvertTo-GenesysOpsXmlText {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-    foreach ($line in $Lines) {
-        foreach ($pattern in $patterns) {
-            if ($line -match $pattern) {
-                $raw = $matches['timestamp']
-                $normalized = $raw.Replace(',', '.')
-                $parsed = [datetime]::MinValue
-                $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
-                if ([datetime]::TryParse($normalized, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
-                    return [pscustomobject]@{
-                        Raw = $raw
-                        Utc = $parsed.ToUniversalTime().ToString('o')
+        return [System.Security.SecurityElement]::Escape((ConvertTo-GenesysOpsText -Value $Value))
+    }
+
+    function Import-GenesysOpsJsonLines {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)][string] $Path)
+
+        if (-not (Test-Path $Path)) { return @() }
+
+        $records = [System.Collections.Generic.List[object]]::new()
+        Get-Content -Path $Path | Where-Object { $_.Trim() } | ForEach-Object {
+            $records.Add(($_ | ConvertFrom-Json)) | Out-Null
+        }
+
+        return $records.ToArray()
+    }
+
+    function Get-GenesysOpsSipHeader {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines,
+            [Parameter(Mandatory)][string[]] $Names
+        )
+
+        foreach ($name in $Names) {
+            $escaped = [regex]::Escape($name)
+            $match = $Lines | Where-Object { $_ -match "^\s*$escaped\s*:" } | Select-Object -First 1
+            if ($match) {
+                return ($match -replace "^\s*$escaped\s*:\s*", '').Trim()
+            }
+        }
+
+        return $null
+    }
+
+    function Get-GenesysOpsSipLineTimestamp {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
+
+        $patterns = @(
+            '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\]?\s+',
+            '^\s*\[?(?<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\]?\s+'
+        )
+
+        foreach ($line in $Lines) {
+            foreach ($pattern in $patterns) {
+                if ($line -match $pattern) {
+                    $raw = $matches['timestamp']
+                    $normalized = $raw.Replace(',', '.')
+                    $parsed = [datetime]::MinValue
+                    $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                    if ([datetime]::TryParse($normalized, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+                        return [pscustomobject]@{
+                            Raw = $raw
+                            Utc = $parsed.ToUniversalTime().ToString('o')
+                        }
                     }
                 }
             }
         }
+
+        return $null
     }
 
-    return $null
-}
+    function Remove-GenesysOpsSipLineTimestamp {
+        [CmdletBinding()]
+        param([AllowNull()][string] $Line)
 
-function Remove-GenesysOpsSipLineTimestamp {
-    [CmdletBinding()]
-    param([AllowNull()][string] $Line)
+        if ($null -eq $Line) { return '' }
 
-    if ($null -eq $Line) { return '' }
+        $text = $Line.Trim()
+        $patterns = @(
+            '^\s*\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?\s+',
+            '^\s*\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?\]?\s+'
+        )
 
-    $text = $Line.Trim()
-    $patterns = @(
-        '^\s*\[?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?\s+',
-        '^\s*\[?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?\]?\s+'
-    )
-
-    foreach ($pattern in $patterns) {
-        $text = $text -replace $pattern, ''
-    }
-
-    return $text.Trim()
-}
-
-function Get-GenesysOpsSipStartLine {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
-
-    $firstNonEmpty = $null
-    foreach ($line in $Lines) {
-        $candidate = Remove-GenesysOpsSipLineTimestamp -Line $line
-        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-        if (-not $firstNonEmpty) { $firstNonEmpty = $candidate }
-        if ($candidate -match '^SIP/2.0\s+\d{3}\s+' -or $candidate -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
-            return $candidate
+        foreach ($pattern in $patterns) {
+            $text = $text -replace $pattern, ''
         }
+
+        return $text.Trim()
     }
 
-    return $firstNonEmpty
-}
+    function Get-GenesysOpsSipStartLine {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines)
 
-function New-GenesysOpsApiUri {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $Path,
-        [hashtable] $RouteValues,
-        [hashtable] $Query
-    )
-
-    $base = $script:GC.BaseUri.TrimEnd('/')
-    $resolvedPath = $Path
-    if ($RouteValues) {
-        foreach ($key in $RouteValues.Keys) {
-            $resolvedPath = $resolvedPath.Replace("{$key}", [uri]::EscapeDataString([string]$RouteValues[$key]))
+        $firstNonEmpty = $null
+        foreach ($line in $Lines) {
+            $candidate = Remove-GenesysOpsSipLineTimestamp -Line $line
+            if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+            if (-not $firstNonEmpty) { $firstNonEmpty = $candidate }
+            if ($candidate -match '^SIP/2.0\s+\d{3}\s+' -or $candidate -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
+                return $candidate
+            }
         }
+
+        return $firstNonEmpty
     }
 
-    $uriBuilder = [System.Text.StringBuilder]::new()
-    [void]$uriBuilder.Append($base)
-    if (-not $resolvedPath.StartsWith('/')) { [void]$uriBuilder.Append('/') }
-    [void]$uriBuilder.Append($resolvedPath)
+    function New-GenesysOpsApiUri {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $Path,
+            [hashtable] $RouteValues,
+            [hashtable] $Query
+        )
 
-    if ($Query -and $Query.Count -gt 0) {
-        $parts = [System.Collections.Generic.List[string]]::new()
-        foreach ($key in ($Query.Keys | Sort-Object)) {
-            $value = $Query[$key]
-            if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) { continue }
-            $parts.Add(('{0}={1}' -f [uri]::EscapeDataString([string]$key), [uri]::EscapeDataString([string]$value))) | Out-Null
+        $base = $script:GC.BaseUri.TrimEnd('/')
+        $resolvedPath = $Path
+        if ($RouteValues) {
+            foreach ($key in $RouteValues.Keys) {
+                $resolvedPath = $resolvedPath.Replace("{$key}", [uri]::EscapeDataString([string]$RouteValues[$key]))
+            }
         }
-        if ($parts.Count -gt 0) {
-            [void]$uriBuilder.Append('?')
-            [void]$uriBuilder.Append(($parts.ToArray() -join '&'))
+
+        $uriBuilder = [System.Text.StringBuilder]::new()
+        [void]$uriBuilder.Append($base)
+        if (-not $resolvedPath.StartsWith('/')) { [void]$uriBuilder.Append('/') }
+        [void]$uriBuilder.Append($resolvedPath)
+
+        if ($Query -and $Query.Count -gt 0) {
+            $parts = [System.Collections.Generic.List[string]]::new()
+            foreach ($key in ($Query.Keys | Sort-Object)) {
+                $value = $Query[$key]
+                if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) { continue }
+                $parts.Add(('{0}={1}' -f [uri]::EscapeDataString([string]$key), [uri]::EscapeDataString([string]$value))) | Out-Null
+            }
+            if ($parts.Count -gt 0) {
+                [void]$uriBuilder.Append('?')
+                [void]$uriBuilder.Append(($parts.ToArray() -join '&'))
+            }
         }
+
+        return $uriBuilder.ToString()
     }
 
-    return $uriBuilder.ToString()
-}
+    function Invoke-GenesysOpsApiJson {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][ValidateSet('GET', 'POST')][string] $Method,
+            [Parameter(Mandatory)][string] $Path,
+            [hashtable] $RouteValues,
+            [hashtable] $Query,
+            [AllowNull()][object] $Body,
+            [scriptblock] $ApiInvoker
+        )
 
-function Invoke-GenesysOpsApiJson {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][ValidateSet('GET', 'POST')][string] $Method,
-        [Parameter(Mandatory)][string] $Path,
-        [hashtable] $RouteValues,
-        [hashtable] $Query,
-        [AllowNull()][object] $Body,
-        [scriptblock] $ApiInvoker
-    )
-
-    $uri = New-GenesysOpsApiUri -Path $Path -RouteValues $RouteValues -Query $Query
-    $bodyJson = $null
-    if ($null -ne $Body) {
-        $bodyJson = if ($Body -is [string]) { $Body } else { $Body | ConvertTo-Json -Depth 100 }
-    }
-
-    $request = [pscustomobject]@{
-        Method  = $Method
-        Uri     = $uri
-        Path    = $Path
-        Query   = $Query
-        Body    = $bodyJson
-        Headers = $script:GC.Headers
-    }
-
-    if ($ApiInvoker) {
-        return & $ApiInvoker $request
-    }
-
-    Assert-GenesysConnected
-    $invokeParams = @{
-        Method      = $Method
-        Uri         = $uri
-        Headers     = $script:GC.Headers
-        ErrorAction = 'Stop'
-    }
-    if ($null -ne $bodyJson) {
-        $invokeParams['Body'] = $bodyJson
-        $invokeParams['ContentType'] = 'application/json'
-    }
-
-    Invoke-RestMethod @invokeParams
-}
-
-function Get-GenesysOpsResponseRows {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Response)
-
-    if ($null -eq $Response) { return @() }
-    foreach ($name in @('data', 'entities', 'results', 'items')) {
-        $prop = $Response.PSObject.Properties[$name]
-        if ($prop -and $null -ne $prop.Value) {
-            return @($prop.Value)
+        $uri = New-GenesysOpsApiUri -Path $Path -RouteValues $RouteValues -Query $Query
+        $bodyJson = $null
+        if ($null -ne $Body) {
+            $bodyJson = if ($Body -is [string]) { $Body } else { $Body | ConvertTo-Json -Depth 100 }
         }
+
+        $request = [pscustomobject]@{
+            Method  = $Method
+            Uri     = $uri
+            Path    = $Path
+            Query   = $Query
+            Body    = $bodyJson
+            Headers = $script:GC.Headers
+        }
+
+        if ($ApiInvoker) {
+            return & $ApiInvoker $request
+        }
+
+        Assert-GenesysConnected
+        $invokeParams = @{
+            Method      = $Method
+            Uri         = $uri
+            Headers     = $script:GC.Headers
+            ErrorAction = 'Stop'
+        }
+        if ($null -ne $bodyJson) {
+            $invokeParams['Body'] = $bodyJson
+            $invokeParams['ContentType'] = 'application/json'
+        }
+
+        Invoke-RestMethod @invokeParams
     }
 
-    return @($Response)
-}
+    function Get-GenesysOpsResponseRows {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Response)
 
-function Save-GenesysOpsBinaryDownload {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $Uri,
-        [Parameter(Mandatory)][string] $Path,
-        [scriptblock] $DownloadInvoker
-    )
+        if ($null -eq $Response) { return @() }
+        foreach ($name in @('data', 'entities', 'results', 'items')) {
+            $prop = $Response.PSObject.Properties[$name]
+            if ($prop -and $null -ne $prop.Value) {
+                return @($prop.Value)
+            }
+        }
 
-    if ($DownloadInvoker) {
-        $result = & $DownloadInvoker ([pscustomobject]@{ Uri = $Uri; Path = $Path })
-        if ($result -is [byte[]]) {
-            [System.IO.File]::WriteAllBytes($Path, $result)
-            return
-        }
-        if ($result -is [string]) {
-            [System.IO.File]::WriteAllText($Path, $result)
-            return
-        }
-        if ($result -is [System.Array]) {
-            $byteValues = @($result | Where-Object { $_ -is [byte] })
-            if ($byteValues.Count -eq $result.Count) {
-                [System.IO.File]::WriteAllBytes($Path, [byte[]]$byteValues)
+        return @($Response)
+    }
+
+    function Save-GenesysOpsBinaryDownload {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $Uri,
+            [Parameter(Mandatory)][string] $Path,
+            [scriptblock] $DownloadInvoker
+        )
+
+        if ($DownloadInvoker) {
+            $result = & $DownloadInvoker ([pscustomobject]@{ Uri = $Uri; Path = $Path })
+            if ($result -is [byte[]]) {
+                [System.IO.File]::WriteAllBytes($Path, $result)
                 return
             }
-        }
-        if (Test-Path $Path) { return }
-    }
-
-    Invoke-WebRequest -Uri $Uri -OutFile $Path -UseBasicParsing -ErrorAction Stop | Out-Null
-}
-
-function ConvertFrom-GenesysOpsSipMetadata {
-    [CmdletBinding()]
-    param([object[]] $Rows)
-
-    $index = 0
-    foreach ($row in @($Rows)) {
-        $index++
-        $method = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('method'))
-        $replyReason = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('replyReason', 'reason'))
-        $responseCode = $null
-        $responseText = $null
-        if ($replyReason -match '^\s*(\d{3})\s*(.*)$') {
-            $responseCode = $matches[1]
-            $responseText = $matches[2].Trim()
-        }
-
-        $startLine = if (-not [string]::IsNullOrWhiteSpace($method)) {
-            $method
-        } elseif ($responseCode) {
-            "SIP/2.0 $responseCode $responseText".Trim()
-        } else {
-            ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('msg', 'type'))
-        }
-
-        [pscustomobject]@{
-            MessageIndex   = $index
-            ObservedTimeUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $row @('date'))
-            RawTimestamp   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('date'))
-            MessageType    = if ($responseCode) { 'Response' } else { 'Metadata' }
-            StartLine      = $startLine
-            Method         = $method
-            ResponseCode   = $responseCode
-            ResponseText   = $responseText
-            CallID         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('callid', 'callId'))
-            From           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('fromUser'))
-            To             = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('toUser'))
-            Contact        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('contactUser'))
-            UserAgent      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('userAgent'))
-            CSeq           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('cseq'))
-            Via            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('via1'))
-            MediaIP        = ''
-            AudioPort      = ''
-            AudioCodecs    = ''
-            MediaDirection = ''
-            SourceIP       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourceIp'))
-            SourcePort     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourcePort'))
-            DestinationIP  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationIp'))
-            DestinationPort = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationPort'))
-            CorrelationID  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('correlationId'))
-            ConversationId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('conversationId'))
-        }
-    }
-}
-
-function Export-GenesysOpsConversationPcap {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $ConversationId,
-        [Parameter(Mandatory)][string] $StartUtc,
-        [Parameter(Mandatory)][string] $EndUtc,
-        [Parameter(Mandatory)][string] $OutputDirectory,
-        [Parameter(Mandatory)][string] $PackageName,
-        [scriptblock] $ApiInvoker,
-        [scriptblock] $DownloadInvoker,
-        [int] $MaxSignedUrlPolls = 10,
-        [int] $SignedUrlPollSeconds = 2
-    )
-
-    $query = @{
-        conversationId = $ConversationId
-        dateStart      = $StartUtc
-        dateEnd        = $EndUtc
-    }
-
-    $metadataResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces' -Query $query -ApiInvoker $ApiInvoker
-    $metadataRows = @(Get-GenesysOpsResponseRows -Response $metadataResponse)
-
-    $downloadResponse = Invoke-GenesysOpsApiJson -Method POST -Path '/api/v2/telephony/siptraces/download' -Body $query -ApiInvoker $ApiInvoker
-    $downloadId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $downloadResponse @('downloadId', 'documentId', 'id'))
-    $signedUrlResponse = $null
-    $signedUrl = $null
-    $pcapPath = $null
-
-    if (-not [string]::IsNullOrWhiteSpace($downloadId)) {
-        for ($attempt = 1; $attempt -le $MaxSignedUrlPolls; $attempt++) {
-            $signedUrlResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces/download/{downloadId}' -RouteValues @{ downloadId = $downloadId } -ApiInvoker $ApiInvoker
-            $signedUrl = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $signedUrlResponse @('url', 'downloadUrl', 'href'))
-            if (-not [string]::IsNullOrWhiteSpace($signedUrl)) { break }
-            if (-not $ApiInvoker -and $attempt -lt $MaxSignedUrlPolls) {
-                Start-Sleep -Seconds $SignedUrlPollSeconds
+            if ($result -is [string]) {
+                [System.IO.File]::WriteAllText($Path, $result)
+                return
             }
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($signedUrl)) {
-            $pcapPath = Join-Path $OutputDirectory "$PackageName.pcap"
-            Save-GenesysOpsBinaryDownload -Uri $signedUrl -Path $pcapPath -DownloadInvoker $DownloadInvoker
-        }
-    }
-
-    [pscustomobject]@{
-        MetadataRows      = $metadataRows
-        SipRows           = @(ConvertFrom-GenesysOpsSipMetadata -Rows $metadataRows)
-        DownloadId        = $downloadId
-        SignedUrlReceived = -not [string]::IsNullOrWhiteSpace($signedUrl)
-        PcapPath          = $pcapPath
-        Request           = [pscustomobject]$query
-    }
-}
-
-function ConvertFrom-GenesysOpsSipTrace {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string] $Path)
-
-    if (-not (Test-Path $Path)) {
-        throw "SIP trace file not found: $Path"
-    }
-
-    $content = Get-Content -Path $Path -Raw
-    $messages = @($content -split '(?:\r?\n){2,}' | Where-Object {
-        $_ -match 'SIP/2.0|INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE'
-    })
-
-    $index = 0
-    foreach ($message in $messages) {
-        $index++
-        $lines = @($message -split '\r?\n')
-        if ($lines.Count -eq 0) { continue }
-        $startLine = Get-GenesysOpsSipStartLine -Lines $lines
-        if ([string]::IsNullOrWhiteSpace($startLine)) { continue }
-        $timestamp = Get-GenesysOpsSipLineTimestamp -Lines $lines
-
-        $messageType = 'Unknown'
-        $sipMethod = $null
-        $responseCode = $null
-        $responseText = $null
-
-        if ($startLine -match '^SIP/2.0\s+(\d{3})\s+(.*)$') {
-            $messageType = 'Response'
-            $responseCode = $matches[1]
-            $responseText = $matches[2]
-        } elseif ($startLine -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
-            $messageType = 'Request'
-            $sipMethod = $matches[1]
-        }
-
-        $connectionLine = $lines | Where-Object { $_ -match '^c=IN\s+IP[46]\s+(.+)$' } | Select-Object -First 1
-        $audioLine = $lines | Where-Object { $_ -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$' } | Select-Object -First 1
-        $directionLine = $lines | Where-Object { $_ -match '^a=(sendrecv|sendonly|recvonly|inactive)$' } | Select-Object -First 1
-
-        $mediaIp = $null
-        $audioPort = $null
-        $audioCodecs = $null
-        $mediaDirection = $null
-
-        if ($connectionLine -and $connectionLine -match '^c=IN\s+IP[46]\s+(.+)$') { $mediaIp = $matches[1].Trim() }
-        if ($audioLine -and $audioLine -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$') {
-            $audioPort = $matches[1]
-            $audioCodecs = $matches[2].Trim()
-        }
-        if ($directionLine -and $directionLine -match '^a=(sendrecv|sendonly|recvonly|inactive)$') { $mediaDirection = $matches[1] }
-
-        [pscustomobject]@{
-            MessageIndex   = $index
-            ObservedTimeUtc = if ($timestamp) { $timestamp.Utc } else { $null }
-            RawTimestamp   = if ($timestamp) { $timestamp.Raw } else { $null }
-            MessageType    = $messageType
-            StartLine      = $startLine
-            Method         = $sipMethod
-            ResponseCode   = $responseCode
-            ResponseText   = $responseText
-            CallID         = Get-GenesysOpsSipHeader -Lines $lines -Names @('Call-ID', 'i')
-            From           = Get-GenesysOpsSipHeader -Lines $lines -Names @('From', 'f')
-            To             = Get-GenesysOpsSipHeader -Lines $lines -Names @('To', 't')
-            Contact        = Get-GenesysOpsSipHeader -Lines $lines -Names @('Contact', 'm')
-            UserAgent      = Get-GenesysOpsSipHeader -Lines $lines -Names @('User-Agent', 'Server')
-            CSeq           = Get-GenesysOpsSipHeader -Lines $lines -Names @('CSeq')
-            Via            = Get-GenesysOpsSipHeader -Lines $lines -Names @('Via', 'v')
-            MediaIP        = $mediaIp
-            AudioPort      = $audioPort
-            AudioCodecs    = $audioCodecs
-            MediaDirection = $mediaDirection
-        }
-    }
-}
-
-function ConvertTo-GenesysConversationTimeline {
-    [CmdletBinding()]
-    param([object[]] $ConversationRecords)
-
-    $rows = [System.Collections.Generic.List[object]]::new()
-    $sequence = 0
-
-    foreach ($conversation in @($ConversationRecords)) {
-        $conversationId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('conversationId', 'id'))
-        $conversationStart = Get-GenesysOpsPropertyValue $conversation @('conversationStart', 'startTime')
-        $conversationEnd = Get-GenesysOpsPropertyValue $conversation @('conversationEnd', 'endTime')
-        $mediaType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('mediaType'))
-
-        if ($conversationStart) {
-            $sequence++
-            $rows.Add([pscustomobject]@{
-                Sequence       = $sequence
-                Source         = 'Conversation Detail'
-                TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationStart
-                EventType      = 'conversation.start'
-                Participant    = ''
-                Purpose        = ''
-                MediaType      = $mediaType
-                Direction      = ''
-                Queue          = ''
-                DisconnectType = ''
-                Detail         = "Conversation $conversationId started"
-            }) | Out-Null
-        }
-
-        foreach ($participant in @(Get-GenesysOpsPropertyValue $conversation @('participants') @())) {
-            $purpose = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('purpose'))
-            $participantId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantId', 'id', 'userId'))
-            $participantName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantName', 'name', 'userId'))
-            if ([string]::IsNullOrWhiteSpace($participantName)) { $participantName = $participantId }
-
-            foreach ($session in @(Get-GenesysOpsPropertyValue $participant @('sessions') @())) {
-                $sessionMedia = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('mediaType'))
-                if ([string]::IsNullOrWhiteSpace($sessionMedia)) { $sessionMedia = $mediaType }
-                $direction = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('direction'))
-                $ani = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('ani'))
-                $dnis = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('dnis'))
-
-                foreach ($segment in @(Get-GenesysOpsPropertyValue $session @('segments') @())) {
-                    $sequence++
-                    $segmentStart = Get-GenesysOpsPropertyValue $segment @('segmentStart', 'startTime')
-                    $segmentEnd = Get-GenesysOpsPropertyValue $segment @('segmentEnd', 'endTime')
-                    $segmentType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('segmentType', 'type'))
-                    $queueName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('queueName', 'queueId'))
-                    $disconnect = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('disconnectType'))
-                    $wrapUp = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('wrapUpCode', 'wrapUpCodeName'))
-                    $errorCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('errorCode'))
-
-                    $detailParts = @()
-                    if (-not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText $segmentEnd))) { $detailParts += "end=$(ConvertTo-GenesysOpsUtcText $segmentEnd)" }
-                    if (-not [string]::IsNullOrWhiteSpace($ani)) { $detailParts += "ani=$ani" }
-                    if (-not [string]::IsNullOrWhiteSpace($dnis)) { $detailParts += "dnis=$dnis" }
-                    if (-not [string]::IsNullOrWhiteSpace($wrapUp)) { $detailParts += "wrapUp=$wrapUp" }
-                    if (-not [string]::IsNullOrWhiteSpace($errorCode)) { $detailParts += "error=$errorCode" }
-
-                    $rows.Add([pscustomobject]@{
-                        Sequence       = $sequence
-                        Source         = 'Conversation Detail'
-                        TimeUtc        = ConvertTo-GenesysOpsUtcText $segmentStart
-                        EventType      = $segmentType
-                        Participant    = $participantName
-                        Purpose        = $purpose
-                        MediaType      = $sessionMedia
-                        Direction      = $direction
-                        Queue          = $queueName
-                        DisconnectType = $disconnect
-                        Detail         = ($detailParts -join '; ')
-                    }) | Out-Null
+            if ($result -is [System.Array]) {
+                $byteValues = @($result | Where-Object { $_ -is [byte] })
+                if ($byteValues.Count -eq $result.Count) {
+                    [System.IO.File]::WriteAllBytes($Path, [byte[]]$byteValues)
+                    return
                 }
             }
+            if (Test-Path $Path) { return }
         }
 
-        if ($conversationEnd) {
-            $sequence++
-            $rows.Add([pscustomobject]@{
-                Sequence       = $sequence
-                Source         = 'Conversation Detail'
-                TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationEnd
-                EventType      = 'conversation.end'
-                Participant    = ''
-                Purpose        = ''
-                MediaType      = $mediaType
-                Direction      = ''
-                Queue          = ''
-                DisconnectType = ''
-                Detail         = "Conversation $conversationId ended"
-            }) | Out-Null
+        Invoke-WebRequest -Uri $Uri -OutFile $Path -UseBasicParsing -ErrorAction Stop | Out-Null
+    }
+
+    function ConvertFrom-GenesysOpsSipMetadata {
+        [CmdletBinding()]
+        param([object[]] $Rows)
+
+        $index = 0
+        foreach ($row in @($Rows)) {
+            $index++
+            $method = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('method'))
+            $replyReason = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('replyReason', 'reason'))
+            $responseCode = $null
+            $responseText = $null
+            if ($replyReason -match '^\s*(\d{3})\s*(.*)$') {
+                $responseCode = $matches[1]
+                $responseText = $matches[2].Trim()
+            }
+
+            $startLine = if (-not [string]::IsNullOrWhiteSpace($method)) {
+                $method
+            }
+            elseif ($responseCode) {
+                "SIP/2.0 $responseCode $responseText".Trim()
+            }
+            else {
+                ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('msg', 'type'))
+            }
+
+            [pscustomobject]@{
+                MessageIndex    = $index
+                ObservedTimeUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $row @('date'))
+                RawTimestamp    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('date'))
+                MessageType     = if ($responseCode) { 'Response' } else { 'Metadata' }
+                StartLine       = $startLine
+                Method          = $method
+                ResponseCode    = $responseCode
+                ResponseText    = $responseText
+                CallID          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('callid', 'callId'))
+                From            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('fromUser'))
+                To              = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('toUser'))
+                Contact         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('contactUser'))
+                UserAgent       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('userAgent'))
+                CSeq            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('cseq'))
+                Via             = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('via1'))
+                MediaIP         = ''
+                AudioPort       = ''
+                AudioCodecs     = ''
+                MediaDirection  = ''
+                SourceIP        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourceIp'))
+                SourcePort      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('sourcePort'))
+                DestinationIP   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationIp'))
+                DestinationPort = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('destinationPort'))
+                CorrelationID   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('correlationId'))
+                ConversationId  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('conversationId'))
+            }
         }
     }
 
-    return $rows.ToArray()
-}
+    function Export-GenesysOpsConversationPcap {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $ConversationId,
+            [Parameter(Mandatory)][string] $StartUtc,
+            [Parameter(Mandatory)][string] $EndUtc,
+            [Parameter(Mandatory)][string] $OutputDirectory,
+            [Parameter(Mandatory)][string] $PackageName,
+            [scriptblock] $ApiInvoker,
+            [scriptblock] $DownloadInvoker,
+            [int] $MaxSignedUrlPolls = 10,
+            [int] $SignedUrlPollSeconds = 2
+        )
 
-function ConvertTo-GenesysSipTimeline {
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()][object[]] $SipRows,
-        [int] $StartingSequence = 0
-    )
-
-    $rows = [System.Collections.Generic.List[object]]::new()
-    $sequence = $StartingSequence
-
-    foreach ($sip in @($SipRows)) {
-        $sequence++
-        $eventType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('Method'))
-        $responseCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
-        $responseText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseText'))
-        if ([string]::IsNullOrWhiteSpace($eventType)) {
-            $eventType = if ([string]::IsNullOrWhiteSpace($responseCode)) { 'sip.message' } else { "SIP $responseCode" }
+        $query = @{
+            conversationId = $ConversationId
+            dateStart      = $StartUtc
+            dateEnd        = $EndUtc
         }
 
-        $detailParts = @()
-        foreach ($name in @('StartLine', 'CallID', 'CSeq', 'UserAgent', 'MediaIP', 'AudioPort', 'MediaDirection', 'SourceIP', 'SourcePort', 'DestinationIP', 'DestinationPort', 'CorrelationID')) {
-            $value = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @($name))
-            if (-not [string]::IsNullOrWhiteSpace($value)) { $detailParts += "$name=$value" }
-        }
-        if (-not [string]::IsNullOrWhiteSpace($responseText)) { $detailParts += "ResponseText=$responseText" }
+        $metadataResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces' -Query $query -ApiInvoker $ApiInvoker
+        $metadataRows = @(Get-GenesysOpsResponseRows -Response $metadataResponse)
 
-        $rows.Add([pscustomobject]@{
-            Sequence       = $sequence
-            Source         = 'SIP Trace'
-            TimeUtc        = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $sip @('ObservedTimeUtc'))
-            EventType      = $eventType
-            Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('From'))
-            Purpose        = ''
-            MediaType      = 'voice'
-            Direction      = ''
-            Queue          = ''
-            DisconnectType = ''
-            Detail         = ($detailParts -join '; ')
-        }) | Out-Null
-    }
+        $downloadResponse = Invoke-GenesysOpsApiJson -Method POST -Path '/api/v2/telephony/siptraces/download' -Body $query -ApiInvoker $ApiInvoker
+        $downloadId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $downloadResponse @('downloadId', 'documentId', 'id'))
+        $signedUrlResponse = $null
+        $signedUrl = $null
+        $pcapPath = $null
 
-    return $rows.ToArray()
-}
+        if (-not [string]::IsNullOrWhiteSpace($downloadId)) {
+            for ($attempt = 1; $attempt -le $MaxSignedUrlPolls; $attempt++) {
+                $signedUrlResponse = Invoke-GenesysOpsApiJson -Method GET -Path '/api/v2/telephony/siptraces/download/{downloadId}' -RouteValues @{ downloadId = $downloadId } -ApiInvoker $ApiInvoker
+                $signedUrl = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $signedUrlResponse @('url', 'downloadUrl', 'href'))
+                if (-not [string]::IsNullOrWhiteSpace($signedUrl)) { break }
+                if (-not $ApiInvoker -and $attempt -lt $MaxSignedUrlPolls) {
+                    Start-Sleep -Seconds $SignedUrlPollSeconds
+                }
+            }
 
-function Sort-GenesysConversationPackageTimeline {
-    [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]] $Rows)
-
-    $sortableRows = [System.Collections.Generic.List[object]]::new()
-    $originalIndex = 0
-    foreach ($row in @($Rows)) {
-        $originalIndex++
-        $timeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
-        $parsed = [datetime]::MinValue
-        $hasTime = $false
-        $sortTime = [datetime]::MaxValue
-        if (-not [string]::IsNullOrWhiteSpace($timeText)) {
-            $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
-            if ([datetime]::TryParse($timeText, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
-                $hasTime = $true
-                $sortTime = $parsed.ToUniversalTime()
+            if (-not [string]::IsNullOrWhiteSpace($signedUrl)) {
+                $pcapPath = Join-Path $OutputDirectory "$PackageName.pcap"
+                Save-GenesysOpsBinaryDownload -Uri $signedUrl -Path $pcapPath -DownloadInvoker $DownloadInvoker
             }
         }
 
-        $sortableRows.Add([pscustomobject]@{
-            Row           = $row
-            HasTime       = $hasTime
-            SortTime      = $sortTime
-            OriginalIndex = $originalIndex
-        }) | Out-Null
-    }
-
-    $sequence = 0
-    foreach ($entry in @($sortableRows | Sort-Object -Property @{ Expression = 'HasTime'; Descending = $true }, SortTime, OriginalIndex)) {
-        $sequence++
-        $row = $entry.Row
         [pscustomobject]@{
-            Sequence       = $sequence
-            Source         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Source'))
-            TimeUtc        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
-            EventType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('EventType'))
-            Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Participant'))
-            Purpose        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Purpose'))
-            MediaType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('MediaType'))
-            Direction      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Direction'))
-            Queue          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Queue'))
-            DisconnectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('DisconnectType'))
-            Detail         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Detail'))
+            MetadataRows      = $metadataRows
+            SipRows           = @(ConvertFrom-GenesysOpsSipMetadata -Rows $metadataRows)
+            DownloadId        = $downloadId
+            SignedUrlReceived = -not [string]::IsNullOrWhiteSpace($signedUrl)
+            PcapPath          = $pcapPath
+            Request           = [pscustomobject]$query
         }
     }
-}
 
-function New-GenesysConversationPackageFindings {
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()][object[]] $TimelineRows,
-        [AllowEmptyCollection()][object[]] $SipRows,
-        [AllowEmptyCollection()][object[]] $RecordingRows,
-        [AllowEmptyCollection()][object[]] $EvaluationRows
-    )
+    function ConvertFrom-GenesysOpsSipTrace {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)][string] $Path)
 
-    $findings = [System.Collections.Generic.List[object]]::new()
+        if (-not (Test-Path $Path)) {
+            throw "SIP trace file not found: $Path"
+        }
 
-    foreach ($row in @($TimelineRows | Where-Object { -not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $_ @('DisconnectType')))) })) {
-        $findings.Add([pscustomobject]@{
-            Severity = 'Info'
-            Source   = 'Conversation Detail'
-            Finding  = 'Disconnect marker present'
-            Evidence = "Sequence $($row.Sequence): $($row.Participant) $($row.DisconnectType)"
-        }) | Out-Null
+        $content = Get-Content -Path $Path -Raw
+        $messages = @($content -split '(?:\r?\n){2,}' | Where-Object {
+                $_ -match 'SIP/2.0|INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE'
+            })
+
+        $index = 0
+        foreach ($message in $messages) {
+            $index++
+            $lines = @($message -split '\r?\n')
+            if ($lines.Count -eq 0) { continue }
+            $startLine = Get-GenesysOpsSipStartLine -Lines $lines
+            if ([string]::IsNullOrWhiteSpace($startLine)) { continue }
+            $timestamp = Get-GenesysOpsSipLineTimestamp -Lines $lines
+
+            $messageType = 'Unknown'
+            $sipMethod = $null
+            $responseCode = $null
+            $responseText = $null
+
+            if ($startLine -match '^SIP/2.0\s+(\d{3})\s+(.*)$') {
+                $messageType = 'Response'
+                $responseCode = $matches[1]
+                $responseText = $matches[2]
+            }
+            elseif ($startLine -match '^(INVITE|ACK|BYE|CANCEL|OPTIONS|REGISTER|PRACK|UPDATE|REFER|INFO|SUBSCRIBE|NOTIFY|MESSAGE)\s+') {
+                $messageType = 'Request'
+                $sipMethod = $matches[1]
+            }
+
+            $connectionLine = $lines | Where-Object { $_ -match '^c=IN\s+IP[46]\s+(.+)$' } | Select-Object -First 1
+            $audioLine = $lines | Where-Object { $_ -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$' } | Select-Object -First 1
+            $directionLine = $lines | Where-Object { $_ -match '^a=(sendrecv|sendonly|recvonly|inactive)$' } | Select-Object -First 1
+
+            $mediaIp = $null
+            $audioPort = $null
+            $audioCodecs = $null
+            $mediaDirection = $null
+
+            if ($connectionLine -and $connectionLine -match '^c=IN\s+IP[46]\s+(.+)$') { $mediaIp = $matches[1].Trim() }
+            if ($audioLine -and $audioLine -match '^m=audio\s+(\d+)\s+\S+\s+(.+)$') {
+                $audioPort = $matches[1]
+                $audioCodecs = $matches[2].Trim()
+            }
+            if ($directionLine -and $directionLine -match '^a=(sendrecv|sendonly|recvonly|inactive)$') { $mediaDirection = $matches[1] }
+
+            [pscustomobject]@{
+                MessageIndex    = $index
+                ObservedTimeUtc = if ($timestamp) { $timestamp.Utc } else { $null }
+                RawTimestamp    = if ($timestamp) { $timestamp.Raw } else { $null }
+                MessageType     = $messageType
+                StartLine       = $startLine
+                Method          = $sipMethod
+                ResponseCode    = $responseCode
+                ResponseText    = $responseText
+                CallID          = Get-GenesysOpsSipHeader -Lines $lines -Names @('Call-ID', 'i')
+                From            = Get-GenesysOpsSipHeader -Lines $lines -Names @('From', 'f')
+                To              = Get-GenesysOpsSipHeader -Lines $lines -Names @('To', 't')
+                Contact         = Get-GenesysOpsSipHeader -Lines $lines -Names @('Contact', 'm')
+                UserAgent       = Get-GenesysOpsSipHeader -Lines $lines -Names @('User-Agent', 'Server')
+                CSeq            = Get-GenesysOpsSipHeader -Lines $lines -Names @('CSeq')
+                Via             = Get-GenesysOpsSipHeader -Lines $lines -Names @('Via', 'v')
+                MediaIP         = $mediaIp
+                AudioPort       = $audioPort
+                AudioCodecs     = $audioCodecs
+                MediaDirection  = $mediaDirection
+            }
+        }
     }
 
-    foreach ($sip in @($SipRows)) {
-        $codeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
-        $code = 0
-        if ([int]::TryParse($codeText, [ref]$code) -and $code -ge 400) {
+    function ConvertTo-GenesysConversationTimeline {
+        [CmdletBinding()]
+        param([object[]] $ConversationRecords)
+
+        $rows = [System.Collections.Generic.List[object]]::new()
+        $sequence = 0
+
+        foreach ($conversation in @($ConversationRecords)) {
+            $conversationId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('conversationId', 'id'))
+            $conversationStart = Get-GenesysOpsPropertyValue $conversation @('conversationStart', 'startTime')
+            $conversationEnd = Get-GenesysOpsPropertyValue $conversation @('conversationEnd', 'endTime')
+            $mediaType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversation @('mediaType'))
+
+            if ($conversationStart) {
+                $sequence++
+                $rows.Add([pscustomobject]@{
+                        Sequence       = $sequence
+                        Source         = 'Conversation Detail'
+                        TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationStart
+                        EventType      = 'conversation.start'
+                        Participant    = ''
+                        Purpose        = ''
+                        MediaType      = $mediaType
+                        Direction      = ''
+                        Queue          = ''
+                        DisconnectType = ''
+                        Detail         = "Conversation $conversationId started"
+                    }) | Out-Null
+            }
+
+            foreach ($participant in @(Get-GenesysOpsPropertyValue $conversation @('participants') @())) {
+                $purpose = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('purpose'))
+                $participantId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantId', 'id', 'userId'))
+                $participantName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $participant @('participantName', 'name', 'userId'))
+                if ([string]::IsNullOrWhiteSpace($participantName)) { $participantName = $participantId }
+
+                foreach ($session in @(Get-GenesysOpsPropertyValue $participant @('sessions') @())) {
+                    $sessionMedia = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('mediaType'))
+                    if ([string]::IsNullOrWhiteSpace($sessionMedia)) { $sessionMedia = $mediaType }
+                    $direction = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('direction'))
+                    $ani = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('ani'))
+                    $dnis = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $session @('dnis'))
+
+                    foreach ($segment in @(Get-GenesysOpsPropertyValue $session @('segments') @())) {
+                        $sequence++
+                        $segmentStart = Get-GenesysOpsPropertyValue $segment @('segmentStart', 'startTime')
+                        $segmentEnd = Get-GenesysOpsPropertyValue $segment @('segmentEnd', 'endTime')
+                        $segmentType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('segmentType', 'type'))
+                        $queueName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('queueName', 'queueId'))
+                        $disconnect = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('disconnectType'))
+                        $wrapUp = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('wrapUpCode', 'wrapUpCodeName'))
+                        $errorCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $segment @('errorCode'))
+
+                        $detailParts = @()
+                        if (-not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText $segmentEnd))) { $detailParts += "end=$(ConvertTo-GenesysOpsUtcText $segmentEnd)" }
+                        if (-not [string]::IsNullOrWhiteSpace($ani)) { $detailParts += "ani=$ani" }
+                        if (-not [string]::IsNullOrWhiteSpace($dnis)) { $detailParts += "dnis=$dnis" }
+                        if (-not [string]::IsNullOrWhiteSpace($wrapUp)) { $detailParts += "wrapUp=$wrapUp" }
+                        if (-not [string]::IsNullOrWhiteSpace($errorCode)) { $detailParts += "error=$errorCode" }
+
+                        $rows.Add([pscustomobject]@{
+                                Sequence       = $sequence
+                                Source         = 'Conversation Detail'
+                                TimeUtc        = ConvertTo-GenesysOpsUtcText $segmentStart
+                                EventType      = $segmentType
+                                Participant    = $participantName
+                                Purpose        = $purpose
+                                MediaType      = $sessionMedia
+                                Direction      = $direction
+                                Queue          = $queueName
+                                DisconnectType = $disconnect
+                                Detail         = ($detailParts -join '; ')
+                            }) | Out-Null
+                    }
+                }
+            }
+
+            if ($conversationEnd) {
+                $sequence++
+                $rows.Add([pscustomobject]@{
+                        Sequence       = $sequence
+                        Source         = 'Conversation Detail'
+                        TimeUtc        = ConvertTo-GenesysOpsUtcText $conversationEnd
+                        EventType      = 'conversation.end'
+                        Participant    = ''
+                        Purpose        = ''
+                        MediaType      = $mediaType
+                        Direction      = ''
+                        Queue          = ''
+                        DisconnectType = ''
+                        Detail         = "Conversation $conversationId ended"
+                    }) | Out-Null
+            }
+        }
+
+        return $rows.ToArray()
+    }
+
+    function ConvertTo-GenesysSipTimeline {
+        [CmdletBinding()]
+        param(
+            [AllowEmptyCollection()][object[]] $SipRows,
+            [int] $StartingSequence = 0
+        )
+
+        $rows = [System.Collections.Generic.List[object]]::new()
+        $sequence = $StartingSequence
+
+        foreach ($sip in @($SipRows)) {
+            $sequence++
+            $eventType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('Method'))
+            $responseCode = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
+            $responseText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseText'))
+            if ([string]::IsNullOrWhiteSpace($eventType)) {
+                $eventType = if ([string]::IsNullOrWhiteSpace($responseCode)) { 'sip.message' } else { "SIP $responseCode" }
+            }
+
+            $detailParts = @()
+            foreach ($name in @('StartLine', 'CallID', 'CSeq', 'UserAgent', 'MediaIP', 'AudioPort', 'MediaDirection', 'SourceIP', 'SourcePort', 'DestinationIP', 'DestinationPort', 'CorrelationID')) {
+                $value = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @($name))
+                if (-not [string]::IsNullOrWhiteSpace($value)) { $detailParts += "$name=$value" }
+            }
+            if (-not [string]::IsNullOrWhiteSpace($responseText)) { $detailParts += "ResponseText=$responseText" }
+
+            $rows.Add([pscustomobject]@{
+                    Sequence       = $sequence
+                    Source         = 'SIP Trace'
+                    TimeUtc        = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $sip @('ObservedTimeUtc'))
+                    EventType      = $eventType
+                    Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('From'))
+                    Purpose        = ''
+                    MediaType      = 'voice'
+                    Direction      = ''
+                    Queue          = ''
+                    DisconnectType = ''
+                    Detail         = ($detailParts -join '; ')
+                }) | Out-Null
+        }
+
+        return $rows.ToArray()
+    }
+
+    function Sort-GenesysConversationPackageTimeline {
+        [CmdletBinding()]
+        param([AllowEmptyCollection()][object[]] $Rows)
+
+        $sortableRows = [System.Collections.Generic.List[object]]::new()
+        $originalIndex = 0
+        foreach ($row in @($Rows)) {
+            $originalIndex++
+            $timeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
+            $parsed = [datetime]::MinValue
+            $hasTime = $false
+            $sortTime = [datetime]::MaxValue
+            if (-not [string]::IsNullOrWhiteSpace($timeText)) {
+                $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                if ([datetime]::TryParse($timeText, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+                    $hasTime = $true
+                    $sortTime = $parsed.ToUniversalTime()
+                }
+            }
+
+            $sortableRows.Add([pscustomobject]@{
+                    Row           = $row
+                    HasTime       = $hasTime
+                    SortTime      = $sortTime
+                    OriginalIndex = $originalIndex
+                }) | Out-Null
+        }
+
+        $sequence = 0
+        foreach ($entry in @($sortableRows | Sort-Object -Property @{ Expression = 'HasTime'; Descending = $true }, SortTime, OriginalIndex)) {
+            $sequence++
+            $row = $entry.Row
+            [pscustomobject]@{
+                Sequence       = $sequence
+                Source         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Source'))
+                TimeUtc        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('TimeUtc'))
+                EventType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('EventType'))
+                Participant    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Participant'))
+                Purpose        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Purpose'))
+                MediaType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('MediaType'))
+                Direction      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Direction'))
+                Queue          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Queue'))
+                DisconnectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('DisconnectType'))
+                Detail         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $row @('Detail'))
+            }
+        }
+    }
+
+    function New-GenesysConversationPackageFindings {
+        [CmdletBinding()]
+        param(
+            [AllowEmptyCollection()][object[]] $TimelineRows,
+            [AllowEmptyCollection()][object[]] $SipRows,
+            [AllowEmptyCollection()][object[]] $RecordingRows,
+            [AllowEmptyCollection()][object[]] $EvaluationRows
+        )
+
+        $findings = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($row in @($TimelineRows | Where-Object { -not [string]::IsNullOrWhiteSpace((ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $_ @('DisconnectType')))) })) {
             $findings.Add([pscustomobject]@{
-                Severity = if ($code -ge 500) { 'High' } else { 'Medium' }
-                Source   = 'SIP Trace'
-                Finding  = "SIP error response $code"
-                Evidence = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('StartLine'))
-            }) | Out-Null
+                    Severity = 'Info'
+                    Source   = 'Conversation Detail'
+                    Finding  = 'Disconnect marker present'
+                    Evidence = "Sequence $($row.Sequence): $($row.Participant) $($row.DisconnectType)"
+                }) | Out-Null
+        }
+
+        foreach ($sip in @($SipRows)) {
+            $codeText = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('ResponseCode'))
+            $code = 0
+            if ([int]::TryParse($codeText, [ref]$code) -and $code -ge 400) {
+                $findings.Add([pscustomobject]@{
+                        Severity = if ($code -ge 500) { 'High' } else { 'Medium' }
+                        Source   = 'SIP Trace'
+                        Finding  = "SIP error response $code"
+                        Evidence = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sip @('StartLine'))
+                    }) | Out-Null
+            }
+        }
+
+        if (@($RecordingRows).Count -eq 0) {
+            $findings.Add([pscustomobject]@{
+                    Severity = 'Info'
+                    Source   = 'Recordings'
+                    Finding  = 'No recordings returned by the investigation'
+                    Evidence = 'Recordings section is empty'
+                }) | Out-Null
+        }
+
+        if (@($EvaluationRows).Count -eq 0) {
+            $findings.Add([pscustomobject]@{
+                    Severity = 'Info'
+                    Source   = 'Evaluations'
+                    Finding  = 'No quality evaluations returned by the investigation'
+                    Evidence = 'Evaluations section is empty'
+                }) | Out-Null
+        }
+
+        return $findings.ToArray()
+    }
+
+    function Export-GenesysOpsRowsCsv {
+        [CmdletBinding()]
+        param(
+            [object[]] $Rows,
+            [Parameter(Mandatory)][string] $Path
+        )
+
+        $rowsArray = @($Rows)
+        if ($rowsArray.Count -eq 0) {
+            [pscustomobject]@{ Message = 'No records' } | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
+            return
+        }
+
+        $normalizedRows = foreach ($row in $rowsArray) {
+            if ($null -eq $row) {
+                [pscustomobject]@{ Value = '' }
+                continue
+            }
+
+            $properties = @($row.PSObject.Properties)
+            if ($properties.Count -eq 0) {
+                [pscustomobject]@{ Value = (ConvertTo-GenesysOpsText -Value $row) }
+                continue
+            }
+
+            $normalized = [ordered]@{}
+            foreach ($property in $properties) {
+                $normalized[$property.Name] = ConvertTo-GenesysOpsText -Value $property.Value
+            }
+
+            [pscustomobject]$normalized
+        }
+
+        $normalizedRows | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
+    }
+
+    function ConvertTo-GenesysExcelColumnName {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)][int] $Index)
+
+        $name = ''
+        $value = $Index
+        while ($value -gt 0) {
+            $mod = ($value - 1) % 26
+            $name = [char](65 + $mod) + $name
+            $value = [math]::Floor(($value - $mod) / 26)
+        }
+        return $name
+    }
+
+    function Add-GenesysZipTextEntry {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)] $Zip,
+            [Parameter(Mandatory)][string] $Name,
+            [Parameter(Mandatory)][string] $Content
+        )
+
+        $entry = $Zip.CreateEntry($Name)
+        $stream = $entry.Open()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
+            $stream.Write($bytes, 0, $bytes.Length)
+        }
+        finally {
+            $stream.Dispose()
         }
     }
 
-    if (@($RecordingRows).Count -eq 0) {
-        $findings.Add([pscustomobject]@{
-            Severity = 'Info'
-            Source   = 'Recordings'
-            Finding  = 'No recordings returned by the investigation'
-            Evidence = 'Recordings section is empty'
-        }) | Out-Null
-    }
+    function ConvertTo-GenesysWorksheetXml {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Rows
+        )
 
-    if (@($EvaluationRows).Count -eq 0) {
-        $findings.Add([pscustomobject]@{
-            Severity = 'Info'
-            Source   = 'Evaluations'
-            Finding  = 'No quality evaluations returned by the investigation'
-            Evidence = 'Evaluations section is empty'
-        }) | Out-Null
-    }
-
-    return $findings.ToArray()
-}
-
-function Export-GenesysOpsRowsCsv {
-    [CmdletBinding()]
-    param(
-        [object[]] $Rows,
-        [Parameter(Mandatory)][string] $Path
-    )
-
-    $rowsArray = @($Rows)
-    if ($rowsArray.Count -eq 0) {
-        [pscustomobject]@{ Message = 'No records' } | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
-        return
-    }
-
-    $normalizedRows = foreach ($row in $rowsArray) {
-        if ($null -eq $row) {
-            [pscustomobject]@{ Value = '' }
-            continue
+        $rowsArray = @($Rows)
+        if ($rowsArray.Count -eq 0) {
+            $rowsArray = @([pscustomobject]@{ Message = 'No records' })
         }
 
-        $properties = @($row.PSObject.Properties)
-        if ($properties.Count -eq 0) {
-            [pscustomobject]@{ Value = (ConvertTo-GenesysOpsText -Value $row) }
-            continue
+        $columns = [System.Collections.Generic.List[string]]::new()
+        foreach ($row in $rowsArray) {
+            foreach ($prop in $row.PSObject.Properties) {
+                if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+            }
         }
 
-        $normalized = [ordered]@{}
-        foreach ($property in $properties) {
-            $normalized[$property.Name] = ConvertTo-GenesysOpsText -Value $property.Value
-        }
-
-        [pscustomobject]$normalized
-    }
-
-    $normalizedRows | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
-}
-
-function ConvertTo-GenesysExcelColumnName {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][int] $Index)
-
-    $name = ''
-    $value = $Index
-    while ($value -gt 0) {
-        $mod = ($value - 1) % 26
-        $name = [char](65 + $mod) + $name
-        $value = [math]::Floor(($value - $mod) / 26)
-    }
-    return $name
-}
-
-function Add-GenesysZipTextEntry {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $Zip,
-        [Parameter(Mandatory)][string] $Name,
-        [Parameter(Mandatory)][string] $Content
-    )
-
-    $entry = $Zip.CreateEntry($Name)
-    $stream = $entry.Open()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
-        $stream.Write($bytes, 0, $bytes.Length)
-    } finally {
-        $stream.Dispose()
-    }
-}
-
-function ConvertTo-GenesysWorksheetXml {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Rows
-    )
-
-    $rowsArray = @($Rows)
-    if ($rowsArray.Count -eq 0) {
-        $rowsArray = @([pscustomobject]@{ Message = 'No records' })
-    }
-
-    $columns = [System.Collections.Generic.List[string]]::new()
-    foreach ($row in $rowsArray) {
-        foreach ($prop in $row.PSObject.Properties) {
-            if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
-        }
-    }
-
-    $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
-    [void]$sb.Append('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
-    [void]$sb.Append('<row r="1">')
-    for ($c = 0; $c -lt $columns.Count; $c++) {
-        $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))1"
-        [void]$sb.Append("<c r=`"$cellRef`" t=`"inlineStr`"><is><t>")
-        [void]$sb.Append((ConvertTo-GenesysOpsXmlText $columns[$c]))
-        [void]$sb.Append('</t></is></c>')
-    }
-    [void]$sb.Append('</row>')
-
-    $r = 1
-    foreach ($row in $rowsArray) {
-        $r++
-        [void]$sb.Append("<row r=`"$r`">")
+        $sb = [System.Text.StringBuilder]::new()
+        [void]$sb.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
+        [void]$sb.Append('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
+        [void]$sb.Append('<row r="1">')
         for ($c = 0; $c -lt $columns.Count; $c++) {
-            $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))$r"
-            $value = Get-GenesysOpsPropertyValue $row @($columns[$c])
+            $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))1"
             [void]$sb.Append("<c r=`"$cellRef`" t=`"inlineStr`"><is><t>")
-            [void]$sb.Append((ConvertTo-GenesysOpsXmlText $value))
+            [void]$sb.Append((ConvertTo-GenesysOpsXmlText $columns[$c]))
             [void]$sb.Append('</t></is></c>')
         }
         [void]$sb.Append('</row>')
-    }
 
-    [void]$sb.Append('</sheetData></worksheet>')
-    return $sb.ToString()
-}
-
-function Export-GenesysOpsWorkbook {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $Path,
-        [Parameter(Mandatory)][object[]] $Sheets
-    )
-
-    Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
-    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
-
-    if (Test-Path $Path) { Remove-Item -Path $Path -Force }
-
-    $fileStream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew)
-    $zip = [System.IO.Compression.ZipArchive]::new($fileStream, [System.IO.Compression.ZipArchiveMode]::Create)
-    try {
-        Add-GenesysZipTextEntry $zip '[Content_Types].xml' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>'
-        Add-GenesysZipTextEntry $zip '_rels/.rels' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
-
-        $workbookSheets = [System.Text.StringBuilder]::new()
-        $workbookRels = [System.Text.StringBuilder]::new()
-        [void]$workbookRels.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">')
-
-        $sheetIndex = 0
-        foreach ($sheet in @($Sheets)) {
-            $sheetIndex++
-            $sheetName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sheet @('Name'))
-            if ([string]::IsNullOrWhiteSpace($sheetName)) { $sheetName = "Sheet$sheetIndex" }
-            if ($sheetName.Length -gt 31) { $sheetName = $sheetName.Substring(0, 31) }
-            $sheetRows = @(Get-GenesysOpsPropertyValue $sheet @('Rows') @())
-            $escapedName = ConvertTo-GenesysOpsXmlText $sheetName
-            [void]$workbookSheets.Append("<sheet name=`"$escapedName`" sheetId=`"$sheetIndex`" r:id=`"rId$sheetIndex`"/>")
-            [void]$workbookRels.Append("<Relationship Id=`"rId$sheetIndex`" Type=`"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet`" Target=`"worksheets/sheet$sheetIndex.xml`"/>")
-            Add-GenesysZipTextEntry $zip "xl/worksheets/sheet$sheetIndex.xml" (ConvertTo-GenesysWorksheetXml -Rows $sheetRows)
+        $r = 1
+        foreach ($row in $rowsArray) {
+            $r++
+            [void]$sb.Append("<row r=`"$r`">")
+            for ($c = 0; $c -lt $columns.Count; $c++) {
+                $cellRef = "$(ConvertTo-GenesysExcelColumnName -Index ($c + 1))$r"
+                $value = Get-GenesysOpsPropertyValue $row @($columns[$c])
+                [void]$sb.Append("<c r=`"$cellRef`" t=`"inlineStr`"><is><t>")
+                [void]$sb.Append((ConvertTo-GenesysOpsXmlText $value))
+                [void]$sb.Append('</t></is></c>')
+            }
+            [void]$sb.Append('</row>')
         }
 
-        [void]$workbookRels.Append('</Relationships>')
-        Add-GenesysZipTextEntry $zip 'xl/_rels/workbook.xml.rels' $workbookRels.ToString()
-        Add-GenesysZipTextEntry $zip 'xl/workbook.xml' ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + $workbookSheets.ToString() + '</sheets></workbook>')
-    } finally {
-        $zip.Dispose()
-        $fileStream.Dispose()
+        [void]$sb.Append('</sheetData></worksheet>')
+        return $sb.ToString()
     }
-}
 
-function ConvertTo-GenesysHtmlTable {
-    [CmdletBinding()]
-    param(
-        [object[]] $Rows,
-        [int] $Limit = 100
-    )
+    function Export-GenesysOpsWorkbook {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $Path,
+            [Parameter(Mandatory)][object[]] $Sheets
+        )
 
-    $rowsArray = @($Rows | Select-Object -First $Limit)
-    if ($rowsArray.Count -eq 0) { return '<p class="empty">No records.</p>' }
+        Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
 
-    $columns = [System.Collections.Generic.List[string]]::new()
-    foreach ($row in $rowsArray) {
-        foreach ($prop in $row.PSObject.Properties) {
-            if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+        if (Test-Path $Path) { Remove-Item -Path $Path -Force }
+
+        $fileStream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew)
+        $zip = [System.IO.Compression.ZipArchive]::new($fileStream, [System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            Add-GenesysZipTextEntry $zip '[Content_Types].xml' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>'
+            Add-GenesysZipTextEntry $zip '_rels/.rels' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
+
+            $workbookSheets = [System.Text.StringBuilder]::new()
+            $workbookRels = [System.Text.StringBuilder]::new()
+            [void]$workbookRels.Append('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">')
+
+            $sheetIndex = 0
+            foreach ($sheet in @($Sheets)) {
+                $sheetIndex++
+                $sheetName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $sheet @('Name'))
+                if ([string]::IsNullOrWhiteSpace($sheetName)) { $sheetName = "Sheet$sheetIndex" }
+                if ($sheetName.Length -gt 31) { $sheetName = $sheetName.Substring(0, 31) }
+                $sheetRows = @(Get-GenesysOpsPropertyValue $sheet @('Rows') @())
+                $escapedName = ConvertTo-GenesysOpsXmlText $sheetName
+                [void]$workbookSheets.Append("<sheet name=`"$escapedName`" sheetId=`"$sheetIndex`" r:id=`"rId$sheetIndex`"/>")
+                [void]$workbookRels.Append("<Relationship Id=`"rId$sheetIndex`" Type=`"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet`" Target=`"worksheets/sheet$sheetIndex.xml`"/>")
+                Add-GenesysZipTextEntry $zip "xl/worksheets/sheet$sheetIndex.xml" (ConvertTo-GenesysWorksheetXml -Rows $sheetRows)
+            }
+
+            [void]$workbookRels.Append('</Relationships>')
+            Add-GenesysZipTextEntry $zip 'xl/_rels/workbook.xml.rels' $workbookRels.ToString()
+            Add-GenesysZipTextEntry $zip 'xl/workbook.xml' ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + $workbookSheets.ToString() + '</sheets></workbook>')
+        }
+        finally {
+            $zip.Dispose()
+            $fileStream.Dispose()
         }
     }
 
-    $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.Append('<table><thead><tr>')
-    foreach ($column in $columns) { [void]$sb.Append('<th>' + (ConvertTo-GenesysOpsHtmlText $column) + '</th>') }
-    [void]$sb.Append('</tr></thead><tbody>')
-    foreach ($row in $rowsArray) {
-        [void]$sb.Append('<tr>')
-        foreach ($column in $columns) {
-            [void]$sb.Append('<td>' + (ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $row @($column))) + '</td>')
+    function ConvertTo-GenesysHtmlTable {
+        [CmdletBinding()]
+        param(
+            [object[]] $Rows,
+            [int] $Limit = 100
+        )
+
+        $rowsArray = @($Rows | Select-Object -First $Limit)
+        if ($rowsArray.Count -eq 0) { return '<p class="empty">No records.</p>' }
+
+        $columns = [System.Collections.Generic.List[string]]::new()
+        foreach ($row in $rowsArray) {
+            foreach ($prop in $row.PSObject.Properties) {
+                if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+            }
         }
-        [void]$sb.Append('</tr>')
+
+        $sb = [System.Text.StringBuilder]::new()
+        [void]$sb.Append('<table><thead><tr>')
+        foreach ($column in $columns) { [void]$sb.Append('<th>' + (ConvertTo-GenesysOpsHtmlText $column) + '</th>') }
+        [void]$sb.Append('</tr></thead><tbody>')
+        foreach ($row in $rowsArray) {
+            [void]$sb.Append('<tr>')
+            foreach ($column in $columns) {
+                [void]$sb.Append('<td>' + (ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $row @($column))) + '</td>')
+            }
+            [void]$sb.Append('</tr>')
+        }
+        [void]$sb.Append('</tbody></table>')
+
+        if (@($Rows).Count -gt $Limit) {
+            [void]$sb.Append('<p class="empty">Showing first ' + $Limit + ' rows.</p>')
+        }
+
+        return $sb.ToString()
     }
-    [void]$sb.Append('</tbody></table>')
 
-    if (@($Rows).Count -gt $Limit) {
-        [void]$sb.Append('<p class="empty">Showing first ' + $Limit + ' rows.</p>')
-    }
+    function New-GenesysConversationPackageHtml {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][object] $Overview,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Findings,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $TimelineRows,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $SipRows,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $EvidenceRows
+        )
 
-    return $sb.ToString()
-}
+        $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+        $conversationId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('ConversationId'))
+        $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('RunId'))
+        $timelineCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('TimelineEvents'))
+        $sipCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('SipMessages'))
+        $recordingCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Recordings'))
+        $evaluationCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Evaluations'))
+        $pcapDownloaded = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('PcapDownloaded'))
 
-function New-GenesysConversationPackageHtml {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Findings,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $TimelineRows,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $SipRows,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $EvidenceRows
-    )
-
-    $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
-    $conversationId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('ConversationId'))
-    $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('RunId'))
-    $timelineCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('TimelineEvents'))
-    $sipCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('SipMessages'))
-    $recordingCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Recordings'))
-    $evaluationCount = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('Evaluations'))
-    $pcapDownloaded = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('PcapDownloaded'))
-
-    return @"
+        return @"
 <!doctype html>
 <html lang="en">
 <head>
@@ -7725,10 +7825,10 @@ $(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200)
 </body>
 </html>
 "@
-}
+    }
 
-function Export-GenesysConversationInvestigationPackage {
-    <#
+    function Export-GenesysConversationInvestigationPackage {
+        <#
     .SYNOPSIS
         Builds an HTML/CSV/XLSX/JSON investigation package from a conversation investigation run.
     .DESCRIPTION
@@ -7749,492 +7849,500 @@ function Export-GenesysConversationInvestigationPackage {
     .EXAMPLE
         Export-GenesysConversationInvestigationPackage -ConversationId '<conversation-guid>' -OutputRoot './out' -OutputDirectory './out/conversation-package' -Force
     #>
-    [CmdletBinding(DefaultParameterSetName = 'FromRun')]
-    param(
-        [Parameter(Mandatory, ParameterSetName = 'FromRun')]
-        [string] $RunFolder,
+        [CmdletBinding(DefaultParameterSetName = 'FromRun')]
+        param(
+            [Parameter(Mandatory, ParameterSetName = 'FromRun')]
+            [string] $RunFolder,
 
-        [Parameter(Mandatory, ParameterSetName = 'FromConversation')]
-        [string] $ConversationId,
+            [Parameter(Mandatory, ParameterSetName = 'FromConversation')]
+            [string] $ConversationId,
 
-        [Parameter(ParameterSetName = 'FromConversation')]
-        [string] $OutputRoot = 'out',
+            [Parameter(ParameterSetName = 'FromConversation')]
+            [string] $OutputRoot = 'out',
 
-        [Parameter(ParameterSetName = 'FromConversation')]
-        [string] $RunId,
+            [Parameter(ParameterSetName = 'FromConversation')]
+            [string] $RunId,
 
-        [Parameter(ParameterSetName = 'FromConversation')]
-        [scriptblock] $DatasetInvoker,
+            [Parameter(ParameterSetName = 'FromConversation')]
+            [scriptblock] $DatasetInvoker,
 
-        [string] $SipTracePath,
-        [string] $OutputDirectory,
-        [string] $PackageName = 'conversation-investigation',
-        [scriptblock] $ApiInvoker,
-        [scriptblock] $DownloadInvoker,
-        [switch] $SkipPcapDownload,
-        [switch] $Force
-    )
+            [string] $SipTracePath,
+            [string] $OutputDirectory,
+            [string] $PackageName = 'conversation-investigation',
+            [scriptblock] $ApiInvoker,
+            [scriptblock] $DownloadInvoker,
+            [switch] $SkipPcapDownload,
+            [switch] $Force
+        )
 
-    if ($PSCmdlet.ParameterSetName -eq 'FromConversation') {
-        $run = Get-GenesysConversationInvestigation -ConversationId $ConversationId -OutputRoot $OutputRoot -RunId $RunId -DatasetInvoker $DatasetInvoker
-        $RunFolder = $run.RunFolder
-    }
-
-    $resolvedRunFolder = (Resolve-Path -Path $RunFolder -ErrorAction Stop).Path
-    $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
-    $summaryPath = Join-Path $resolvedRunFolder 'summary.json'
-    $dataFolder = Join-Path $resolvedRunFolder 'data'
-
-    if (-not (Test-Path $manifestPath)) { throw "Conversation investigation manifest was not found: $manifestPath" }
-    if (-not (Test-Path $summaryPath)) { throw "Conversation investigation summary was not found: $summaryPath" }
-    if (-not (Test-Path $dataFolder)) { throw "Conversation investigation data folder was not found: $dataFolder" }
-
-    $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
-    $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json
-
-    if (-not $OutputDirectory) {
-        $OutputDirectory = Join-Path $resolvedRunFolder 'package'
-    }
-    if ((Test-Path $OutputDirectory) -and -not $Force) {
-        throw "Output directory already exists. Use -Force to overwrite package files: $OutputDirectory"
-    }
-    New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
-
-    $conversationRows = @(Get-GenesysOpsPropertyValue $summary @('conversation') @())
-    if ($conversationRows.Count -eq 0) {
-        $conversationRows = @(Import-GenesysOpsJsonLines -Path (Join-Path $dataFolder 'conversation.jsonl'))
-    }
-    $participantRows = @(Get-GenesysOpsPropertyValue $summary @('participants') @())
-    $agentRows = @(Get-GenesysOpsPropertyValue $summary @('agents') @())
-    $divisionRows = @(Get-GenesysOpsPropertyValue $summary @('divisions') @())
-    $skillRows = @(Get-GenesysOpsPropertyValue $summary @('skills') @())
-    $recordingRows = @(Get-GenesysOpsPropertyValue $summary @('recordings') @())
-    $evaluationRows = @(Get-GenesysOpsPropertyValue $summary @('evaluations') @())
-    $conversationLookupRows = @(Get-GenesysOpsPropertyValue $summary @('conversationLookup') @())
-
-    $conversationTimeline = @(ConvertTo-GenesysConversationTimeline -ConversationRecords $conversationRows)
-    $sipRows = @()
-    $pcapInfo = $null
-    $pcapMetadataRows = @()
-    $packageWarnings = [System.Collections.Generic.List[string]]::new()
-    if ($SipTracePath) {
-        $resolvedSipTracePath = (Resolve-Path -Path $SipTracePath -ErrorAction Stop).Path
-        $sipRows = @(ConvertFrom-GenesysOpsSipTrace -Path $resolvedSipTracePath)
-    } else {
-        $resolvedSipTracePath = $null
-    }
-
-    $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
-    if ([string]::IsNullOrWhiteSpace($conversationIdValue) -and $conversationRows.Count -gt 0) {
-        $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationId', 'id'))
-    }
-
-    if (-not $SipTracePath -and -not $SkipPcapDownload) {
-        $windowRecord = $null
-        if ($conversationLookupRows.Count -gt 0) {
-            $windowRecord = $conversationLookupRows[0]
-        } elseif ($conversationRows.Count -gt 0) {
-            $windowRecord = $conversationRows[0]
+        if ($PSCmdlet.ParameterSetName -eq 'FromConversation') {
+            $run = Get-GenesysConversationInvestigation -ConversationId $ConversationId -OutputRoot $OutputRoot -RunId $RunId -DatasetInvoker $DatasetInvoker
+            $RunFolder = $run.RunFolder
         }
 
-        $pcapStartUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationStart', 'startTime', 'startTimeUtc', 'start'))
-        $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
+        $resolvedRunFolder = (Resolve-Path -Path $RunFolder -ErrorAction Stop).Path
+        $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
+        $summaryPath = Join-Path $resolvedRunFolder 'summary.json'
+        $dataFolder = Join-Path $resolvedRunFolder 'data'
 
-        if ([string]::IsNullOrWhiteSpace($pcapEndUtc) -and $conversationRows.Count -gt 0) {
-            $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
+        if (-not (Test-Path $manifestPath)) { throw "Conversation investigation manifest was not found: $manifestPath" }
+        if (-not (Test-Path $summaryPath)) { throw "Conversation investigation summary was not found: $summaryPath" }
+        if (-not (Test-Path $dataFolder)) { throw "Conversation investigation data folder was not found: $dataFolder" }
+
+        $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+        $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json
+
+        if (-not $OutputDirectory) {
+            $OutputDirectory = Join-Path $resolvedRunFolder 'package'
+        }
+        if ((Test-Path $OutputDirectory) -and -not $Force) {
+            throw "Output directory already exists. Use -Force to overwrite package files: $OutputDirectory"
+        }
+        New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+
+        $conversationRows = @(Get-GenesysOpsPropertyValue $summary @('conversation') @())
+        if ($conversationRows.Count -eq 0) {
+            $conversationRows = @(Import-GenesysOpsJsonLines -Path (Join-Path $dataFolder 'conversation.jsonl'))
+        }
+        $participantRows = @(Get-GenesysOpsPropertyValue $summary @('participants') @())
+        $agentRows = @(Get-GenesysOpsPropertyValue $summary @('agents') @())
+        $divisionRows = @(Get-GenesysOpsPropertyValue $summary @('divisions') @())
+        $skillRows = @(Get-GenesysOpsPropertyValue $summary @('skills') @())
+        $recordingRows = @(Get-GenesysOpsPropertyValue $summary @('recordings') @())
+        $evaluationRows = @(Get-GenesysOpsPropertyValue $summary @('evaluations') @())
+        $conversationLookupRows = @(Get-GenesysOpsPropertyValue $summary @('conversationLookup') @())
+
+        $conversationTimeline = @(ConvertTo-GenesysConversationTimeline -ConversationRecords $conversationRows)
+        $sipRows = @()
+        $pcapInfo = $null
+        $pcapMetadataRows = @()
+        $packageWarnings = [System.Collections.Generic.List[string]]::new()
+        if ($SipTracePath) {
+            $resolvedSipTracePath = (Resolve-Path -Path $SipTracePath -ErrorAction Stop).Path
+            $sipRows = @(ConvertFrom-GenesysOpsSipTrace -Path $resolvedSipTracePath)
+        }
+        else {
+            $resolvedSipTracePath = $null
         }
 
-        if ([string]::IsNullOrWhiteSpace($conversationIdValue) -or [string]::IsNullOrWhiteSpace($pcapStartUtc) -or [string]::IsNullOrWhiteSpace($pcapEndUtc)) {
-            $packageWarnings.Add('PCAP download skipped because conversationId, start time, or end time was not available in the run artifacts.') | Out-Null
-        } elseif (-not $ApiInvoker -and -not $script:GC.Connected) {
-            $packageWarnings.Add('PCAP download skipped because no Genesys Cloud session is connected. Run Connect-GenesysCloud or pass -SipTracePath for offline packaging.') | Out-Null
-        } else {
-            try {
-                $pcapInfo = Export-GenesysOpsConversationPcap `
-                    -ConversationId $conversationIdValue `
-                    -StartUtc $pcapStartUtc `
-                    -EndUtc $pcapEndUtc `
-                    -OutputDirectory $OutputDirectory `
-                    -PackageName $PackageName `
-                    -ApiInvoker $ApiInvoker `
-                    -DownloadInvoker $DownloadInvoker
-                $pcapMetadataRows = @($pcapInfo.MetadataRows)
-                $sipRows = @($pcapInfo.SipRows)
-                if (-not $pcapInfo.PcapPath) {
-                    $packageWarnings.Add('PCAP download was requested but no signed download URL was returned before polling completed.') | Out-Null
-                }
-            } catch {
-                $packageWarnings.Add("PCAP download failed: $($_.Exception.Message)") | Out-Null
+        $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
+        if ([string]::IsNullOrWhiteSpace($conversationIdValue) -and $conversationRows.Count -gt 0) {
+            $conversationIdValue = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationId', 'id'))
+        }
+
+        if (-not $SipTracePath -and -not $SkipPcapDownload) {
+            $windowRecord = $null
+            if ($conversationLookupRows.Count -gt 0) {
+                $windowRecord = $conversationLookupRows[0]
             }
-        }
-    }
+            elseif ($conversationRows.Count -gt 0) {
+                $windowRecord = $conversationRows[0]
+            }
 
-    $sipTimeline = @(ConvertTo-GenesysSipTimeline -SipRows $sipRows -StartingSequence $conversationTimeline.Count)
-    $combinedTimeline = @()
-    $combinedTimeline += $conversationTimeline
-    $combinedTimeline += $sipTimeline
-    $combinedTimeline = @(Sort-GenesysConversationPackageTimeline -Rows $combinedTimeline)
-    $findings = @(New-GenesysConversationPackageFindings -TimelineRows @($combinedTimeline | Where-Object { $_.Source -eq 'Conversation Detail' }) -SipRows $sipRows -RecordingRows $recordingRows -EvaluationRows $evaluationRows)
+            $pcapStartUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationStart', 'startTime', 'startTimeUtc', 'start'))
+            $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $windowRecord @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
 
-    $overview = [pscustomobject]@{
-        GeneratedAtUtc = [DateTime]::UtcNow.ToString('o')
-        Investigation  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
-        RunId          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
-        ConversationId = $conversationIdValue
-        Participants   = $participantRows.Count
-        Agents         = $agentRows.Count
-        Divisions      = $divisionRows.Count
-        Skills         = $skillRows.Count
-        Recordings     = $recordingRows.Count
-        Evaluations    = $evaluationRows.Count
-        TimelineEvents = $combinedTimeline.Count
-        SipMessages    = $sipRows.Count
-        PcapDownloaded = ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath))
-    }
+            if ([string]::IsNullOrWhiteSpace($pcapEndUtc) -and $conversationRows.Count -gt 0) {
+                $pcapEndUtc = ConvertTo-GenesysOpsUtcText (Get-GenesysOpsPropertyValue $conversationRows[0] @('conversationEnd', 'endTime', 'endTimeUtc', 'end'))
+            }
 
-    $evidenceRows = @(
-        foreach ($pair in @(
-            @{ Name = 'conversationLookup'; Rows = $conversationLookupRows },
-            @{ Name = 'participants'; Rows = $participantRows },
-            @{ Name = 'agents'; Rows = $agentRows },
-            @{ Name = 'divisions'; Rows = $divisionRows },
-            @{ Name = 'skills'; Rows = $skillRows },
-            @{ Name = 'recordings'; Rows = $recordingRows },
-            @{ Name = 'evaluations'; Rows = $evaluationRows }
-        )) {
-            foreach ($row in @($pair.Rows)) {
-                [pscustomobject]@{
-                    Section = $pair.Name
-                    Json    = ConvertTo-GenesysOpsText $row
+            if ([string]::IsNullOrWhiteSpace($conversationIdValue) -or [string]::IsNullOrWhiteSpace($pcapStartUtc) -or [string]::IsNullOrWhiteSpace($pcapEndUtc)) {
+                $packageWarnings.Add('PCAP download skipped because conversationId, start time, or end time was not available in the run artifacts.') | Out-Null
+            }
+            elseif (-not $ApiInvoker -and -not $script:GC.Connected) {
+                $packageWarnings.Add('PCAP download skipped because no Genesys Cloud session is connected. Run Connect-GenesysCloud or pass -SipTracePath for offline packaging.') | Out-Null
+            }
+            else {
+                try {
+                    $pcapInfo = Export-GenesysOpsConversationPcap `
+                        -ConversationId $conversationIdValue `
+                        -StartUtc $pcapStartUtc `
+                        -EndUtc $pcapEndUtc `
+                        -OutputDirectory $OutputDirectory `
+                        -PackageName $PackageName `
+                        -ApiInvoker $ApiInvoker `
+                        -DownloadInvoker $DownloadInvoker
+                    $pcapMetadataRows = @($pcapInfo.MetadataRows)
+                    $sipRows = @($pcapInfo.SipRows)
+                    if (-not $pcapInfo.PcapPath) {
+                        $packageWarnings.Add('PCAP download was requested but no signed download URL was returned before polling completed.') | Out-Null
+                    }
+                }
+                catch {
+                    $packageWarnings.Add("PCAP download failed: $($_.Exception.Message)") | Out-Null
                 }
             }
         }
-    )
 
-    $htmlPath = Join-Path $OutputDirectory "$PackageName.html"
-    $timelineCsvPath = Join-Path $OutputDirectory "$PackageName.timeline.csv"
-    $sipCsvPath = Join-Path $OutputDirectory "$PackageName.sip-trace.csv"
-    $pcapMetadataCsvPath = Join-Path $OutputDirectory "$PackageName.pcap-metadata.csv"
-    $findingsCsvPath = Join-Path $OutputDirectory "$PackageName.findings.csv"
-    $workbookPath = Join-Path $OutputDirectory "$PackageName.xlsx"
-    $packageJsonPath = Join-Path $OutputDirectory "$PackageName.package.json"
+        $sipTimeline = @(ConvertTo-GenesysSipTimeline -SipRows $sipRows -StartingSequence $conversationTimeline.Count)
+        $combinedTimeline = @()
+        $combinedTimeline += $conversationTimeline
+        $combinedTimeline += $sipTimeline
+        $combinedTimeline = @(Sort-GenesysConversationPackageTimeline -Rows $combinedTimeline)
+        $findings = @(New-GenesysConversationPackageFindings -TimelineRows @($combinedTimeline | Where-Object { $_.Source -eq 'Conversation Detail' }) -SipRows $sipRows -RecordingRows $recordingRows -EvaluationRows $evaluationRows)
 
-    Set-Content -Path $htmlPath -Value (New-GenesysConversationPackageHtml -Overview $overview -Findings $findings -TimelineRows $combinedTimeline -SipRows $sipRows -EvidenceRows $evidenceRows) -Encoding utf8
-    Export-GenesysOpsRowsCsv -Rows $combinedTimeline -Path $timelineCsvPath
-    Export-GenesysOpsRowsCsv -Rows $sipRows -Path $sipCsvPath
-    if ($pcapMetadataRows.Count -gt 0) {
-        Export-GenesysOpsRowsCsv -Rows $pcapMetadataRows -Path $pcapMetadataCsvPath
-    }
-    Export-GenesysOpsRowsCsv -Rows $findings -Path $findingsCsvPath
-    $workbookSheets = @(
-        [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
-        [pscustomobject]@{ Name = 'Findings'; Rows = $findings }
-        [pscustomobject]@{ Name = 'Timeline'; Rows = $combinedTimeline }
-        [pscustomobject]@{ Name = 'SIP Trace'; Rows = $sipRows }
-        [pscustomobject]@{ Name = 'Evidence'; Rows = $evidenceRows }
-    )
-    if ($pcapMetadataRows.Count -gt 0) {
-        $workbookSheets += [pscustomobject]@{ Name = 'PCAP Metadata'; Rows = $pcapMetadataRows }
-    }
-    Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
-
-    $package = [ordered]@{
-        packageType        = 'conversation-investigation'
-        generatedAtUtc     = $overview.GeneratedAtUtc
-        conversationId     = $overview.ConversationId
-        runId              = $overview.RunId
-        sourceSipTraceName = if ($resolvedSipTracePath) { Split-Path -Path $resolvedSipTracePath -Leaf } else { $null }
-        pcapDownloadId     = if ($pcapInfo) { $pcapInfo.DownloadId } else { $null }
-        warnings           = $packageWarnings.ToArray()
-        counts             = [ordered]@{
-            participants   = $overview.Participants
-            agents         = $overview.Agents
-            recordings     = $overview.Recordings
-            evaluations    = $overview.Evaluations
-            timelineEvents = $overview.TimelineEvents
-            sipMessages    = $overview.SipMessages
-            pcapMetadataRows = $pcapMetadataRows.Count
-            findings       = $findings.Count
+        $overview = [pscustomobject]@{
+            GeneratedAtUtc = [DateTime]::UtcNow.ToString('o')
+            Investigation  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
+            RunId          = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
+            ConversationId = $conversationIdValue
+            Participants   = $participantRows.Count
+            Agents         = $agentRows.Count
+            Divisions      = $divisionRows.Count
+            Skills         = $skillRows.Count
+            Recordings     = $recordingRows.Count
+            Evaluations    = $evaluationRows.Count
+            TimelineEvents = $combinedTimeline.Count
+            SipMessages    = $sipRows.Count
+            PcapDownloaded = ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath))
         }
-        files              = [ordered]@{
-            html        = (Split-Path -Path $htmlPath -Leaf)
-            timelineCsv = (Split-Path -Path $timelineCsvPath -Leaf)
-            sipTraceCsv = (Split-Path -Path $sipCsvPath -Leaf)
-            pcapMetadataCsv = if (Test-Path $pcapMetadataCsvPath) { Split-Path -Path $pcapMetadataCsvPath -Leaf } else { $null }
-            pcap        = if ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath)) { Split-Path -Path $pcapInfo.PcapPath -Leaf } else { $null }
-            findingsCsv = (Split-Path -Path $findingsCsvPath -Leaf)
-            workbook    = (Split-Path -Path $workbookPath -Leaf)
-            packageJson = (Split-Path -Path $packageJsonPath -Leaf)
+
+        $evidenceRows = @(
+            foreach ($pair in @(
+                    @{ Name = 'conversationLookup'; Rows = $conversationLookupRows },
+                    @{ Name = 'participants'; Rows = $participantRows },
+                    @{ Name = 'agents'; Rows = $agentRows },
+                    @{ Name = 'divisions'; Rows = $divisionRows },
+                    @{ Name = 'skills'; Rows = $skillRows },
+                    @{ Name = 'recordings'; Rows = $recordingRows },
+                    @{ Name = 'evaluations'; Rows = $evaluationRows }
+                )) {
+                foreach ($row in @($pair.Rows)) {
+                    [pscustomobject]@{
+                        Section = $pair.Name
+                        Json    = ConvertTo-GenesysOpsText $row
+                    }
+                }
+            }
+        )
+
+        $htmlPath = Join-Path $OutputDirectory "$PackageName.html"
+        $timelineCsvPath = Join-Path $OutputDirectory "$PackageName.timeline.csv"
+        $sipCsvPath = Join-Path $OutputDirectory "$PackageName.sip-trace.csv"
+        $pcapMetadataCsvPath = Join-Path $OutputDirectory "$PackageName.pcap-metadata.csv"
+        $findingsCsvPath = Join-Path $OutputDirectory "$PackageName.findings.csv"
+        $workbookPath = Join-Path $OutputDirectory "$PackageName.xlsx"
+        $packageJsonPath = Join-Path $OutputDirectory "$PackageName.package.json"
+
+        Set-Content -Path $htmlPath -Value (New-GenesysConversationPackageHtml -Overview $overview -Findings $findings -TimelineRows $combinedTimeline -SipRows $sipRows -EvidenceRows $evidenceRows) -Encoding utf8
+        Export-GenesysOpsRowsCsv -Rows $combinedTimeline -Path $timelineCsvPath
+        Export-GenesysOpsRowsCsv -Rows $sipRows -Path $sipCsvPath
+        if ($pcapMetadataRows.Count -gt 0) {
+            Export-GenesysOpsRowsCsv -Rows $pcapMetadataRows -Path $pcapMetadataCsvPath
         }
-        overview           = $overview
-        findings           = $findings
-    }
-    Set-Content -Path $packageJsonPath -Value ($package | ConvertTo-Json -Depth 100) -Encoding utf8
+        Export-GenesysOpsRowsCsv -Rows $findings -Path $findingsCsvPath
+        $workbookSheets = @(
+            [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
+            [pscustomobject]@{ Name = 'Findings'; Rows = $findings }
+            [pscustomobject]@{ Name = 'Timeline'; Rows = $combinedTimeline }
+            [pscustomobject]@{ Name = 'SIP Trace'; Rows = $sipRows }
+            [pscustomobject]@{ Name = 'Evidence'; Rows = $evidenceRows }
+        )
+        if ($pcapMetadataRows.Count -gt 0) {
+            $workbookSheets += [pscustomobject]@{ Name = 'PCAP Metadata'; Rows = $pcapMetadataRows }
+        }
+        Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
 
-    return [pscustomobject]@{
-        RunFolder       = $resolvedRunFolder
-        OutputDirectory = (Resolve-Path -Path $OutputDirectory).Path
-        HtmlPath        = $htmlPath
-        TimelineCsvPath = $timelineCsvPath
-        SipTraceCsvPath = $sipCsvPath
-        FindingsCsvPath = $findingsCsvPath
-        WorkbookPath    = $workbookPath
-        PackageJsonPath = $packageJsonPath
-        PcapPath        = if ($pcapInfo) { $pcapInfo.PcapPath } else { $null }
-        PcapMetadataCsvPath = if (Test-Path $pcapMetadataCsvPath) { $pcapMetadataCsvPath } else { $null }
-        Overview        = $overview
-    }
-}
+        $package = [ordered]@{
+            packageType        = 'conversation-investigation'
+            generatedAtUtc     = $overview.GeneratedAtUtc
+            conversationId     = $overview.ConversationId
+            runId              = $overview.RunId
+            sourceSipTraceName = if ($resolvedSipTracePath) { Split-Path -Path $resolvedSipTracePath -Leaf } else { $null }
+            pcapDownloadId     = if ($pcapInfo) { $pcapInfo.DownloadId } else { $null }
+            warnings           = $packageWarnings.ToArray()
+            counts             = [ordered]@{
+                participants     = $overview.Participants
+                agents           = $overview.Agents
+                recordings       = $overview.Recordings
+                evaluations      = $overview.Evaluations
+                timelineEvents   = $overview.TimelineEvents
+                sipMessages      = $overview.SipMessages
+                pcapMetadataRows = $pcapMetadataRows.Count
+                findings         = $findings.Count
+            }
+            files              = [ordered]@{
+                html            = (Split-Path -Path $htmlPath -Leaf)
+                timelineCsv     = (Split-Path -Path $timelineCsvPath -Leaf)
+                sipTraceCsv     = (Split-Path -Path $sipCsvPath -Leaf)
+                pcapMetadataCsv = if (Test-Path $pcapMetadataCsvPath) { Split-Path -Path $pcapMetadataCsvPath -Leaf } else { $null }
+                pcap            = if ($pcapInfo -and $pcapInfo.PcapPath -and (Test-Path $pcapInfo.PcapPath)) { Split-Path -Path $pcapInfo.PcapPath -Leaf } else { $null }
+                findingsCsv     = (Split-Path -Path $findingsCsvPath -Leaf)
+                workbook        = (Split-Path -Path $workbookPath -Leaf)
+                packageJson     = (Split-Path -Path $packageJsonPath -Leaf)
+            }
+            overview           = $overview
+            findings           = $findings
+        }
+        Set-Content -Path $packageJsonPath -Value ($package | ConvertTo-Json -Depth 100) -Encoding utf8
 
-function ConvertTo-GenesysMarkdownCellText {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    $text = ConvertTo-GenesysOpsText -Value $Value
-    if ([string]::IsNullOrWhiteSpace($text)) { return '—' }
-    $text = $text -replace '\|', '\|'
-    $text = $text -replace '\r?\n', '<br/>'
-    return $text
-}
-
-function ConvertTo-GenesysMarkdownTable {
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()][object[]] $Rows,
-        [int] $Limit = 25
-    )
-
-    $rowsArray = @($Rows)
-    if ($rowsArray.Count -eq 0) { return '_No records._' }
-
-    $rowsArray = @($rowsArray | Select-Object -First $Limit)
-    $columns = [System.Collections.Generic.List[string]]::new()
-    foreach ($row in $rowsArray) {
-        foreach ($prop in $row.PSObject.Properties) {
-            if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+        return [pscustomobject]@{
+            RunFolder           = $resolvedRunFolder
+            OutputDirectory     = (Resolve-Path -Path $OutputDirectory).Path
+            HtmlPath            = $htmlPath
+            TimelineCsvPath     = $timelineCsvPath
+            SipTraceCsvPath     = $sipCsvPath
+            FindingsCsvPath     = $findingsCsvPath
+            WorkbookPath        = $workbookPath
+            PackageJsonPath     = $packageJsonPath
+            PcapPath            = if ($pcapInfo) { $pcapInfo.PcapPath } else { $null }
+            PcapMetadataCsvPath = if (Test-Path $pcapMetadataCsvPath) { $pcapMetadataCsvPath } else { $null }
+            Overview            = $overview
         }
     }
-    if ($columns.Count -eq 0) { return '_No records._' }
 
-    $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.Append('| ' + (($columns.ToArray()) -join ' | ') + ' |')
-    [void]$sb.AppendLine()
-    [void]$sb.Append('| ' + ((@($columns.ToArray() | ForEach-Object { '---' })) -join ' | ') + ' |')
+    function ConvertTo-GenesysMarkdownCellText {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-    foreach ($row in $rowsArray) {
+        $text = ConvertTo-GenesysOpsText -Value $Value
+        if ([string]::IsNullOrWhiteSpace($text)) { return '—' }
+        $text = $text -replace '\|', '\|'
+        $text = $text -replace '\r?\n', '<br/>'
+        return $text
+    }
+
+    function ConvertTo-GenesysMarkdownTable {
+        [CmdletBinding()]
+        param(
+            [AllowEmptyCollection()][object[]] $Rows,
+            [int] $Limit = 25
+        )
+
+        $rowsArray = @($Rows)
+        if ($rowsArray.Count -eq 0) { return '_No records._' }
+
+        $rowsArray = @($rowsArray | Select-Object -First $Limit)
+        $columns = [System.Collections.Generic.List[string]]::new()
+        foreach ($row in $rowsArray) {
+            foreach ($prop in $row.PSObject.Properties) {
+                if (-not $columns.Contains($prop.Name)) { $columns.Add($prop.Name) | Out-Null }
+            }
+        }
+        if ($columns.Count -eq 0) { return '_No records._' }
+
+        $sb = [System.Text.StringBuilder]::new()
+        [void]$sb.Append('| ' + (($columns.ToArray()) -join ' | ') + ' |')
         [void]$sb.AppendLine()
-        $cells = foreach ($column in $columns) {
-            ConvertTo-GenesysMarkdownCellText -Value (Get-GenesysOpsPropertyValue $row @($column))
+        [void]$sb.Append('| ' + ((@($columns.ToArray() | ForEach-Object { '---' })) -join ' | ') + ' |')
+
+        foreach ($row in $rowsArray) {
+            [void]$sb.AppendLine()
+            $cells = foreach ($column in $columns) {
+                ConvertTo-GenesysMarkdownCellText -Value (Get-GenesysOpsPropertyValue $row @($column))
+            }
+            [void]$sb.Append('| ' + (@($cells) -join ' | ') + ' |')
         }
-        [void]$sb.Append('| ' + (@($cells) -join ' | ') + ' |')
+
+        if (@($Rows).Count -gt $Limit) {
+            [void]$sb.AppendLine()
+            [void]$sb.AppendLine()
+            [void]$sb.Append('_Showing first ' + $Limit + ' rows._')
+        }
+
+        return $sb.ToString()
     }
 
-    if (@($Rows).Count -gt $Limit) {
-        [void]$sb.AppendLine()
-        [void]$sb.AppendLine()
-        [void]$sb.Append('_Showing first ' + $Limit + ' rows._')
-    }
+    function ConvertTo-GenesysInvestigationSectionRows {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-    return $sb.ToString()
-}
-
-function ConvertTo-GenesysInvestigationSectionRows {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    if ($null -eq $Value) { return @() }
-    if ($Value -is [string]) {
-        if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
+        if ($null -eq $Value) { return @() }
+        if ($Value -is [string]) {
+            if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
+            return @([pscustomobject]@{ Value = $Value })
+        }
+        if ($Value -is [System.Collections.IDictionary]) { return @([pscustomobject]$Value) }
+        if ($Value -is [System.Collections.IEnumerable]) { return @($Value) }
+        if ($Value.PSObject -and @($Value.PSObject.Properties).Count -gt 0) { return @($Value) }
         return @([pscustomobject]@{ Value = $Value })
     }
-    if ($Value -is [System.Collections.IDictionary]) { return @([pscustomobject]$Value) }
-    if ($Value -is [System.Collections.IEnumerable]) { return @($Value) }
-    if ($Value.PSObject -and @($Value.PSObject.Properties).Count -gt 0) { return @($Value) }
-    return @([pscustomobject]@{ Value = $Value })
-}
 
-function ConvertTo-GenesysPackageName {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object] $Manifest,
-        [string] $PackageName
-    )
+    function ConvertTo-GenesysPackageName {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][object] $Manifest,
+            [string] $PackageName
+        )
 
-    $rawName = if (-not [string]::IsNullOrWhiteSpace($PackageName)) {
-        $PackageName
-    } else {
-        '{0}-{1}-{2}' -f (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))), (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))), (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId')))
+        $rawName = if (-not [string]::IsNullOrWhiteSpace($PackageName)) {
+            $PackageName
+        }
+        else {
+            '{0}-{1}-{2}' -f (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))), (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))), (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId')))
+        }
+
+        $sanitized = ($rawName -replace '[^A-Za-z0-9._-]+', '-').Trim('-')
+        if ([string]::IsNullOrWhiteSpace($sanitized)) { return 'investigation-package' }
+        return $sanitized
     }
 
-    $sanitized = ($rawName -replace '[^A-Za-z0-9._-]+', '-').Trim('-')
-    if ([string]::IsNullOrWhiteSpace($sanitized)) { return 'investigation-package' }
-    return $sanitized
-}
+    function Protect-GenesysDiagnosticText {
+        [CmdletBinding()]
+        param([AllowNull()][string] $Text)
 
-function Protect-GenesysDiagnosticText {
-    [CmdletBinding()]
-    param([AllowNull()][string] $Text)
+        if ([string]::IsNullOrWhiteSpace($Text)) { return $Text }
 
-    if ([string]::IsNullOrWhiteSpace($Text)) { return $Text }
+        $redacted = $Text
+        $redacted = [regex]::Replace($redacted, '(?im)authorization\s*:\s*[^\r\n]+', '[redacted-auth-header]')
+        $redacted = [regex]::Replace($redacted, 'Bearer\s+[A-Za-z0-9._-]+', 'Bearer [redacted]')
+        $redacted = [regex]::Replace($redacted, '(?i)(client_secret|api[_-]?key|token|secret|password)=([^&\s]+)', '$1=[redacted]')
+        return $redacted
+    }
 
-    $redacted = $Text
-    $redacted = [regex]::Replace($redacted, '(?im)authorization\s*:\s*[^\r\n]+', '[redacted-auth-header]')
-    $redacted = [regex]::Replace($redacted, 'Bearer\s+[A-Za-z0-9._-]+', 'Bearer [redacted]')
-    $redacted = [regex]::Replace($redacted, '(?i)(client_secret|api[_-]?key|token|secret|password)=([^&\s]+)', '$1=[redacted]')
-    return $redacted
-}
+    function Protect-GenesysDiagnosticValue {
+        [CmdletBinding()]
+        param([AllowNull()][object] $Value)
 
-function Protect-GenesysDiagnosticValue {
-    [CmdletBinding()]
-    param([AllowNull()][object] $Value)
-
-    if ($null -eq $Value) { return $null }
-    if ($Value -is [string]) { return (Protect-GenesysDiagnosticText -Text $Value) }
-    if (
-        $Value -is [bool] -or
-        $Value -is [byte] -or
-        $Value -is [int16] -or
-        $Value -is [int32] -or
-        $Value -is [int64] -or
-        $Value -is [uint16] -or
-        $Value -is [uint32] -or
-        $Value -is [uint64] -or
-        $Value -is [single] -or
-        $Value -is [double] -or
-        $Value -is [decimal] -or
-        $Value -is [datetime] -or
-        $Value -is [guid]
-    ) {
+        if ($null -eq $Value) { return $null }
+        if ($Value -is [string]) { return (Protect-GenesysDiagnosticText -Text $Value) }
+        if (
+            $Value -is [bool] -or
+            $Value -is [byte] -or
+            $Value -is [int16] -or
+            $Value -is [int32] -or
+            $Value -is [int64] -or
+            $Value -is [uint16] -or
+            $Value -is [uint32] -or
+            $Value -is [uint64] -or
+            $Value -is [single] -or
+            $Value -is [double] -or
+            $Value -is [decimal] -or
+            $Value -is [datetime] -or
+            $Value -is [guid]
+        ) {
+            return $Value
+        }
+        if ($Value -is [System.Collections.IDictionary]) {
+            $result = [ordered]@{}
+            foreach ($key in $Value.Keys) {
+                if ([string]$key -match '(?i)authorization|api[_-]?key|token|secret|password|client[_-]?secret') { continue }
+                $result[[string]$key] = Protect-GenesysDiagnosticValue -Value $Value[$key]
+            }
+            return [pscustomobject]$result
+        }
+        $customProperties = @()
+        if ($Value.PSObject) {
+            $customProperties = @(
+                $Value.PSObject.Properties |
+                    Where-Object {
+                        $_.MemberType -eq 'NoteProperty' -or
+                        $_.MemberType -eq 'AliasProperty' -or
+                        $_.MemberType -eq 'ScriptProperty'
+                    }
+            )
+        }
+        if ($customProperties.Count -gt 0) {
+            $result = [ordered]@{}
+            foreach ($prop in $customProperties) {
+                if ($prop.Name -match '(?i)authorization|api[_-]?key|token|secret|password|client[_-]?secret') { continue }
+                $result[$prop.Name] = Protect-GenesysDiagnosticValue -Value $prop.Value
+            }
+            return [pscustomobject]$result
+        }
+        if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+            return @($Value | ForEach-Object { Protect-GenesysDiagnosticValue -Value $_ })
+        }
         return $Value
     }
-    if ($Value -is [System.Collections.IDictionary]) {
-        $result = [ordered]@{}
-        foreach ($key in $Value.Keys) {
-            if ([string]$key -match '(?i)authorization|api[_-]?key|token|secret|password|client[_-]?secret') { continue }
-            $result[[string]$key] = Protect-GenesysDiagnosticValue -Value $Value[$key]
-        }
-        return [pscustomobject]$result
-    }
-    $customProperties = @()
-    if ($Value.PSObject) {
-        $customProperties = @(
-            $Value.PSObject.Properties |
-                Where-Object {
-                    $_.MemberType -eq 'NoteProperty' -or
-                    $_.MemberType -eq 'AliasProperty' -or
-                    $_.MemberType -eq 'ScriptProperty'
-                }
+
+    function New-GenesysInvestigationPackageMarkdown {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][object] $Manifest,
+            [Parameter(Mandatory)][object] $Overview,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+            [Parameter(Mandatory)] $Sections,
+            [AllowEmptyCollection()][object[]] $Warnings = @()
         )
-    }
-    if ($customProperties.Count -gt 0) {
-        $result = [ordered]@{}
-        foreach ($prop in $customProperties) {
-            if ($prop.Name -match '(?i)authorization|api[_-]?key|token|secret|password|client[_-]?secret') { continue }
-            $result[$prop.Name] = Protect-GenesysDiagnosticValue -Value $prop.Value
+
+        $investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
+        $subjectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
+        $subjectId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
+        $runId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
+        $window = Get-GenesysOpsPropertyValue $Manifest @('window')
+        $since = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $window @('since'))
+        $until = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $window @('until'))
+        $windowText = if ([string]::IsNullOrWhiteSpace($since) -and [string]::IsNullOrWhiteSpace($until)) {
+            'Not scoped'
         }
-        return [pscustomobject]$result
-    }
-    if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
-        return @($Value | ForEach-Object { Protect-GenesysDiagnosticValue -Value $_ })
-    }
-    return $Value
-}
-
-function New-GenesysInvestigationPackageMarkdown {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object] $Manifest,
-        [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
-        [Parameter(Mandatory)] $Sections,
-        [AllowEmptyCollection()][object[]] $Warnings = @()
-    )
-
-    $investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
-    $subjectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
-    $subjectId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
-    $runId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
-    $window = Get-GenesysOpsPropertyValue $Manifest @('window')
-    $since = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $window @('since'))
-    $until = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $window @('until'))
-    $windowText = if ([string]::IsNullOrWhiteSpace($since) -and [string]::IsNullOrWhiteSpace($until)) {
-        'Not scoped'
-    } else {
-        '``{0}`` -> ``{1}``' -f $(if ([string]::IsNullOrWhiteSpace($since)) { '—' } else { $since }), $(if ([string]::IsNullOrWhiteSpace($until)) { '—' } else { $until })
-    }
-
-    $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.AppendLine('# Investigation Package')
-    [void]$sb.AppendLine()
-    [void]$sb.AppendLine("- Investigation: ``$investigationKey``")
-    [void]$sb.AppendLine("- Subject: ``$subjectType`` / ``$subjectId``")
-    [void]$sb.AppendLine("- Run ID: ``$runId``")
-    [void]$sb.AppendLine("- Window: $windowText")
-    [void]$sb.AppendLine("- Generated: ``$(ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc')))``")
-
-    if (@($Warnings).Count -gt 0) {
-        [void]$sb.AppendLine()
-        [void]$sb.AppendLine('## Warnings')
-        [void]$sb.AppendLine()
-        foreach ($warning in @($Warnings)) {
-            [void]$sb.AppendLine('- ' + (ConvertTo-GenesysOpsText $warning))
+        else {
+            '``{0}`` -> ``{1}``' -f $(if ([string]::IsNullOrWhiteSpace($since)) { '—' } else { $since }), $(if ([string]::IsNullOrWhiteSpace($until)) { '—' } else { $until })
         }
-    }
 
-    [void]$sb.AppendLine()
-    [void]$sb.AppendLine('## Overview')
-    [void]$sb.AppendLine()
-    [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows @($Overview) -Limit 10))
-    [void]$sb.AppendLine()
-    [void]$sb.AppendLine('## Step status')
-    [void]$sb.AppendLine()
-    [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows $StepRows -Limit 50))
-
-    foreach ($section in $Sections.GetEnumerator()) {
+        $sb = [System.Text.StringBuilder]::new()
+        [void]$sb.AppendLine('# Investigation Package')
         [void]$sb.AppendLine()
-        [void]$sb.AppendLine('## ' + $section.Key)
+        [void]$sb.AppendLine("- Investigation: ``$investigationKey``")
+        [void]$sb.AppendLine("- Subject: ``$subjectType`` / ``$subjectId``")
+        [void]$sb.AppendLine("- Run ID: ``$runId``")
+        [void]$sb.AppendLine("- Window: $windowText")
+        [void]$sb.AppendLine("- Generated: ``$(ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc')))``")
+
+        if (@($Warnings).Count -gt 0) {
+            [void]$sb.AppendLine()
+            [void]$sb.AppendLine('## Warnings')
+            [void]$sb.AppendLine()
+            foreach ($warning in @($Warnings)) {
+                [void]$sb.AppendLine('- ' + (ConvertTo-GenesysOpsText $warning))
+            }
+        }
+
         [void]$sb.AppendLine()
-        [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows @($section.Value) -Limit 25))
+        [void]$sb.AppendLine('## Overview')
+        [void]$sb.AppendLine()
+        [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows @($Overview) -Limit 10))
+        [void]$sb.AppendLine()
+        [void]$sb.AppendLine('## Step status')
+        [void]$sb.AppendLine()
+        [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows $StepRows -Limit 50))
+
+        foreach ($section in $Sections.GetEnumerator()) {
+            [void]$sb.AppendLine()
+            [void]$sb.AppendLine('## ' + $section.Key)
+            [void]$sb.AppendLine()
+            [void]$sb.AppendLine((ConvertTo-GenesysMarkdownTable -Rows @($section.Value) -Limit 25))
+        }
+
+        return $sb.ToString()
     }
 
-    return $sb.ToString()
-}
+    function New-GenesysInvestigationPackageHtml {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][object] $Manifest,
+            [Parameter(Mandatory)][object] $Overview,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+            [Parameter(Mandatory)] $Sections,
+            [AllowEmptyCollection()][object[]] $Warnings = @()
+        )
 
-function New-GenesysInvestigationPackageHtml {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object] $Manifest,
-        [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
-        [Parameter(Mandatory)] $Sections,
-        [AllowEmptyCollection()][object[]] $Warnings = @()
-    )
+        $investigationKey = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
+        $subjectType = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
+        $subjectId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
+        $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
+        $window = Get-GenesysOpsPropertyValue $Manifest @('window')
+        $since = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('since'))
+        $until = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('until'))
+        $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
 
-    $investigationKey = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
-    $subjectType = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
-    $subjectId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
-    $runId = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
-    $window = Get-GenesysOpsPropertyValue $Manifest @('window')
-    $since = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('since'))
-    $until = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $window @('until'))
-    $generatedAt = ConvertTo-GenesysOpsHtmlText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+        $warningHtml = if (@($Warnings).Count -gt 0) {
+            '<section><h2>Warnings</h2><ul>' + ((@($Warnings) | ForEach-Object { '<li>' + (ConvertTo-GenesysOpsHtmlText $_) + '</li>' }) -join '') + '</ul></section>'
+        }
+        else {
+            ''
+        }
 
-    $warningHtml = if (@($Warnings).Count -gt 0) {
-        '<section><h2>Warnings</h2><ul>' + ((@($Warnings) | ForEach-Object { '<li>' + (ConvertTo-GenesysOpsHtmlText $_) + '</li>' }) -join '') + '</ul></section>'
-    } else {
-        ''
-    }
-
-    $sectionHtml = foreach ($section in $Sections.GetEnumerator()) {
-        @"
+        $sectionHtml = foreach ($section in $Sections.GetEnumerator()) {
+            @"
 <section>
 <h2>$(ConvertTo-GenesysOpsHtmlText $section.Key)</h2>
 $(ConvertTo-GenesysHtmlTable -Rows @($section.Value) -Limit 100)
 </section>
 "@
-    }
+        }
 
-    @"
+        @"
 <!doctype html>
 <html lang="en">
 <head>
@@ -8288,137 +8396,137 @@ $($sectionHtml -join [Environment]::NewLine)
 </body>
 </html>
 "@
-}
+    }
 
-function New-GenesysInvestigationElasticDocuments {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object] $Manifest,
-        [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
-        [Parameter(Mandatory)] $Sections
-    )
+    function New-GenesysInvestigationElasticDocuments {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][object] $Manifest,
+            [Parameter(Mandatory)][object] $Overview,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+            [Parameter(Mandatory)] $Sections
+        )
 
-    $investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
-    $subjectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
-    $subjectId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
-    $runId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
-    $generatedAt = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
+        $investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('investigationKey'))
+        $subjectType = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectType'))
+        $subjectId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('subjectId'))
+        $runId = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Manifest @('runId'))
+        $generatedAt = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $Overview @('GeneratedAtUtc'))
 
-    $documents = [System.Collections.Generic.List[object]]::new()
-    $documents.Add([pscustomobject]@{
-        _id               = "$investigationKey::$runId::overview"
-        investigationKey  = $investigationKey
-        subjectType       = $subjectType
-        subjectId         = $subjectId
-        runId             = $runId
-        generatedAtUtc    = $generatedAt
-        documentType      = 'overview'
-        overview          = $Overview
-    }) | Out-Null
-
-    foreach ($step in @($StepRows)) {
-        $stepName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('StepName'))
+        $documents = [System.Collections.Generic.List[object]]::new()
         $documents.Add([pscustomobject]@{
-            _id               = "$investigationKey::$runId::step::$stepName"
-            investigationKey  = $investigationKey
-            subjectType       = $subjectType
-            subjectId         = $subjectId
-            runId             = $runId
-            generatedAtUtc    = $generatedAt
-            documentType      = 'step'
-            stepName          = $stepName
-            payload           = $step
-        }) | Out-Null
-    }
-
-    foreach ($section in $Sections.GetEnumerator()) {
-        $index = 0
-        foreach ($row in @($section.Value)) {
-            $documents.Add([pscustomobject]@{
-                _id               = "$investigationKey::$runId::section::$($section.Key)::$index"
-                investigationKey  = $investigationKey
-                subjectType       = $subjectType
-                subjectId         = $subjectId
-                runId             = $runId
-                generatedAtUtc    = $generatedAt
-                documentType      = 'section-row'
-                sectionName       = [string]$section.Key
-                rowIndex          = $index
-                payload           = $row
+                _id              = "$investigationKey::$runId::overview"
+                investigationKey = $investigationKey
+                subjectType      = $subjectType
+                subjectId        = $subjectId
+                runId            = $runId
+                generatedAtUtc   = $generatedAt
+                documentType     = 'overview'
+                overview         = $Overview
             }) | Out-Null
-            $index++
+
+        foreach ($step in @($StepRows)) {
+            $stepName = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('StepName'))
+            $documents.Add([pscustomobject]@{
+                    _id              = "$investigationKey::$runId::step::$stepName"
+                    investigationKey = $investigationKey
+                    subjectType      = $subjectType
+                    subjectId        = $subjectId
+                    runId            = $runId
+                    generatedAtUtc   = $generatedAt
+                    documentType     = 'step'
+                    stepName         = $stepName
+                    payload          = $step
+                }) | Out-Null
+        }
+
+        foreach ($section in $Sections.GetEnumerator()) {
+            $index = 0
+            foreach ($row in @($section.Value)) {
+                $documents.Add([pscustomobject]@{
+                        _id              = "$investigationKey::$runId::section::$($section.Key)::$index"
+                        investigationKey = $investigationKey
+                        subjectType      = $subjectType
+                        subjectId        = $subjectId
+                        runId            = $runId
+                        generatedAtUtc   = $generatedAt
+                        documentType     = 'section-row'
+                        sectionName      = [string]$section.Key
+                        rowIndex         = $index
+                        payload          = $row
+                    }) | Out-Null
+                $index++
+            }
+        }
+
+        $documents.ToArray()
+    }
+
+    function Export-GenesysInvestigationElasticBulk {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $Path,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Documents,
+            [string] $IndexName = 'genesys-investigations'
+        )
+
+        $lines = [System.Collections.Generic.List[string]]::new()
+        foreach ($document in @($Documents)) {
+            $meta = [ordered]@{ index = [ordered]@{ _index = $IndexName; _id = (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $document @('_id'))) } }
+            $body = [ordered]@{}
+            foreach ($prop in $document.PSObject.Properties) {
+                if ($prop.Name -eq '_id') { continue }
+                $body[$prop.Name] = $prop.Value
+            }
+            $lines.Add(($meta | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
+            $lines.Add(($body | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
+        }
+        Set-Content -Path $Path -Value ($lines -join [Environment]::NewLine) -Encoding utf8
+    }
+
+    function Export-GenesysInvestigationPowerBiBundle {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][string] $Directory,
+            [Parameter(Mandatory)][object] $Overview,
+            [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
+            [Parameter(Mandatory)] $Sections
+        )
+
+        New-Item -Path $Directory -ItemType Directory -Force | Out-Null
+
+        $tables = [System.Collections.Generic.List[object]]::new()
+        $overviewPath = Join-Path $Directory 'overview.csv'
+        Export-GenesysOpsRowsCsv -Rows @($Overview) -Path $overviewPath
+        $tables.Add([pscustomobject]@{ Name = 'overview'; File = 'overview.csv' }) | Out-Null
+
+        $stepsPath = Join-Path $Directory 'steps.csv'
+        Export-GenesysOpsRowsCsv -Rows $StepRows -Path $stepsPath
+        $tables.Add([pscustomobject]@{ Name = 'steps'; File = 'steps.csv' }) | Out-Null
+
+        foreach ($section in $Sections.GetEnumerator()) {
+            $fileName = ($section.Key -replace '[^A-Za-z0-9._-]+', '-') + '.csv'
+            $path = Join-Path $Directory $fileName
+            Export-GenesysOpsRowsCsv -Rows @($section.Value) -Path $path
+            $tables.Add([pscustomobject]@{ Name = [string]$section.Key; File = $fileName }) | Out-Null
+        }
+
+        $dataset = [ordered]@{
+            bundleType     = 'powerbi-investigation-import'
+            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+            tables         = $tables.ToArray()
+        }
+        $datasetPath = Join-Path $Directory 'dataset.json'
+        Set-Content -Path $datasetPath -Value ($dataset | ConvertTo-Json -Depth 100) -Encoding utf8
+        return [pscustomobject]@{
+            Directory   = $Directory
+            DatasetPath = $datasetPath
+            Tables      = $tables.ToArray()
         }
     }
 
-    $documents.ToArray()
-}
-
-function Export-GenesysInvestigationElasticBulk {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $Path,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Documents,
-        [string] $IndexName = 'genesys-investigations'
-    )
-
-    $lines = [System.Collections.Generic.List[string]]::new()
-    foreach ($document in @($Documents)) {
-        $meta = [ordered]@{ index = [ordered]@{ _index = $IndexName; _id = (ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $document @('_id'))) } }
-        $body = [ordered]@{}
-        foreach ($prop in $document.PSObject.Properties) {
-            if ($prop.Name -eq '_id') { continue }
-            $body[$prop.Name] = $prop.Value
-        }
-        $lines.Add(($meta | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
-        $lines.Add(($body | ConvertTo-Json -Depth 100 -Compress)) | Out-Null
-    }
-    Set-Content -Path $Path -Value ($lines -join [Environment]::NewLine) -Encoding utf8
-}
-
-function Export-GenesysInvestigationPowerBiBundle {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string] $Directory,
-        [Parameter(Mandatory)][object] $Overview,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $StepRows,
-        [Parameter(Mandatory)] $Sections
-    )
-
-    New-Item -Path $Directory -ItemType Directory -Force | Out-Null
-
-    $tables = [System.Collections.Generic.List[object]]::new()
-    $overviewPath = Join-Path $Directory 'overview.csv'
-    Export-GenesysOpsRowsCsv -Rows @($Overview) -Path $overviewPath
-    $tables.Add([pscustomobject]@{ Name = 'overview'; File = 'overview.csv' }) | Out-Null
-
-    $stepsPath = Join-Path $Directory 'steps.csv'
-    Export-GenesysOpsRowsCsv -Rows $StepRows -Path $stepsPath
-    $tables.Add([pscustomobject]@{ Name = 'steps'; File = 'steps.csv' }) | Out-Null
-
-    foreach ($section in $Sections.GetEnumerator()) {
-        $fileName = ($section.Key -replace '[^A-Za-z0-9._-]+', '-') + '.csv'
-        $path = Join-Path $Directory $fileName
-        Export-GenesysOpsRowsCsv -Rows @($section.Value) -Path $path
-        $tables.Add([pscustomobject]@{ Name = [string]$section.Key; File = $fileName }) | Out-Null
-    }
-
-    $dataset = [ordered]@{
-        bundleType      = 'powerbi-investigation-import'
-        generatedAtUtc  = [DateTime]::UtcNow.ToString('o')
-        tables          = $tables.ToArray()
-    }
-    $datasetPath = Join-Path $Directory 'dataset.json'
-    Set-Content -Path $datasetPath -Value ($dataset | ConvertTo-Json -Depth 100) -Encoding utf8
-    return [pscustomobject]@{
-        Directory   = $Directory
-        DatasetPath = $datasetPath
-        Tables      = $tables.ToArray()
-    }
-}
-
-function Export-GenesysInvestigationPackage {
-    <#
+    function Export-GenesysInvestigationPackage {
+        <#
     .SYNOPSIS
         Builds a generic investigation package from any investigation run folder.
     .DESCRIPTION
@@ -8429,173 +8537,173 @@ function Export-GenesysInvestigationPackage {
     .EXAMPLE
         Export-GenesysInvestigationPackage -RunFolder './out/agent-investigation/demo-run' -OutputDirectory './out/agent-package' -Force
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $RunFolder,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $RunFolder,
 
-        [string] $OutputDirectory,
+            [string] $OutputDirectory,
 
-        [string] $PackageName,
+            [string] $PackageName,
 
-        [switch] $Force
-    )
+            [switch] $Force
+        )
 
-    $resolvedRunFolder = (Resolve-Path -Path $RunFolder -ErrorAction Stop).Path
-    $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
-    $summaryPath = Join-Path $resolvedRunFolder 'summary.json'
-    $eventsPath = Join-Path $resolvedRunFolder 'events.jsonl'
-    $dataFolder = Join-Path $resolvedRunFolder 'data'
+        $resolvedRunFolder = (Resolve-Path -Path $RunFolder -ErrorAction Stop).Path
+        $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
+        $summaryPath = Join-Path $resolvedRunFolder 'summary.json'
+        $eventsPath = Join-Path $resolvedRunFolder 'events.jsonl'
+        $dataFolder = Join-Path $resolvedRunFolder 'data'
 
-    if (-not (Test-Path $manifestPath)) { throw "Investigation manifest was not found: $manifestPath" }
-    if (-not (Test-Path $summaryPath)) { throw "Investigation summary was not found: $summaryPath" }
+        if (-not (Test-Path $manifestPath)) { throw "Investigation manifest was not found: $manifestPath" }
+        if (-not (Test-Path $summaryPath)) { throw "Investigation summary was not found: $summaryPath" }
 
-    $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
-    $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json
+        $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+        $summary = Get-Content -Path $summaryPath -Raw | ConvertFrom-Json
 
-    $resolvedPackageName = ConvertTo-GenesysPackageName -Manifest $manifest -PackageName $PackageName
-    if (-not $OutputDirectory) {
-        $OutputDirectory = Join-Path $resolvedRunFolder 'package'
-    }
-
-    if (Test-Path $OutputDirectory) {
-        if (-not $Force) {
-            throw "Output directory already exists. Use -Force to overwrite package files: $OutputDirectory"
+        $resolvedPackageName = ConvertTo-GenesysPackageName -Manifest $manifest -PackageName $PackageName
+        if (-not $OutputDirectory) {
+            $OutputDirectory = Join-Path $resolvedRunFolder 'package'
         }
-        Remove-Item -Path $OutputDirectory -Recurse -Force
-    }
-    New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
 
-    Copy-Item -Path $manifestPath -Destination (Join-Path $OutputDirectory 'manifest.json') -Force
-    Copy-Item -Path $summaryPath -Destination (Join-Path $OutputDirectory 'summary.json') -Force
-    if (Test-Path $eventsPath) {
-        Copy-Item -Path $eventsPath -Destination (Join-Path $OutputDirectory 'events.jsonl') -Force
-    }
-    if (Test-Path $dataFolder) {
-        Copy-Item -Path $dataFolder -Destination (Join-Path $OutputDirectory 'data') -Recurse -Force
-    }
-
-    $sectionRows = [ordered]@{}
-    foreach ($prop in $summary.PSObject.Properties) {
-        $sectionRows[$prop.Name] = @(ConvertTo-GenesysInvestigationSectionRows -Value $prop.Value)
-    }
-
-    $stepRows = @(
-        foreach ($step in @(Get-GenesysOpsPropertyValue $manifest @('datasetsInvoked') @())) {
-            [pscustomobject]@{
-                StepName         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('stepName'))
-                DatasetKey       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('datasetKey'))
-                ValidationStatus = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('validationStatus'))
-                RecordCount      = Get-GenesysOpsPropertyValue $step @('recordCount') 0
-                Required         = Get-GenesysOpsPropertyValue $step @('required') $false
-                Status           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('status'))
-                ErrorMessage     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('errorMessage'))
+        if (Test-Path $OutputDirectory) {
+            if (-not $Force) {
+                throw "Output directory already exists. Use -Force to overwrite package files: $OutputDirectory"
             }
+            Remove-Item -Path $OutputDirectory -Recurse -Force
         }
-    )
+        New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
 
-    $overview = [pscustomobject]@{
-        GeneratedAtUtc  = [DateTime]::UtcNow.ToString('o')
-        Investigation   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
-        SubjectType     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectType'))
-        SubjectId       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
-        RunId           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
-        StartedAtUtc    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('startedAt'))
-        FinishedAtUtc   = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('finishedAt'))
-        SinceUtc        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue (Get-GenesysOpsPropertyValue $manifest @('window')) @('since'))
-        UntilUtc        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue (Get-GenesysOpsPropertyValue $manifest @('window')) @('until'))
-        StepCount       = $stepRows.Count
-        FailedSteps     = @($stepRows | Where-Object { $_.Status -and $_.Status -ne 'ok' }).Count
-        RecordsCollected = @($stepRows | Measure-Object -Property RecordCount -Sum).Sum
-        SectionCount    = $sectionRows.Count
-    }
-
-    $csvDirectory = Join-Path $OutputDirectory 'csv'
-    New-Item -Path $csvDirectory -ItemType Directory -Force | Out-Null
-    $csvFiles = [ordered]@{}
-    foreach ($sectionName in $sectionRows.Keys) {
-        $csvPath = Join-Path $csvDirectory ("$resolvedPackageName.$sectionName.csv")
-        Export-GenesysOpsRowsCsv -Rows @($sectionRows[$sectionName]) -Path $csvPath
-        $csvFiles[$sectionName] = (Split-Path -Path $csvPath -Leaf)
-    }
-
-    $markdownPath = Join-Path $OutputDirectory "$resolvedPackageName.md"
-    $htmlPath = Join-Path $OutputDirectory "$resolvedPackageName.html"
-    $workbookPath = Join-Path $OutputDirectory "$resolvedPackageName.xlsx"
-    $elasticPath = Join-Path $OutputDirectory "$resolvedPackageName.elastic-bulk.ndjson"
-    $powerBiDirectory = Join-Path $OutputDirectory 'powerbi'
-    $packageJsonPath = Join-Path $OutputDirectory "$resolvedPackageName.package.json"
-
-    Set-Content -Path $markdownPath -Value (New-GenesysInvestigationPackageMarkdown -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
-    Set-Content -Path $htmlPath -Value (New-GenesysInvestigationPackageHtml -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
-
-    $workbookSheets = @(
-        [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
-        [pscustomobject]@{ Name = 'Steps'; Rows = $stepRows }
-    )
-    foreach ($sectionName in $sectionRows.Keys) {
-        $workbookSheets += [pscustomobject]@{ Name = $sectionName; Rows = @($sectionRows[$sectionName]) }
-    }
-    Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
-
-    $elasticDocuments = @(New-GenesysInvestigationElasticDocuments -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows)
-    Export-GenesysInvestigationElasticBulk -Path $elasticPath -Documents $elasticDocuments
-    $powerBiBundle = Export-GenesysInvestigationPowerBiBundle -Directory $powerBiDirectory -Overview $overview -StepRows $stepRows -Sections $sectionRows
-
-    $package = [ordered]@{
-        packageType      = 'investigation-package'
-        generatedAtUtc   = $overview.GeneratedAtUtc
-        investigationKey = $overview.Investigation
-        subjectType      = $overview.SubjectType
-        subjectId        = $overview.SubjectId
-        runId            = $overview.RunId
-        counts           = [ordered]@{
-            steps    = $overview.StepCount
-            failed   = $overview.FailedSteps
-            records  = $overview.RecordsCollected
-            sections = $overview.SectionCount
+        Copy-Item -Path $manifestPath -Destination (Join-Path $OutputDirectory 'manifest.json') -Force
+        Copy-Item -Path $summaryPath -Destination (Join-Path $OutputDirectory 'summary.json') -Force
+        if (Test-Path $eventsPath) {
+            Copy-Item -Path $eventsPath -Destination (Join-Path $OutputDirectory 'events.jsonl') -Force
         }
-        files            = [ordered]@{
-            markdown  = (Split-Path -Path $markdownPath -Leaf)
-            html      = (Split-Path -Path $htmlPath -Leaf)
-            workbook  = (Split-Path -Path $workbookPath -Leaf)
-            elasticBulk = (Split-Path -Path $elasticPath -Leaf)
-            manifest  = 'manifest.json'
-            summary   = 'summary.json'
-            events    = if (Test-Path $eventsPath) { 'events.jsonl' } else { $null }
-            csv       = $csvFiles
-            powerBi   = [ordered]@{
-                directory = (Split-Path -Path $powerBiDirectory -Leaf)
-                dataset   = (Split-Path -Path $powerBiBundle.DatasetPath -Leaf)
-            }
-            dataFolder = if (Test-Path $dataFolder) { 'data' } else { $null }
-            packageJson = (Split-Path -Path $packageJsonPath -Leaf)
+        if (Test-Path $dataFolder) {
+            Copy-Item -Path $dataFolder -Destination (Join-Path $OutputDirectory 'data') -Recurse -Force
         }
-        overview         = $overview
-        sections         = @(
-            foreach ($sectionName in $sectionRows.Keys) {
-                [pscustomobject]@{ Name = $sectionName; RecordCount = @($sectionRows[$sectionName]).Count }
+
+        $sectionRows = [ordered]@{}
+        foreach ($prop in $summary.PSObject.Properties) {
+            $sectionRows[$prop.Name] = @(ConvertTo-GenesysInvestigationSectionRows -Value $prop.Value)
+        }
+
+        $stepRows = @(
+            foreach ($step in @(Get-GenesysOpsPropertyValue $manifest @('datasetsInvoked') @())) {
+                [pscustomobject]@{
+                    StepName         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('stepName'))
+                    DatasetKey       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('datasetKey'))
+                    ValidationStatus = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('validationStatus'))
+                    RecordCount      = Get-GenesysOpsPropertyValue $step @('recordCount') 0
+                    Required         = Get-GenesysOpsPropertyValue $step @('required') $false
+                    Status           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('status'))
+                    ErrorMessage     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('errorMessage'))
+                }
             }
         )
-    }
-    Set-Content -Path $packageJsonPath -Value ($package | ConvertTo-Json -Depth 100) -Encoding utf8
 
-    return [pscustomobject]@{
-        RunFolder       = $resolvedRunFolder
-        OutputDirectory = (Resolve-Path -Path $OutputDirectory).Path
-        MarkdownPath    = $markdownPath
-        HtmlPath        = $htmlPath
-        WorkbookPath    = $workbookPath
-        ElasticBulkPath = $elasticPath
-        PowerBiDirectory = $powerBiDirectory
-        PackageJsonPath = $packageJsonPath
-        CsvDirectory    = $csvDirectory
-        Overview        = $overview
-    }
-}
+        $overview = [pscustomobject]@{
+            GeneratedAtUtc   = [DateTime]::UtcNow.ToString('o')
+            Investigation    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
+            SubjectType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectType'))
+            SubjectId        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
+            RunId            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
+            StartedAtUtc     = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('startedAt'))
+            FinishedAtUtc    = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('finishedAt'))
+            SinceUtc         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue (Get-GenesysOpsPropertyValue $manifest @('window')) @('since'))
+            UntilUtc         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue (Get-GenesysOpsPropertyValue $manifest @('window')) @('until'))
+            StepCount        = $stepRows.Count
+            FailedSteps      = @($stepRows | Where-Object { $_.Status -and $_.Status -ne 'ok' }).Count
+            RecordsCollected = @($stepRows | Measure-Object -Property RecordCount -Sum).Sum
+            SectionCount     = $sectionRows.Count
+        }
 
-function Export-GenesysInvestigationDiagnosticsBundle {
-    <#
+        $csvDirectory = Join-Path $OutputDirectory 'csv'
+        New-Item -Path $csvDirectory -ItemType Directory -Force | Out-Null
+        $csvFiles = [ordered]@{}
+        foreach ($sectionName in $sectionRows.Keys) {
+            $csvPath = Join-Path $csvDirectory ("$resolvedPackageName.$sectionName.csv")
+            Export-GenesysOpsRowsCsv -Rows @($sectionRows[$sectionName]) -Path $csvPath
+            $csvFiles[$sectionName] = (Split-Path -Path $csvPath -Leaf)
+        }
+
+        $markdownPath = Join-Path $OutputDirectory "$resolvedPackageName.md"
+        $htmlPath = Join-Path $OutputDirectory "$resolvedPackageName.html"
+        $workbookPath = Join-Path $OutputDirectory "$resolvedPackageName.xlsx"
+        $elasticPath = Join-Path $OutputDirectory "$resolvedPackageName.elastic-bulk.ndjson"
+        $powerBiDirectory = Join-Path $OutputDirectory 'powerbi'
+        $packageJsonPath = Join-Path $OutputDirectory "$resolvedPackageName.package.json"
+
+        Set-Content -Path $markdownPath -Value (New-GenesysInvestigationPackageMarkdown -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
+        Set-Content -Path $htmlPath -Value (New-GenesysInvestigationPackageHtml -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows) -Encoding utf8
+
+        $workbookSheets = @(
+            [pscustomobject]@{ Name = 'Overview'; Rows = @($overview) }
+            [pscustomobject]@{ Name = 'Steps'; Rows = $stepRows }
+        )
+        foreach ($sectionName in $sectionRows.Keys) {
+            $workbookSheets += [pscustomobject]@{ Name = $sectionName; Rows = @($sectionRows[$sectionName]) }
+        }
+        Export-GenesysOpsWorkbook -Path $workbookPath -Sheets $workbookSheets
+
+        $elasticDocuments = @(New-GenesysInvestigationElasticDocuments -Manifest $manifest -Overview $overview -StepRows $stepRows -Sections $sectionRows)
+        Export-GenesysInvestigationElasticBulk -Path $elasticPath -Documents $elasticDocuments
+        $powerBiBundle = Export-GenesysInvestigationPowerBiBundle -Directory $powerBiDirectory -Overview $overview -StepRows $stepRows -Sections $sectionRows
+
+        $package = [ordered]@{
+            packageType      = 'investigation-package'
+            generatedAtUtc   = $overview.GeneratedAtUtc
+            investigationKey = $overview.Investigation
+            subjectType      = $overview.SubjectType
+            subjectId        = $overview.SubjectId
+            runId            = $overview.RunId
+            counts           = [ordered]@{
+                steps    = $overview.StepCount
+                failed   = $overview.FailedSteps
+                records  = $overview.RecordsCollected
+                sections = $overview.SectionCount
+            }
+            files            = [ordered]@{
+                markdown    = (Split-Path -Path $markdownPath -Leaf)
+                html        = (Split-Path -Path $htmlPath -Leaf)
+                workbook    = (Split-Path -Path $workbookPath -Leaf)
+                elasticBulk = (Split-Path -Path $elasticPath -Leaf)
+                manifest    = 'manifest.json'
+                summary     = 'summary.json'
+                events      = if (Test-Path $eventsPath) { 'events.jsonl' } else { $null }
+                csv         = $csvFiles
+                powerBi     = [ordered]@{
+                    directory = (Split-Path -Path $powerBiDirectory -Leaf)
+                    dataset   = (Split-Path -Path $powerBiBundle.DatasetPath -Leaf)
+                }
+                dataFolder  = if (Test-Path $dataFolder) { 'data' } else { $null }
+                packageJson = (Split-Path -Path $packageJsonPath -Leaf)
+            }
+            overview         = $overview
+            sections         = @(
+                foreach ($sectionName in $sectionRows.Keys) {
+                    [pscustomobject]@{ Name = $sectionName; RecordCount = @($sectionRows[$sectionName]).Count }
+                }
+            )
+        }
+        Set-Content -Path $packageJsonPath -Value ($package | ConvertTo-Json -Depth 100) -Encoding utf8
+
+        return [pscustomobject]@{
+            RunFolder        = $resolvedRunFolder
+            OutputDirectory  = (Resolve-Path -Path $OutputDirectory).Path
+            MarkdownPath     = $markdownPath
+            HtmlPath         = $htmlPath
+            WorkbookPath     = $workbookPath
+            ElasticBulkPath  = $elasticPath
+            PowerBiDirectory = $powerBiDirectory
+            PackageJsonPath  = $packageJsonPath
+            CsvDirectory     = $csvDirectory
+            Overview         = $overview
+        }
+    }
+
+    function Export-GenesysInvestigationDiagnosticsBundle {
+        <#
     .SYNOPSIS
         Builds a redacted support bundle from one-or-more investigation run folders.
     .DESCRIPTION
@@ -8605,107 +8713,108 @@ function Export-GenesysInvestigationDiagnosticsBundle {
     .EXAMPLE
         Export-GenesysInvestigationDiagnosticsBundle -RunFolder @('./out/agent-investigation/demo-run','./out/queue-investigation/demo-run') -OutputPath './out/diagnostics.json'
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string[]] $RunFolder,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string[]] $RunFolder,
 
-        [string] $OutputPath,
+            [string] $OutputPath,
 
-        [switch] $PassThru
-    )
+            [switch] $PassThru
+        )
 
-    $bundledRuns = @(
-        foreach ($folder in @($RunFolder)) {
-            $resolvedRunFolder = (Resolve-Path -Path $folder -ErrorAction Stop).Path
-            $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
-            $eventsPath = Join-Path $resolvedRunFolder 'events.jsonl'
+        $bundledRuns = @(
+            foreach ($folder in @($RunFolder)) {
+                $resolvedRunFolder = (Resolve-Path -Path $folder -ErrorAction Stop).Path
+                $manifestPath = Join-Path $resolvedRunFolder 'manifest.json'
+                $eventsPath = Join-Path $resolvedRunFolder 'events.jsonl'
 
-            if (-not (Test-Path $manifestPath)) { throw "Investigation manifest was not found: $manifestPath" }
-            $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+                if (-not (Test-Path $manifestPath)) { throw "Investigation manifest was not found: $manifestPath" }
+                $manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
 
-            $recentEvents = @()
-            if (Test-Path $eventsPath) {
-                $recentEvents = @(
-                    Get-Content -Path $eventsPath |
-                        Where-Object { $_.Trim() } |
-                        ForEach-Object {
-                            try { $_ | ConvertFrom-Json } catch { [pscustomobject]@{ raw = $_ } }
-                        } |
-                        Where-Object {
-                            $_.eventType -match '\.failed$' -or
-                            (Get-GenesysOpsPropertyValue $_ @('payload') | ForEach-Object { Get-GenesysOpsPropertyValue $_ @('errorMessage') })
-                        } |
-                        Select-Object -Last 10 |
-                        ForEach-Object { Protect-GenesysDiagnosticValue -Value $_ }
-                )
-            }
+                $recentEvents = @()
+                if (Test-Path $eventsPath) {
+                    $recentEvents = @(
+                        Get-Content -Path $eventsPath |
+                            Where-Object { $_.Trim() } |
+                            ForEach-Object {
+                                try { $_ | ConvertFrom-Json } catch { [pscustomobject]@{ raw = $_ } }
+                            } |
+                            Where-Object {
+                                $_.eventType -match '\.failed$' -or
+                                (Get-GenesysOpsPropertyValue $_ @('payload') | ForEach-Object { Get-GenesysOpsPropertyValue $_ @('errorMessage') })
+                            } |
+                            Select-Object -Last 10 |
+                            ForEach-Object { Protect-GenesysDiagnosticValue -Value $_ }
+                    )
+                }
 
-            [pscustomobject]@{
-                investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
-                runId            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
-                subjectType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectType'))
-                subjectId        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
-                window           = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $manifest @('window'))
-                startedAt        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('startedAt'))
-                finishedAt       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('finishedAt'))
-                composerVersion  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('composerVersion'))
-                steps            = @(
-                    foreach ($step in @(Get-GenesysOpsPropertyValue $manifest @('datasetsInvoked') @())) {
-                        [pscustomobject]@{
-                            stepName         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('stepName'))
-                            datasetKey       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('datasetKey'))
-                            validationStatus = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('validationStatus'))
-                            recordCount      = Get-GenesysOpsPropertyValue $step @('recordCount') 0
-                            required         = Get-GenesysOpsPropertyValue $step @('required') $false
-                            status           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('status'))
-                            errorMessage     = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $step @('errorMessage'))
+                [pscustomobject]@{
+                    investigationKey = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('investigationKey'))
+                    runId            = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('runId'))
+                    subjectType      = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectType'))
+                    subjectId        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('subjectId'))
+                    window           = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $manifest @('window'))
+                    startedAt        = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('startedAt'))
+                    finishedAt       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('finishedAt'))
+                    composerVersion  = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $manifest @('composerVersion'))
+                    steps            = @(
+                        foreach ($step in @(Get-GenesysOpsPropertyValue $manifest @('datasetsInvoked') @())) {
+                            [pscustomobject]@{
+                                stepName         = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('stepName'))
+                                datasetKey       = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('datasetKey'))
+                                validationStatus = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('validationStatus'))
+                                recordCount      = Get-GenesysOpsPropertyValue $step @('recordCount') 0
+                                required         = Get-GenesysOpsPropertyValue $step @('required') $false
+                                status           = ConvertTo-GenesysOpsText (Get-GenesysOpsPropertyValue $step @('status'))
+                                errorMessage     = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $step @('errorMessage'))
+                            }
                         }
-                    }
-                )
-                redactionProfile = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $manifest @('redactionProfile'))
-                recentEvents     = $recentEvents
+                    )
+                    redactionProfile = Protect-GenesysDiagnosticValue -Value (Get-GenesysOpsPropertyValue $manifest @('redactionProfile'))
+                    recentEvents     = $recentEvents
+                }
+            }
+        )
+
+        $bundle = [pscustomobject]@{
+            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+            runCount       = $bundledRuns.Count
+            runs           = $bundledRuns
+        }
+        $json = $bundle | ConvertTo-Json -Depth 100
+
+        $resolvedOutputPath = $null
+        if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+            $resolvedOutputPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+                [System.IO.Path]::GetFullPath($OutputPath)
+            }
+            else {
+                [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+            }
+            $parent = Split-Path -Path $resolvedOutputPath -Parent
+            if ($parent -and -not (Test-Path $parent)) {
+                New-Item -Path $parent -ItemType Directory -Force | Out-Null
+            }
+            Set-Content -Path $resolvedOutputPath -Value $json -Encoding utf8
+        }
+
+        if ($PassThru) {
+            return [pscustomobject]@{
+                OutputPath = $resolvedOutputPath
+                Json       = $json
+                Bundle     = $bundle
             }
         }
-    )
 
-    $bundle = [pscustomobject]@{
-        generatedAtUtc = [DateTime]::UtcNow.ToString('o')
-        runCount       = $bundledRuns.Count
-        runs           = $bundledRuns
-    }
-    $json = $bundle | ConvertTo-Json -Depth 100
-
-    $resolvedOutputPath = $null
-    if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
-        $resolvedOutputPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
-            [System.IO.Path]::GetFullPath($OutputPath)
-        } else {
-            [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
-        }
-        $parent = Split-Path -Path $resolvedOutputPath -Parent
-        if ($parent -and -not (Test-Path $parent)) {
-            New-Item -Path $parent -ItemType Directory -Force | Out-Null
-        }
-        Set-Content -Path $resolvedOutputPath -Value $json -Encoding utf8
-    }
-
-    if ($PassThru) {
         return [pscustomobject]@{
             OutputPath = $resolvedOutputPath
             Json       = $json
-            Bundle     = $bundle
         }
     }
 
-    return [pscustomobject]@{
-        OutputPath = $resolvedOutputPath
-        Json       = $json
-    }
-}
-
-function Get-GenesysCampaignInvestigationStepDefinition {
-    <#
+    function Get-GenesysCampaignInvestigationStepDefinition {
+        <#
     .SYNOPSIS
         Returns the ordered step descriptors for the Campaign Investigation flagship.
     .DESCRIPTION
@@ -8713,216 +8822,217 @@ function Get-GenesysCampaignInvestigationStepDefinition {
         contract. Designed for the investigation composer — each step is a
         hashtable consumed by Invoke-Investigation.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $CampaignId,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $CampaignId,
 
-        [datetime] $Since,
+            [datetime] $Since,
 
-        [datetime] $Until
-    )
+            [datetime] $Until
+        )
 
-    $idMatchesCampaign = { param($r, $s)
-        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.CampaignId)
-    }
-    $idMatchesContactList = { param($r, $s)
-        if (-not $s.ContainsKey('ContactListId')) { return $false }
-        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.ContactListId)
-    }
-    $queueIdMatches = { param($r, $s)
-        if (-not $s.ContainsKey('QueueId')) { return $false }
-        $qp = $r.PSObject.Properties['id']
-        $qp -and [string]$qp.Value -eq $s.QueueId
-    }
-    $eventMatchesCampaign = { param($r, $s)
-        Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId
-    }
-    $eventMatchesCampaignAbandon = { param($r, $s)
-        if (-not (Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId)) { return $false }
-        (($r | ConvertTo-Json -Depth 20 -Compress) -match '(?i)abandon')
-    }
-    $auditMatchesCampaign = { param($r, $s)
-        Test-AnyNestedPropertyValue $r @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $s.CampaignId
-    }
-    $conversationMatchesCampaign = { param($r, $s)
-        if (Test-AnyNestedPropertyValue $r @('campaignId') $s.CampaignId) { return $true }
-        $participants = @()
-        if ($r.PSObject.Properties['participants']) {
-            $participants = @($r.participants)
+        $idMatchesCampaign = { param($r, $s)
+            ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.CampaignId)
         }
-        foreach ($participant in $participants) {
-            if (Test-AnyNestedPropertyValue $participant @('campaignId') $s.CampaignId) { return $true }
-            $sessions = @()
-            if ($participant.PSObject.Properties['sessions']) {
-                $sessions = @($participant.sessions)
+        $idMatchesContactList = { param($r, $s)
+            if (-not $s.ContainsKey('ContactListId')) { return $false }
+            ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.ContactListId)
+        }
+        $queueIdMatches = { param($r, $s)
+            if (-not $s.ContainsKey('QueueId')) { return $false }
+            $qp = $r.PSObject.Properties['id']
+            $qp -and [string]$qp.Value -eq $s.QueueId
+        }
+        $eventMatchesCampaign = { param($r, $s)
+            Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId
+        }
+        $eventMatchesCampaignAbandon = { param($r, $s)
+            if (-not (Test-AnyNestedPropertyValue $r @('campaignId', 'campaign.id', 'entity.id') $s.CampaignId)) { return $false }
+            (($r | ConvertTo-Json -Depth 20 -Compress) -match '(?i)abandon')
+        }
+        $auditMatchesCampaign = { param($r, $s)
+            Test-AnyNestedPropertyValue $r @('serviceContext.entityId', 'serviceContext.entity.id', 'entity.id', 'entityId') $s.CampaignId
+        }
+        $conversationMatchesCampaign = { param($r, $s)
+            if (Test-AnyNestedPropertyValue $r @('campaignId') $s.CampaignId) { return $true }
+            $participants = @()
+            if ($r.PSObject.Properties['participants']) {
+                $participants = @($r.participants)
             }
-            foreach ($session in $sessions) {
-                if (Test-AnyNestedPropertyValue $session @('campaignId') $s.CampaignId) { return $true }
-                $segments = @()
-                if ($session.PSObject.Properties['segments']) {
-                    $segments = @($session.segments)
+            foreach ($participant in $participants) {
+                if (Test-AnyNestedPropertyValue $participant @('campaignId') $s.CampaignId) { return $true }
+                $sessions = @()
+                if ($participant.PSObject.Properties['sessions']) {
+                    $sessions = @($participant.sessions)
                 }
-                foreach ($segment in $segments) {
-                    if (Test-AnyNestedPropertyValue $segment @('campaignId') $s.CampaignId) { return $true }
-                }
-            }
-        }
-        return $false
-    }
-    $singleCampaignParameters = {
-        param($subject, $sections, $window)
-        @{ Query = @{ campaignId = [string]$subject['CampaignId'] } }
-    }
-    $queueParameters = {
-        param($subject, $sections, $window)
-        if (-not $subject.ContainsKey('QueueId') -or [string]::IsNullOrWhiteSpace([string]$subject['QueueId'])) {
-            @{ Query = @{ queueId = '__missing-queue__' } }
-        } else {
-            @{ Query = @{ queueId = [string]$subject['QueueId'] } }
-        }
-    }
-    $auditParameters = {
-        param($subject, $sections, $window)
-        @{
-            StartUtc  = ConvertTo-IsoUtcTimestamp $window['Since']
-            EndUtc    = ConvertTo-IsoUtcTimestamp $window['Until']
-            EntityIds = @([string]$subject['CampaignId'])
-        }
-    }
-    $campaignConversationParameters = {
-        param($subject, $sections, $window)
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval       = "$sinceIso/$untilIso"
-                order          = 'asc'
-                orderBy        = 'conversationStart'
-                paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
-                segmentFilters = @(
-                    [ordered]@{
-                        type       = 'or'
-                        predicates = @(
-                            [ordered]@{
-                                type      = 'dimension'
-                                dimension = 'campaignId'
-                                operator  = 'matches'
-                                value     = [string]$subject['CampaignId']
-                            }
-                        )
+                foreach ($session in $sessions) {
+                    if (Test-AnyNestedPropertyValue $session @('campaignId') $s.CampaignId) { return $true }
+                    $segments = @()
+                    if ($session.PSObject.Properties['segments']) {
+                        $segments = @($session.segments)
                     }
-                )
+                    foreach ($segment in $segments) {
+                        if (Test-AnyNestedPropertyValue $segment @('campaignId') $s.CampaignId) { return $true }
+                    }
+                }
+            }
+            return $false
+        }
+        $singleCampaignParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ campaignId = [string]$subject['CampaignId'] } }
+        }
+        $queueParameters = {
+            param($subject, $sections, $window)
+            if (-not $subject.ContainsKey('QueueId') -or [string]::IsNullOrWhiteSpace([string]$subject['QueueId'])) {
+                @{ Query = @{ queueId = '__missing-queue__' } }
+            }
+            else {
+                @{ Query = @{ queueId = [string]$subject['QueueId'] } }
             }
         }
-    }
-    $updateSubjectFromCampaign = {
-        param($records, $subject)
-        $campaign = @($records | Select-Object -First 1)
-        if ($campaign.Count -eq 0) { return @{} }
-        $updates = @{}
-        foreach ($pair in @(
-            @{ Property = 'contactListId'; Key = 'ContactListId' },
-            @{ Property = 'queueId'; Key = 'QueueId' },
-            @{ Property = 'name'; Key = 'CampaignName' }
-        )) {
-            $prop = $campaign[0].PSObject.Properties[$pair.Property]
-            if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
-                $updates[$pair.Key] = [string]$prop.Value
+        $auditParameters = {
+            param($subject, $sections, $window)
+            @{
+                StartUtc  = ConvertTo-IsoUtcTimestamp $window['Since']
+                EndUtc    = ConvertTo-IsoUtcTimestamp $window['Until']
+                EntityIds = @([string]$subject['CampaignId'])
             }
         }
-        $updates
+        $campaignConversationParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval       = "$sinceIso/$untilIso"
+                    order          = 'asc'
+                    orderBy        = 'conversationStart'
+                    paging         = [ordered]@{ pageSize = 100; pageNumber = 1 }
+                    segmentFilters = @(
+                        [ordered]@{
+                            type       = 'or'
+                            predicates = @(
+                                [ordered]@{
+                                    type      = 'dimension'
+                                    dimension = 'campaignId'
+                                    operator  = 'matches'
+                                    value     = [string]$subject['CampaignId']
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        $updateSubjectFromCampaign = {
+            param($records, $subject)
+            $campaign = @($records | Select-Object -First 1)
+            if ($campaign.Count -eq 0) { return @{} }
+            $updates = @{}
+            foreach ($pair in @(
+                    @{ Property = 'contactListId'; Key = 'ContactListId' },
+                    @{ Property = 'queueId'; Key = 'QueueId' },
+                    @{ Property = 'name'; Key = 'CampaignName' }
+                )) {
+                $prop = $campaign[0].PSObject.Properties[$pair.Property]
+                if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+                    $updates[$pair.Key] = [string]$prop.Value
+                }
+            }
+            $updates
+        }
+        @(
+            @{
+                Name           = 'campaign'
+                DatasetKey     = 'outbound.get.campaigns'
+                SubjectFilter  = $idMatchesCampaign
+                SubjectUpdater = $updateSubjectFromCampaign
+                EmitAs         = 'campaign'
+                Required       = $true
+                JoinKind       = 'Seed'
+                JoinOn         = @{ Left = $null; Right = 'id' }
+                SortKey        = 'id'
+            }
+            @{
+                Name          = 'contactList'
+                DatasetKey    = 'outbound.get.contact.lists'
+                SubjectFilter = $idMatchesContactList
+                EmitAs        = 'contactList'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.contactListId'; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'queue'
+                DatasetKey    = 'routing.get.single.queue.config'
+                Parameters    = $queueParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'queue'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.queueId'; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name       = 'diagnostics'
+                DatasetKey = 'outbound.get.campaign.diagnostics.summary'
+                Parameters = $singleCampaignParameters
+                EmitAs     = 'diagnostics'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'campaign.id'; Right = 'campaignId' }
+                SortKey    = 'campaignId'
+            }
+            @{
+                Name          = 'outboundEvents'
+                DatasetKey    = 'outbound.get.events'
+                SubjectFilter = $eventMatchesCampaign
+                EmitAs        = 'outboundEvents'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
+                SortKey       = 'timestamp'
+            }
+            @{
+                Name          = 'auditChanges'
+                DatasetKey    = 'audit-logs'
+                Parameters    = $auditParameters
+                SubjectFilter = $auditMatchesCampaign
+                EmitAs        = 'auditChanges'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.id'; Right = 'entity.id' }
+                SortKey       = 'timestamp'
+            }
+            @{
+                Name          = 'conversationAnalytics'
+                DatasetKey    = 'analytics-conversation-details-query'
+                Parameters    = $campaignConversationParameters
+                SubjectFilter = $conversationMatchesCampaign
+                EmitAs        = 'conversationAnalytics'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.id'; Right = 'participants.campaignId' }
+                SortKey       = 'conversationId'
+            }
+            @{
+                Name          = 'outboundAbandons'
+                DatasetKey    = 'outbound.get.events'
+                SubjectFilter = $eventMatchesCampaignAbandon
+                EmitAs        = 'outboundAbandons'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
+                SortKey       = 'timestamp'
+            }
+        )
     }
-    @(
-        @{
-            Name           = 'campaign'
-            DatasetKey     = 'outbound.get.campaigns'
-            SubjectFilter  = $idMatchesCampaign
-            SubjectUpdater = $updateSubjectFromCampaign
-            EmitAs         = 'campaign'
-            Required       = $true
-            JoinKind       = 'Seed'
-            JoinOn         = @{ Left = $null; Right = 'id' }
-            SortKey        = 'id'
-        }
-        @{
-            Name          = 'contactList'
-            DatasetKey    = 'outbound.get.contact.lists'
-            SubjectFilter = $idMatchesContactList
-            EmitAs        = 'contactList'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.contactListId'; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'queue'
-            DatasetKey    = 'routing.get.single.queue.config'
-            Parameters    = $queueParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'queue'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.queueId'; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'diagnostics'
-            DatasetKey    = 'outbound.get.campaign.diagnostics.summary'
-            Parameters    = $singleCampaignParameters
-            EmitAs        = 'diagnostics'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
-            SortKey       = 'campaignId'
-        }
-        @{
-            Name          = 'outboundEvents'
-            DatasetKey    = 'outbound.get.events'
-            SubjectFilter = $eventMatchesCampaign
-            EmitAs        = 'outboundEvents'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
-            SortKey       = 'timestamp'
-        }
-        @{
-            Name          = 'auditChanges'
-            DatasetKey    = 'audit-logs'
-            Parameters    = $auditParameters
-            SubjectFilter = $auditMatchesCampaign
-            EmitAs        = 'auditChanges'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.id'; Right = 'entity.id' }
-            SortKey       = 'timestamp'
-        }
-        @{
-            Name          = 'conversationAnalytics'
-            DatasetKey    = 'analytics-conversation-details-query'
-            Parameters    = $campaignConversationParameters
-            SubjectFilter = $conversationMatchesCampaign
-            EmitAs        = 'conversationAnalytics'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.id'; Right = 'participants.campaignId' }
-            SortKey       = 'conversationId'
-        }
-        @{
-            Name          = 'outboundAbandons'
-            DatasetKey    = 'outbound.get.events'
-            SubjectFilter = $eventMatchesCampaignAbandon
-            EmitAs        = 'outboundAbandons'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'campaign.id'; Right = 'campaignId' }
-            SortKey       = 'timestamp'
-        }
-    )
-}
 
-function Get-GenesysCampaignInvestigation {
-    <#
+    function Get-GenesysCampaignInvestigation {
+        <#
     .SYNOPSIS
         Run the Campaign Investigation flagship — joins campaign configuration,
         diagnostics, outbound events, audit changes, conversation analytics, and
@@ -8935,52 +9045,52 @@ function Get-GenesysCampaignInvestigation {
         -DatasetInvoker (a scriptblock returning fixture data) to drive
         determinism / integration tests without touching the live API.
     #>
-    [CmdletBinding(DefaultParameterSetName = 'ById')]
-    param(
-        [Parameter(ParameterSetName = 'ById', Mandatory)]
-        [string] $CampaignId,
+        [CmdletBinding(DefaultParameterSetName = 'ById')]
+        param(
+            [Parameter(ParameterSetName = 'ById', Mandatory)]
+            [string] $CampaignId,
 
-        [Parameter(ParameterSetName = 'ByName', Mandatory)]
-        [string] $CampaignName,
+            [Parameter(ParameterSetName = 'ByName', Mandatory)]
+            [string] $CampaignName,
 
-        [datetime] $Since,
-        [datetime] $Until,
-        [string]   $OutputRoot = 'out',
-        [string]   $RunId,
-        [scriptblock] $DatasetInvoker
-    )
+            [datetime] $Since,
+            [datetime] $Until,
+            [string]   $OutputRoot = 'out',
+            [string]   $RunId,
+            [scriptblock] $DatasetInvoker
+        )
 
-    if (-not $Until) { $Until = Get-Date }
-    if (-not $Since) { $Since = $Until.AddDays(-7) }
+        if (-not $Until) { $Until = Get-Date }
+        if (-not $Since) { $Since = $Until.AddDays(-7) }
 
-    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
-        if (-not $DatasetInvoker) { Assert-GenesysConnected }
-        $matches = @(Get-GenesysOutboundCampaign | Where-Object { $_.name -eq $CampaignName })
-        if ($matches.Count -eq 0) { throw "No Genesys outbound campaign matched '$CampaignName'." }
-        if ($matches.Count -gt 1) {
-            $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
-            throw "Ambiguous outbound campaign name '$CampaignName' — $($matches.Count) matches: $ids"
+        if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+            if (-not $DatasetInvoker) { Assert-GenesysConnected }
+            $matches = @(Get-GenesysOutboundCampaign | Where-Object { $_.name -eq $CampaignName })
+            if ($matches.Count -eq 0) { throw "No Genesys outbound campaign matched '$CampaignName'." }
+            if ($matches.Count -gt 1) {
+                $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
+                throw "Ambiguous outbound campaign name '$CampaignName' — $($matches.Count) matches: $ids"
+            }
+            $CampaignId = $matches[0].id
         }
-        $CampaignId = $matches[0].id
+
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+        $steps = Get-GenesysCampaignInvestigationStepDefinition -CampaignId $CampaignId -Since $Since -Until $Until
+
+        Invoke-Investigation `
+            -InvestigationKey 'campaign-investigation' `
+            -SubjectType 'campaign' `
+            -Subject @{ SubjectId = $CampaignId; CampaignId = $CampaignId } `
+            -Window @{ Since = $Since; Until = $Until } `
+            -Steps $steps `
+            -OutputRoot $OutputRoot `
+            -RunId $RunId `
+            -DatasetInvoker $DatasetInvoker
     }
 
-    if (-not $DatasetInvoker) { Assert-GenesysConnected }
-
-    $steps = Get-GenesysCampaignInvestigationStepDefinition -CampaignId $CampaignId -Since $Since -Until $Until
-
-    Invoke-Investigation `
-        -InvestigationKey 'campaign-investigation' `
-        -SubjectType      'campaign' `
-        -Subject          @{ SubjectId = $CampaignId; CampaignId = $CampaignId } `
-        -Window           @{ Since = $Since; Until = $Until } `
-        -Steps            $steps `
-        -OutputRoot       $OutputRoot `
-        -RunId            $RunId `
-        -DatasetInvoker   $DatasetInvoker
-}
-
-function Get-GenesysQueueInvestigationStepDefinition {
-    <#
+    function Get-GenesysQueueInvestigationStepDefinition {
+        <#
     .SYNOPSIS
         Returns the ordered step descriptors for the Queue Investigation flagship.
     .DESCRIPTION
@@ -8988,276 +9098,276 @@ function Get-GenesysQueueInvestigationStepDefinition {
         contract. Designed for the investigation composer — each step is a
         hashtable consumed by Invoke-Investigation.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $QueueId,
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $QueueId,
 
-        [datetime] $Since,
+            [datetime] $Since,
 
-        [datetime] $Until
-    )
-
-    $idMatchesQueue = { param($r, $s)
-        ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.QueueId)
-    }
-    $queueIdMatches = { param($r, $s)
-        $qp = $r.PSObject.Properties['queueId']
-        $qp -and [string]$qp.Value -eq $s.QueueId
-    }
-    $singleQueueRouteParameters = {
-        param($subject, $sections, $window)
-        @{ Query = @{ queueId = [string]$subject['QueueId'] } }
-    }
-    $queueObservationsParameters = {
-        param($subject, $sections, $window)
-        @{
-            Body = [ordered]@{
-                filter = [ordered]@{
-                    type       = 'and'
-                    predicates = @(
-                        [ordered]@{
-                            dimension = 'queueId'
-                            value     = [string]$subject['QueueId']
-                        }
-                    )
-                }
-                metrics = @('oInteracting','oWaiting','oOnQueueUsers','oOffQueueUsers','oActiveUsers')
-            }
-        }
-    }
-    $queuePerformanceParameters = {
-        param($subject, $sections, $window)
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval    = "$sinceIso/$untilIso"
-                granularity = 'PT1H'
-                groupBy     = @('queueId','mediaType')
-                metrics     = @('nConnected','tHandle','tTalk','tAcw','tAnswered','tHeld','nOffered','nOutbound')
-                filter      = [ordered]@{
-                    type       = 'and'
-                    predicates = @(
-                        [ordered]@{
-                            dimension = 'queueId'
-                            value     = [string]$subject['QueueId']
-                        }
-                    )
-                }
-            }
-        }
-    }
-    $queueAbandonParameters = {
-        param($subject, $sections, $window)
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval    = "$sinceIso/$untilIso"
-                granularity = 'PT1H'
-                groupBy     = @('queueId','mediaType')
-                metrics     = @('nOffered','nConnected','tAbandon','tShortAbandon')
-                filter      = [ordered]@{
-                    type       = 'and'
-                    predicates = @(
-                        [ordered]@{
-                            dimension = 'queueId'
-                            value     = [string]$subject['QueueId']
-                        }
-                    )
-                }
-            }
-        }
-    }
-    $queueTransfersParameters = {
-        param($subject, $sections, $window)
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval    = "$sinceIso/$untilIso"
-                granularity = 'PT1H'
-                groupBy     = @('queueId','mediaType')
-                metrics     = @('nTransferred','nBlindTransferred','nConsultTransferred','nConnected')
-                filter      = [ordered]@{
-                    type       = 'and'
-                    predicates = @(
-                        [ordered]@{
-                            dimension = 'queueId'
-                            value     = [string]$subject['QueueId']
-                        }
-                    )
-                }
-            }
-        }
-    }
-    $queueWrapupDistributionParameters = {
-        param($subject, $sections, $window)
-        $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
-        $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
-        @{
-            Body = [ordered]@{
-                interval    = "$sinceIso/$untilIso"
-                granularity = 'PT1D'
-                groupBy     = @('queueId','wrapUpCode')
-                metrics     = @('nConnected','tHandle')
-                filter      = [ordered]@{
-                    type       = 'and'
-                    predicates = @(
-                        [ordered]@{
-                            dimension = 'queueId'
-                            value     = [string]$subject['QueueId']
-                        }
-                    )
-                }
-            }
-        }
-    }
-    $activeAgentParameters = {
-        param($subject, $sections, $window)
-
-        $memberIds = @(
-            @($sections['members']) |
-                ForEach-Object {
-                    if ($_.PSObject.Properties['userId'] -and -not [string]::IsNullOrWhiteSpace([string]$_.userId)) {
-                        [string]$_.userId
-                    }
-                    elseif ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
-                        [string]$_.id
-                    }
-                } |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-                Select-Object -Unique
+            [datetime] $Until
         )
 
-        if ($memberIds.Count -eq 0) {
-            $memberIds = @('__no-members__')
+        $idMatchesQueue = { param($r, $s)
+            ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.QueueId)
         }
-
-        $filterType = if ($memberIds.Count -gt 1) { 'or' } else { 'and' }
-        @{
-            Body = [ordered]@{
-                filter = [ordered]@{
-                    type       = $filterType
-                    predicates = @(
-                        $memberIds | ForEach-Object {
+        $queueIdMatches = { param($r, $s)
+            $qp = $r.PSObject.Properties['queueId']
+            $qp -and [string]$qp.Value -eq $s.QueueId
+        }
+        $singleQueueRouteParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ queueId = [string]$subject['QueueId'] } }
+        }
+        $queueObservationsParameters = {
+            param($subject, $sections, $window)
+            @{
+                Body = [ordered]@{
+                    filter  = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
                             [ordered]@{
-                                dimension = 'userId'
-                                value     = [string]$_
+                                dimension = 'queueId'
+                                value     = [string]$subject['QueueId']
                             }
-                        }
-                    )
+                        )
+                    }
+                    metrics = @('oInteracting', 'oWaiting', 'oOnQueueUsers', 'oOffQueueUsers', 'oActiveUsers')
                 }
-                metrics = @('oActiveQueues','oMemberQueues')
             }
         }
+        $queuePerformanceParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1H'
+                    groupBy     = @('queueId', 'mediaType')
+                    metrics     = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound')
+                    filter      = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{
+                                dimension = 'queueId'
+                                value     = [string]$subject['QueueId']
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $queueAbandonParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1H'
+                    groupBy     = @('queueId', 'mediaType')
+                    metrics     = @('nOffered', 'nConnected', 'tAbandon', 'tShortAbandon')
+                    filter      = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{
+                                dimension = 'queueId'
+                                value     = [string]$subject['QueueId']
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $queueTransfersParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1H'
+                    groupBy     = @('queueId', 'mediaType')
+                    metrics     = @('nTransferred', 'nBlindTransferred', 'nConsultTransferred', 'nConnected')
+                    filter      = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{
+                                dimension = 'queueId'
+                                value     = [string]$subject['QueueId']
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $queueWrapupDistributionParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1D'
+                    groupBy     = @('queueId', 'wrapUpCode')
+                    metrics     = @('nConnected', 'tHandle')
+                    filter      = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{
+                                dimension = 'queueId'
+                                value     = [string]$subject['QueueId']
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $activeAgentParameters = {
+            param($subject, $sections, $window)
+
+            $memberIds = @(
+                @($sections['members']) |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties['userId'] -and -not [string]::IsNullOrWhiteSpace([string]$_.userId)) {
+                            [string]$_.userId
+                        }
+                        elseif ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
+                            [string]$_.id
+                        }
+                    } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+
+            if ($memberIds.Count -eq 0) {
+                $memberIds = @('__no-members__')
+            }
+
+            $filterType = if ($memberIds.Count -gt 1) { 'or' } else { 'and' }
+            @{
+                Body = [ordered]@{
+                    filter  = [ordered]@{
+                        type       = $filterType
+                        predicates = @(
+                            $memberIds | ForEach-Object {
+                                [ordered]@{
+                                    dimension = 'userId'
+                                    value     = [string]$_
+                                }
+                            }
+                        )
+                    }
+                    metrics = @('oActiveQueues', 'oMemberQueues')
+                }
+            }
+        }
+
+        @(
+            @{
+                Name          = 'queue'
+                DatasetKey    = 'routing.get.single.queue.config'
+                Parameters    = $singleQueueRouteParameters
+                SubjectFilter = $idMatchesQueue
+                EmitAs        = 'queue'
+                Required      = $true
+                JoinKind      = 'Seed'
+                JoinOn        = @{ Left = $null; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name       = 'members'
+                DatasetKey = 'routing-queue-members'
+                Parameters = @{ queueId = $QueueId }
+                EmitAs     = 'members'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey    = 'id'
+            }
+            @{
+                Name          = 'wrapupCodes'
+                DatasetKey    = 'routing.get.queue.wrapup.codes.by.queue'
+                Parameters    = $singleQueueRouteParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'wrapupCodes'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'id'
+            }
+            @{
+                Name          = 'observations'
+                DatasetKey    = 'analytics.query.queue.observations.real.time.stats'
+                Parameters    = $queueObservationsParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'observations'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'sla'
+                DatasetKey    = 'analytics.query.conversation.aggregates.queue.performance'
+                Parameters    = $queuePerformanceParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'sla'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'abandons'
+                DatasetKey    = 'analytics.query.conversation.aggregates.abandon.metrics'
+                Parameters    = $queueAbandonParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'abandons'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'transfers'
+                DatasetKey    = 'analytics.query.conversation.aggregates.transfer.metrics'
+                Parameters    = $queueTransfersParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'transfers'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'wrapupDistribution'
+                DatasetKey    = 'analytics.query.conversation.aggregates.wrapup.distribution'
+                Parameters    = $queueWrapupDistributionParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'wrapupDistribution'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'activeAgents'
+                DatasetKey    = 'analytics.query.user.observations.real.time.status'
+                Parameters    = $activeAgentParameters
+                SubjectFilter = $queueIdMatches
+                EmitAs        = 'activeAgents'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
+                SortKey       = 'userId'
+            }
+        )
     }
 
-    @(
-        @{
-            Name          = 'queue'
-            DatasetKey    = 'routing.get.single.queue.config'
-            Parameters    = $singleQueueRouteParameters
-            SubjectFilter = $idMatchesQueue
-            EmitAs        = 'queue'
-            Required      = $true
-            JoinKind      = 'Seed'
-            JoinOn        = @{ Left = $null; Right = 'id' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'members'
-            DatasetKey    = 'routing-queue-members'
-            Parameters    = @{ queueId = $QueueId }
-            EmitAs        = 'members'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'wrapupCodes'
-            DatasetKey    = 'routing.get.queue.wrapup.codes.by.queue'
-            Parameters    = $singleQueueRouteParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'wrapupCodes'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'id'
-        }
-        @{
-            Name          = 'observations'
-            DatasetKey    = 'analytics.query.queue.observations.real.time.stats'
-            Parameters    = $queueObservationsParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'observations'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'queueId'
-        }
-        @{
-            Name          = 'sla'
-            DatasetKey    = 'analytics.query.conversation.aggregates.queue.performance'
-            Parameters    = $queuePerformanceParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'sla'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'queueId'
-        }
-        @{
-            Name          = 'abandons'
-            DatasetKey    = 'analytics.query.conversation.aggregates.abandon.metrics'
-            Parameters    = $queueAbandonParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'abandons'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'queueId'
-        }
-        @{
-            Name          = 'transfers'
-            DatasetKey    = 'analytics.query.conversation.aggregates.transfer.metrics'
-            Parameters    = $queueTransfersParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'transfers'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'queueId'
-        }
-        @{
-            Name          = 'wrapupDistribution'
-            DatasetKey    = 'analytics.query.conversation.aggregates.wrapup.distribution'
-            Parameters    = $queueWrapupDistributionParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'wrapupDistribution'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'queueId'
-        }
-        @{
-            Name          = 'activeAgents'
-            DatasetKey    = 'analytics.query.user.observations.real.time.status'
-            Parameters    = $activeAgentParameters
-            SubjectFilter = $queueIdMatches
-            EmitAs        = 'activeAgents'
-            Required      = $false
-            JoinKind      = 'Left'
-            JoinOn        = @{ Left = 'queue.id'; Right = 'queueId' }
-            SortKey       = 'userId'
-        }
-    )
-}
-
-function Get-GenesysQueueInvestigation {
-    <#
+    function Get-GenesysQueueInvestigation {
+        <#
     .SYNOPSIS
         Run the Queue Investigation flagship — joins queue config, members, real-time
         observations, wrap-up labels, SLA / queue performance, abandon metrics,
@@ -9292,48 +9402,48 @@ function Get-GenesysQueueInvestigation {
     .EXAMPLE
         Get-GenesysQueueInvestigation -QueueName 'Support'
     #>
-    [CmdletBinding(DefaultParameterSetName = 'ById')]
-    param(
-        [Parameter(ParameterSetName = 'ById', Mandatory)]
-        [string] $QueueId,
+        [CmdletBinding(DefaultParameterSetName = 'ById')]
+        param(
+            [Parameter(ParameterSetName = 'ById', Mandatory)]
+            [string] $QueueId,
 
-        [Parameter(ParameterSetName = 'ByName', Mandatory)]
-        [string] $QueueName,
+            [Parameter(ParameterSetName = 'ByName', Mandatory)]
+            [string] $QueueName,
 
-        [datetime] $Since,
-        [datetime] $Until,
-        [string]   $OutputRoot = 'out',
-        [string]   $RunId,
-        [scriptblock] $DatasetInvoker
-    )
+            [datetime] $Since,
+            [datetime] $Until,
+            [string]   $OutputRoot = 'out',
+            [string]   $RunId,
+            [scriptblock] $DatasetInvoker
+        )
 
-    if (-not $Until) { $Until = Get-Date }
-    if (-not $Since) { $Since = $Until.AddDays(-7) }
+        if (-not $Until) { $Until = Get-Date }
+        if (-not $Since) { $Since = $Until.AddDays(-7) }
 
-    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
-        if (-not $DatasetInvoker) { Assert-GenesysConnected }
-        $matches = @(Get-GenesysQueue | Where-Object { $_.name -eq $QueueName })
-        if ($matches.Count -eq 0) { throw "No Genesys queue matched '$QueueName'." }
-        if ($matches.Count -gt 1) {
-            $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
-            throw "Ambiguous queue name '$QueueName' — $($matches.Count) matches: $ids"
+        if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+            if (-not $DatasetInvoker) { Assert-GenesysConnected }
+            $matches = @(Get-GenesysQueue | Where-Object { $_.name -eq $QueueName })
+            if ($matches.Count -eq 0) { throw "No Genesys queue matched '$QueueName'." }
+            if ($matches.Count -gt 1) {
+                $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
+                throw "Ambiguous queue name '$QueueName' — $($matches.Count) matches: $ids"
+            }
+            $QueueId = $matches[0].id
         }
-        $QueueId = $matches[0].id
+
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+        $steps = Get-GenesysQueueInvestigationStepDefinition -QueueId $QueueId -Since $Since -Until $Until
+
+        Invoke-Investigation `
+            -InvestigationKey 'queue-investigation' `
+            -SubjectType 'queue' `
+            -Subject @{ SubjectId = $QueueId; QueueId = $QueueId } `
+            -Window @{ Since = $Since; Until = $Until } `
+            -Steps $steps `
+            -OutputRoot $OutputRoot `
+            -RunId $RunId `
+            -DatasetInvoker $DatasetInvoker
     }
 
-    if (-not $DatasetInvoker) { Assert-GenesysConnected }
-
-    $steps = Get-GenesysQueueInvestigationStepDefinition -QueueId $QueueId -Since $Since -Until $Until
-
-    Invoke-Investigation `
-        -InvestigationKey 'queue-investigation' `
-        -SubjectType      'queue' `
-        -Subject          @{ SubjectId = $QueueId; QueueId = $QueueId } `
-        -Window           @{ Since = $Since; Until = $Until } `
-        -Steps            $steps `
-        -OutputRoot       $OutputRoot `
-        -RunId            $RunId `
-        -DatasetInvoker   $DatasetInvoker
-}
-
-#endregion
+    #endregion

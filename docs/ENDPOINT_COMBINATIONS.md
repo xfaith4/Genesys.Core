@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-05-29  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,11 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Campaign Investigation](#10-campaign-investigation)
+11. [External Contact (CRM) Enrichment](#11-external-contact-crm-enrichment)
+12. [Edge Log Extraction (Voice Engineer)](#12-edge-log-extraction-voice-engineer)
+13. [Executive CSAT & Sentiment Rollup](#13-executive-csat--sentiment-rollup)
+14. [Dataset Combination Reference Matrix](#14-dataset-combination-reference-matrix)
 
 ---
 
@@ -508,6 +512,356 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+
+---
+
+## 10. Campaign Investigation
+
+**Subject:** One `campaignId` + time window  
+**Use case:** An outbound operations manager needs to diagnose a running or recently-completed
+campaign — low right-party contact rate, abandon rate exceeding the FCC/Ofcom threshold,
+or contact list exhaustion ahead of schedule.
+
+**Core question:** *Why is this campaign underperforming, and what can be fixed right now?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `outbound.get.campaigns` | seed → `campaignId` | Dialing mode, queue, caller ID, abandon threshold, campaign status |
+| 2 | `outbound.get.contact.lists` | `contactListId` | Contact list size — used to compute list-penetration rate |
+| 3 | `routing.get.single.queue.config` | `queueId` | Answer-handling queue config (ACW, media settings) |
+| 4 | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Live pacing health, real-time abandon rate, current call count |
+| 5 | `outbound.get.events` | `campaignId` | Dialer event stream: dispositions, call attempts, system events |
+| 6 | `audit-logs` | `campaignId` | Who started/stopped the campaign and what config was changed |
+| 7 | `analytics-conversation-details-query` | `campaignId` | All conversation rows tied to the campaign in the window |
+
+### Key Joins
+
+```
+outbound.get.campaigns.contactListId
+  → outbound.get.contact.lists.id (list penetration = events / list size)
+
+outbound.get.campaigns.queueId
+  → routing.get.single.queue.config.id (answer queue context)
+
+analytics-conversation-details-query[].conversationId
+  → quality.get.evaluations.query[].conversationId (opt-in: QM coverage)
+```
+
+### Analytical Questions Answered
+
+- Is the current abandon rate within the regulatory threshold?
+- What percentage of the contact list has been dialed (penetration rate)?
+- What is the distribution of call dispositions (connected, busy, no-answer, DNC)?
+- Was the campaign configuration changed recently before the issue began?
+- How does average handle time on this campaign compare to the queue baseline?
+
+### Diagnostic Signals
+
+| Signal | Likely Cause |
+|--------|-------------|
+| `abandonRate% > 3%` | Pacing set too aggressive; reduce lines-per-agent ratio |
+| `diagnostics.numberOfCalls = 0` but campaign `status = ON` | No eligible contacts remain; list exhausted |
+| `listPenetration% > 95%` | List nearly exhausted; refresh or segment required |
+| Audit shows `status` toggled repeatedly | Operator manually cycling campaign; investigate pacing rules |
+| `tTalk = 0` on most conversations | Calls connecting but agents not answering (staffing gap) |
+
+---
+
+## 11. External Contact (CRM) Enrichment
+
+**Subject:** One `conversationId` (or batch) where an external contact is present  
+**Use case:** A contact centre analyst needs to correlate Genesys conversation data with
+CRM records — identifying repeat contacts, tracking customer journey across channels,
+or building a 360-degree view of a specific customer's interaction history.
+
+**Core question:** *Who was this customer, what is their CRM profile, and have they contacted us before?*
+
+### How to Identify External Contact Presence
+
+`conversations.get.conversation.object` returns `participants[].externalContactId` when the
+conversation is linked to an external contact. A non-null `externalContactId` triggers this enrichment.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | `externalContactId` from external participant |
+| 2 | `externalcontacts.get.contact.details` | `externalContactId` | Name, company, primary phone, email, custom schema fields |
+| 3 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Digital journey sessions — web pages visited, app events before the call |
+| 4 | `analytics-conversation-details-query` | `externalContactId` | All conversations this contact has had across the date window |
+| 5 | `conversations.get.conversation.customattributes` | `conversationId` | IVR-captured account numbers, intent labels, escalation flags |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[externalContactId]
+  → externalcontacts.get.contact.details.id
+  → externalcontacts.get.contact.journey.sessions.contactId
+
+analytics-conversation-details-query[].conversationId (filter by externalContactId)
+  → quality.get.evaluations.query (QM scores for this contact's history)
+  → quality.get.surveys (CSAT responses from this contact)
+```
+
+### Analytical Questions Answered
+
+- Who is the customer (name, company, account relationship)?
+- How many times has this customer contacted us? What was each outcome?
+- Did the customer visit the self-service web portal before calling? What pages?
+- What custom attributes (CRM case ID, account tier) did the IVR capture?
+- What quality scores have conversations with this customer received?
+- Is this a first-contact resolution or a repeat contact situation?
+
+### Divisions and External Contacts
+
+External contacts are organisation-wide; they are not scoped to a division. If an investigation
+covers multiple divisions, the same external contact record may surface across queues in different
+divisions. Deduplicate on `externalContactId` before computing repeat-contact rates.
+
+---
+
+## 12. Edge Log Extraction (Voice Engineer)
+
+**Subject:** One `edgeId` + incident time window  
+**Use case:** A voice engineer has exhausted the SIP trace (`telephony.get.sip.messages.for.conversation`)
+and needs raw Edge diagnostic logs — pcap captures, system logs, and RTP statistics — to diagnose
+one-way audio, codec negotiation failures, or TLS handshake problems on the PSTN trunk.
+
+**Core question:** *What does the Edge appliance log tell us that the SIP trace cannot?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `telephony.get.edges` | seed → `edgeId` | Edge status, site, firmware version, online status |
+| 2 | `telephony.get.edge.performance.metrics` | `edgeId` | CPU, memory, active call count at time of extraction |
+| 3 | `telephony.create.edge.logs.job` | `edgeId` | Create a log job specifying log level and incident time window |
+| 4 | `telephony.get.edge.logs.job` | `jobId` | Poll until `jobStatus = COMPLETE` — logs are packaged |
+| 5 | `telephony.request.edge.logs.job.upload` | `jobId` | Trigger S3 upload of selected log files for download |
+
+### Key Joins
+
+```
+telephony.get.edges.id (edgeId)
+  → telephony.create.edge.logs.job.edgeId
+  → telephony.get.edge.logs.job.jobId (polling)
+  → telephony.request.edge.logs.job.upload.jobId
+
+telephony.get.sip.messages.for.conversation.timestamp
+  → Edge log file timestamps (correlate SIP events to Edge log entries)
+```
+
+### Diagnostic Signals
+
+| Signal | Interpretation |
+|--------|---------------|
+| `statusCode != 'ACTIVE'` before creating job | Edge in failover — confirm peer Edge state first |
+| Log job stays `PENDING > 5 min` | Management-plane connectivity issue to Edge |
+| `CPU > 80%` in performance metrics during incident | Edge under load — may have caused call quality degradation |
+| Pcap shows RTP stream gaps | One-way audio or media negotiation failure |
+| Sys-log shows `TLS handshake failed` | Certificate or cipher mismatch on PSTN trunk |
+| `onlineStatus = DISCONNECTED` | Edge lost connection — check management network path |
+
+### Voice Engineer Notes
+
+Edge log extraction requires the `telephony:plugin:all` permission and is rate-limited. Create
+one log job per incident window rather than one per conversation. Correlate log file timestamps
+against `telephony.get.sip.messages.for.conversation` timestamps to identify the exact packet
+sequence that preceded the call failure.
+
+`telephony.get.edge.performance.metrics` should always be pulled alongside the log job to provide
+resource-pressure context — a CPU spike explains RTP jitter even when the SIP trace looks clean.
+
+---
+
+## 13. Executive CSAT & Sentiment Rollup
+
+**Subject:** Organisation-wide (or division-scoped) + reporting window (weekly/monthly)  
+**Use case:** A VP of Customer Experience needs a single-page rollup that answers: are customers
+satisfied, is satisfaction trending up or down, and which topics are driving dissatisfaction?
+
+**Core question:** *What does the voice of the customer tell us this period, and where is action needed?*
+
+### Dataset Steps (ordered by reporting layer)
+
+#### Layer 1 — Survey Outcomes
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.surveys.aggregates` | `queueId`, `userId`, `surveyFormId`, daily | nSurveys, avgCsatScore (1–5), avgNpsScore (0–10), promoterCount, detractorCount |
+| `quality.get.surveys` | `conversationId` | Individual survey responses for drilldown on low-score cases |
+
+#### Layer 2 — Sentiment Trends
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | nAnalyzedConversations, avgAgentSentimentScore, avgCustomerSentimentScore, oSentimentScore |
+| `speechandtextanalytics.get.topics` | — | Topic catalog — resolve topicId to topic name and description |
+
+#### Layer 3 — Quality Correlation
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.evaluations.aggregates` | `userId`, `queueId`, daily | evalCount, avgEvaluationScore, criticalItemFailCount |
+| `quality.get.agents.activity` | `userId` | Agent-level eval summary — fastest path to QM outliers |
+
+### Key Joins
+
+```
+routing-queues[].id
+  → analytics.query.surveys.aggregates[].group.queueId
+  → analytics.post.transcripts.aggregates.query[].group.queueId
+  → analytics.query.evaluations.aggregates[].group.queueId
+
+analytics.query.surveys.aggregates[].group.userId
+  → quality.get.agents.activity[].user.id (QM / CSAT correlation per agent)
+
+speechandtextanalytics.get.topics[].id
+  → analytics.post.transcripts.aggregates.query[].group.topicId (topic label resolution)
+```
+
+### Analytical Questions Answered
+
+- What is the overall CSAT score and NPS for the period? Is it improving?
+- Which queues have the lowest CSAT? Which agents correlate with low scores?
+- Which S&TA topics are most associated with negative customer sentiment?
+- Is there a correlation between low QM evaluation scores and low CSAT?
+- What percentage of conversations were S&TA-analyzed (coverage gap)?
+
+### Executive Dashboard Composition
+
+```
+Period: Last 28 days, daily granularity
+Headline metrics (computed):
+  - CSAT: AVG(avgCsatScore) weighted by nSurveys
+  - NPS: (promoterCount - detractorCount) / nSurveys × 100
+  - Survey response rate: nSurveys / nConnected × 100
+  - Sentiment trend: week-over-week delta of avgCustomerSentimentScore
+  - STA coverage: nAnalyzedConversations / nConnected × 100
+  - Critical item fail rate: criticalItemFailCount / evalCount × 100
+
+Supporting views:
+  - CSAT trend line by queue (daily)
+  - Top 10 topics by conversation volume with average sentiment overlay
+  - Agent CSAT vs QM score scatter plot (outlier identification)
+```
+
+---
+
+## 14. Dataset Combination Reference Matrix
+
+The matrix below shows which datasets are used across which investigations and reporting patterns.
+`●` = used, `○` = optional/conditional, blank = not applicable.
+
+| Dataset Key | Conv Deep Dive | Queue Invest. | Division Invest. | Executive Rollup | Real-Time Monitor | Agent Invest. | Campaign Invest. | CSAT Rollup | Ext. Contact |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | | | ● |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | | ● |
+| `conversations.search.participant.attributes` | ● | | | | | | | | |
+| `conversations.get.call.detail` | ○ | | | | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ○ | | | | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | | | | |
+| `conversations.get.recordings` | ● | | | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | ● | | | ○ |
+| `quality.get.surveys` | ● | | | ● | | | | ● | ○ |
+| `analytics.query.evaluations.aggregates` | | | | ● | | ○ | | ● | |
+| `analytics.query.surveys.aggregates` | | | | ● | | | | ● | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | | |
+| `telephony.create.edge.logs.job` | | | | | | | | | |
+| `telephony.get.edge.logs.job` | | | | | | | | | |
+| `telephony.request.edge.logs.job.upload` | | | | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | | ○ | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.sentiments` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.topics` | | | | | | | | ● | |
+| `routing.get.single.queue.config` | | ● | | | | | ● | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● | | ● |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | ● | ● | | | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | | | |
+| `routing-queue-members` | | ● | | | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | | |
+| `authorization.search.division.objects` | | | ● | | | | | | |
+| `authorization.get.division.grants` | | | ○ | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | | | | ● |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | | ● | |
+| `coaching.get.appointments` | | | ● | | | ○ | | | |
+| `workforce.get.agent.management.unit` | | | | | | ● | | | |
+| `workforce.get.adherence.bulk` | | | | | | ● | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | ● | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | | | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | | | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | | | |
+| `analytics.query.flow.observations` | | | | | ● | | | | |
+| `analytics.query.flow.aggregates.execution.metrics` | | | | ● | | | | | |
+| `flows.get.all.flows` | | | | ● | ○ | | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | | |
+| `telephony.get.edges` | | | | | ● | | | | |
+| `alerting.get.alerts` | | | | ○ | ● | | | | |
+| `alerting.get.rules` | | | | ○ | ○ | | | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | | | |
+| `users.get.user.routing.skills` | | | | | | ● | | | |
+| `users.get.user.queue.memberships` | | | | | | ● | | | |
+| `users.get.bulk.user.presences` | | | | | | ● | | | |
+| `routing.get.user.utilization` | | | | | | ○ | | | |
+| `audit-logs` | | | | | | ● | ● | | |
+| `outbound.get.campaigns` | | | | | | | ● | | |
+| `outbound.get.contact.lists` | | | | | | | ● | | |
+| `outbound.get.campaign.diagnostics.summary` | | | | | | | ● | | |
+| `outbound.get.events` | | | | | | | ● | | |
+| `externalcontacts.get.contact.details` | | | | | | | | | ● |
+| `externalcontacts.get.contact.journey.sessions` | | | | | | | | | ● |
+| `workforce.get.business.units` | | | | ○ | | | | | |
+| `workforce.get.management.units` | | | | ○ | | | | | |
+| `workforce.get.management.unit.adherence` | | | | ● | | | | | |
+| `workforce.get.management.unit.users` | | | | ● | | | | | |
+| `stations.get.stations` | | | | | ● | | | | |
+
+---
+
+## Appendix: Metric Glossary
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
+| `nOffered` | Conversations offered to the queue | Volume denominator |
+| `nConnected` | Conversations connected to an agent | Handled volume |
+| `nAbandoned` | Conversations abandoned before connection | Abandon count |
+| `tHandle` | Total handle time (talk + hold + ACW) | AHT numerator |
+| `tTalk` | Total talk time | Talk-time component |
+| `tAcw` | After-call work time | ACW component |
+| `tAnswered` | Time from offered to answered | Speed of answer |
+| `nTransferred` | Conversations transferred | Transfer volume |
+| `oServiceLevel` | Current SLA percentage | Real-time SLA |
+| `nOverSla` | Conversations that exceeded SLA threshold | SLA misses |
+| `oInteracting` | Agents currently on interactions | Active agents |
+| `oWaiting` | Interactions waiting in queue | Queue depth |
+| `oLongestWaiting` | Seconds the longest-waiting customer has been waiting | Worst-case wait |
+| `tAgentRoutingStatus` | Time in each routing status | On-queue vs off-queue time |
+| `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
+| `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
+| `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `avgCsatScore` | Average CSAT score (1–5) | Customer satisfaction |
+| `avgNpsScore` | Average NPS score (0–10) | Loyalty indicator |
+| `promoterRate%` | Promoters / nSurveys × 100 | Net promoter health |
+| `adherencePct` | Scheduled vs actual on-queue % | WFM compliance |
+| `listPenetration%` | Contacts dialed / total contacts × 100 | Outbound campaign reach |
+| `rightPartyContactRate%` | Connected to decision-maker / dialed × 100 | Outbound campaign quality |
 
 ---
 

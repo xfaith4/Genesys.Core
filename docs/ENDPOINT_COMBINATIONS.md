@@ -26,6 +26,12 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [AI Summary and Copilot Enrichment](#11-ai-summary-and-copilot-enrichment)
+12. [Bot Containment and Data Action Diagnostics](#12-bot-containment-and-data-action-diagnostics)
+13. [WFM Adherence and Performance Correlation](#13-wfm-adherence-and-performance-correlation)
+14. [Queue Voicemail Overflow Analysis](#14-queue-voicemail-overflow-analysis)
+15. [Extended Executive Rollup — AI, Bots, Surveys, Journey](#15-extended-executive-rollup--ai-bots-surveys-journey)
+16. [Agent Station and Call Path Investigation](#16-agent-station-and-call-path-investigation)
 
 ---
 
@@ -487,6 +493,341 @@ The matrix below shows which datasets are used across which investigations and r
 
 ---
 
+## 11. AI Summary and Copilot Enrichment
+
+**Subject:** One `conversationId` (or queue/agent rollup)  
+**Use case:** A QM analyst or supervisor wants to review call content without listening to recordings. An executive wants to know what percentage of conversations have AI summaries and whether agents are engaging with Copilot suggestions. Two distinct endpoints serve this: the Genesys Copilot/Agent Assist summary (`conversations.get.conversation.summaries`) and the S&TA engine summary (`speechandtextanalytics.get.conversation.summaries.detail`).
+
+**Core question:** *What did this conversation cover, what was resolved, and is the AI assistant being used?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Base conversation with participants, state, ANI/DNIS |
+| 2 | `conversations.get.conversation.summaries` | `conversationId` | Copilot/Agent Assist AI summary: reason for contact, resolution outcome, follow-up actions |
+| 3 | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | S&TA engine summary per communication leg with confidence score and coverage status |
+| 4 | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Category and topic classifications with phrase evidence (compliance, intent labelling) |
+| 5 | `conversations.get.conversation.suggestions` | `conversationId` | All Copilot article/knowledge suggestions presented to the agent during the call |
+| 6 *(exec rollup)* | `analytics.post.summaries.aggregates.query` | `queueId` / `userId` | nSummaries, oSummaryEngagement — Copilot adoption rate across queue or team |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.conversationId
+  → conversations.get.conversation.summaries.conversationId (Copilot summary)
+  → speechandtextanalytics.get.conversation.summaries.detail.conversationId (S&TA summary)
+  → speechandtextanalytics.get.conversation.categories[].conversationId (topic labels)
+  → conversations.get.conversation.suggestions[].conversationId (suggestion engagement)
+
+analytics.post.summaries.aggregates.query.results[].group.queueId
+  → routing-queues[].id (queue name label resolution)
+```
+
+### Analytical Questions Answered
+
+- What was the reason for the customer's contact (AI-extracted)?
+- Was the issue resolved in this interaction?
+- What follow-up actions were recommended by Copilot?
+- What topics and categories did the S&TA engine detect?
+- Which knowledge articles did the agent receive as suggestions?
+- Across the queue, what percentage of conversations received a Copilot summary? (adoption metric)
+
+### Executive Reporting Use
+
+`analytics.post.summaries.aggregates.query` with `groupBy: ["queueId"]` and `granularity: "P1D"` produces a daily trend of Copilot adoption. Divide `nSummaries` by `nConnected` (from queue performance aggregates) to produce the **Summary Coverage Rate** — the share of handled conversations where the AI summary fired. A summary coverage rate below 80% typically indicates agents are leaving conversations before the summary triggers or the S&TA pipeline is not fully configured.
+
+---
+
+## 12. Bot Containment and Data Action Diagnostics
+
+**Subject:** Bot flows + IVR data actions (org-wide or filtered by flow/queue)  
+**Use case:** A voice engineer or IVR developer investigates why customers are being handed off from the bot to an agent at a high rate, or why data lookups in the Architect flow are failing. Two analytics namespaces serve this: bot aggregates and actions aggregates.
+
+**Core question:** *Are bots containing calls as expected, and are the data lookups in the IVR working correctly?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.post.bots.aggregates.query` | `botId` | nBotInteractions, nBotHandoffs, nBotSessions — containment rate and handoff frequency |
+| 2 | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone — Architect flow execution counters |
+| 3 | `analytics.post.actions.aggregates.query` | `actionId` | nExecutions, nErrors, tExecution — data action error rate and latency per action |
+| 4 | `flows.get.all.flows` | `flowId` | Flow name, type, and description to label analytics results |
+| 5 *(drilldown)* | `analytics-conversation-details-query` (bot handoff filter) | `conversationId` | Individual conversations where bot handed off to agent — root cause evidence |
+| 6 *(drilldown)* | `conversations.get.conversation.customattributes` | `conversationId` | IVR attributes set before handoff: intent, confidence score, data action result code |
+
+### Bot Containment Rate Formula
+
+```
+containmentRate% = (nBotSessions - nBotHandoffs) / nBotSessions × 100
+```
+
+A healthy bot containment rate is typically 60–85% depending on channel and bot capability.
+A sudden drop in containment rate combined with `nErrors > 0` in `analytics.post.actions.aggregates.query` almost always indicates a failing data action (CRM lookup, account auth, database call).
+
+### Voice Engineer Notes
+
+When `analytics.post.actions.aggregates.query` shows elevated `nErrors`:
+1. Note the `actionId` and map it to the action name via the Integrations API
+2. Cross-reference with `conversations.get.conversation.customattributes` — a `dataActionResult` of `FAILED` or `TIMEOUT` in the conversation attributes confirms the action failure was on the path of the affected conversation
+3. Escalate to the integration owner with the `actionId`, error count, and a sample `conversationId`
+
+### Analytical Questions Answered
+
+- What is the bot containment rate per bot/flow?
+- Which data actions have the highest error rate?
+- How long do data actions take on average? Is latency degrading the caller experience?
+- Which conversations were handed off from the bot, and what was in the IVR attributes at handoff?
+- Which Architect flow milestone was last reached before the handoff?
+
+---
+
+## 13. WFM Adherence and Performance Correlation
+
+**Subject:** One `managementUnitId` + time window  
+**Use case:** A WFM manager or operations analyst investigates whether poor adherence is correlated with degraded queue performance — the classic "where are my agents?" question during a service-level miss.
+
+**Core question:** *Which agents were out of adherence during the SLA miss, and is there a causal pattern?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `workforce.get.management.units` | seed → `managementUnitId` | Management unit name and business unit linkage |
+| 2 | `workforce.get.management.unit.users` | `managementUnitId` | All agents in the WFM team — the population |
+| 3 | `workforce.get.agent.management.unit` | `userId` | Confirm management unit assignment for individual agents |
+| 4 | `workforce.get.adherence.bulk` | `userId` list | Current adherence state per agent: scheduled activity, actual presence, deviation seconds |
+| 5 | `workforce.get.management.unit.adherence` | `managementUnitId` | Adherence snapshot for all agents in the unit simultaneously |
+| 6 | `analytics.query.user.aggregates.login.activity` | `userId` | Time in each routing status: on-queue, off-queue, idle — joins to adherence state |
+| 7 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | SLA and volume for queues served by this management unit during the window |
+| 8 | `analytics.query.queue.aggregates.service.level` | `queueId` | SLA achievement per queue — the outcome being correlated |
+
+### Key Joins
+
+```
+workforce.get.management.unit.users[].id
+  → workforce.get.adherence.bulk[].user.id
+  → analytics.query.user.aggregates.login.activity[].userId
+  → analytics.query.user.aggregates.performance.metrics[].userId
+
+workforce.get.management.unit.users[].queues[].id (if available)
+  → analytics.query.conversation.aggregates.queue.performance[].group.queueId
+  → analytics.query.queue.aggregates.service.level[].group.queueId
+```
+
+### Correlation Pattern
+
+```
+For each 15-minute interval in the window:
+  oOutOfAdherence agents = count(adherence.state = 'OUT_OF_ADHERENCE')
+  oWaiting callers = sum(queue.oWaiting) across managed queues
+  SLA achievement = sum(nAnsweredInThreshold) / sum(nOffered)
+
+High oOutOfAdherence + high oWaiting + low SLA = staffing gap driven by adherence
+High oOutOfAdherence + low oWaiting + low SLA = routing or skill mismatch, not staffing
+Low oOutOfAdherence + high oWaiting + low SLA = understaffed or unexpected volume spike
+```
+
+### Analytical Questions Answered
+
+- Which agents were out of adherence when the SLA missed?
+- What was the scheduled activity vs. actual presence for the team?
+- Is the adherence deviation random (breaks/bathroom) or systematic (early logout, long ACW)?
+- Did the SLA miss track with the number of out-of-adherence agents?
+- Which queues were impacted, and which had members in the management unit?
+
+---
+
+## 14. Queue Voicemail Overflow Analysis
+
+**Subject:** One `queueId` + time window  
+**Use case:** A contact centre manager suspects that callers who abandon the queue are leaving voicemails instead of callbacks or re-calling. The ACD abandons metric does not capture voicemail volume — this combination closes that gap.
+
+**Core question:** *How much call volume escapes the queue to voicemail, and when does it peak?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.single.queue.config` | seed → `queueId` | Queue config — voicemail enabled flag, after-hours config |
+| 2 | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | ACD abandons: nAbandoned, tAbandon — the ACD-visible abandons |
+| 3 | `voicemail.get.queue.messages` | `queueId` | Voicemail messages left in the queue's shared mailbox — overflow count, timestamps, durations |
+| 4 *(optional)* | `routing.get.queue.estimated.wait.time` | `queueId` | Real-time EWT — if high, expect voicemail intake to rise in the next interval |
+| 5 *(enrichment)* | `analytics.query.queue.observations.real.time.stats` | `queueId` | Current oWaiting — validates whether queue pressure is active now |
+
+### Analytical Questions Answered
+
+- How many voicemails did the queue receive vs. how many callers abandoned the ACD queue?
+- What is the average voicemail duration? (proxy for message complexity)
+- At what time of day does voicemail volume peak?
+- Are voicemails being assigned/returned, or are they sitting unread?
+- Is voicemail volume correlated with EWT spikes?
+
+### Voice Engineer Note
+
+If the queue's `voicemailEnabled` flag is `false` in the queue config but voicemails are arriving, the voicemail overflow may be configured at the Architect flow level (via a menu action that routes to voicemail on no-answer), not at the queue level. In this case, check the flow's voicemail node configuration and the participant attributes from `conversations.get.conversation.customattributes` for a `vmRouted` attribute.
+
+---
+
+## 15. Extended Executive Rollup — AI, Bots, Surveys, Journey
+
+**Subject:** Organisation-wide + reporting window (weekly/monthly)  
+**Use case:** An extended version of the Executive Reporting Rollup (Section 4) that adds AI adoption, bot performance, CSAT aggregates, and journey analytics to the headline metrics.
+
+**Core question:** *How are automation, AI, and customer experience trending alongside traditional volume and quality metrics?*
+
+### Additional Layers (extend Section 4)
+
+#### Layer 6 — AI and Automation
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.post.summaries.aggregates.query` | `queueId`, `userId`, daily | nSummaries, oSummaryEngagement (Copilot adoption) |
+| `analytics.post.bots.aggregates.query` | `botId`, daily | nBotInteractions, nBotHandoffs (containment rate = 1 − handoffs/interactions) |
+| `analytics.post.actions.aggregates.query` | `actionId`, daily | nExecutions, nErrors, tExecution (data action health) |
+
+#### Layer 7 — Voice of Customer (Survey Aggregates)
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.post.surveys.aggregates.query` | `queueId`, `userId`, daily | nSurveysSent, nSurveysCompleted, oSurveyTotalScore |
+
+Survey response rate = `nSurveysCompleted / nSurveysSent × 100`.  
+Note: `quality.get.surveys` returns individual survey records; `analytics.post.surveys.aggregates.query` returns pre-aggregated counts and scores — use the aggregate for rollup, the individual records for drilldown.
+
+#### Layer 8 — Journey and Predictive Engagement
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.post.journeys.aggregates.query` | `journeyActionId`, daily | nJourneys — volume of predictive engagement triggers fired |
+| `journey.get.action.maps` | — | Action map names for label resolution |
+
+### Extended Executive Dashboard Metrics
+
+```
+AI Automation Layer:
+  - Copilot Summary Coverage Rate: nSummaries / nConnected × 100
+  - Bot Containment Rate: (nBotSessions - nBotHandoffs) / nBotSessions × 100
+  - Data Action Error Rate: nErrors / nExecutions × 100 (health indicator)
+
+Voice of Customer Layer:
+  - Survey Response Rate: nSurveysCompleted / nSurveysSent × 100
+  - Average CSAT Score: oSurveyTotalScore / nSurveysCompleted (normalise to 0–10 or 0–5)
+  - Agent CSAT Ranking: from quality.get.agents.activity (if survey-linked evaluations)
+
+Journey Layer:
+  - Predictive Engagement Fire Rate: nJourneys / total web sessions (if web sessions tracked)
+  - Journey-to-Contact Conversion: nJourneys where outcome = CONTACT / total nJourneys
+```
+
+### Key Joins for Extended Rollup
+
+```
+analytics.post.bots.aggregates.query[].group.botId
+  → flows.get.all.flows (flow name for bot flows)
+  → analytics-conversation-details-query (conversations with bot segments, for sample drilldown)
+
+analytics.post.surveys.aggregates.query[].group.queueId
+  → routing-queues[].id (queue name label resolution)
+  → quality.get.agents.activity[].user.id (agent-level CSAT join)
+
+journey.get.action.maps[].id
+  → analytics.post.journeys.aggregates.query[].group.journeyActionId
+```
+
+---
+
+## 16. Agent Station and Call Path Investigation
+
+**Subject:** One `userId` at a specific point in time  
+**Use case:** A voice engineer is troubleshooting an audio quality complaint, one-way audio, or missed calls for a specific agent. The physical station (phone or softphone), its Edge assignment, and call forwarding configuration collectively explain the inbound call path — and where audio problems originate.
+
+**Core question:** *What hardware or softphone is this agent using, and does the call path explain the reported issue?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `users.get.user.details.with.full.expansion` | seed → `userId` | Agent identity, current presence, routing status, and station field |
+| 2 | `users.get.user.station` | `userId` | Station ID, type (ININ\_REMOTE\_STATION, ININ\_WEBRTC\_SOFTPHONE, etc.), Edge site |
+| 3 | `users.get.user.callforwarding` | `userId` | Call forwarding enabled state, destination number, and caller ID overrides |
+| 4 | `telephony.get.edges` | Edge site from step 2 | Edge registration status and software version |
+| 5 | `telephony.get.edge.performance.metrics` | `edgeId` | Real-time CPU, memory, active call count, SIP error counters on the agent's Edge |
+| 6 *(voice complaint)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP trace from the complaint conversation — codec negotiation, SDP IPs, error codes |
+| 7 *(voicemail)* | `voicemail.get.user.messages` | `userId` | Voicemail messages — confirms agent received calls that were not answered |
+
+### Key Joins
+
+```
+users.get.user.details.with.full.expansion.station.id
+  → users.get.user.station.associatedStation.id (confirm active station)
+
+users.get.user.station.associatedStation.edgeGroup.edges[].id
+  → telephony.get.edges[].id (Edge registration status)
+  → telephony.get.edge.performance.metrics.edgeId (live metrics)
+
+telephony.get.sip.messages.for.conversation.sipMessages[].localSdp
+  → users.get.user.station (verify SDP IP matches station IP — one-way audio diagnosis)
+```
+
+### Voice Engineer Diagnostic Patterns
+
+| Symptom | Datasets to Pull | What to Look For |
+|---------|-----------------|-----------------|
+| One-way audio | SIP trace + station | SDP IP mismatch: local media IP in SIP does not match the station's registered IP |
+| Calls not alerting | station + call forwarding | `callForwarding.enabled = true` rerouting before alert; or station not registered (STATION\_UNREGISTERED) |
+| Missed calls going to voicemail | voicemail messages + routing status | `voicemail.count > 0` during periods agent was supposedly on-queue; check if agent was actually INTERACTING |
+| Audio quality degradation | Edge metrics + SIP trace | Edge CPU > 85% correlates with jitter and packet loss in recorded calls |
+| WebRTC softphone issues | station type + SIP trace | `ININ_WEBRTC_SOFTPHONE` station type: SIP trace will show DTLS/SRTP negotiation — check for ICE failures |
+
+### Analytical Questions Answered
+
+- What station type is the agent using right now?
+- Is the agent's Edge healthy (CPU, memory, call count)?
+- Does the agent have call forwarding enabled that might be intercepting calls?
+- Do the SIP SDPs in the complaint call show the expected media IP for this station?
+- Are voicemails building up, indicating missed calls the ACD is not capturing?
+
+---
+
+## Updated Dataset Combination Reference Matrix
+
+The matrix below extends Section 10 with new datasets added in this revision.
+`●` = used, `○` = optional/conditional.
+
+| Dataset Key | Conv Deep Dive | Queue Inv | Division Inv | Exec Rollup | Real-Time | Agent Inv | AI/Bot | WFM Adherence | Call Path |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.summaries` | ○ | | | | | | ● | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | ● | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | | ● | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | | | | |
+| `conversations.get.call.detail` | ● | | | | | | | | |
+| `quality.get.conversation.surveys` | ● | | | | | | | | |
+| `conversations.get.specific.conversation.details` | ● | | | | | | | | |
+| `analytics.query.conversation.details.by.queue` | | ● | | | | ○ | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | | | | |
+| `routing.get.queue.members.with.status` | | ● | | | | | | | |
+| `routing.get.queue.wrapup.codes` | | ● | | | | | | | |
+| `voicemail.get.queue.messages` | | ● | | ○ | | | | | |
+| `authorization.get.division.grants` | | | ● | | | | | | |
+| `authorization.search.division.objects` | | | ● | | | | | | |
+| `analytics.post.summaries.aggregates.query` | | | | ● | | | ● | | |
+| `analytics.post.bots.aggregates.query` | | | | ● | | | ● | | |
+| `analytics.post.actions.aggregates.query` | | | | ○ | | | ● | | |
+| `analytics.post.journeys.aggregates.query` | | | | ● | | | | | |
+| `analytics.post.surveys.aggregates.query` | | | | ● | | | | | |
+| `gamification.get.insights.user.details` | | | | | | ○ | | | |
+| `gamification.get.leaderboard` | | | | ● | | | | | |
+| `workforce.get.agent.management.unit` | | | | | | ● | | ● | |
+| `workforce.get.adherence.bulk` | | | | | | ● | | ● | |
+| `workforce.get.management.unit.adherence` | | | | | | | | ● | |
+| `analytics.query.conversation.transcripts` | | | | ● | | | ● | | |
+| `users.get.user.station` | | | | | | ○ | | | ● |
+| `users.get.user.callforwarding` | | | | | | ○ | | | ● |
+| `voicemail.get.user.messages` | | | | | | ○ | | | ● |
+| `routing.get.contact.center.settings` | | | | | | | | | ○ |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | ● | | | | | | ● | | |
+
+---
+
 ## Appendix: Metric Glossary
 
 | Metric | Meaning | Typical Use |
@@ -508,6 +849,21 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nSummaries` | AI summaries generated (Copilot/Agent Assist) | Copilot adoption numerator |
+| `oSummaryEngagement` | Agents who viewed or used a summary | Copilot engagement rate |
+| `nBotInteractions` | Bot interactions started | Total bot traffic |
+| `nBotHandoffs` | Bot sessions transferred to an agent | Bot escalation volume |
+| `nBotSessions` | Distinct bot sessions | Bot containment denominator |
+| `nExecutions` | Data action executions | IVR data lookup volume |
+| `nErrors` | Data action execution errors | IVR data lookup failure count |
+| `tExecution` | Data action execution duration | IVR data lookup latency |
+| `nSurveysSent` | Post-call surveys delivered to customers | Survey deployment volume |
+| `nSurveysCompleted` | Surveys completed by customers | Survey response count |
+| `oSurveyTotalScore` | Aggregate CSAT/NPS survey score | Customer satisfaction aggregate |
+| `nJourneys` | Predictive engagement journeys fired | Journey action trigger count |
+| `adherenceState` | Current WFM adherence state (IN/OUT) | Per-agent compliance flag |
+| `adherencePct` | Schedule adherence percentage for the window | Team compliance score |
+| `estimatedWaitTimeSeconds` | Predicted wait time per media type | Real-time queue health |
 
 ---
 

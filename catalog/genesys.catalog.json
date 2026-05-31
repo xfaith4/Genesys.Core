@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-05-10T13:24:11.0000000Z",
+  "generatedAt": "2026-05-31T00:00:00.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -1296,6 +1296,389 @@
         "profile": "rateLimitAware"
       },
       "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.specific.conversation.details": {
+      "description": "Base conversation object \u2014 mediaType, state, originatingDirection, full participant roster, ANI/DNIS, externalTag (BYOI indicator), externalConversationId. Required first step in any conversation investigation.",
+      "endpoint": "conversations.get.specific.conversation.details",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a single conversation participant \u2014 requires iterating over agent participants from the base conversation object. Provides wrapUpCode and wrapUpNotes per participant.",
+      "endpoint": "getConversationParticipantWrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation": {
+      "description": "Top-level Speech & Text Analytics scores for a single conversation \u2014 agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent, analysisStatus. Gate-check before pulling sentiment timeline or categories.",
+      "endpoint": "getSpeechandtextanalyticsConversation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied by the S&TA engine \u2014 categoryName, matched phrases, category score. Reveals call reason, escalation triggers, and compliance topics detected in the conversation.",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated summaries per communication leg \u2014 summary text, reason for contact classification, resolution indicator. Enables rapid content review without listening to recording.",
+      "endpoint": "getSpeechandtextanalyticsConversationSummaries",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI summaries \u2014 copilotSummary text, reasonForContact, and resolution notes generated during or after the conversation. Distinct from S&TA summaries; sourced from Agent Copilot.",
+      "endpoint": "getConversationSummaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction customer satisfaction surveys for a specific conversation \u2014 csatScore, npsScore, surveyStatus, surveyType, respondedAt. More targeted than the org-wide quality.get.surveys query.",
+      "endpoint": "getQualityConversationSurveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.wrapup.codes": {
+      "description": "Wrapup codes assigned to a specific queue \u2014 id, name, dateCreated. Used to resolve wrapup code IDs to human-readable labels when joining against wrapup distribution aggregates.",
+      "endpoint": "routing.get.queue.wrapup.codes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.members.with.status": {
+      "description": "Queue member roster with live routing status, presence, and conversation summary \u2014 userId, routingStatus, presence, conversationSummary. The definitive view of who is staffed on the queue right now.",
+      "endpoint": "routing.get.queue.members.with.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "queue-investigation-members",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Real-time estimated wait time (EWT) for a queue by media type \u2014 estimatedWaitTimeSeconds. Compare to SLA threshold for immediate intervention trigger. Point-in-time only, no historical data.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Full conversation detail records for all conversations that touched a specific queue \u2014 conversationId, agentId, wrapUpCode, tTalk, tHandle, mediaType. Seed for per-conversation drilldown from a queue investigation.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.search.division.objects": {
+      "description": "Objects (queues, users, flows, etc.) assigned to a division \u2014 id, name, objectType. Filter by objectType=QUEUE to enumerate all queues in a division. The definitive way to scope analytics queries to a division.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants for a specific division \u2014 subjectId, subjectType (USER/GROUP), roleId, grantMadeAt. Used in access reviews and security audits to verify who has permissions in a division.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-division",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Current WFM schedule adherence for agents \u2014 adherenceState (IN_ADHERENCE / OUT_OF_ADHERENCE), impact, scheduledActivityCategory, actualActivityCategory. Bulk endpoint accepts userId list from management unit.",
+      "endpoint": "getWorkforcemanagementAdherence",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "WFM management unit membership for a single agent \u2014 managementUnitId, managementUnitName, businessUnitId. Required before querying adherence or schedule data, as both are scoped to management units.",
+      "endpoint": "getWorkforcemanagementAgentManagementunit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot/virtual-agent aggregate metrics \u2014 nBotInteractions, nBotHandled (fully contained), nBotTransferred (escalated to agent), tBotSessionDuration, nBotSessions. Primary metric for IVR/digital self-service containment rate reporting.",
+      "endpoint": "postAnalyticsBotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.agent.copilot.aggregates": {
+      "description": "Agent Copilot (AI Assist) usage aggregates \u2014 nCopilotSuggestionsGenerated, nCopilotSuggestionsAccepted, nCopilotInteractions, copilotAdoptionRate. Critical for measuring AI assist ROI and agent adoption by queue/division.",
+      "endpoint": "postAnalyticsAgentcopilotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.evaluation.aggregates": {
+      "description": "Quality evaluation aggregate metrics \u2014 nEvaluations, avgEvaluationScore, nCriticalItemFailed, evaluationCoverage. Faster than iterating individual evaluations for rollup reporting; group by queueId or agentId.",
+      "endpoint": "postAnalyticsEvaluationsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.survey.aggregates": {
+      "description": "Customer survey aggregate metrics \u2014 nSurveysSent, nSurveysCompleted, avgSurveyScore (CSAT/NPS), surveyResponseRate. Aggregate view of voice-of-customer by queue, agent, or time period for executive reporting.",
+      "endpoint": "postAnalyticsSurveysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.resolution.aggregates": {
+      "description": "First-contact resolution (FCR) and resolution rate aggregates \u2014 nResolutions, nUnresolved, resolutionRate. Requires AI Resolution feature; group by queueId or agentId for performance comparison. Key executive KPI.",
+      "endpoint": "postAnalyticsResolutionsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.ai.summary.aggregates": {
+      "description": "AI conversation summary aggregate metrics \u2014 nSummariesGenerated, nSummariesViewed, aiSummaryCoverage. Measures adoption of AI-generated summaries (Copilot/After Call Work assist) across queues and agents.",
+      "endpoint": "postAnalyticsSummariesAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.flow.execution.aggregates": {
+      "description": "Architect flow execution aggregate metrics \u2014 nFlowExecutions, nFlowErrors, nFlowDisconnects, nFlowSuccesses, tFlowDuration. Distinct from flow observations (which are real-time); this is the historical rollup for IVR health trending.",
+      "endpoint": "postAnalyticsFlowexecutionsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.routing.activity": {
+      "description": "Routing activity stream \u2014 real-time view of routing decisions being made: which conversations are being evaluated against which queues, routing rules applied, and routing outcomes. Used for live routing troubleshooting.",
+      "endpoint": "postAnalyticsRoutingActivityQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.agents.status.counts": {
+      "description": "Organisation-wide agent status count summary \u2014 count of agents in each presence/routing status combination (Available, Busy, Away, Offline, On-Queue, Off-Queue). Fast single-call rollup for staffing dashboards.",
+      "endpoint": "postAnalyticsAgentsStatusCounts",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.agents.status.query": {
+      "description": "Detailed agent status query \u2014 per-agent presence and routing status with timestamps, filtered by division, queue, or userId list. More granular than status counts; use for supervisor workforce visibility dashboards.",
+      "endpoint": "postAnalyticsAgentsStatusQuery",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-presences",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.reporting.turns": {
+      "description": "Bot dialogue turn detail for a specific bot flow \u2014 each turn includes userInput, botResponse, intentName, confidence, exitReason. Reveals exactly where customers fail or succeed within a bot conversation.",
+      "endpoint": "getAnalyticsBotflowReportingturns",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.sessions": {
+      "description": "Bot session history for a specific bot flow \u2014 sessionId, botSessionDurationMs, exitReason (COMPLETED / TRANSFERRED / ERROR / ABANDONED), conversationId. Links bot sessions to Genesys conversations for enrichment.",
+      "endpoint": "getAnalyticsBotflowSessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversations.activity": {
+      "description": "Real-time conversation activity with rich routing context \u2014 queueId, mediaType, routing status, agent assignment, and wait metrics per active interaction. More detailed than queue observations; useful for NOC-level views.",
+      "endpoint": "postAnalyticsConversationsActivityQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "teams.get.teams": {
+      "description": "All teams in the organisation \u2014 id, name, memberCount, division. Teams are a cross-queue grouping (distinct from divisions); use to scope agent status or adherence queries to a supervisor's team.",
+      "endpoint": "getTeams",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "teams.get.team.members": {
+      "description": "Members of a specific team \u2014 userId, name, email, state. Use with analytics.query.agents.status.query or workforce.get.adherence.bulk to scope workforce visibility to a team supervisor's direct reports.",
+      "endpoint": "getTeamMembers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
       "validationStatus": "unvalidated"
     }
   },
@@ -40083,6 +40466,519 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "bot-and-ivr-containment": {
+        "description": "Bot/IVR self-service containment analysis \u2014 identifies which bot flows are successfully deflecting calls vs. escalating to agents, where in the dialogue customers drop out, and which intents drive transfers. Used by CX architects and digital channel managers to optimise virtual-agent performance.",
+        "subjectParam": "botFlowId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "bot-aggregates",
+            "dataset": "analytics.query.bot.aggregates",
+            "role": "seed",
+            "joinKey": "botId",
+            "provides": "nBotInteractions, nBotHandled, nBotTransferred, nBotSessions, tBotSessionDuration",
+            "description": "Bot aggregate metrics \u2014 containment rate = nBotHandled / nBotInteractions; escalation rate = nBotTransferred / nBotInteractions"
+          },
+          {
+            "step": "bot-sessions",
+            "dataset": "analytics.get.botflow.sessions",
+            "filterBy": "botFlowId",
+            "joinKey": "botFlowId",
+            "provides": "sessionId, exitReason (COMPLETED/TRANSFERRED/ERROR/ABANDONED), conversationId, botSessionDurationMs",
+            "description": "Individual bot session outcomes \u2014 link conversationId to Genesys conversation for enrichment of transferred sessions"
+          },
+          {
+            "step": "bot-turns",
+            "dataset": "analytics.get.botflow.reporting.turns",
+            "filterBy": "botFlowId",
+            "joinKey": "botFlowId",
+            "provides": "intentName, confidence, exitReason per turn",
+            "description": "Turn-by-turn dialogue analysis \u2014 find the specific intents and utterances that precede transfers or abandons"
+          },
+          {
+            "step": "flow-execution-aggregates",
+            "dataset": "analytics.query.flow.execution.aggregates",
+            "filterBy": "flowId (Architect inbound flow that launches the bot)",
+            "joinKey": "flowId",
+            "provides": "nFlowExecutions, nFlowErrors, nFlowDisconnects, nFlowSuccesses",
+            "description": "Architect flow health for the inbound flow \u2014 high nFlowErrors during the window indicate IVR instability"
+          },
+          {
+            "step": "escalated-conversation-details",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "conversationId list from bot-sessions where exitReason=TRANSFERRED",
+            "joinKey": "conversationId",
+            "provides": "tTalk, tHandle, queueId, wrapUpCode for escalated conversations",
+            "description": "Analytics detail for transferred conversations \u2014 reveals which queues absorb bot escalations and their handle times"
+          }
+        ],
+        "joinSequence": "bot-aggregates (botId) \u2192 bot-sessions (botFlowId, link conversationId) \u2192 bot-turns (botFlowId) \u2192 escalated-conversation-details (conversationId from TRANSFERRED sessions)",
+        "diagnosticSignals": [
+          "containmentRate < 30%: bot is not resolving most requests \u2014 review top-failing intents in bot-turns",
+          "nBotTransferred high in specific intent: likely missing utterance training or broken data action",
+          "nFlowErrors spike: Architect flow failure, possibly data action timeout or flow logic error",
+          "tBotSessionDuration increasing: customers looping through intents \u2014 disambiguation failure",
+          "ABANDONED exit reason spike: IVR menu too long or customer frustration \u2014 UX redesign needed"
+        ],
+        "executiveMetrics": [
+          "botContainmentRate% (nBotHandled/nBotInteractions)",
+          "botEscalationRate%",
+          "nBotSessions",
+          "avgBotSessionDurationSecs",
+          "nFlowErrors",
+          "topEscalationIntents"
+        ]
+      },
+      "ai-assist-and-copilot-adoption": {
+        "description": "Agent Copilot (AI Assist) adoption and impact analysis \u2014 measures how much agents are using AI-generated suggestions, whether accepted suggestions correlate with better QM scores or shorter handle times, and which queues/teams lead or lag in AI adoption. Used by CX directors and technology leads to track AI ROI.",
+        "subjectParam": "divisionId or queueId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "copilot-aggregates",
+            "dataset": "analytics.query.agent.copilot.aggregates",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "nCopilotSuggestionsGenerated, nCopilotSuggestionsAccepted, nCopilotInteractions, adoptionRate",
+            "description": "Agent Copilot usage by queue \u2014 adoption rate = nCopilotSuggestionsAccepted / nCopilotSuggestionsGenerated"
+          },
+          {
+            "step": "ai-summary-aggregates",
+            "dataset": "analytics.query.ai.summary.aggregates",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nSummariesGenerated, nSummariesViewed, aiSummaryCoverage",
+            "description": "AI summary coverage \u2014 % of conversations with Copilot-generated summaries viewed by agents"
+          },
+          {
+            "step": "performance-aggregates",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "tHandle, tAcw, nConnected \u2014 baseline for correlation with AI adoption",
+            "description": "Handle time and ACW for the same queues \u2014 compare high-adoption vs. low-adoption queues for AHT difference"
+          },
+          {
+            "step": "evaluation-aggregates",
+            "dataset": "analytics.query.evaluation.aggregates",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "avgEvaluationScore, nCriticalItemFailed \u2014 quality correlation with AI adoption",
+            "description": "QM scores for the same queues \u2014 correlation of high Copilot adoption with higher evaluation scores"
+          },
+          {
+            "step": "conversation-ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "filterBy": "conversationId (sample from high/low adoption queues)",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary text, reasonForContact, resolution",
+            "description": "Sample Copilot summary quality \u2014 qualitative check on summary accuracy and usefulness"
+          }
+        ],
+        "joinSequence": "copilot-aggregates (queueId) \u2192 ai-summary-aggregates (queueId) \u2192 performance-aggregates (queueId) \u2192 evaluation-aggregates (queueId)",
+        "diagnosticSignals": [
+          "adoptionRate < 20% in a queue: agents not using suggestions \u2014 training gap or suggestion quality issue",
+          "nCopilotSuggestionsGenerated = 0 for a queue: Copilot not configured or not licensed for that queue",
+          "high adoptionRate but no AHT reduction: suggestions may be post-call rather than in-call",
+          "high adoptionRate with lower QM scores: investigate whether agents are blindly accepting suggestions"
+        ],
+        "executiveMetrics": [
+          "copilotAdoptionRate% by queue",
+          "nCopilotInteractions",
+          "aiSummaryCoverage%",
+          "ahtDeltaHighVsLowAdoptionQueues",
+          "avgEvaluationScore (high adoption vs. low adoption)"
+        ]
+      },
+      "quality-management-rollup": {
+        "description": "QM programme effectiveness rollup \u2014 evaluation coverage, score distribution, calibration status, survey response rates, and CSAT trends. Used by QM managers for monthly programme reviews and by directors for CX quality executive reporting.",
+        "subjectParam": "queueId list or divisionId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "evaluation-aggregates",
+            "dataset": "analytics.query.evaluation.aggregates",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "nEvaluations, avgEvaluationScore, nCriticalItemFailed, evaluationCoverage%",
+            "description": "QM aggregate metrics \u2014 fast rollup without iterating individual evaluations"
+          },
+          {
+            "step": "survey-aggregates",
+            "dataset": "analytics.query.survey.aggregates",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nSurveysSent, nSurveysCompleted, avgSurveyScore, surveyResponseRate",
+            "description": "CSAT/NPS aggregate by queue \u2014 response rate reveals survey delivery issues"
+          },
+          {
+            "step": "agents-qa-activity",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "agentUserId list",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore, highScore, lowScore per agent",
+            "description": "Per-agent QA summary \u2014 identify agents with zero evaluations (coverage gap) and score outliers"
+          },
+          {
+            "step": "published-eval-forms",
+            "dataset": "quality.get.published.evaluation.forms",
+            "joinKey": "formId",
+            "provides": "formName, criticalQuestions, pointsPossible",
+            "description": "Evaluation form catalogue \u2014 required to interpret scores and critical item failure context"
+          },
+          {
+            "step": "individual-evaluations-sample",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "queueId + critical failures",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId, calibrated",
+            "description": "Drill-down sample of critical failures \u2014 feeds calibration review and coaching triggers"
+          },
+          {
+            "step": "resolution-aggregates",
+            "dataset": "analytics.query.resolution.aggregates",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "nResolutions, nUnresolved, resolutionRate",
+            "description": "FCR alongside QM scores \u2014 resolution rate and QM score should move together; divergence signals scoring validity issue"
+          }
+        ],
+        "joinSequence": "evaluation-aggregates (queueId) \u2192 survey-aggregates (queueId) \u2192 agents-qa-activity (userId from queue members) \u2192 individual-evaluations-sample (conversationId, critical failures only)",
+        "diagnosticSignals": [
+          "evaluationCoverage < 5%: QM programme under-resourced or automated evaluation not enabled",
+          "avgEvaluationScore high but CSAT low: evaluation form not reflecting real customer experience",
+          "nCriticalItemFailed spike: compliance or escalation risk \u2014 immediate management review",
+          "surveyResponseRate < 5%: survey delivery misconfigured or wrong channel",
+          "resolutionRate diverges from QM score: agents closing interactions without resolving \u2014 coaching needed"
+        ],
+        "executiveMetrics": [
+          "evaluationCoverage% (nEvaluations/nConnected)",
+          "avgEvaluationScore",
+          "criticalFailureRate%",
+          "avgCSAT (avgSurveyScore)",
+          "surveyResponseRate%",
+          "resolutionRate%",
+          "agentsEvaluatedCount",
+          "agentsWithZeroEvaluations"
+        ]
+      },
+      "voice-engineer-triage": {
+        "description": "Acute voice infrastructure triage \u2014 combines real-time SIP trunk health, Edge appliance metrics, and per-conversation SIP traces to diagnose call setup failures, one-way audio, premature disconnections, and codec negotiation errors. Used by voice engineers responding to call quality incidents.",
+        "subjectParam": "conversationId (or edgeId for infrastructure-wide triage)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages with timestamps",
+            "description": "Raw SIP signalling \u2014 definitive source for call setup failure diagnosis"
+          },
+          {
+            "step": "conversation-analytics",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "tTalkComplete, tAbandon, tHeld, session-level detail",
+            "description": "Segment timing \u2014 tTalkComplete=0 with non-zero tAbandon confirms abandoned before agent answer"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "ANI, DNIS, originatingDirection, participants, externalTag",
+            "description": "Base conversation \u2014 DNIS confirms routing table entry; externalTag indicates BYOI path"
+          },
+          {
+            "step": "trunk-metrics",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "joinKey": "trunkId (derived from SIP trace From/To headers)",
+            "provides": "inService, activeCalls, errorCount, utilizationPct",
+            "description": "Trunk health snapshot \u2014 errors or high utilisation explain call setup failures at the trunk level"
+          },
+          {
+            "step": "edge-metrics",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "joinKey": "edgeId",
+            "provides": "cpuUtilisation, memoryUtilisation, activeCallCount",
+            "description": "Edge appliance health \u2014 CPU or memory pressure explains call quality degradation across all calls on that edge"
+          },
+          {
+            "step": "active-alerts",
+            "dataset": "alerting.get.alerts",
+            "joinKey": "entityId (edgeId or trunkId)",
+            "provides": "alertingRule, severity, startTime, metric",
+            "description": "Currently firing alerts \u2014 corroborate voice quality complaints with threshold breaches"
+          },
+          {
+            "step": "recording-check",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus",
+            "description": "Recording presence confirms call established media (no recording = call never connected or recording policy gap)"
+          }
+        ],
+        "joinSequence": "sip-trace (conversationId) \u2192 conversation-analytics (conversationId) \u2192 conversation-base (conversationId) \u2192 trunk-metrics (trunkId from SIP headers) \u2192 edge-metrics (edgeId from edge lookup)",
+        "voiceEngineerHighlights": [
+          "SIP 486 Busy Here: far-end trunk capacity exhausted \u2014 check trunk-metrics.activeCalls vs. capacity",
+          "SIP 503 Service Unavailable: trunk or edge offline \u2014 check alerting.get.alerts for edge/trunk alarms",
+          "SIP 487 Request Terminated: caller hung up during ring \u2014 confirm with conversation-analytics.tAbandon",
+          "No 200 OK after INVITE: check edge-metrics.cpuUtilisation \u2014 overloaded edge drops registrations",
+          "re-INVITE in SIP trace: hold/transfer event \u2014 correlate with conversation-analytics.tHeld",
+          "SDP IP mismatch in re-INVITE: one-way audio \u2014 NAT traversal failure, check edge STUN/TURN config",
+          "No recording despite policy: recording gap \u2014 check recording-check.archivalStatus and edge recording service"
+        ],
+        "executiveMetrics": [
+          "sipCallSetupFailureRate%",
+          "trunkUtilisationPct",
+          "edgeCpuPct",
+          "activeAlertCount",
+          "recordingCoverageGap%"
+        ]
+      },
+      "team-supervisor-dashboard": {
+        "description": "Real-time and historical supervisor dashboard for a team \u2014 combines live agent status, queue observations, conversation activity, adherence, and recent conversation performance. The go-to view for a supervisor managing a team across one or more queues.",
+        "subjectParam": "teamId or managementUnitId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "team-members",
+            "dataset": "teams.get.team.members",
+            "role": "seed",
+            "joinKey": "teamId",
+            "provides": "userId list, name, email",
+            "description": "Team membership \u2014 the definitive userId list for all subsequent member-scoped queries"
+          },
+          {
+            "step": "agent-status-live",
+            "dataset": "analytics.query.agents.status.query",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "presenceState, routingStatus, stateStartTime per agent",
+            "description": "Live agent status for every team member \u2014 who is available, on a call, in ACW, or off-queue"
+          },
+          {
+            "step": "queue-real-time",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "filterBy": "queueId list (from team member queue memberships)",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oOnQueueUsers, oAlerting per queue",
+            "description": "Live queue counters for all queues the team serves"
+          },
+          {
+            "step": "estimated-wait-time",
+            "dataset": "routing.get.queue.estimated.wait.time",
+            "filterBy": "queueId list",
+            "joinKey": "queueId",
+            "provides": "estimatedWaitTimeSeconds by mediaType",
+            "description": "Real-time EWT for each queue \u2014 supervisor action trigger if EWT exceeds SLA"
+          },
+          {
+            "step": "adherence",
+            "dataset": "workforce.get.adherence.bulk",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "adherenceState, impact, scheduledActivityCategory",
+            "description": "WFM schedule adherence \u2014 which team members are out of adherence right now"
+          },
+          {
+            "step": "performance-today",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list (today's window)",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per agent today",
+            "description": "Today's performance metrics per agent \u2014 quick productivity comparison across the team"
+          },
+          {
+            "step": "recent-conversations",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participantUserId list (last 2 hours)",
+            "joinKey": "userId",
+            "provides": "conversationId, queueId, wrapUpCode, tHandle \u2014 last 2 hours",
+            "description": "Recent conversation list \u2014 drilldown seed for supervisor to investigate a flagged interaction"
+          }
+        ],
+        "joinSequence": "team-members (teamId) \u2192 agent-status-live (userId) \u2192 adherence (userId) \u2192 performance-today (userId) \u2192 queue-real-time (queueId from member memberships) \u2192 estimated-wait-time (queueId)",
+        "diagnosticSignals": [
+          "oWaiting > team capacity: pull agents out of break or overtime approval needed",
+          "EWT > SLA target: queue understaffed \u2014 move agents from lower-priority queues",
+          "adherence OUT_OF_ADHERENCE for >30% of team: schedule deviation \u2014 supervisor coaching needed",
+          "single agent tHandle 3x team average: skill gap or difficult call type \u2014 QM review"
+        ],
+        "executiveMetrics": [
+          "teamHandledVolume",
+          "teamAvgHandleTime",
+          "teamAdherencePct",
+          "queueServiceLevelPct",
+          "agentsOnQueue vs. oWaiting ratio"
+        ]
+      },
+      "executive-kpi-rollup": {
+        "description": "Comprehensive executive KPI rollup across all contact centre dimensions \u2014 volume and efficiency, service quality, workforce productivity, AI and automation adoption, and infrastructure health. Designed for weekly/monthly executive reviews. Not a data dump: each layer answers one executive question and surfaces 2\u20133 headline numbers.",
+        "subjectParam": "orgWide (or divisionId for business-unit view)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "queue-list",
+            "dataset": "routing-queues",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "production queue IDs filtered by active=true",
+            "description": "Queue catalogue \u2014 filter to active production queues to exclude test/training queues from all aggregates"
+          },
+          {
+            "step": "volume-and-efficiency",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "nOffered, nConnected, tHandle, tTalk, tAcw per queue per day",
+            "description": "Layer 1: Volume and efficiency \u2014 total handled, AHT, and channel mix"
+          },
+          {
+            "step": "abandon-metrics",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "nAbandoned, tAbandon, nOffered \u2014 abandon rate = nAbandoned/nOffered",
+            "description": "Layer 1: Abandon rate \u2014 key customer experience leading indicator"
+          },
+          {
+            "step": "service-level",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "oServiceLevel, nOverSla, nAnsweredIn20/30/60 per queue per day",
+            "description": "Layer 2: SLA achievement \u2014 % of queues meeting target; daily heatmap by queue"
+          },
+          {
+            "step": "transfer-rate",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "nTransferred, nBlindTransferred \u2014 transfer rate = nTransferred/nConnected",
+            "description": "Layer 2: Transfer rate \u2014 high blind transfers signal routing or agent skill issues"
+          },
+          {
+            "step": "digital-channel-mix",
+            "dataset": "analytics.query.conversation.aggregates.digital.channels",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "mediaType",
+            "provides": "nOffered, nConnected by voice/chat/email/message",
+            "description": "Layer 2: Channel mix \u2014 digital shift % and channel-specific volume trends"
+          },
+          {
+            "step": "bot-containment",
+            "dataset": "analytics.query.bot.aggregates",
+            "filterBy": "all botIds, daily granularity",
+            "joinKey": "botId",
+            "provides": "nBotHandled, nBotTransferred, botContainmentRate",
+            "description": "Layer 3: Automation \u2014 self-service deflection rate; reduces agent-handled volume denominator"
+          },
+          {
+            "step": "copilot-adoption",
+            "dataset": "analytics.query.agent.copilot.aggregates",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "nCopilotSuggestionsAccepted, adoptionRate",
+            "description": "Layer 3: AI assist adoption \u2014 AI investment utilisation metric for executive scorecard"
+          },
+          {
+            "step": "resolution-rate",
+            "dataset": "analytics.query.resolution.aggregates",
+            "filterBy": "all active queueIds, daily granularity",
+            "joinKey": "queueId",
+            "provides": "resolutionRate, nResolutions, nUnresolved",
+            "description": "Layer 3: First-contact resolution \u2014 direct measure of customer outcome quality"
+          },
+          {
+            "step": "workforce-utilisation",
+            "dataset": "analytics.query.user.aggregates.login.activity",
+            "filterBy": "all agentUserIds, daily granularity",
+            "joinKey": "userId",
+            "provides": "tAgentRoutingStatus (available, busy, on-queue) per agent per day",
+            "description": "Layer 4: Workforce \u2014 on-queue utilisation % and productive time per agent"
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "all agentUserIds, daily granularity",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle per agent \u2014 productivity distribution",
+            "description": "Layer 4: Productivity \u2014 distribution of handled volume and AHT across agents"
+          },
+          {
+            "step": "evaluation-rollup",
+            "dataset": "analytics.query.evaluation.aggregates",
+            "filterBy": "all active queueIds, monthly granularity",
+            "joinKey": "queueId",
+            "provides": "avgEvaluationScore, evaluationCoverage%, nCriticalItemFailed",
+            "description": "Layer 5: Quality \u2014 QM score and coverage as programme health indicators"
+          },
+          {
+            "step": "survey-rollup",
+            "dataset": "analytics.query.survey.aggregates",
+            "filterBy": "all active queueIds, monthly granularity",
+            "joinKey": "queueId",
+            "provides": "avgSurveyScore (CSAT/NPS), surveyResponseRate",
+            "description": "Layer 5: Voice-of-customer \u2014 CSAT/NPS by queue with response rate for data-quality flag"
+          },
+          {
+            "step": "sta-coverage",
+            "dataset": "analytics.post.transcripts.aggregates.query",
+            "filterBy": "all active queueIds, monthly granularity",
+            "joinKey": "queueId",
+            "provides": "nSpeechTextAnalyzedConversations, oSentimentScore",
+            "description": "Layer 5: Speech analytics \u2014 % of conversations analysed; aggregate sentiment as early CX warning signal"
+          },
+          {
+            "step": "infrastructure-health",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "joinKey": "trunkId",
+            "provides": "inService, activeCalls, errorCount for voice trunks",
+            "description": "Layer 6 (optional, voice): SIP trunk status \u2014 any trunk errors during the period are noted in executive summary"
+          },
+          {
+            "step": "alerts-summary",
+            "dataset": "alerting.get.alerts",
+            "joinKey": "entityId",
+            "provides": "firing alerts during the window \u2014 count by severity",
+            "description": "Layer 6 (optional): Active alerts \u2014 infrastructure incidents during the reporting period"
+          }
+        ],
+        "joinSequence": "queue-list (id) \u2192 [volume, abandon, sla, transfer, channel-mix] (queueId) \u2192 [bot-containment, copilot, resolution] (queueId/botId) \u2192 [workforce, agent-performance] (userId) \u2192 [evaluation, survey, sta] (queueId)",
+        "computedHeadlineMetrics": {
+          "totalHandled": "SUM(nConnected) across all queues",
+          "abandonRate%": "SUM(nAbandoned) / SUM(nOffered) \u00d7 100",
+          "avgHandleTime": "WAVG(tHandle, nConnected) across all queues",
+          "slaAchievement%": "queues meeting oServiceLevel target / total queues \u00d7 100",
+          "transferRate%": "SUM(nTransferred) / SUM(nConnected) \u00d7 100",
+          "botContainmentRate%": "SUM(nBotHandled) / SUM(nBotInteractions) \u00d7 100",
+          "copilotAdoptionRate%": "SUM(nCopilotSuggestionsAccepted) / SUM(nCopilotSuggestionsGenerated) \u00d7 100",
+          "firstContactResolutionRate%": "SUM(nResolutions) / SUM(nConnected) \u00d7 100",
+          "onQueueUtilisation%": "AVG(tAgentRoutingStatus.INTERACTING / tTotal) \u00d7 100",
+          "qmCoverage%": "SUM(nEvaluations) / SUM(nConnected) \u00d7 100",
+          "avgQmScore": "WAVG(avgEvaluationScore, nEvaluations)",
+          "avgCSAT": "WAVG(avgSurveyScore, nSurveysCompleted)",
+          "staCoverage%": "SUM(nSpeechTextAnalyzedConversations) / SUM(nConnected) \u00d7 100",
+          "sentimentIndex": "AVG(oSentimentScore) across all STA-analysed conversations"
+        },
+        "executiveMetrics": [
+          "totalHandled",
+          "abandonRate%",
+          "avgHandleTime",
+          "slaAchievement%",
+          "transferRate%",
+          "botContainmentRate%",
+          "copilotAdoptionRate%",
+          "firstContactResolutionRate%",
+          "onQueueUtilisation%",
+          "qmCoverage%",
+          "avgQmScore",
+          "avgCSAT",
+          "staCoverage%",
+          "sentimentIndex"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40412,6 +41308,86 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      }
+    },
+    "executiveRollups": {
+      "_description": "Pre-composed metric computations for executive reporting pipelines. Each rollup names the datasets, the aggregation logic, and the headline metric it produces. Rollups are consumed by MonthlyMetrics app and executive dashboard applications.",
+      "contact-centre-weekly-kpi": {
+        "description": "Weekly contact centre KPI pack \u2014 14 headline metrics across volume, quality, workforce, and automation dimensions. Designed for VP/Director weekly review.",
+        "reportingWindow": "7 days, daily granularity",
+        "layers": {
+          "volume-efficiency": [
+            "analytics.query.conversation.aggregates.queue.performance",
+            "analytics.query.conversation.aggregates.abandon.metrics",
+            "analytics.query.conversation.aggregates.digital.channels"
+          ],
+          "service-quality": [
+            "analytics.query.queue.aggregates.service.level",
+            "analytics.query.conversation.aggregates.transfer.metrics"
+          ],
+          "automation": [
+            "analytics.query.bot.aggregates",
+            "analytics.query.agent.copilot.aggregates",
+            "analytics.query.resolution.aggregates"
+          ],
+          "workforce": [
+            "analytics.query.user.aggregates.login.activity",
+            "analytics.query.conversation.aggregates.agent.performance"
+          ],
+          "cx-quality": [
+            "analytics.query.evaluation.aggregates",
+            "analytics.query.survey.aggregates",
+            "analytics.post.transcripts.aggregates.query"
+          ]
+        },
+        "headlineMetrics": [
+          "totalHandled",
+          "abandonRate%",
+          "avgHandleTime",
+          "slaAchievement%",
+          "botContainmentRate%",
+          "copilotAdoptionRate%",
+          "firstContactResolutionRate%",
+          "onQueueUtilisation%",
+          "avgQmScore",
+          "avgCSAT"
+        ]
+      },
+      "division-monthly-scorecard": {
+        "description": "Monthly division scorecard \u2014 volume, quality, and agent performance rolled up by divisionId. Used for business-unit accountability reviews.",
+        "reportingWindow": "28 days, daily granularity",
+        "layers": {
+          "division-scope": [
+            "authorization.search.division.objects",
+            "users.division.analysis.get.users.with.division.info"
+          ],
+          "conversation-volume": [
+            "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8"
+          ],
+          "per-queue": [
+            "analytics.query.conversation.aggregates.queue.performance",
+            "analytics.query.queue.aggregates.service.level",
+            "analytics.query.conversation.aggregates.abandon.metrics"
+          ],
+          "per-agent": [
+            "analytics.query.conversation.aggregates.agent.performance",
+            "analytics.query.user.aggregates.login.activity"
+          ],
+          "quality": [
+            "analytics.query.evaluation.aggregates",
+            "analytics.query.survey.aggregates"
+          ]
+        },
+        "headlineMetrics": [
+          "nOffered (division total)",
+          "nConnected",
+          "tHandle (division avg)",
+          "serviceLevelPct (weighted)",
+          "abandonRate%",
+          "evalAvgScore",
+          "agentCount",
+          "queueCount"
         ]
       }
     }

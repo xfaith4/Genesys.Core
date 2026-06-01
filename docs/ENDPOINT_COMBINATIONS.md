@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-01  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [New Datasets Added — Evaluation](#11-new-datasets-added)
 
 ---
 
@@ -46,11 +47,15 @@ when the API is exhausted.
 | 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
 | 5 | `conversations.search.participant.attributes` | `conversationId` | Participant-level attributes (IVR variables, data action outcomes, flow-set values) |
 | 6 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores, form used, evaluator, calibration status |
-| 7 | `quality.get.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
+| 6b *(QA drilldown)* | `quality.get.conversation.evaluation.detail` | `evaluationId` | Full question-level scores and evaluator comments — run per evaluationId from step 6 |
+| 7 | `conversations.get.conversation.surveys` | `conversationId` | Post-call CSAT/NPS survey attached to this conversation (per-conversation endpoint, more precise than the general surveys query) |
 | 8 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace: INVITE, 200 OK, BYE, re-INVITE, codec negotiation |
+| 8b *(voice only)* | `telephony.get.sip.trace.metadata` | `conversationId` | Trunk-side SIP metadata — carrier, originating IP, call-leg IDs for correlating with carrier traces |
+| 8c *(voice only, ≤21 days)* | `telephony.post.sip.trace.pcap.download` | call window | Signed S3 URL for PCAP — open in Wireshark for codec, DTMF, RTP, and one-way-audio analysis |
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
 | 11 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
+| 12 *(compliance/discovery)* | `analytics.post.conversations.transcripts.search` | query body | Cross-conversation transcript phrase search — use to find other conversations matching the same issue |
 
 ### Key Joins
 
@@ -83,6 +88,10 @@ Step 8 (SIP trace) is the definitive source for:
 - One-way audio (media IP mismatch in SDP)
 - Premature disconnection (BYE before expected, no 200 OK to BYE)
 - Codec negotiation failures
+
+**PCAP evidence chain (steps 8b → 8c):**
+1. `telephony.get.sip.trace.metadata` — use the `conversationId` or a time window to retrieve the SIP trace header record. This returns the call-leg IDs, trunk, and carrier needed to request the PCAP.
+2. `telephony.post.sip.trace.pcap.download` — submit the time-window download request. The response contains a signed S3 URL valid for download. PCAPs are retained for 21 days; calls older than that cannot be captured. The resulting `.pcap` file should be included in any conversation investigation package for handoff to carriers or network teams.
 
 The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/providers/edges/{edgeId}/metrics`)
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
@@ -244,10 +253,19 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
-| `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
+| `analytics.post.evaluations.aggregates.query` | `queueId`, `userId`, `formId`, daily | QA aggregate scores — avg, min, max, critical-failure rate per question group |
+| `analytics.post.surveys.aggregates.query` | `queueId`, `userId`, daily | CSAT/NPS: nSurveysSent, nSurveysCompleted, score distribution |
 | `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
 
-#### Layer 5 — Infrastructure Health (optional, voice-focused)
+#### Layer 5 — AI & Self-Service (optional, licence-gated)
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.post.agentcopilots.aggregates.query` | `queueId`, `userId`, daily | AI Copilot suggestion count, acceptance rate — tracks AI ROI |
+| `analytics.post.knowledge.aggregates.query` | `queueId`, `flowId`, daily | Knowledge article surfaced count — self-service deflection signal |
+| `analytics.query.flow.aggregates.execution.metrics` | `flowId`, daily | IVR/bot containment: nFlow, nFlowOutcome, containment rate |
+| `analytics.post.journeys.aggregates.query` | `channel`, daily | Omnichannel touchpoint volumes and session outcomes |
+
+#### Layer 6 — Infrastructure Health (optional, voice-focused)
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `telephony.get.trunk.metrics.summary` | — | SIP trunk utilisation, errors |
@@ -267,8 +285,10 @@ Headline metrics (computed, not raw):
   - SLA achievement: queues meeting target / total queues × 100
   - Transfer rate: SUM(nTransferred) / SUM(nConnected) × 100
   - QM coverage: evaluations / nConnected × 100
-  - Average QM score: from quality.get.agents.activity
-  - Avg CSAT: from quality.get.surveys
+  - Average QM score: from analytics.post.evaluations.aggregates.query (avg by queueId)
+  - Avg CSAT: from analytics.post.surveys.aggregates.query (score distribution by queueId)
+  - AI copilot acceptance rate: from analytics.post.agentcopilots.aggregates.query
+  - IVR containment rate: from analytics.query.flow.aggregates.execution.metrics
 
 Trend views (daily granularity):
   - Volume by day with channel mix
@@ -389,10 +409,14 @@ datasets enrich the investigation without replacing any existing step.
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
+| adherence | `workforce.get.adherence.multi.user` | `userId` | Scheduled vs actual state — impact minutes and exception type (faster than per-MU adherence) |
+| voicemail | `voicemail.get.user.messages` | `userId` | Personal voicemail messages — unhandled callbacks during absences or unavailability gaps |
+| scorecards | `gamification.get.agent.scorecards` | `userId` | Gamification KPI scorecard for current period — contextualises performance relative to peers |
+| learning | `learning.post.assignments.aggregates` | `userId` | Training completion rates and assessment scores — closes the coaching-to-outcome loop |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
-agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+agent being in an active state at investigation time. `coaching`, `adherence`, `scorecards`, and
+`learning` steps are conditional on WFM / gamification being licensed and configured.
 
 ---
 
@@ -428,6 +452,9 @@ complete the picture.
 | transfers | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer rate and type breakdown |
 | wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup code frequencies (join wrapupLabels for labels) |
 | conversationDetail | `analytics-conversation-details-query` (queueId filter) | `conversationId` | Individual conversations for case-level review |
+| evaluationScores | `analytics.post.evaluations.aggregates.query` | `queueId` | Average QA score, critical-failure count, and form breakdown for the queue |
+| csatScores | `analytics.post.surveys.aggregates.query` | `queueId` | CSAT/NPS completion rate and score distribution for the queue |
+| voicemail | `voicemail.get.queue.messages` | `queueId` | Unread voicemails waiting — surfaces unhandled callbacks and aged SLA exposure |
 
 ---
 
@@ -484,6 +511,112 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `telephony.get.sip.trace.metadata` | ○ | | | | | |
+| `telephony.post.sip.trace.pcap.download` | ○ | | | | | |
+| `conversations.get.conversation.surveys` | ● | | | | | |
+| `quality.get.conversation.evaluation.detail` | ○ | | | | | |
+| `analytics.post.evaluations.aggregates.query` | | ○ | ● | ● | | ○ |
+| `analytics.post.surveys.aggregates.query` | | ○ | ● | ● | | |
+| `analytics.post.conversations.transcripts.search` | ○ | | | | | |
+| `analytics.post.knowledge.aggregates.query` | | | | ○ | | |
+| `analytics.post.agentcopilots.aggregates.query` | | | | ○ | | |
+| `analytics.post.journeys.aggregates.query` | | | | ○ | | |
+| `recording.post.batch.download.request` | ○ | | | | | |
+| `recording.get.bulk.jobs.status` | ○ | | | | | |
+| `workforce.get.adherence.multi.user` | | | | | | ○ |
+| `gamification.get.leaderboard` | | | ○ | ○ | | |
+| `gamification.get.agent.scorecards` | | | | | | ○ |
+| `learning.post.assignments.aggregates` | | | | ○ | | ○ |
+| `voicemail.get.queue.messages` | | ○ | | | ○ | |
+| `voicemail.get.user.messages` | | | | | | ○ |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
+| `quality.get.calibrations` | | | | ○ | | |
+
+---
+
+## 11. New Datasets Added
+
+The following 20 datasets were added to `catalog/genesys.catalog.json` following the evaluation
+against the full Genesys Cloud Swagger spec (2026-06-01). All are marked `validationStatus: unvalidated`
+pending live-API acceptance testing.
+
+### Telephony / SIP (voice engineer)
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `telephony.get.sip.trace.metadata` | `GET /api/v2/telephony/siptraces` | Trunk-side SIP metadata — call-leg IDs, carrier, originating IP, and disposition codes for the requested time window |
+| `telephony.post.sip.trace.pcap.download` | `POST /api/v2/telephony/siptraces/download` | Signed S3 URL for a PCAP file. 21-day retention window. Required permission: `telephony:pcap:add` |
+
+**Join pattern:** `telephony.get.sip.messages.for.conversation` → `telephony.get.sip.trace.metadata` (match by time window / call leg) → `telephony.post.sip.trace.pcap.download` (submit request).
+
+### Quality — Per-Conversation Enrichment
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `conversations.get.conversation.surveys` | `GET /api/v2/quality/conversations/{conversationId}/surveys` | Post-call surveys for a single conversation. More precise than the general `quality.get.surveys` endpoint when `conversationId` is known |
+| `quality.get.conversation.evaluation.detail` | `GET /api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}` | Full question-level scores, answers, and evaluator comments for a single evaluation. Drilldown from `quality.get.evaluations.query` |
+
+### Quality — Analytics Aggregates (executive / QA program)
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `analytics.post.evaluations.aggregates.query` | `POST /api/v2/analytics/evaluations/aggregates/query` | Score aggregates (avg, min, max, critical failures) grouped by `queueId`, `userId`, or `evaluationFormId`. Supports version-based form breakdowns |
+| `analytics.post.surveys.aggregates.query` | `POST /api/v2/analytics/surveys/aggregates/query` | Survey volume and score aggregates: `nSurveysSent`, `nSurveysCompleted`, score distribution, grouped by queue or agent |
+| `quality.get.calibrations` | `GET /api/v2/quality/calibrations` | Calibration session list — multi-evaluator sessions for QA programme alignment |
+
+### Transcript Discovery
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `analytics.post.conversations.transcripts.search` | `POST /api/v2/analytics/conversations/transcripts/query` | Full-text transcript search returning conversations that contain a specific phrase, keyword, or topic. Returns conversation IDs and segments for fan-out to conversation investigation |
+
+### AI / Self-Service Analytics
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `analytics.post.knowledge.aggregates.query` | `POST /api/v2/analytics/knowledge/aggregates/query` | Knowledge article usage: `nKnowledgeDocumentQueried`, `nKnowledgeDocumentSurfaced`. Measures self-service deflection by article or queue |
+| `analytics.post.agentcopilots.aggregates.query` | `POST /api/v2/analytics/agentcopilots/aggregates/query` | Agent Copilot AI assist: suggestion count, acceptance rate, and response-improvement metrics by agent and queue |
+| `analytics.post.journeys.aggregates.query` | `POST /api/v2/analytics/journeys/aggregates/query` | Customer journey aggregate: touchpoint volumes, session durations, outcome rates across web, digital, and voice channels |
+
+### Recording — Bulk Export
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `recording.post.batch.download.request` | `POST /api/v2/recording/batchrequests` | Submit a batch download job for up to 500 recordings. Returns a batch job ID. Use in investigation packages and compliance exports |
+| `recording.get.bulk.jobs.status` | `GET /api/v2/recording/jobs` | Status of all bulk recording export jobs. Poll to recover signed S3 download URLs when jobs fulfil |
+
+**Batch download pattern:** `conversations.get.conversation.recording.metadata` (get recording IDs) → `recording.post.batch.download.request` (submit batch job) → `recording.get.bulk.jobs.status` (poll for signed URLs).
+
+### Workforce Management
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `workforce.get.adherence.multi.user` | `GET /api/v2/workforcemanagement/adherence` | Scheduled vs actual state for up to 25 users. Faster than per-management-unit adherence for targeted agent checks in investigations |
+
+### Gamification & Learning
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `gamification.get.leaderboard` | `GET /api/v2/gamification/leaderboard` | Division/profile performance leaderboard for the current gamification period |
+| `gamification.get.agent.scorecards` | `GET /api/v2/gamification/scorecards` | Requesting agent's KPI scorecard with workday metrics and trend data |
+| `learning.post.assignments.aggregates` | `POST /api/v2/learning/assignments/aggregates/query` | Training module completion rates and assessment scores grouped by user or module |
+
+**Development loop:** `coaching.get.appointments` (coaching sessions) → `learning.post.assignments.aggregates` (training completion) → `analytics.post.evaluations.aggregates.query` (score change after coaching).
+
+### Voicemail
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `voicemail.get.queue.messages` | `GET /api/v2/voicemail/queues/{queueId}/messages` | Voicemail messages in a routing queue inbox — caller ID, duration, age, and read status |
+| `voicemail.get.user.messages` | `GET /api/v2/voicemail/users/{userId}/messages` | Agent's personal voicemail inbox — caller ID, duration, forwarding chain |
+
+### External Contacts / Customer Journey
+
+| Dataset Key | API Path | What It Provides |
+|---|---|---|
+| `externalcontacts.get.contact.journey.sessions` | `GET /api/v2/externalcontacts/contacts/{contactId}/journey/sessions` | All journey sessions for a known external contact — cross-channel touchpoints, outcomes, and session durations |
+
+**Cross-channel escalation pattern:** `conversations.get.conversation.object` (get `externalContactId`) → `externalcontacts.get.contact.journey.sessions` (full omnichannel history) → `analytics-conversation-details-query` (filtered by `externalContactId`) (all conversations across all channels).
 
 ---
 
@@ -508,6 +641,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nSurveysSent` | Surveys sent to customers | Survey outreach volume |
+| `nSurveysCompleted` | Surveys completed by customers | Response rate numerator |
+| `nKnowledgeDocumentQueried` | Knowledge article searches | Self-service intent volume |
+| `nKnowledgeDocumentSurfaced` | Articles surfaced to agents | Agent assist coverage |
 
 ---
 

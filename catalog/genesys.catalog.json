@@ -1297,6 +1297,265 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.trace.metadata": {
+      "description": "SIP trace metadata for a time window — call-leg identifiers, trunk, carrier, originating IP, and disposition codes. Pre-query step before requesting PCAP download; also used standalone to correlate trunk-side failures with conversation IDs.",
+      "endpoint": "getTelephonySiptraces",
+      "itemsPath": "$.data",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-sip",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.post.sip.trace.pcap.download": {
+      "description": "Request a PCAP file download to S3 for SIP signaling evidence — call must be within 21-day retention window. Returns a signed S3 download URL. Voice engineer must-have for protocol-level call-setup and media-negotiation analysis.",
+      "endpoint": "postTelephonySiptracesDownload",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-sip",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.surveys": {
+      "description": "Post-call customer surveys attached to a single conversation — CSAT/NPS scores, survey form identity, agent, and queue context. Closes the QA loop for conversation investigations.",
+      "endpoint": "getQualityConversationSurveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.evaluation.detail": {
+      "description": "Full detail for a single quality evaluation — all question scores, answers, calibration status, evaluator identity, and agent/evaluator comments. Drill-down step from quality.get.evaluations.query when investigating a specific score.",
+      "endpoint": "getQualityConversationEvaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.evaluations.aggregates.query": {
+      "description": "Evaluation score aggregates — average, min, max scores grouped by queue, agent, or form. Supports critical score breakdowns per question group. Key dataset for QA compliance rollups, form effectiveness analysis, and agent performance scorecards.",
+      "endpoint": "postAnalyticsEvaluationsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.surveys.aggregates.query": {
+      "description": "Survey and CSAT aggregates — nSurveysSent, nSurveysCompleted, score distributions grouped by queue, agent, or survey form. Primary dataset for executive CSAT and NPS trend reporting and QA outcome correlation.",
+      "endpoint": "postAnalyticsSurveysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.conversations.transcripts.search": {
+      "description": "Full-text transcript search across conversations — returns conversations matching a topic, phrase, or keyword criteria from STT transcription. Use for targeted conversation discovery in compliance audits, complaint investigations, and script-adherence checks.",
+      "endpoint": "postAnalyticsConversationsTranscriptsQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.knowledge.aggregates.query": {
+      "description": "Knowledge base article usage aggregates — nKnowledgeDocumentQueried, nKnowledgeDocumentSurfaced, and search query counts by agent or queue. Use for self-service deflection analysis and agent assist adoption reporting.",
+      "endpoint": "postAnalyticsKnowledgeAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.agentcopilots.aggregates.query": {
+      "description": "Agent Copilot AI-assist aggregates — suggestion counts, acceptance rates, and response-time improvement metrics. Tracks AI-assist adoption impact across agents and queues; pairs with quality evaluations to measure AI effect on scores.",
+      "endpoint": "postAnalyticsAgentcopilotsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.journeys.aggregates.query": {
+      "description": "Customer journey aggregate metrics — touchpoint volumes, session durations, and outcome rates across web, digital, and voice channels. Used for omnichannel executive reporting and proactive engagement ROI measurement.",
+      "endpoint": "postAnalyticsJourneysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "recording.post.batch.download.request": {
+      "description": "Submit a bulk recording download job for up to 500 recordings — returns a batch job ID for polling. Use in conversation investigation packages and compliance export workflows where multiple recordings must be retrieved in original codec/format.",
+      "endpoint": "postRecordingBatchrequests",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "recording.get.bulk.jobs.status": {
+      "description": "Status of all bulk recording export jobs for the organisation — use to poll batch download completion and recover signed S3 download URLs when jobs fulfill. Pairs with recording.post.batch.download.request.",
+      "endpoint": "getRecordingJobs",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.multi.user": {
+      "description": "Schedule adherence snapshot for a specified list of users — scheduled vs. actual state, impact minutes, and exception type. Accepts up to 25 user IDs per call. Faster than per-management-unit adherence for targeted agent roster checks in agent investigations.",
+      "endpoint": "getWorkforcemanagementAdherence",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-activity",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.leaderboard": {
+      "description": "Performance leaderboard for the requesting user's division or performance profile — ranked agent list with total points and metric scores for the current gamification period. Use in agent development dashboards and division-level performance reviews.",
+      "endpoint": "getGamificationLeaderboard",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.agent.scorecards": {
+      "description": "Gamification performance scorecard for a specific agent — workday KPI scores, trend data, and metric breakdowns for the current performance period. Pairs with quality evaluation and adherence data to build a complete agent development picture.",
+      "endpoint": "getGamificationScorecards",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "learning.post.assignments.aggregates": {
+      "description": "Learning module assignment aggregates — completion rates, assessment scores, and time-to-complete grouped by user or learning module. Use in agent development and coaching effectiveness reporting; join against coaching.get.appointments for closed-loop training evidence.",
+      "endpoint": "postLearningAssignmentsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "voicemail.get.queue.messages": {
+      "description": "Voicemail messages waiting in a routing queue — caller ID, duration, creation time, and read/unread status. Surfaces unhandled callbacks and SLA breach risk from aged unread voicemails; use in queue investigations and real-time ops monitoring.",
+      "endpoint": "getVoicemailQueueMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "voicemail.get.user.messages": {
+      "description": "Voicemail messages in an agent's personal voicemail inbox — caller ID, duration, creation time, and forwarding chain. Use when investigating agent availability gaps or unexplained missed-call patterns.",
+      "endpoint": "getVoicemailUserMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "All journey sessions for a known external contact — cross-channel touchpoints, web sessions, outcomes, and durations. Connects a contact-level identity to their full omnichannel history; use when a customer escalation spans multiple conversations across different channels.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "Quality calibration sessions — multi-evaluator scoring sessions used to align QA consistency across the team. Includes calibration ID, conversation, calibrator identity, expert evaluator, and scores. Use in QA program health reviews.",
+      "endpoint": "getQualityCalibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

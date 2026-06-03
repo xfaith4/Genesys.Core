@@ -1297,6 +1297,214 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "WFM management unit for a single agent \u2014 returns managementUnitId and businessUnitId required to retrieve schedule and adherence data in agent investigations.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence snapshot for multiple agents \u2014 current adherence state, scheduled activity category, and out-of-adherence duration. Filter by managementUnitId or userId list.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Real-time estimated wait time for a queue by media type \u2014 caller wait forecast in seconds. Use as threshold signal for supervisor intervention and wall-board EWT display.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup data for a specific participant in a conversation \u2014 the wrapup code applied, free-text notes, and time elapsed. Complements aggregate wrapup distribution with per-conversation resolution detail.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated conversation summaries from Agent Copilot \u2014 resolution summary, follow-up actions, and topic classification. Conditional on Agent Copilot feature enablement.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Call participant and session detail for a voice conversation \u2014 participants, ANI/DNIS, recording state, and holds. Use alongside analytics-detail for full call-object enrichment in single-call forensics.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "STA topic categories detected in a single conversation \u2014 named categories from the organisation category configuration with match confidence scores. Join to speechandtextanalytics.get.topics for label resolution.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "STA-generated conversation summary \u2014 detected phrases, topic outcomes, and follow-up items for a single conversation. Distinct from Agent Copilot summary; this is the NLP-derived STA summary.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "All subjects (users, roles) granted access to a specific division \u2014 enumerates who has management authority over division resources. Enriches division investigation with access-control context.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Single external contact record from the External Contacts CRM \u2014 name, phone, organisation, and external identifiers. Use to resolve externalContactId from conversation participants to CRM records in BYOI and CRM-integrated investigations.",
+      "endpoint": "externalcontacts.get.contact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-pii",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.search.contacts": {
+      "description": "Bulk external contact search by name, phone number, or external identifier \u2014 resolves participant identifiers from conversation objects to CRM contact records when only display name or phone is known.",
+      "endpoint": "externalcontacts.search.contacts",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-pii",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot and virtual agent aggregate metrics \u2014 nBotSessions, nBotHandled, nBotEscalated, tBotSession by flow and queue. Primary dataset for self-service containment analysis and bot performance executive reporting.",
+      "endpoint": "analytics.query.bot.aggregates",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.by.division": {
+      "description": "Conversation aggregates grouped by divisionId \u2014 nConnected, tHandle, nOffered, nAbandoned for cross-queue division-scope rollup. Same aggregates endpoint parameterised with divisionId in groupBy.",
+      "endpoint": "analytics.query.conversation.aggregates.by.division",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.evaluation.form.detail": {
+      "description": "Full evaluation form definition \u2014 all questions, answer categories, weights, and critical-item flags. Join to quality.get.evaluations.query on formId to decode which questions drove pass/fail outcomes.",
+      "endpoint": "quality.get.evaluation.form.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-call survey results filtered by conversationId \u2014 retrieve the customer satisfaction response for a specific conversation. Filter variant of quality.get.surveys parameterised with conversationId.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "learning.get.modules": {
+      "description": "Learning module catalog for the organisation \u2014 all defined training, compliance, and coaching modules with publication status and assignment counts. Reference dataset for agent development investigation.",
+      "endpoint": "learning.get.modules",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "learning.get.user.assignments": {
+      "description": "Learning module assignments for a specific user \u2014 assigned modules, completion status, scores, and due dates. Join to learning.get.modules on moduleId for label resolution. Enriches agent development investigation.",
+      "endpoint": "learning.get.user.assignments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1564,6 +1772,21 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "external-contact-pii": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts datasets. Removes phone numbers, email addresses, and physical address fields while preserving contactId and name for investigation joins.",
+        "removeFields": [
+          "phoneNumber",
+          "cellPhoneNumber",
+          "workPhone",
+          "homePhone",
+          "emailAddress",
+          "workEmail",
+          "homeEmail",
+          "address",
+          "address2"
         ]
       }
     }
@@ -39181,80 +39404,64 @@
     "conversations.get.conversation.summaries": {
       "method": "GET",
       "path": "/api/v2/conversations/{conversationId}/summaries",
-      "itemsPath": "$",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getConversationSummaries",
-      "tags": [
-        "Conversations"
-      ],
-      "summary": "AI-generated summaries for a conversation (Copilot/Einstein summary per communication leg).",
-      "defaultQueryParams": {
-        "conversationId": "conversation-id-goes-here"
-      }
+      "itemsPath": "$.entities",
+      "notes": [
+        "AI-generated conversation summaries from Agent Copilot",
+        "group: Conversations"
+      ]
     },
     "conversations.get.conversation.participant.wrapup": {
       "method": "GET",
       "path": "/api/v2/conversations/{conversationId}/participants/{participantId}/wrapup",
-      "itemsPath": "$",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getConversationParticipantWrapup",
-      "tags": [
-        "Conversations"
-      ],
-      "summary": "Get the wrapup code selected by a specific participant in a conversation.",
-      "defaultQueryParams": {
-        "conversationId": "conversation-id-goes-here",
-        "participantId": "participant-id-goes-here",
-        "provisional": "false"
-      }
+      "itemsPath": "$",
+      "notes": [
+        "Wrapup data for a specific conversation participant",
+        "group: Conversations"
+      ]
     },
     "conversations.get.call.detail": {
       "method": "GET",
-      "path": "/api/v2/conversations/calls/{conversationId}",
-      "itemsPath": "$",
+      "path": "/api/v2/conversations/calls/{callId}",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getConversationsCall",
-      "tags": [
-        "Conversations"
-      ],
-      "summary": "Full call conversation detail \u2014 participants, recordings, ANI/DNIS, call legs, and hold events.",
-      "defaultQueryParams": {
-        "conversationId": "conversation-id-goes-here"
-      }
+      "itemsPath": "$",
+      "notes": [
+        "Call participant and session detail for a voice conversation",
+        "group: Conversations"
+      ]
     },
     "speechandtextanalytics.get.conversation.categories": {
       "method": "GET",
       "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/categories",
-      "itemsPath": "$.entities",
       "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
-      "operationId": "getSpeechandtextanalyticsConversationCategories",
-      "tags": [
-        "Speech and Text Analytics"
-      ],
-      "summary": "Topic and category classifications applied to a conversation by the S&TA engine.",
+      "itemsPath": "$.entities",
       "defaultQueryParams": {
         "conversationId": "conversation-id-goes-here",
         "pageSize": "100"
-      }
+      },
+      "notes": [
+        "STA topic categories detected in a specific conversation",
+        "group: Speech and Text Analytics"
+      ]
     },
     "speechandtextanalytics.get.conversation.summaries.detail": {
       "method": "GET",
       "path": "/api/v2/speechandtextanalytics/conversations/{conversationId}/summaries",
-      "itemsPath": "$.entities",
-      "pagingProfile": "pageNumber_default",
+      "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getSpeechandtextanalyticsConversationSummaries",
-      "tags": [
-        "Speech and Text Analytics"
-      ],
-      "summary": "AI-generated S&TA summaries for each communication leg of a conversation.",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "conversationId": "conversation-id-goes-here"
-      }
+      },
+      "notes": [
+        "STA-generated conversation summary with detected phrases and outcomes",
+        "group: Speech and Text Analytics"
+      ]
     },
     "speechandtextanalytics.get.conversation.transcript.urls": {
       "method": "GET",
@@ -39291,18 +39498,18 @@
     },
     "quality.get.conversation.surveys": {
       "method": "GET",
-      "path": "/api/v2/quality/conversations/{conversationId}/surveys",
-      "itemsPath": "$",
-      "pagingProfile": "none",
+      "path": "/api/v2/quality/surveys",
+      "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
-      "operationId": "getQualityConversationSurveys",
-      "tags": [
-        "Quality"
-      ],
-      "summary": "Post-interaction CSAT/NPS survey results for a specific conversation.",
+      "itemsPath": "$.entities",
       "defaultQueryParams": {
-        "conversationId": "conversation-id-goes-here"
-      }
+        "conversationId": "conversation-id-goes-here",
+        "pageSize": "25"
+      },
+      "notes": [
+        "Survey results for a specific conversation \u2014 filter variant of quality.get.surveys",
+        "group: Quality"
+      ]
     },
     "quality.get.agents.activity": {
       "method": "GET",
@@ -39341,17 +39548,16 @@
     "routing.get.queue.estimated.wait.time": {
       "method": "GET",
       "path": "/api/v2/routing/queues/{queueId}/estimatedwaittime",
-      "itemsPath": "$",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getRoutingQueueEstimatedwaittime",
-      "tags": [
-        "Routing"
-      ],
-      "summary": "Current estimated wait time (EWT) for a queue \u2014 real-time caller wait forecast in seconds.",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "queueId": "queue-id-goes-here"
-      }
+      },
+      "notes": [
+        "Real-time estimated wait time for a queue by media type",
+        "group: Routing"
+      ]
     },
     "routing.get.queue.estimated.wait.time.by.media": {
       "method": "GET",
@@ -39419,20 +39625,17 @@
     "authorization.get.division.grants": {
       "method": "GET",
       "path": "/api/v2/authorization/divisions/{divisionId}/grants",
-      "itemsPath": "$.entities",
       "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
-      "operationId": "getAuthorizationDivisionGrants",
-      "tags": [
-        "Authorization",
-        "Objects"
-      ],
-      "summary": "Access control grants assigned to a division \u2014 subjects (users/roles) and their granted permissions within this division.",
+      "itemsPath": "$.entities",
       "defaultQueryParams": {
         "divisionId": "division-id-goes-here",
-        "pageSize": "100",
-        "pageNumber": "1"
-      }
+        "pageSize": "100"
+      },
+      "notes": [
+        "Access grants for a specific division",
+        "group: Authorization"
+      ]
     },
     "workforce.get.business.units": {
       "method": "GET",
@@ -39453,17 +39656,16 @@
     "workforce.get.agent.management.unit": {
       "method": "GET",
       "path": "/api/v2/workforcemanagement/agents/{agentId}/managementunit",
-      "itemsPath": "$",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getWorkforcemanagementAgentManagementunit",
-      "tags": [
-        "WorkforceManagement"
-      ],
-      "summary": "The WFM management unit an agent belongs to \u2014 used to locate the agent's schedule, adherence, and WFM team.",
+      "itemsPath": "$",
       "defaultQueryParams": {
         "agentId": "user-id-goes-here"
-      }
+      },
+      "notes": [
+        "WFM management unit for a single agent",
+        "group: WorkforceManagement"
+      ]
     },
     "workforce.get.management.unit.users": {
       "method": "GET",
@@ -39500,17 +39702,17 @@
     "workforce.get.adherence.bulk": {
       "method": "GET",
       "path": "/api/v2/workforcemanagement/adherence",
-      "itemsPath": "$",
       "pagingProfile": "none",
       "retryProfile": "default",
-      "operationId": "getWorkforcemanagementAdherence",
-      "tags": [
-        "WorkforceManagement"
-      ],
-      "summary": "Bulk schedule adherence for a list of user IDs \u2014 scheduled vs. actual routing status with adherence percentage.",
+      "itemsPath": "$",
       "defaultQueryParams": {
-        "userId": "user-id-1,user-id-2,user-id-3"
-      }
+        "userId[]": "user-id-1,user-id-2",
+        "managementUnitId": ""
+      },
+      "notes": [
+        "Bulk schedule adherence for multiple agents \u2014 filter by managementUnitId or userId list",
+        "group: WorkforceManagement"
+      ]
     },
     "coaching.get.appointments": {
       "method": "GET",
@@ -39593,6 +39795,102 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      },
+      "notes": [
+        "Get a single external contact record",
+        "group: External Contacts"
+      ]
+    },
+    "externalcontacts.search.contacts": {
+      "method": "POST",
+      "path": "/api/v2/externalcontacts/contacts/search",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Search external contacts by name, phone, or identifier",
+        "group: External Contacts",
+        "defaultBody:\n{\n  \"query\": \"contact-search-term\",\n  \"pageSize\": 25,\n  \"pageNumber\": 1\n}"
+      ]
+    },
+    "analytics.query.bot.aggregates": {
+      "method": "POST",
+      "path": "/api/v2/analytics/bots/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Bot and virtual agent aggregate metrics \u2014 containment, escalation, and session duration",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-01-01T00:00:00.000Z/2026-01-07T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\"flowId\", \"queueId\"],\n  \"metrics\": [\"nBotSessions\", \"nBotHandled\", \"nBotEscalated\", \"tBotSession\"]\n}"
+      ]
+    },
+    "analytics.query.conversation.aggregates.by.division": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Conversation aggregates grouped by divisionId for cross-queue division rollup",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-01-01T00:00:00.000Z/2026-01-07T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\"divisionId\", \"mediaType\"],\n  \"metrics\": [\"nOffered\", \"nConnected\", \"nAbandoned\", \"tHandle\", \"tTalk\", \"tAcw\"],\n  \"filter\": {\"type\": \"and\", \"predicates\": []}\n}"
+      ]
+    },
+    "quality.get.evaluation.form.detail": {
+      "method": "GET",
+      "path": "/api/v2/quality/forms/evaluations/{formId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "formId": "form-id-goes-here"
+      },
+      "notes": [
+        "Evaluation form definition with questions, weights, and critical-item flags",
+        "group: Quality"
+      ]
+    },
+    "learning.get.modules": {
+      "method": "GET",
+      "path": "/api/v2/learning/modules",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1",
+        "isArchived": "false"
+      },
+      "notes": [
+        "Learning module catalog for the organisation",
+        "group: Learning"
+      ]
+    },
+    "learning.get.user.assignments": {
+      "method": "GET",
+      "path": "/api/v2/learning/assignments",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "assignedUserId": "user-id-goes-here",
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Learning module assignments for a specific user",
+        "group: Learning"
+      ]
     }
   },
   "combinations": {
@@ -40049,7 +40347,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.by.division",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40082,6 +40380,163 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "campaign-investigation": {
+        "description": "Outbound campaign investigation \u2014 campaign configuration, pacing health, dialer events, contact list, and conversation analytics. Diagnose campaign performance issues, abandon rate spikes, or pacing problems.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign-config",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, status, dialingMode, queueId, contactListId, abandonRate, callerIdNumber",
+            "description": "Campaign configuration and current run status"
+          },
+          {
+            "step": "contact-list",
+            "dataset": "outbound.get.contact.lists",
+            "filterBy": "contactListId",
+            "joinKey": "contactListId",
+            "provides": "contactListName, columnNames, size",
+            "description": "Contact list definition and size for coverage reconciliation"
+          },
+          {
+            "step": "queue-config",
+            "dataset": "routing.get.single.queue.config",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "queueName, routingMethod, acwSettings",
+            "description": "Queue receiving answered outbound calls \u2014 confirms correct routing target"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "pacing, health, errors, linesPerAgent",
+            "description": "Live diagnostics snapshot \u2014 pacing health and error indicators"
+          },
+          {
+            "step": "dialer-events",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "dispositions, attempts, agentAssignments",
+            "description": "Dialer event log with call dispositions and contact attempts"
+          },
+          {
+            "step": "audit-changes",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=Campaign + EntityId=campaignId",
+            "joinKey": "campaignId",
+            "provides": "timestamp, action, actorId, changedFields",
+            "description": "Audit records for campaign configuration changes during the window"
+          },
+          {
+            "step": "conversation-analytics",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "conversationId, agentId, tTalk, tHandle, wrapUpCode, answeredState",
+            "description": "Analytics rows for conversations generated by this campaign"
+          }
+        ],
+        "joinSequence": "seed (campaign-config) \u2192 contact-list (contactListId) \u2192 queue-config (queueId) \u2192 diagnostics (campaignId) \u2192 dialer-events (campaignId) \u2192 conversation-analytics (campaignId)",
+        "executiveMetrics": [
+          "totalAttempts",
+          "connectRate%",
+          "abandonRate%",
+          "avgHandleTime",
+          "wrapupDistribution",
+          "rightPartyContactRate%",
+          "campaignProgressPct"
+        ]
+      },
+      "byoi-conversation-investigation": {
+        "description": "Investigation for a conversation injected via BYOI (Bring Your Own Integration) \u2014 enriches the standard conversation with external provider context, custom attributes, and CRM contact data. Trigger: externalTag non-null in conversation object.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "byoiIndicator": "conversations.get.conversation.object.externalTag (non-null = BYOI origin)",
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[].externalContactId, purpose=external",
+            "description": "Conversation object \u2014 externalTag confirms BYOI; externalConversationId links to provider record"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "participants, sessions, segment-level timing (IVR, ACD, talk, hold, ACW)",
+            "description": "Analytics detail \u2014 segment timing is accurate for BYOI conversations routed through Genesys"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "provider-set key-value pairs: CRM case ID, intent label, external call ID",
+            "description": "Custom attributes injected by BYOI provider \u2014 the primary CRM context payload"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables set during the injected conversation",
+            "description": "Participant-level flow variables \u2014 data action outcomes and IVR-collected values"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "filterBy": "externalContactId from conversation-base",
+            "joinKey": "externalContactId",
+            "provides": "firstName, lastName, organization, phoneNumber, customFields",
+            "description": "CRM contact record linked to the participant (conditional on externalContactId present)",
+            "required": false
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "SIP signaling: BYOI provider SIP-to-SIP handoff (not a PSTN leg)",
+            "description": "SIP trace \u2014 conditional on voice mediaType; reflects provider handoff not PSTN",
+            "required": false
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation score if conversation was reviewed",
+            "description": "Quality evaluation \u2014 BYOI conversations are evaluated identically to native conversations",
+            "required": false
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "resolution summary, follow-up actions, topic classification",
+            "description": "Agent Copilot AI summary (conditional on feature enablement)",
+            "required": false
+          }
+        ],
+        "joinSequence": "seed (conversation-base) \u2192 analytics-detail (conversationId) \u2192 custom-attributes (conversationId) \u2192 participant-attributes (conversationId) \u2192 external-contact (externalContactId) \u2192 evaluation (conversationId)",
+        "byoiNote": "SIP trace shows a SIP-to-SIP handoff from the provider, not a PSTN leg. Custom attributes are the authoritative source for provider context. externalConversationId is the join key to the external system record.",
+        "executiveMetrics": [
+          "externalTag (provider identity)",
+          "tHandle",
+          "evaluationScore",
+          "customAttributeCount"
         ]
       }
     },
@@ -40293,6 +40748,251 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "agent-development-and-learning": {
+        "description": "Agent development program effectiveness \u2014 combining coaching appointments, quality scores, and learning module completion to assess training ROI and identify agents needing targeted development.",
+        "windowRequired": true,
+        "layers": [
+          {
+            "name": "quality-baseline",
+            "datasets": [
+              {
+                "dataset": "quality.get.agents.activity",
+                "groupBy": "userId",
+                "metrics": [
+                  "evalCount",
+                  "avgScore",
+                  "highScore",
+                  "lowScore",
+                  "criticalItemFailCount"
+                ],
+                "description": "Evaluation score distribution per agent \u2014 baseline for measuring improvement"
+              }
+            ]
+          },
+          {
+            "name": "coaching-coverage",
+            "datasets": [
+              {
+                "dataset": "coaching.get.appointments",
+                "groupBy": "attendeeId",
+                "metrics": [
+                  "appointmentCount",
+                  "completedCount",
+                  "pendingCount"
+                ],
+                "description": "Coaching session count and completion rate per agent"
+              }
+            ]
+          },
+          {
+            "name": "learning-completion",
+            "datasets": [
+              {
+                "dataset": "learning.get.modules",
+                "role": "reference",
+                "description": "Module catalog for label resolution"
+              },
+              {
+                "dataset": "learning.get.user.assignments",
+                "groupBy": "userId",
+                "metrics": [
+                  "completedModules",
+                  "pendingModules",
+                  "avgScore"
+                ],
+                "description": "Learning module completion and scores per agent"
+              }
+            ]
+          },
+          {
+            "name": "performance-correlation",
+            "datasets": [
+              {
+                "dataset": "analytics.query.user.aggregates.performance.metrics",
+                "groupBy": "userId",
+                "metrics": [
+                  "nConnected",
+                  "tHandle",
+                  "tTalk",
+                  "tAcw"
+                ],
+                "description": "Handle time trend per agent \u2014 compare pre/post coaching and learning completion"
+              }
+            ]
+          }
+        ],
+        "joinKeys": [
+          "quality.get.agents.activity[].user.id \u2192 coaching.get.appointments[].attendees[].id",
+          "coaching.get.appointments[].attendees[].id \u2192 learning.get.user.assignments[].user.id",
+          "learning.get.user.assignments[].module.id \u2192 learning.get.modules[].id"
+        ],
+        "executiveMetrics": [
+          "coachingCoverageRate%",
+          "avgEvalScoreImprovement",
+          "learningCompletionRate%",
+          "criticalItemFailTrend",
+          "handleTimeTrendPostCoaching"
+        ],
+        "executivePresentation": "Agent development funnel: evaluated \u2192 coached \u2192 trained \u2192 improved. Show score trajectory for coached agents vs. uncoached control group."
+      },
+      "skill-based-routing-efficiency": {
+        "description": "Skill-based routing efficiency \u2014 evaluating whether agent skill coverage matches demand patterns by queue. Identifies skill gaps causing overflow routing, extended wait times, or SLA misses.",
+        "windowRequired": true,
+        "layers": [
+          {
+            "name": "skill-catalog",
+            "datasets": [
+              {
+                "dataset": "routing.get.all.routing.skills",
+                "description": "Organisation-wide skill definitions \u2014 label reference"
+              },
+              {
+                "dataset": "routing.get.skill.groups",
+                "description": "Skill groups with member counts and division assignments"
+              }
+            ]
+          },
+          {
+            "name": "agent-skill-coverage",
+            "datasets": [
+              {
+                "dataset": "users",
+                "description": "All agents with routing skill assignments and proficiency levels (expand=routingSkills)"
+              },
+              {
+                "dataset": "routing-queues",
+                "description": "Queue skill evaluation mode (BestAvailableSkill vs. Standard)"
+              }
+            ]
+          },
+          {
+            "name": "demand-vs-capacity",
+            "datasets": [
+              {
+                "dataset": "analytics.query.conversation.aggregates.queue.performance",
+                "groupBy": "queueId",
+                "metrics": [
+                  "nOffered",
+                  "nConnected",
+                  "tAnswered",
+                  "tHandle"
+                ],
+                "description": "Volume offered per queue \u2014 proxy for skill demand intensity"
+              },
+              {
+                "dataset": "analytics.query.queue.aggregates.service.level",
+                "groupBy": "queueId",
+                "metrics": [
+                  "oServiceLevel",
+                  "nOverSla"
+                ],
+                "description": "SLA miss pattern indicates skill coverage shortfall for that queue"
+              }
+            ]
+          }
+        ],
+        "joinKeys": [
+          "routing.get.skill.groups[].id \u2192 users[].routingSkills[].skill.id",
+          "routing-queues[].id \u2192 analytics.query.conversation.aggregates.queue.performance[].group.queueId"
+        ],
+        "executiveMetrics": [
+          "skillCoverageGapCount",
+          "queuesWithSlaBreachAndLowSkillCoverage",
+          "agentsPerSkillGroup",
+          "avgProficiencyBySkill",
+          "skillUtilisationRate%"
+        ],
+        "executivePresentation": "Skill heat map: skill rows vs. queue columns coloured by SLA achievement. Red cells = skill coverage gap, Green = adequate coverage."
+      },
+      "bot-and-self-service-containment": {
+        "description": "Bot and self-service containment metrics \u2014 measuring how effectively AI-powered bots handle contacts without escalation to human agents. Key for digital transformation and cost-per-contact reporting.",
+        "windowRequired": true,
+        "layers": [
+          {
+            "name": "bot-volume",
+            "datasets": [
+              {
+                "dataset": "analytics.query.bot.aggregates",
+                "groupBy": [
+                  "flowId",
+                  "queueId"
+                ],
+                "granularity": "P1D",
+                "metrics": [
+                  "nBotSessions",
+                  "nBotHandled",
+                  "nBotEscalated",
+                  "tBotSession"
+                ],
+                "description": "Bot session volume and containment by flow and queue"
+              }
+            ]
+          },
+          {
+            "name": "flow-reference",
+            "datasets": [
+              {
+                "dataset": "flows.get.all.flows",
+                "role": "reference",
+                "description": "Flow names for label resolution"
+              },
+              {
+                "dataset": "flows.get.flow.outcomes",
+                "role": "reference",
+                "description": "Outcome labels for self-service vs. escalation categories"
+              }
+            ]
+          },
+          {
+            "name": "flow-performance",
+            "datasets": [
+              {
+                "dataset": "analytics.query.flow.aggregates.execution.metrics",
+                "groupBy": [
+                  "flowId"
+                ],
+                "metrics": [
+                  "nFlow",
+                  "nFlowOutcome",
+                  "nFlowOutcomeFailed",
+                  "nFlowMilestone"
+                ],
+                "description": "IVR/bot flow execution metrics \u2014 success and failure rates per flow"
+              }
+            ]
+          },
+          {
+            "name": "queue-impact",
+            "datasets": [
+              {
+                "dataset": "analytics.query.conversation.aggregates.queue.performance",
+                "groupBy": [
+                  "queueId"
+                ],
+                "metrics": [
+                  "nOffered",
+                  "nConnected"
+                ],
+                "description": "Queue volume trend \u2014 compare bot escalation to queue nOffered to confirm containment impact"
+              }
+            ]
+          }
+        ],
+        "derivedMetrics": {
+          "containmentRate%": "1 \u2212 (nBotEscalated / nBotSessions) \u00d7 100",
+          "escalationRate%": "nBotEscalated / nBotSessions \u00d7 100",
+          "avgBotSessionMinutes": "tBotSession / nBotSessions / 60",
+          "flowSuccessRate%": "nFlowOutcome / nFlow \u00d7 100"
+        },
+        "executiveMetrics": [
+          "containmentRate%",
+          "nBotSessions",
+          "nBotEscalated",
+          "avgBotSessionMinutes",
+          "flowSuccessRate%"
+        ],
+        "executivePresentation": "Containment funnel: total sessions \u2192 self-served \u2192 escalated. Daily trend with target containment rate reference line."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40412,6 +41112,94 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "edge-log-collection": {
+        "description": "Edge diagnostic log collection \u2014 submits an async log collection job on a specific Edge appliance, polls for completion, and retrieves the upload URL. Use after identifying a problematic Edge from call forensics or trunk health check.",
+        "subjectParam": "edgeId",
+        "stepType": "async-job-sequence",
+        "steps": [
+          {
+            "step": "1-identify-edge",
+            "dataset": "telephony.get.edges",
+            "note": "List all edges and identify the edgeId handling affected calls \u2014 correlate from single-call-forensics SIP trace or trunk-and-edge-health-check"
+          },
+          {
+            "step": "2-edge-performance-snapshot",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "filterBy": "edgeId",
+            "provides": "CPU%, memory%, activeCalls, errorCounters",
+            "note": "Capture Edge performance baseline before triggering log collection \u2014 high CPU during collection may indicate edge stress"
+          },
+          {
+            "step": "3-submit-logs-job",
+            "dataset": "telephony.create.edge.logs.job",
+            "filterBy": "edgeId",
+            "provides": "jobId",
+            "note": "Submit log collection job \u2014 returns jobId for polling. Specify the time window covering the affected calls."
+          },
+          {
+            "step": "4-poll-job-status",
+            "dataset": "telephony.get.edge.logs.job",
+            "filterBy": "edgeId + jobId",
+            "note": "Poll until state = FULFILLED (typically 60\u2013300 seconds for standard log packages)"
+          },
+          {
+            "step": "5-request-upload",
+            "dataset": "telephony.request.edge.logs.job.upload",
+            "filterBy": "edgeId + jobId",
+            "provides": "signed upload URL for selected log files",
+            "note": "Request upload of selected log files and retrieve signed download URL for offline analysis"
+          }
+        ],
+        "diagnosticSignals": [
+          "Job state FAILED \u2192 Edge may be offline or log service degraded; verify Edge connectivity before retrying",
+          "Log file size 0 \u2192 No calls in the specified window or log retention already cleared",
+          "SIP log: TCP connection timeout \u2192 network path issue between Edge and PSTN gateway",
+          "Media log: RTCP packet loss > 5% \u2192 network quality degradation on the media path",
+          "Auth log: repeated 401 Unauthorized \u2192 Edge certificate or credentials require renewal"
+        ]
+      },
+      "multi-trunk-comparison": {
+        "description": "Multi-trunk SIP performance comparison \u2014 comparing error rates, utilisation, and quality metrics across trunks to identify degraded or overloaded circuits. Use when quality issues affect some inbound numbers but not others.",
+        "datasetsInOrder": [
+          "telephony.get.trunks",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.edges",
+          "conversations.get.active.calls",
+          "alerting.get.alerts"
+        ],
+        "diagnosticSignals": [
+          "Trunk A errorCount >> Trunk B \u2192 provider circuit fault on Trunk A; raise with carrier",
+          "All trunks currentCalls / maxConcurrentCalls > 0.80 simultaneously \u2192 org-level capacity event",
+          "Trunk inServiceState INACTIVE \u2192 confirm with carrier that PSTN circuit is provisioned",
+          "Active calls disproportionately assigned to one trunk \u2192 load balancing misconfiguration",
+          "Edge with zero active trunks but active calls \u2192 media bypass or IP routing anomaly"
+        ],
+        "enrichWith": [
+          "alerting.get.rules (confirm trunk-capacity threshold alerts are configured)",
+          "alerting.get.alerts (check if a trunk error alert is already firing)"
+        ],
+        "executivePresentation": "Trunk health table: trunk name, state, utilisation%, error count, affected call count. RAG colour by utilisation threshold."
+      },
+      "webrtc-softphone-audit": {
+        "description": "WebRTC and softphone registration audit \u2014 identifying stations with registration failures, stale registrations, or device mismatches. Use when agents report headset issues, one-way audio, or calls not ringing on their softphone.",
+        "datasetsInOrder": [
+          "stations.get.stations",
+          "users",
+          "analytics.query.user.observations.real.time.status",
+          "telephony.get.edges"
+        ],
+        "diagnosticSignals": [
+          "station.registered = false for active agent \u2192 softphone not connected; check SIP ALG or firewall rules blocking WebRTC",
+          "station.type = WEBRTC but user.station.webRtcRequireManagedBrowser = false \u2192 unmanaged browser WebRTC may be blocked by org policy",
+          "Multiple stations registered for one userId \u2192 duplicate session; stale registration not released on prior logout",
+          "station.lineAppearances.registered = false but user.routingStatus = IDLE \u2192 ghost agent; calls will fail to alert",
+          "Edge nearest to affected stations has elevated CPU \u2192 media processing bottleneck causing audio degradation"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (check for active station or WebRTC related alerts)",
+          "audit-logs (filter by service=Station to find recent station assignment changes)"
         ]
       }
     }

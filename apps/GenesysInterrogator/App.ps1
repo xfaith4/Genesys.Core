@@ -112,6 +112,7 @@ $xaml = @'
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
               <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
@@ -123,12 +124,17 @@ $xaml = @'
             <TextBlock Grid.Row="1" Grid.Column="0" Text="Min transitions per active day" VerticalAlignment="Center" Margin="0,4,0,4"
                        ToolTip="Flag agents whose transitions/active-day exceeds this value"/>
             <TextBox   Grid.Row="1" Grid.Column="1" Name="TxtNrThreshold" Text="1.0" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Top N users" VerticalAlignment="Center" Margin="0,4,0,4"/>
-            <TextBox   Grid.Row="2" Grid.Column="1" Name="TxtNrTopN" Text="25" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
-            <CheckBox  Grid.Row="3" Grid.ColumnSpan="2" Name="ChkNrIncludeConv" Margin="0,8,0,4"
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Min days with NR (daily pattern)" VerticalAlignment="Center" Margin="0,4,0,4"
+                       ToolTip="Flag agents who hit NOT_RESPONDING on at least this many distinct days. Set equal to the window to flag agents NR every day. 0 disables."/>
+            <TextBox   Grid.Row="2" Grid.Column="1" Name="TxtNrMinDays" Text="0" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Top N users" VerticalAlignment="Center" Margin="0,4,0,4"/>
+            <TextBox   Grid.Row="3" Grid.Column="1" Name="TxtNrTopN" Text="25" Width="80" HorizontalAlignment="Left" Margin="0,4,0,4"/>
+            <CheckBox  Grid.Row="4" Grid.ColumnSpan="2" Name="ChkNrAutoAnswerOnly" Margin="0,8,0,2"
+                       Content="Only ACD auto-answer-enabled agents (acdAutoAnswer = true)"/>
+            <CheckBox  Grid.Row="5" Grid.ColumnSpan="2" Name="ChkNrIncludeConv" Margin="0,4,0,4"
                        Content="Include conversation context (pulls a conversation-details job for top-N users; adds 30s–2min)"/>
-            <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Foreground="#64748B" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Text="Submits an async user-details job filtered to NOT_RESPONDING transitions, then aggregates per-user counts, durations, and daily breakdown. With conversation context, joins on userId to surface affected conversations."/>
+            <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Foreground="#64748B" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="Submits an async user-details job filtered to NOT_RESPONDING transitions, then aggregates per-user counts, durations, and daily breakdown. Scope to auto-answer-enabled agents and set 'Min days with NR' = window to surface agents that go Not Responding every day. With conversation context, joins on userId to surface affected conversations."/>
           </Grid>
         </GroupBox>
       </Grid>
@@ -187,7 +193,7 @@ foreach ($n in 'CmbRegion','TxtToken','BtnConnect','TxtPkceClientId','BtnPkceLog
                'TxtCatalogCount','TxtFilter','LstDatasets','LstReports',
                'TxtDatasetTitle','TxtDatasetMeta',
                'GrpDatasetParams','TxtParams',
-               'GrpReportParams','TxtNrDays','TxtNrThreshold','TxtNrTopN','ChkNrIncludeConv',
+               'GrpReportParams','TxtNrDays','TxtNrThreshold','TxtNrMinDays','TxtNrTopN','ChkNrAutoAnswerOnly','ChkNrIncludeConv',
                'BtnRun','BtnCancel','BtnReset','BtnOpenRun','TxtProgress',
                'TabResults','TabLive','TabRows',
                'GridResults','TxtSummary','TxtRaw','LstEvents') {
@@ -218,9 +224,9 @@ $script:AvailableReports = @(
         Key         = 'not-responding'
         Name        = 'Not-Responding patterns'
         Display     = '[Investigation] Not-Responding patterns'
-        Description = 'Submits an async user-details job filtered to NOT_RESPONDING and (optionally) a conversation-details job filtered by the top-N user IDs. Aggregates per-user transition count, total/avg NR seconds, daily breakdown, and flags agents above the transitions-per-day threshold.'
+        Description = 'Submits an async user-details job filtered to NOT_RESPONDING and (optionally) a conversation-details job filtered by the top-N user IDs. Aggregates per-user transition count, total/avg NR seconds, daily breakdown, distinct days with NR, and flags agents above the transitions-per-day threshold. Optionally scopes to ACD auto-answer-enabled agents and flags a daily pattern (NR on at least N distinct days).'
         Cmdlet      = 'Invoke-GenesysNotRespondingReport'
-        Datasets    = @('analytics.post.users.details.jobs', 'analytics-conversation-details')
+        Datasets    = @('users', 'analytics.post.users.details.jobs', 'analytics-conversation-details')
     }
 )
 foreach ($r in $script:AvailableReports) { [void]$controls.LstReports.Items.Add($r) }
@@ -308,7 +314,9 @@ $controls.BtnReset.Add_Click({
     if ($script:RunMode -eq 'report') {
         $controls.TxtNrDays.Text         = '14'
         $controls.TxtNrThreshold.Text    = '1.0'
+        $controls.TxtNrMinDays.Text      = '0'
         $controls.TxtNrTopN.Text         = '25'
+        $controls.ChkNrAutoAnswerOnly.IsChecked = $false
         $controls.ChkNrIncludeConv.IsChecked = $false
         return
     }
@@ -790,17 +798,21 @@ function Start-ReportRun {
         return
     }
 
-    $days = 0; $threshold = 0.0; $topN = 0
+    $days = 0; $threshold = 0.0; $topN = 0; $minDays = 0
     if (-not [int]::TryParse($controls.TxtNrDays.Text.Trim(), [ref]$days) -or $days -le 0 -or $days -gt 90) {
         Set-Status 'Window (days back) must be a positive integer between 1 and 90.' '#F87171'; return
     }
     if (-not [double]::TryParse($controls.TxtNrThreshold.Text.Trim(), [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$threshold) -or $threshold -lt 0 -or $threshold -gt 1000) {
         Set-Status 'Min transitions/day must be a non-negative number no greater than 1000.' '#F87171'; return
     }
+    if (-not [int]::TryParse($controls.TxtNrMinDays.Text.Trim(), [ref]$minDays) -or $minDays -lt 0 -or $minDays -gt $days) {
+        Set-Status 'Min days with NR must be an integer between 0 and the window (days back).' '#F87171'; return
+    }
     if (-not [int]::TryParse($controls.TxtNrTopN.Text.Trim(), [ref]$topN) -or $topN -le 0 -or $topN -gt 1000) {
         Set-Status 'Top N must be a positive integer between 1 and 1000.' '#F87171'; return
     }
-    $includeConv = [bool]$controls.ChkNrIncludeConv.IsChecked
+    $includeConv   = [bool]$controls.ChkNrIncludeConv.IsChecked
+    $autoAnswerOnly = [bool]$controls.ChkNrAutoAnswerOnly.IsChecked
 
     $reportKey  = $script:SelectedReport.Key
     $cmdlet     = $script:SelectedReport.Cmdlet
@@ -837,7 +849,7 @@ function Start-ReportRun {
     $ps.Runspace = $runspace
     [void]$ps.AddScript({
         param($AuthModulePath, $CoreModulePath, $OpsModulePath, $AccessToken, $Region,
-              $Cmdlet, $Days, $Threshold, $TopN, $IncludeConv, $OutputPath)
+              $Cmdlet, $Days, $Threshold, $MinDays, $TopN, $IncludeConv, $AutoAnswerOnly, $OutputPath)
 
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
@@ -853,14 +865,16 @@ function Start-ReportRun {
         $since = $until.AddDays(-1 * $Days)
 
         $params = @{
-            Since                = $since
-            Until                = $until
-            MinTransitionsPerDay = $Threshold
-            TopN                 = $TopN
-            OutputPath           = $OutputPath
-            PassThru             = $true
+            Since                    = $since
+            Until                    = $until
+            MinTransitionsPerDay     = $Threshold
+            MinDaysWithNotResponding = $MinDays
+            TopN                     = $TopN
+            OutputPath               = $OutputPath
+            PassThru                 = $true
         }
-        if ($IncludeConv) { $params.IncludeConversations = $true }
+        if ($IncludeConv)    { $params.IncludeConversations  = $true }
+        if ($AutoAnswerOnly) { $params.AutoAnswerEnabledOnly = $true }
 
         & $Cmdlet @params
     })
@@ -872,8 +886,10 @@ function Start-ReportRun {
     [void]$ps.AddArgument($cmdlet)
     [void]$ps.AddArgument($days)
     [void]$ps.AddArgument($threshold)
+    [void]$ps.AddArgument($minDays)
     [void]$ps.AddArgument($topN)
     [void]$ps.AddArgument($includeConv)
+    [void]$ps.AddArgument($autoAnswerOnly)
     [void]$ps.AddArgument($reportPath)
 
     $async = $ps.BeginInvoke()
@@ -939,12 +955,15 @@ function Complete-ReportRun {
                     UserId                  = $_.UserId
                     Name                    = $_.Name
                     Division                = $_.Division
+                    AcdAutoAnswer           = $_.AcdAutoAnswer
                     TransitionCount         = $_.TransitionCount
                     ActiveDays              = $_.ActiveDays
+                    DaysWithNotResponding   = $_.DaysWithNotResponding
                     TransitionsPerActiveDay = $_.TransitionsPerActiveDay
                     TotalNrSeconds          = $_.TotalNrSeconds
                     AvgNrSeconds            = $_.AvgNrSeconds
                     Flag                    = $_.Flag
+                    DailyPattern            = $_.DailyPattern
                     DailyBreakdown          = (@($_.DailyBreakdown) | ForEach-Object { "$($_.Date)x$($_.Count)" }) -join ' '
                     Conversations           = (@($_.ConversationIds).Count)
                 }
@@ -954,8 +973,10 @@ function Complete-ReportRun {
                 "Report: $($script:SelectedReport.Name)"
                 "Window: $($report.Window.Since)  ->  $($report.Window.Until)  ($($report.Window.Days) day(s))"
                 "Threshold: >= $($report.Threshold.MinTransitionsPerDay) transitions/active-day"
+                "Daily pattern: >= $($report.Threshold.MinDaysWithNotResponding) distinct day(s) with NR  |  Auto-answer-only: $($report.Threshold.AutoAnswerEnabledOnly)"
                 "Users with NR transitions: $($report.UsersWithNotResponding)"
                 "Users flagged Consistent: $($report.UsersFlaggedConsistent)"
+                "Users flagged Daily pattern: $($report.UsersFlaggedDailyPattern)"
                 "Total NR transitions: $($report.TotalNrTransitions)"
                 "Generated: $($report.GeneratedAt)"
             )

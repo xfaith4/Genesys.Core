@@ -143,26 +143,6 @@ function Invoke-GenesysDataset {
 }
 
 ### BEGIN: New-GenesysAnalyticsInterval
-function New-GenesysAnalyticsInterval {
-    <#
-    .SYNOPSIS
-        Builds an ISO-8601 interval string ("<start>/<end>") for analytics POST bodies.
-    .DESCRIPTION
-        When neither bound is supplied, returns a default lookback window ending at
-        the current UTC time. Both bounds must be provided together if either is
-        supplied.
-
-        Emits timestamps with exactly three fractional-second digits:
-        yyyy-MM-ddTHH:mm:ss.fffZ
-    #>
-    [CmdletBinding()]
-    param(
-        [Nullable[datetime]] $Since,
-        [Nullable[datetime]] $Until,
-        [int] $DefaultLookbackHours = 24
-    )
-
-    ### BEGIN: New-GenesysAnalyticsInterval
     function New-GenesysAnalyticsInterval {
         <#
     .SYNOPSIS
@@ -5356,6 +5336,14 @@ function New-GenesysAnalyticsInterval {
     .PARAMETER IncludeConversations
         Pull the conversation-details job for the top-N users and attach the set of
         ConversationIds each appeared in. Adds 30s-2min depending on volume.
+    .PARAMETER AutoAnswerEnabledOnly
+        Restrict the report to agents who have ACD auto-answer enabled (acdAutoAnswer = true
+        on the active users roster). Targets the auto-answer-induced NOT_RESPONDING failure mode.
+    .PARAMETER MinDaysWithNotResponding
+        When greater than 0, flag users whose DaysWithNotResponding (distinct UTC days with at
+        least one NOT_RESPONDING) is at least this value as DailyPattern = 'Daily'. Set equal to
+        the window length (e.g. 7 for a 7-day window) to surface agents that hit NOT_RESPONDING
+        every day. Default 0 (off).
     .PARAMETER OutputPath
         If specified, the report is written as UTF-8 JSON.
     .PARAMETER PassThru
@@ -5377,14 +5365,34 @@ function New-GenesysAnalyticsInterval {
             [double]             $MinTransitionsPerDay = 1.0,
             [int]                $TopN = 25,
             [switch]             $IncludeConversations,
+            [switch]             $AutoAnswerEnabledOnly,
+            [int]                $MinDaysWithNotResponding = 0,
             [string]             $OutputPath,
             [switch]             $PassThru
         )
 
         Assert-GenesysConnected
 
-        $untilUtc = if ($Until.HasValue) { $Until.Value.ToUniversalTime() } else { [datetime]::UtcNow }
-        $sinceUtc = if ($Since.HasValue) { $Since.Value.ToUniversalTime() } else { $untilUtc.AddDays(-14) }
+        # Roster is needed up front when scoping to ACD auto-answer agents (so we can
+        # exclude non-auto-answer users from the cohort) and is reused for name/division
+        # enrichment below — a single Get-GenesysAgent call serves both. acdAutoAnswer is
+        # surfaced by the normalised users dataset (ConvertTo-NormalizedUserRecord).
+        $rosterById   = @{}
+        $autoAnswerIds = New-Object System.Collections.Generic.HashSet[string]
+        try {
+            foreach ($a in @(Get-GenesysAgent -State ACTIVE)) {
+                $id = Get-PropertyValue $a 'id'
+                if (-not $id) { continue }
+                $rosterById[$id] = $a
+                if ((Get-PropertyValue $a 'acdAutoAnswer') -eq $true) { [void]$autoAnswerIds.Add($id) }
+            }
+        }
+        catch {
+            Write-Warning "Agent roster lookup failed: $($_.Exception.Message). Auto-answer scoping and name/division enrichment will be skipped."
+        }
+
+        $untilUtc = if ($null -ne $Until) { ([datetime]$Until).ToUniversalTime() } else { [datetime]::UtcNow }
+        $sinceUtc = if ($null -ne $Since) { ([datetime]$Since).ToUniversalTime() } else { $untilUtc.AddDays(-14) }
         $interval = '{0}/{1}' -f `
             $sinceUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), `
             $untilUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
@@ -5416,6 +5424,7 @@ function New-GenesysAnalyticsInterval {
         foreach ($u in $userDetails) {
             $userId = Get-PropertyValue $u 'userId'
             if (-not $userId) { continue }
+            if ($AutoAnswerEnabledOnly -and -not $autoAnswerIds.Contains([string]$userId)) { continue }
 
             $segments = @(Get-PropertyValue $u 'routingStatusDetail')
             $nrSegments = @($segments | Where-Object {
@@ -5455,23 +5464,38 @@ function New-GenesysAnalyticsInterval {
             $tpd = [math]::Round($count / $activeDays, 2)
             $avgMs = if ($count -gt 0) { $totalNrMs / $count } else { 0 }
 
+            # Distinct UTC days the agent hit NOT_RESPONDING — the basis for the
+            # daily-recurrence pattern. Day buckets are UTC, consistent with $byDay above.
+            $daysWithNr = @($byDay).Count
+            $dailyPattern = if ($MinDaysWithNotResponding -gt 0 -and $daysWithNr -ge $MinDaysWithNotResponding) { 'Daily' } else { '' }
+
+            # acdAutoAnswer is known only for users present on the active roster.
+            $acdAutoAnswer = if ($rosterById.ContainsKey([string]$userId)) {
+                [bool](Get-PropertyValue $rosterById[[string]$userId] 'acdAutoAnswer')
+            } else { $null }
+
             $perUser.Add([pscustomobject]@{
                     UserId                  = $userId
                     Name                    = $null
                     Division                = $null
+                    AcdAutoAnswer           = $acdAutoAnswer
                     TransitionCount         = $count
                     ActiveDays              = $activeDays
+                    DaysWithNotResponding   = $daysWithNr
                     TransitionsPerActiveDay = $tpd
                     TotalNrSeconds          = [int]([math]::Round($totalNrMs / 1000))
                     AvgNrSeconds            = [int]([math]::Round($avgMs / 1000))
                     DailyBreakdown          = @($byDay)
                     Flag                    = if ($tpd -ge $MinTransitionsPerDay) { 'Consistent' } else { '' }
+                    DailyPattern            = $dailyPattern
                     ConversationIds         = @()
                     NrStartTimes            = @($nrTimestamps | ForEach-Object { $_.ToString('o') })
                 }) | Out-Null
         }
 
-        $sorted = @($perUser | Sort-Object TransitionsPerActiveDay, TransitionCount -Descending)
+        # DailyPattern first (descending puts 'Daily' ahead of ''), then the rate metrics.
+        # When daily-pattern mode is off, every DailyPattern is '' so this is a no-op.
+        $sorted = @($perUser | Sort-Object DailyPattern, TransitionsPerActiveDay, TransitionCount -Descending)
 
         if ($IncludeConversations -and $sorted.Count -gt 0) {
             $topIds = @($sorted | Select-Object -First $TopN | ForEach-Object { $_.UserId })
@@ -5526,29 +5550,19 @@ function New-GenesysAnalyticsInterval {
         }
 
         if ($sorted.Count -gt 0) {
-            Write-Verbose 'Enriching with name/division'
-            try {
-                $roster = @(Get-GenesysAgent -State ACTIVE)
-                $nameById = @{}
-                foreach ($a in $roster) {
-                    $id = Get-PropertyValue $a 'id'
-                    if ($id) { $nameById[$id] = $a }
+            # Reuse the roster already fetched above for auto-answer scoping — no extra call.
+            foreach ($u in $sorted) {
+                if ($rosterById.ContainsKey([string]$u.UserId)) {
+                    $info = $rosterById[[string]$u.UserId]
+                    $u.Name = Get-PropertyValue $info 'name'
+                    $div = Get-PropertyValue $info 'division'
+                    $u.Division = if ($div) { Get-PropertyValue $div 'name' } else { $null }
                 }
-                foreach ($u in $sorted) {
-                    if ($nameById.ContainsKey($u.UserId)) {
-                        $info = $nameById[$u.UserId]
-                        $u.Name = Get-PropertyValue $info 'name'
-                        $div = Get-PropertyValue $info 'division'
-                        $u.Division = if ($div) { Get-PropertyValue $div 'name' } else { $null }
-                    }
-                }
-            }
-            catch {
-                Write-Warning "Name/division enrichment failed: $($_.Exception.Message)"
             }
         }
 
         $flaggedCount = @($sorted | Where-Object { $_.Flag -eq 'Consistent' }).Count
+        $dailyPatternCount = @($sorted | Where-Object { $_.DailyPattern -eq 'Daily' }).Count
 
         $report = [pscustomobject]@{
             GeneratedAt            = (Get-Date).ToUniversalTime().ToString('o')
@@ -5558,15 +5572,19 @@ function New-GenesysAnalyticsInterval {
                 Days  = [math]::Round(($untilUtc - $sinceUtc).TotalDays, 2)
             }
             Threshold              = [pscustomobject]@{
-                MinTransitionsPerDay = $MinTransitionsPerDay
+                MinTransitionsPerDay     = $MinTransitionsPerDay
+                MinDaysWithNotResponding = $MinDaysWithNotResponding
+                AutoAnswerEnabledOnly    = [bool]$AutoAnswerEnabledOnly
             }
-            UsersWithNotResponding = $sorted.Count
-            UsersFlaggedConsistent = $flaggedCount
-            TotalNrTransitions     = (@($sorted | Measure-Object TransitionCount -Sum).Sum)
+            WindowDays               = [int][math]::Floor(($untilUtc - $sinceUtc).TotalDays)
+            UsersWithNotResponding   = $sorted.Count
+            UsersFlaggedConsistent   = $flaggedCount
+            UsersFlaggedDailyPattern = $dailyPatternCount
+            TotalNrTransitions       = (@($sorted | Measure-Object TransitionCount -Sum).Sum)
             TopUsers               = @($sorted | Select-Object -First $TopN |
-                    Select-Object UserId, Name, Division,
-                    TransitionCount, ActiveDays, TransitionsPerActiveDay,
-                    TotalNrSeconds, AvgNrSeconds, Flag,
+                    Select-Object UserId, Name, Division, AcdAutoAnswer,
+                    TransitionCount, ActiveDays, DaysWithNotResponding, TransitionsPerActiveDay,
+                    TotalNrSeconds, AvgNrSeconds, Flag, DailyPattern,
                     DailyBreakdown, ConversationIds)
             AllUsers               = @($sorted)
         }

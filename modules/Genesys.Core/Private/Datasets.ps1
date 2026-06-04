@@ -889,6 +889,7 @@ function ConvertTo-NormalizedUserRecord {
         state = $InputObject.state
         presence = $(if ($null -ne $InputObject.presence) { $InputObject.presence.presenceDefinition.systemPresence } else { $null })
         routingStatus = $(if ($null -ne $InputObject.routingStatus) { $InputObject.routingStatus.status } else { $null })
+        acdAutoAnswer = $InputObject.acdAutoAnswer
     }
 }
 

@@ -20,7 +20,7 @@ Describe 'Additional dataset implementations' {
             if ($request.Uri -like 'https://api.test.local/api/v2/users*pageNumber=1*') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
-                        [pscustomobject]@{ id='u1'; name='user-record-1'; email='redacted-user-1'; state='active'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='AVAILABLE' } }; routingStatus=[pscustomobject]@{ status='IDLE' } }
+                        [pscustomobject]@{ id='u1'; name='user-record-1'; email='redacted-user-1'; state='active'; acdAutoAnswer=$true; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='AVAILABLE' } }; routingStatus=[pscustomobject]@{ status='IDLE' } }
                     )
                     nextUri = 'https://api.test.local/api/v2/users?pageNumber=2'
                 } }
@@ -28,7 +28,7 @@ Describe 'Additional dataset implementations' {
             if ($request.Uri -eq 'https://api.test.local/api/v2/users?pageNumber=2') {
                 return [pscustomobject]@{ Result = [pscustomobject]@{
                     entities = @(
-                        [pscustomobject]@{ id='u2'; name='user-record-2'; email='redacted-user-2'; state='inactive'; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='OFFLINE' } }; routingStatus=[pscustomobject]@{ status='NOT_RESPONDING' } }
+                        [pscustomobject]@{ id='u2'; name='user-record-2'; email='redacted-user-2'; state='inactive'; acdAutoAnswer=$false; presence=[pscustomobject]@{ presenceDefinition=[pscustomobject]@{ systemPresence='OFFLINE' } }; routingStatus=[pscustomobject]@{ status='NOT_RESPONDING' } }
                     )
                     nextUri = $null
                 } }
@@ -42,6 +42,9 @@ Describe 'Additional dataset implementations' {
         $records.Count | Should -Be 2
         $records[0].recordType | Should -Be 'user'
         $records[0].presence | Should -Be 'AVAILABLE'
+        $records[0].acdAutoAnswer | Should -BeTrue
+        $records[1].routingStatus | Should -Be 'NOT_RESPONDING'
+        $records[1].acdAutoAnswer | Should -BeFalse
 
         $events = Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json }
         (@($events | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -Be 2

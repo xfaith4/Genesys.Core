@@ -39874,6 +39874,96 @@
           "presenceUtilisationPct"
         ]
       },
+      "agent-not-responding-autoanswer": {
+        "description": "Focused root-cause investigation of agents repeatedly entering NOT_RESPONDING while ACD auto-answer is enabled — the classic 'auto-answer fires but the call never connects, so the agent is flipped off-queue' failure. Seeds on the auto-answer-enabled cohort, quantifies NOT_RESPONDING frequency/duration per agent, drills into the individual episodes, then correlates each episode to the specific interaction that failed to connect and to the agent's station registration state. Used by contact-centre supervisors and voice engineers when agents report 'I never got the call' or queues show ghost agents.",
+        "subjectParam": "userId",
+        "subjectOptional": true,
+        "subjectNote": "Omit userId to scan the entire auto-answer-enabled cohort; supply a userId to scope the same join to one agent.",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "autoanswer-cohort",
+            "dataset": "users",
+            "role": "seed",
+            "filter": "acdAutoAnswer = true",
+            "joinKey": "id",
+            "provides": "id, name, email, state, presence, routingStatus, acdAutoAnswer",
+            "description": "All users with ACD auto-answer enabled — the population at risk for auto-answer-induced NOT_RESPONDING. acdAutoAnswer is surfaced by the users dataset normalizer; filter the seed to acdAutoAnswer=true."
+          },
+          {
+            "step": "not-responding-rollup",
+            "dataset": "analytics.query.user.aggregates.login.activity",
+            "filterBy": "userId (cohort) + investigation window",
+            "joinKey": "userId",
+            "filter": "routingStatus = NOT_RESPONDING",
+            "provides": "tAgentRoutingStatus (NOT_RESPONDING time), occurrence count, tOnQueue, tOffQueue per userId",
+            "description": "Efficient per-agent roll-up — one aggregates query (metric tAgentRoutingStatus, groupBy userId) gives total NOT_RESPONDING time and episode count across the window. Rank the cohort by occurrence count to find the worst offenders before drilling in."
+          },
+          {
+            "step": "not-responding-segments",
+            "dataset": "analytics.query.user.details.activity.report",
+            "filterBy": "userId + investigation window",
+            "joinKey": "userId",
+            "filter": "routingStatus segments where status = NOT_RESPONDING",
+            "provides": "per-episode startTime/endTime, systemPresence at time of episode, routingStatusSegments",
+            "description": "Per-episode timeline — the exact start/end of each NOT_RESPONDING segment per agent. Provides the timestamps used to correlate episodes to the interaction that triggered them. NOT_RESPONDING is not server-side filterable on the details query; select the segments client-side."
+          },
+          {
+            "step": "failed-interactions",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participantUserId + investigation window",
+            "joinKey": "userId",
+            "filter": "agent session segmentType = ALERT with no subsequent CONNECTED segment, time-aligned to a NOT_RESPONDING episode",
+            "provides": "conversationId, queueId, mediaType, segmentType, segmentStart, disconnectType",
+            "description": "The interaction behind each episode — an auto-answer that alerts the agent but never reaches CONNECTED is the confirmed missed call. Join on userId, then time-align each ALERT-without-CONNECT segment to a not-responding-segments episode to attribute cause."
+          },
+          {
+            "step": "station-registration",
+            "dataset": "stations.get.stations",
+            "filterBy": "userId (associated station)",
+            "joinKey": "userId",
+            "provides": "stationId, status, registered, webRtcUserId, lineAppearanceId",
+            "description": "Station / WebRTC registration state — the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
+          },
+          {
+            "step": "real-time-status",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "oUserPresence, oUserRoutingStatus, oActiveQueues",
+            "description": "Point-in-time current state — confirms whether affected agents are NOT_RESPONDING right now versus historically. Optional; only meaningful for live triage."
+          },
+          {
+            "step": "config-audit",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=User + EntityId=userId + investigation window",
+            "joinKey": "userId",
+            "provides": "timestamp, action, serviceName, actor, changed property",
+            "description": "Account-change audit — surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
+          }
+        ],
+        "joinSequence": "autoanswer-cohort (id) → not-responding-rollup (userId) → not-responding-segments (userId) → failed-interactions (participantUserId → conversationId, time-aligned to episodes) → station-registration (userId) → real-time-status (userId) → config-audit (userId)",
+        "derivedMetrics": [
+          "notRespondingCount = count of NOT_RESPONDING segments per agent in window",
+          "notRespondingTime = sum tAgentRoutingStatus[NOT_RESPONDING] per agent",
+          "missedAutoAnswerRate% = ALERT-without-CONNECT segments / total ACD-offered interactions per agent",
+          "episodesWithUnregisteredStation = NOT_RESPONDING episodes overlapping a registered=false station window"
+        ],
+        "diagnosticSignals": [
+          "acdAutoAnswer=true + high notRespondingCount → auto-answer firing but media not landing; prime suspect for this investigation",
+          "NOT_RESPONDING episode start aligns with an ALERT segment that never reaches CONNECTED → confirmed missed auto-answered call",
+          "presence = 'On Queue' but routingStatus = NOT_RESPONDING → ghost agent; cross-check station-registration",
+          "station registered=false (or no associated station) during episode → softphone/WebRTC registration is the root cause; check network/DNS",
+          "missedAutoAnswerRate% elevated across many agents on one edge/site → environmental (edge, network, or DNS), not per-agent",
+          "config-audit shows acdAutoAnswer toggled on shortly before episodes began → recent enablement exposed an unready station/headset setup",
+          "notRespondingCount high but no ALERT-without-CONNECT segments → cause is presence/manual off-queue, not auto-answer; exit this playbook"
+        ],
+        "enrichWith": [
+          "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
+          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
+          "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
+        ]
+      },
       "queue-investigation": {
         "description": "End-to-end investigation of a queue \u2014 configuration, membership, real-time health, EWT, historical SLA, abandons, transfers, wrapup distribution, and per-agent performance within the queue. Covers both the current moment and a historical window.",
         "subjectParam": "queueId",

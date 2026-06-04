@@ -1297,6 +1297,127 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code, wrapup notes, and custom wrapup attributes selected by a specific agent participant after a conversation ends. Requires iterating over agent participantIds from the conversation object. More granular than the wrapup distribution aggregate \u2014 returns the exact code and free-text note for a named participant.",
+      "endpoint": "getConversationParticipantWrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Agent Copilot and Agent Assist AI-generated summaries for a conversation \u2014 reason for contact, next steps, and resolution notes. Available when Agent Copilot is licensed and configured. Provides structured post-call notes without requiring manual ACW entry.",
+      "endpoint": "getConversationSummaries",
+      "itemsPath": "$.summaries",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Speech and Text Analytics topic category classifications applied to a single conversation \u2014 category name, matched phrase topics, and detection score. Extends sta-overview with per-category detail. Use after conversations.get.speech.text.analytics to enumerate what the engine labelled and with what confidence.",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "CSAT/NPS survey results scoped to a single conversation \u2014 conversation-scoped alternative to the global quality.get.surveys dataset. Preferred in conversation investigations where the global list query would return unrelated surveys. Returns the survey form, scores, and status for surveys triggered by this specific interaction.",
+      "endpoint": "getQualityConversationSurveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Real-time estimated wait time (EWT) for a routing queue in seconds per media type. Compare to queue SLA target to trigger staffing or IVR callback actions. Stale after approximately 30 seconds \u2014 use polling pattern for wall-board display. Combine with analytics.query.queue.observations.real.time.stats for the complete real-time queue snapshot.",
+      "endpoint": "getRoutingQueueEstimatedwaittime",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a specific division \u2014 which users, groups, and OAuth clients hold which roles within the division. Used in division investigations to audit the access footprint: who can view and modify resources in this division. Join on subjectId to resolve user names from the users dataset.",
+      "endpoint": "getAuthorizationDivisionGrants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.skill.group.members": {
+      "description": "Member agents of a specific routing skill group with per-agent skill proficiency \u2014 the eligible routing pool for skill-group-based queues. Join with routing.get.single.queue.config to confirm the queue uses SKILL_BASED scoring, then compare the eligible pool to oOnQueueUsers to identify skill coverage gaps.",
+      "endpoint": "getRoutingSkillgroupMembers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.bot.aggregates": {
+      "description": "Bot flow analytics aggregates \u2014 session counts, intent confidence rate, transfer-to-agent rate, and average conversation turns per session. Used to measure self-service containment, bot deflection ROI, and NLU model health. Group by flowId and botFlowId for per-bot breakdown; filter by mediaType=voice or messaging for channel-specific metrics.",
+      "endpoint": "postAnalyticsBotflowsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "WFM management unit membership for a single agent \u2014 management unit ID, business unit, and scheduling team assignment. Required seed step before retrieving agent-specific schedule adherence. Without this, the adherence endpoint cannot be scoped to a specific agent.",
+      "endpoint": "getWorkforcemanagementManagementunitUser",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Schedule adherence snapshot for a bulk set of agents \u2014 scheduled activity category, actual routing status, adherence state (IN_ADHERENCE / OUT_OF_ADHERENCE), and variance in seconds. Use for management-unit-wide adherence audits, off-schedule agent identification, and intraday WFM reporting. Pair with analytics.query.user.aggregates.login.activity for the complete on-queue vs. scheduled picture.",
+      "endpoint": "getWorkforcemanagementAdherence",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -40173,6 +40294,354 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "long-handle-time-investigation": {
+        "description": "Root-cause investigation for AHT outliers — identifies the conversations with the highest handle times in a queue or for a specific agent, then drills into their segment timeline, hold events, transfer chains, wrapup codes, and quality scores. Used by operations analysts and supervisors responding to AHT spikes visible in executive dashboards. Distinguishes conversation-type drivers (complex inquiry, billing dispute) from agent-behaviour drivers (excessive hold, procedural non-compliance).",
+        "subjectParam": "queueId or userId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "outlier-conversations",
+            "dataset": "analytics-conversation-details-query",
+            "role": "seed",
+            "filterBy": "queueId or userId + investigation window",
+            "filter": "order by tHandle desc; apply threshold = queue avg + 2σ or absolute cap (e.g. >600s)",
+            "joinKey": "conversationId",
+            "provides": "conversationId, tHandle, tTalk, tHeld, tAcw, agentId, queueId, wrapUpCode",
+            "description": "Conversation details sorted descending by tHandle — the top-N longest conversations in the window. tHeld and tAcw components reveal whether AHT is driven by hold, ACW, or talk time."
+          },
+          {
+            "step": "conversation-timeline",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "filterBy": "conversationId (per outlier)",
+            "joinKey": "conversationId",
+            "provides": "per-segment: tTalk, tHeld, tAcw, holdCount, conferenceEvents, transferSegments",
+            "description": "Segment-level timeline for each outlier — reveals whether AHT driver is hold accumulation, multiple transfers, conference segments, or extended ACW."
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "filterBy": "conversationId (per outlier)",
+            "joinKey": "conversationId",
+            "provides": "wrapUpCode per participant, mediaType, transferDestination, externalTag, participantRoster",
+            "description": "Full conversation object — confirms wrapup code, BYOI origin flag, and the complete transfer destination chain."
+          },
+          {
+            "step": "agent-context",
+            "dataset": "users.get.user.details.with.full.expansion",
+            "filterBy": "userId (agent participants from outlier conversations)",
+            "joinKey": "userId",
+            "provides": "name, email, division, manager, state",
+            "description": "Agent identity for each outlier conversation — enables attribution to team, manager, and division for escalation routing."
+          },
+          {
+            "step": "agent-performance-comparison",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from agent-context + investigation window",
+            "joinKey": "userId",
+            "provides": "avg tHandle, tTalk, tAcw for each agent across the window (the baseline)",
+            "description": "Agent-level aggregate baseline — compare each outlier conversation's tHandle to the agent's own average. Agent-level outlier vs. everyone's average distinguishes conversation-type vs. agent-behaviour root cause."
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId list from outlier-conversations",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorComments",
+            "description": "Quality evaluations for outlier conversations — high AHT + low score + critical item failure is the definitive signal for agent process violation."
+          },
+          {
+            "step": "wrapup-label-resolution",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
+            "filterBy": "queueId",
+            "joinKey": "wrapUpCode",
+            "provides": "human-readable wrapup code labels for all codes used in outlier conversations",
+            "description": "Decode wrapup codes — reveals if a specific call reason (e.g. 'billing dispute', 'technical escalation') dominates the AHT outlier population."
+          }
+        ],
+        "joinSequence": "outlier-conversations (tHandle desc) → conversation-timeline (conversationId) → conversation-base (conversationId) → agent-context (userId) → agent-performance-comparison (userId) → evaluations (conversationId) → wrapup-label-resolution (wrapUpCode)",
+        "derivedMetrics": [
+          "outlierAhtSeconds = tHandle for each outlier conversation",
+          "agentBaselineAhtSeconds = avg tHandle from agent-performance-comparison",
+          "ahtDeltaSeconds = outlierAhtSeconds - agentBaselineAhtSeconds",
+          "holdRatio% = tHeld / tHandle",
+          "acwRatio% = tAcw / tHandle",
+          "transferCount = count of transfer segments in conversation-timeline",
+          "outlierEvalScore = evaluationScore (if evaluated)",
+          "topOutlierWrapupCode = most frequent wrapUpCode in outlier set"
+        ],
+        "diagnosticSignals": [
+          "holdRatio% > 40% → agent placing customers on extended hold; investigate process adherence and hold policy",
+          "acwRatio% > 30% → ACW discipline issue or unusually complex after-call work; check queue ACW timer settings",
+          "transferCount > 1 in a single conversation → routing problem; caller bouncing between queues before resolution",
+          "ahtDeltaSeconds >> 0 for all agents on outlier conversations → conversation-type is the driver (complex inquiry), not agent behaviour",
+          "ahtDeltaSeconds >> 0 for one agent only → agent-specific skill or knowledge gap; target for coaching",
+          "topOutlierWrapupCode = 'escalation' or 'complaint' → call content driving AHT; route-cause is call reason, not behaviour",
+          "criticalItemFailed = true in evaluations → procedure violation contributing to extended handle time"
+        ],
+        "executiveMetrics": [
+          "outlierConversationCount",
+          "avgOutlierAhtSeconds",
+          "holdRatio% (avg across outliers)",
+          "acwRatio% (avg across outliers)",
+          "outlierEvalAvgScore",
+          "topOutlierWrapupCode"
+        ]
+      },
+      "repeat-caller-investigation": {
+        "description": "Identifies customers who have called the same queue or division multiple times within a configurable window — a surrogate metric for first-call resolution (FCR) failure. Surfaces the repeat conversation chains, agents involved, wrapup codes, and survey outcomes. Used by CX analysts and operations directors to target FCR improvement efforts when formal FCR measurement is not deployed. ANI recurrence is the detection mechanism; short-abandons and IVR-only sessions are excluded from the repeat count to avoid false positives.",
+        "subjectParam": "queueId or divisionId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "all-conversations",
+            "dataset": "analytics-conversation-details-query",
+            "role": "seed",
+            "filterBy": "queueId or divisionId + investigation window",
+            "filter": "exclude: tAbandon < 10s (short abandon), purpose=customer with no agent segment (IVR-only)",
+            "joinKey": "conversationId",
+            "provides": "conversationId, ANI, agentId, queueId, wrapUpCode, conversationStart, tHandle, mediaType",
+            "description": "All ACD-connected conversations in the queue/division for the window — the population to group by ANI for repeat detection."
+          },
+          {
+            "step": "repeat-detection",
+            "dataset": "(derived)",
+            "derivedFrom": "all-conversations",
+            "joinKey": "ANI",
+            "provides": "repeatCallerANI list, repeatCallCount per ANI, daysBetweenCalls, firstCallId, lastCallId",
+            "description": "Client-side grouping of conversations by ANI within the window. A caller with N > 1 conversations (default: within 7 days) is a repeat caller. Apply gap threshold to distinguish same-day callbacks from genuine repeat issues."
+          },
+          {
+            "step": "repeat-conversation-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "filterBy": "conversationId list (repeat callers only)",
+            "joinKey": "conversationId",
+            "provides": "segment detail, wrapUpCode, agentId, queueId, tHandle per repeat conversation",
+            "description": "Deep timeline for each repeat-caller conversation — reveals routing path, wrapup outcome, and whether the second call escalated or reached the same queue."
+          },
+          {
+            "step": "wrapup-label-resolution",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
+            "filterBy": "queueId",
+            "joinKey": "wrapUpCode",
+            "provides": "human-readable wrapup label for each repeat conversation",
+            "description": "Decode wrapup codes for repeat conversations — repeated wrapup codes across a call chain signal an unresolved issue category that is systematically failing."
+          },
+          {
+            "step": "survey-outcomes",
+            "dataset": "quality.get.surveys",
+            "filterBy": "conversationId list (repeat callers)",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus per conversation with a survey response",
+            "description": "Survey responses from repeat callers — low CSAT on repeat calls is the voice-of-customer confirmation of FCR failure and downstream churn risk."
+          },
+          {
+            "step": "agent-concentration",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list (agents appearing in repeat conversations) + window",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle per agent — for identifying agent-level repeat caller concentration",
+            "description": "Agent performance aggregates — reveals whether repeat callers are concentrated on specific agents, pointing to per-agent knowledge gaps rather than systemic queue issues."
+          }
+        ],
+        "joinSequence": "all-conversations → repeat-detection (ANI grouping, client-side) → repeat-conversation-detail (conversationId) → wrapup-label-resolution (wrapUpCode) → survey-outcomes (conversationId) → agent-concentration (userId)",
+        "derivedMetrics": [
+          "repeatCallerRate% = uniqueRepeatANIs / totalUniqueANIs",
+          "avgCallsPerRepeatCaller = totalRepeatConversations / uniqueRepeatANIs",
+          "fcrProxy% = 1 - repeatCallerRate%",
+          "avgDaysBetweenRepeatCalls",
+          "repeatCallerCsatAvg (from survey-outcomes where csatScore is present)",
+          "topRepeatWrapupCodes (sorted by frequency in repeat chains)",
+          "repeatCallersPerAgent (concentration metric)"
+        ],
+        "diagnosticSignals": [
+          "repeatCallerRate% > 15% → systemic FCR problem; escalate to operations director with queue-level breakdown",
+          "Repeat calls predominantly using same wrapup code → specific issue type not being resolved on first contact; targeted process or knowledge-base fix needed",
+          "Repeat calls concentrated on same queue → queue specialisation gap or routing misconfiguration routing wrong issue type here",
+          "avgDaysBetweenRepeatCalls < 2 → caller returning same day or next day; resolution was inadequate or commitment was not kept",
+          "repeatCallerCsatAvg < 3.0 → severe CX impact; flag for executive attention and NPS review",
+          "Repeat callers concentrated on same agent cohort → per-agent knowledge or empowerment gap; coaching and authority review"
+        ],
+        "executiveMetrics": [
+          "repeatCallerRate%",
+          "fcrProxy%",
+          "totalRepeatConversations",
+          "repeatCallerCsatAvg",
+          "topRepeatWrapupCodes (top 3)",
+          "worstQueueByRepeatRate"
+        ]
+      },
+      "skill-group-routing-investigation": {
+        "description": "Analysis of how routing skill groups affect agent assignment, queue wait times, and SLA performance. Surfaces which skill groups are understaffed (too few on-queue agents with required proficiency), causing excessive wait or routing overflow to less-skilled agents. Used by contact centre architects and workforce planners to optimise skill-based routing configuration. Divisions group agents with shared skills across queues — skill groups are the routing mechanism; divisions are the organisational scope.",
+        "subjectParam": "queueId or skillGroupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "skill-groups",
+            "dataset": "routing.get.skill.groups",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "skillGroupId, name, division, memberCount",
+            "description": "All routing skill groups in the organisation — identifies which groups are configured, their member counts, and division assignments."
+          },
+          {
+            "step": "skill-group-members",
+            "dataset": "routing.get.skill.group.members",
+            "filterBy": "skillGroupId",
+            "joinKey": "skillGroupId",
+            "provides": "userId list per skill group with proficiency rating",
+            "description": "Agents who satisfy each skill group's requirements — the eligible routing pool for skill-matched queues. Low member count indicates a narrow talent pool."
+          },
+          {
+            "step": "agent-routing-skills",
+            "dataset": "users.get.user.routing.skills",
+            "filterBy": "userId (from skill-group-members)",
+            "joinKey": "userId",
+            "provides": "skillId, skillName, proficiencyRating per agent",
+            "description": "Individual skill proficiency levels — reveals how many agents meet each proficiency tier. A pool concentrated at tier 1-2 will have worse AHT than one with tier 4-5 agents."
+          },
+          {
+            "step": "queue-config",
+            "dataset": "routing.get.single.queue.config",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "scoringMethod, skillEvaluationMode, memberCount, mediaSettings, acwSettings",
+            "description": "Queue routing configuration — confirms whether BEST_AVAILABLE, TIMESTAMP, or SKILL_BASED scoring is active and whether skill evaluation mode is ALL or BEST."
+          },
+          {
+            "step": "queue-members-live",
+            "dataset": "routing-queue-members",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "userId, routingStatus, presence, conversationSummary per member",
+            "description": "Current queue membership with live routing status — compare the configured skill group pool to the actually staffed and on-queue agents."
+          },
+          {
+            "step": "sla-performance",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "queueId",
+            "provides": "nOverSla, oServiceLevel, oServiceTarget, nOffered, nAnsweredIn20",
+            "description": "SLA performance for the queue over the window — correlates skill group staffing coverage to actual service level achievement."
+          },
+          {
+            "step": "agent-performance-in-queue",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per agent in the queue",
+            "description": "Per-agent performance within the queue — reveals if low-proficiency agents are handling more volume than high-proficiency ones, indicating skill-routing is not achieving optimal assignment."
+          }
+        ],
+        "joinSequence": "skill-groups → skill-group-members (skillGroupId) → agent-routing-skills (userId) → queue-config (queueId) → queue-members-live (queueId) → sla-performance (queueId) → agent-performance-in-queue (userId)",
+        "divisionNote": "Skill groups span queues within a division. An agent in Division A may serve Queue 1 and Queue 2 if both require the same skill group. Use authorization.list.division.queues to enumerate all queues served by a skill group's eligible agents within a division scope.",
+        "derivedMetrics": [
+          "eligibleAgentCount = count of agents in skill-group-members",
+          "onQueueEligibleCount = eligibleAgentCount intersect oOnQueueUsers from queue-members-live",
+          "skillCoverageRatio% = onQueueEligibleCount / min-staffing threshold",
+          "proficiencyDistribution = count of agents per proficiency tier (1–5)",
+          "avgHandleTimeByProficiencyTier = tHandle grouped by proficiency rating",
+          "slaMissRate% = nOverSla / nOffered from sla-performance"
+        ],
+        "diagnosticSignals": [
+          "skillCoverageRatio% < 50% → skill group critically understaffed relative to offered volume; staffing action required",
+          "eligibleAgentCount adequate but onQueueEligibleCount low → agents have the skill but are off-queue; presence audit needed",
+          "avgHandleTimeByProficiencyTier[1] >> avgHandleTimeByProficiencyTier[4] → proficiency scoring is working correctly; routing low-tier agents to simpler calls would reduce AHT",
+          "slaMissRate% high + eligibleAgentCount low → the SLA miss is a skill coverage gap, not overall headcount",
+          "memberCount in queue-config >> skill-group-members count → queue allows more members than have the required skill; overflow routing to unqualified agents",
+          "proficiencyDistribution skewed to tier 1-2 → training investment needed to raise the distribution before routing reconfiguration"
+        ],
+        "executiveMetrics": [
+          "eligibleAgentCount",
+          "onQueueEligibleCount",
+          "skillCoverageRatio%",
+          "proficiencyDistribution",
+          "slaMissRate%",
+          "avgHandleTimeByProficiencyTier"
+        ]
+      },
+      "byoi-external-conversation-investigation": {
+        "description": "Forensic investigation of a conversation injected via the Bring Your Own Integration (BYOI) provider API — POST /api/v2/conversations/providers/{providerId}/calls. BYOI conversations originate in external telephony systems (CRM telephony, third-party CCaaS, custom SIP providers) and are identified by a non-null externalTag on the conversation object. They flow through the same Architect flows, queue routing, analytics, recording, and QM pipeline as native Genesys conversations. This recipe resolves the provider context, IVR flow path, SIP handoff, recording coverage, and QM outcome in the same format as a native conversation investigation.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "prerequisite": "conversations.get.specific.conversation.details.externalTag must be non-null; exit to single-conversation-investigation if null",
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[purpose=external].externalContactId, mediaType, state, originatingDirection",
+            "description": "Base conversation object — confirms BYOI indicator via non-null externalTag, provider context fields, and the full participant roster including the external participant."
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set attributes: CRM case ID, external call ID, intent label, escalation flags, account number",
+            "description": "Provider-injected custom attributes — the external system's operational context passed at conversation injection time. These are the bridge between Genesys analytics and the provider's CRM or ticketing system."
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables set during the injected conversation: intent capture, data action results, collected customer data",
+            "description": "Architect flow variables populated during the BYOI conversation flow — reveals what self-service data was captured before queue routing."
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "per-segment timing: IVR duration, ACD wait, talk time, hold time, ACW — identical pipeline to native calls",
+            "description": "Full segment-level analytics — BYOI conversations transit the same analytics capture pipeline as native calls; IVR duration confirms if an Architect flow was invoked."
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "audience": ["voice-engineer"],
+            "provides": "SIP INVITE/200OK/BYE/re-INVITE reflecting the BYOI provider SIP-to-SIP handoff (not a PSTN leg)",
+            "description": "SIP signalling trace for the BYOI handoff — confirms provider SIP setup and media negotiation. The SDP will show provider IP ranges, not a carrier PSTN leg."
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus, policyName, fileState",
+            "description": "Recording metadata — BYOI conversations are recorded identically to native calls when the queue recording policy is active. An absent recording on a BYOI call may indicate a consent flag set by the provider."
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId, calibrated",
+            "description": "Quality evaluation — BYOI conversations are evaluated using the same forms and workflows as native calls."
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus, surveyForm",
+            "description": "Post-interaction survey result — survey triggers are queue-configured and fire regardless of BYOI origin."
+          }
+        ],
+        "joinSequence": "conversation-base (externalTag check) → custom-attributes → participant-attributes → analytics-detail → sip-trace (voice only) → recording-metadata → evaluation (left join) → survey (left join)",
+        "byoiIdentification": "Non-null externalTag on the conversation object is the definitive BYOI indicator. Also check participants[].purpose=external and externalConversationId fields. If externalTag is null, exit this recipe and use single-conversation-investigation.",
+        "voiceEngineerHighlights": [
+          "SIP trace shows provider IP in SDP Contact/Via → confirms BYOI SIP-to-SIP handoff path; compare to expected provider CIDR for security verification",
+          "SIP 4xx on provider INVITE → provider-side rejection; coordinate with BYOI provider support using the externalConversationId as their reference",
+          "Recording absent but recording policy active → check if BYOI provider set a consent-blocked flag in custom attributes or participant attributes",
+          "custom-attributes.externalCallId present → use to cross-reference with provider's own call logs for end-to-end forensics",
+          "analytics-detail IVR duration > 0 → call transited an Architect flow before queue routing; check participant-attributes for flow variables to confirm intent capture worked"
+        ],
+        "executiveMetrics": [
+          "byoiConversationCount",
+          "avgHandleTime",
+          "recordingCoverageRate%",
+          "evalAvgScore",
+          "csatScoreAvg"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40852,104 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "agent-occupancy-and-idle-analysis": {
+        "description": "Agent occupancy and idle time breakdown — scheduled on-queue time vs. actual interacting time vs. idle-while-available time. Identifies agents who are technically on-queue but carrying low interaction volume. Used for staffing efficiency reviews, scheduling optimisation, and identifying ghost on-queue agents who contribute to headcount but not throughput. Divisions group agents across queues — compute occupancy at division level to expose cross-queue productivity.",
+        "datasetsInOrder": [
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.user.aggregates.login.activity",
+          "analytics.query.user.aggregates.performance.metrics",
+          "routing-queue-members",
+          "workforce.get.management.unit.adherence"
+        ],
+        "joinOn": "userId",
+        "groupBy": ["userId", "divisionId", "managementUnitId"],
+        "granularity": "PT1H or P1D",
+        "outputMetrics": [
+          "tOnQueueTime (tAgentRoutingStatus[ON_QUEUE] from login.activity)",
+          "tInteractingTime = nConnected * avgTHandle (from performance.metrics)",
+          "tIdleTime = tOnQueueTime - tInteractingTime",
+          "occupancyPct% = tInteractingTime / tOnQueueTime",
+          "adherencePct% (from wfm.adherence where available)",
+          "nConnected (total interactions handled)",
+          "currentPresence + routingStatus (from routing-queue-members — point-in-time)"
+        ],
+        "executivePresentation": "Agent occupancy heat map sorted by occupancyPct%; flag agents below 50% occupancy on-queue for scheduling review; group by division and management unit for team comparisons"
+      },
+      "first-call-resolution-proxy-report": {
+        "description": "Organisation-wide FCR proxy using ANI recurrence — callers whose phone number appears in more than one connected conversation within a configurable repeat window (default: 7 days) are classified as repeat callers; FCR Proxy% = 1 - repeatCallerRate%. Grouped by queue and division for targeted improvement. Used in monthly CX strategy reviews and when a formal IVR-based FCR measurement system is not yet deployed. Divisions allow cross-queue FCR comparison for the same agent cohort.",
+        "datasetsInOrder": [
+          "analytics-conversation-details-query",
+          "routing-queues",
+          "routing.get.all.wrapup.codes",
+          "quality.get.surveys"
+        ],
+        "joinOn": "ANI (client-side grouping), then queueId and wrapUpCode",
+        "groupBy": ["queueId", "divisionId", "wrapUpCode"],
+        "granularity": "P1D",
+        "computationNotes": [
+          "Exclude: tAbandon < 10s (short abandon), conversations with no agent segment (IVR-only), outbound campaigns",
+          "Repeat window: configurable — default 7 days; shorter windows catch same-day callbacks, longer windows capture issue recurrence",
+          "ANI normalisation: strip country codes and format to E.164 before grouping to avoid false negatives"
+        ],
+        "outputMetrics": [
+          "totalUniqueCallers = count(distinct normalised ANI)",
+          "repeatCallers = count(ANI with >1 qualifying conversation within repeat window)",
+          "repeatCallerRate% = repeatCallers / totalUniqueCallers",
+          "fcrProxy% = 1 - repeatCallerRate%",
+          "avgDaysBetweenCalls (for repeat callers only)",
+          "repeatCallerWrapupDistribution (top 5 wrapup codes in repeat chains)",
+          "surveyResponsesFromRepeatCallers (count with csatScore present)",
+          "repeatCallerCsatAvg (from quality.get.surveys join on conversationId)"
+        ],
+        "executivePresentation": "FCR Proxy% KPI card (target: > 85%); queue-level repeat rate table sorted worst-to-best; week-over-week trend line; highlight queues with repeatCallerRate% > 15% in red"
+      },
+      "voice-infrastructure-executive-health": {
+        "description": "Executive-level SIP infrastructure health summary — Edge appliance availability, trunk capacity utilisation, active alerting, and call volume vs. capacity headroom. Used in board-level operational reviews, major-incident executive bridges, and monthly infrastructure health reporting. Filters to headline facts only; for detailed forensics use the trunk-and-edge-health-check voice engineer playbook.",
+        "datasetsInOrder": [
+          "telephony.get.edges",
+          "telephony.get.trunks",
+          "telephony.get.trunk.metrics.summary",
+          "alerting.get.alerts",
+          "alerting.get.rules",
+          "conversations.get.active.calls"
+        ],
+        "joinOn": "edgeId or trunkId",
+        "groupBy": ["edgeId", "trunkId"],
+        "outputMetrics": [
+          "edgeAvailabilityPct% = activeEdges (statusCode=ACTIVE) / totalEdges",
+          "trunkInServicePct% = inServiceTrunks (inService=true) / totalTrunks",
+          "trunkUtilisationPct% = currentCalls / maxConcurrentCalls (peak observation in window)",
+          "capacityHeadroom% = (maxConcurrentCalls - currentCalls) / maxConcurrentCalls",
+          "activeAlertCount (count of currently firing alerts)",
+          "criticalAlertCount (count where severity=CRITICAL)",
+          "currentCallVolume (from conversations.get.active.calls)"
+        ],
+        "executivePresentation": "Stoplight health card per infrastructure layer (Green < 70% util / Amber 70-85% / Red > 85%); active alert list with severity; last-24h peak trunk utilisation trend"
+      },
+      "bot-and-self-service-containment-report": {
+        "description": "Bot and IVR self-service containment analysis — how effectively automated channels are resolving customer intent without agent transfer. Combines bot flow aggregates, flow execution metrics, and queue entry patterns to compute containment rate, deflection ROI, and NLU confidence distribution. Used for bot investment justification, model retraining decisions, and automation roadmap prioritisation.",
+        "datasetsInOrder": [
+          "analytics.query.bot.aggregates",
+          "analytics.query.flow.aggregates.execution.metrics",
+          "flows.get.all.flows",
+          "flows.get.flow.outcomes",
+          "analytics-conversation-details-query",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "flowId or botFlowId",
+        "groupBy": ["flowId", "flowType", "botFlowId"],
+        "granularity": "P1D",
+        "outputMetrics": [
+          "nBotSessions (from analytics.query.bot.aggregates)",
+          "nBotTransferredToAgent (bot escalations to human)",
+          "containmentRate% = 1 - (nBotTransferredToAgent / nBotSessions)",
+          "avgConversationTurns (NLU efficiency indicator)",
+          "nIntentConfident / nBotSessions (NLU confidence rate)",
+          "nFlowOutcomeFailed / nFlow (IVR failure rate)",
+          "deflectedConversations = nBotSessions - nBotTransferredToAgent (estimated interactions not reaching queue)"
+        ],
+        "executivePresentation": "Containment rate KPI card (target: > 40% for bot, > 60% for IVR); bot-vs-IVR comparison; week-over-week NLU confidence trend; deflection volume and cost-savings estimate"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40502,6 +41069,83 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "webrtc-softphone-registration-audit": {
+        "description": "Audits the registration health of all WebRTC and softphone stations — identifies unregistered stations, ghost agents (presence=Available with no registered station), and station-to-user assignment mismatches. Used proactively before shift start to confirm infrastructure readiness, and reactively when agents report they cannot receive calls or when oOnQueueUsers is high but oInteracting is low (agents on-queue but not picking up).",
+        "datasetsInOrder": [
+          "stations.get.stations",
+          "users",
+          "analytics.query.user.observations.real.time.status",
+          "analytics.query.queue.observations.real.time.stats"
+        ],
+        "joinOn": "userId (station.associatedUser.id → user.id)",
+        "derivedMetric": "ghostAgentCount = users where routingStatus=ON_QUEUE AND associated station registered=false",
+        "diagnosticSignals": [
+          "station.registered=false + user.routingStatus=ON_QUEUE → ghost agent; agent is visible to ACD but media cannot land; auto-answer will trigger NOT_RESPONDING",
+          "station.type=inin_webrtc_softphone + station.webRtcUserId != user.id → station assigned to wrong user; re-assign in admin portal telephony settings",
+          "Multiple agents sharing one stationId → station configuration collision; each WebRTC agent requires a unique station assignment",
+          "oOnQueueUsers count >> count(registered stations associated to on-queue users) → unregistered station epidemic; check DNS resolution for edge FQDN, STUN/TURN reachability (UDP 3478/5349), or corporate firewall blocking WebRTC media ports",
+          "station.status=ASSOCIATED but registered=false → station is configured but WebRTC ICE negotiation failing; check firewall rules and STUN/TURN server availability",
+          "Agent presence=Available + routingStatus=IDLE + no associated station → agent deliberately removed from station; intentional or accidental logout from physical phone"
+        ],
+        "enrichWith": [
+          "audit-logs (filter EntityType=Station to see recent station assignment or policy changes)",
+          "telephony.get.edge.performance.metrics (if registrations are failing for all agents at one site — possible edge SIP registrar overload or network path issue)",
+          "users.get.agent.current.routing.status (point-in-time confirmation for specific agents flagged as ghost agents)"
+        ]
+      },
+      "dnis-routing-path-verification": {
+        "description": "Verifies that inbound DNIS values are landing in the correct queue and being handled by appropriately-skilled agents. Used when a client or supervisor reports calls reaching the wrong queue, playing the wrong IVR greeting, or being answered by agents without the expected specialisation. Combines conversation detail DNIS filtering with queue configuration verification and SIP trace examination. Divisions matter here: a DNIS may route to a queue in a different division than expected if Architect flow logic uses a hard-coded queueId.",
+        "subjectParam": "DNIS value or queueId",
+        "datasetsInOrder": [
+          "analytics-conversation-details-query",
+          "conversations.get.specific.conversation.details",
+          "routing.get.single.queue.config",
+          "routing.get.queue.wrapup.codes.by.queue",
+          "telephony.get.sip.message.for.conversation",
+          "routing.get.all.routing.skills"
+        ],
+        "diagnosticSignals": [
+          "DNIS in conversation.participants[].calls[].dnis != expected queue DNIS → calls misrouting from trunk; check trunk routing rules or carrier DID provisioning",
+          "queueId in analytics != expected queue for the DNIS → Architect flow logic routing to wrong queue; check Transfer to Queue action in the flow handling this DNIS",
+          "SIP INVITE To: header DNIS differs from the number the customer dialled → carrier-side mismatch; raise with carrier referencing the SIP Call-ID from the trace",
+          "SIP 404 Not Found on INVITE → DNIS not configured in any edge inbound rule or Architect inbound call flow; check DID table and flow DNIS match block",
+          "Conversation segments show purpose=ivr but no queueId → call terminated in IVR without reaching a queue; check flow for missing routing action on this DNIS",
+          "Skill tags in analytics conversation segments don't include required skill for the DNIS → Architect flow not requesting the correct skill via skill requirement action; check skill action in flow",
+          "Wrapup codes dominated by 'wrong-team' or transfer codes for this DNIS → agent-side confirmation of mis-routing; corroborating evidence"
+        ],
+        "enrichWith": [
+          "flows.get.all.flows (to identify which Architect inbound call flow handles the DNIS — match by flow DNIS entries)",
+          "analytics.query.flow.aggregates.execution.metrics (to confirm the DNIS-matched flow is executing; low nFlow vs. expected call volume = flow not triggering)",
+          "audit-logs (filter EntityType=IVR or Architect to see recent flow deployments that may have broken the DNIS routing)"
+        ]
+      },
+      "hold-escalation-and-transfer-pattern-investigation": {
+        "description": "Investigation of excessive hold time, consult transfer overuse, and multi-hop escalation chains — identifying queues and agents where calls are held excessively or transferred multiple times before resolution. Used when CSAT surveys cite hold time as a complaint driver, or when supervisors observe agents making frequent consult calls without resolving before the first hold. Combines queue-level hold metrics, transfer analytics, conversation-level detail, and quality scores.",
+        "subjectParam": "queueId",
+        "windowRequired": true,
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics-conversation-details-query",
+          "analytics.get.single.conversation.analytics",
+          "quality.get.evaluations.query",
+          "quality.get.surveys"
+        ],
+        "diagnosticSignals": [
+          "tHeld / tHandle > 0.25 queue-wide → systemic hold overuse; agents using hold as a substitute for consult transfer or escalation path",
+          "nConsultTransferred / nConnected > 0.15 → high consult volume; agents escalating before attempting resolution; check if empowerment (authority to resolve) is the gap",
+          "nBlindTransferred / nTransferred > 0.5 → blind transfers dominant over consult; agents routing around queue rules without briefing the receiving agent; customer must re-explain",
+          "Conversation segments show: hold → resume → hold → transfer sequence → agent using hold while seeking help before transferring; prime candidate for coaching on consult transfer usage",
+          "Low survey csatScore correlated with tHeld > 120 seconds → customer patience threshold for hold; 2-minute hold target for CX improvement initiative",
+          "High tHeld AND high nConsultTransferred concentrated in same agent cohort → knowledge gap driving hold-and-escalate behaviour; training and knowledge-base review",
+          "nTransferred high but nConsultTransferred low AND nBlindTransferred high → agents not trained on or lacking access to consult transfer; confirm station/softphone version supports consult"
+        ],
+        "enrichWith": [
+          "analytics.query.conversation.aggregates.wrapup.distribution (to identify if transferred conversations cluster on a specific wrapup code — the resolution they were looking for that the first agent could not provide)",
+          "routing.get.queue.wrapup.codes.by.queue (to decode wrapup codes from high-hold and transferred conversations)",
+          "coaching.get.appointments (to cross-reference agents with high hold or transfer rates against recent coaching activity — confirms whether the issue is known and being addressed)"
         ]
       }
     }

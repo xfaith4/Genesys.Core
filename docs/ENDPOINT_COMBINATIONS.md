@@ -25,7 +25,18 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Long Handle Time Investigation](#10-long-handle-time-investigation)
+11. [Repeat Caller / FCR Proxy Investigation](#11-repeat-caller--fcr-proxy-investigation)
+12. [Skill Group Routing Investigation](#12-skill-group-routing-investigation)
+13. [BYOI External Conversation Investigation](#13-byoi-external-conversation-investigation)
+14. [Agent Occupancy and Idle Analysis](#14-agent-occupancy-and-idle-analysis-executive)
+15. [First-Call Resolution Proxy Report](#15-first-call-resolution-proxy-report-executive)
+16. [Voice Infrastructure Executive Health](#16-voice-infrastructure-executive-health-executive)
+17. [Bot and Self-Service Containment Report](#17-bot-and-self-service-containment-report-executive)
+18. [WebRTC / Softphone Registration Audit](#18-webrtc--softphone-registration-audit-voice-engineer)
+19. [DNIS Routing Path Verification](#19-dnis-routing-path-verification-voice-engineer)
+20. [Hold, Escalation, and Transfer Pattern Investigation](#20-hold-escalation-and-transfer-pattern-investigation-voice-engineer)
+21. [Dataset Combination Reference Matrix](#21-dataset-combination-reference-matrix)
 
 ---
 
@@ -431,59 +442,464 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Long Handle Time Investigation
+
+**Subject:** `queueId` or `userId` + time window  
+**Use case:** A supervisor or operations analyst sees an AHT spike in an executive dashboard and needs to find the root cause — is it a specific call type, a specific agent, excessive hold, or ACW bloat?
+
+**Core question:** *Which conversations drove the AHT spike, and what specifically caused each one?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` (sorted by tHandle desc) | seed → `conversationId` | Top-N longest conversations: `tHandle`, `tTalk`, `tHeld`, `tAcw`, `agentId`, `wrapUpCode` |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment-level breakdown: hold count, conference events, transfer segments, per-phase timing |
+| 3 | `conversations.get.specific.conversation.details` | `conversationId` | Wrapup code per participant, transfer chain, BYOI indicator, full participant roster |
+| 4 | `users.get.user.details.with.full.expansion` | `userId` (agent participants) | Agent identity: name, division, manager — enables attribution to team |
+| 5 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | Agent-level baseline AHT in the window — compare outlier vs. own average |
+| 6 | `quality.get.evaluations.query` | `conversationId` | Evaluation score, critical item failure — confirms process violation for outlier conversations |
+| 7 | `routing.get.queue.wrapup.codes.by.queue` | `wrapUpCode` | Human-readable wrapup labels for the outlier set |
+
+### Key Derived Metrics
+
+```
+holdRatio%         = tHeld / tHandle  (> 40% → excessive hold)
+acwRatio%          = tAcw / tHandle   (> 30% → ACW discipline issue)
+ahtDelta           = conversation tHandle - agent's avg tHandle
+transferCount      = count of transfer segments in conversation-timeline
+```
+
+### Diagnostic Decision Tree
+
+```
+ahtDelta high for ALL agents on outliers → call-type/content driver (complex inquiry, billing)
+ahtDelta high for ONE agent only         → agent skill or knowledge gap; target for coaching
+holdRatio% > 40%                         → agent process: excessive hold usage
+acwRatio% > 30%                          → ACW discipline or complex post-call work
+transferCount > 1                        → routing problem; caller bouncing between queues
+criticalItemFailed = true in evaluations → procedure violation contributing to AHT
+```
+
+---
+
+## 11. Repeat Caller / FCR Proxy Investigation
+
+**Subject:** `queueId` or `divisionId` + time window  
+**Use case:** An operations director or CX analyst wants to measure first-call resolution without a formal IVR-based FCR system. ANI recurrence within a configurable window (default: 7 days) serves as the FCR proxy.
+
+**Core question:** *Which customers are calling back, why, and which queues and agents are associated with the repeat calls?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` | seed → `conversationId` | All connected conversations; group by ANI client-side for repeat detection |
+| 2 | `(derived — client-side ANI grouping)` | `ANI` | Repeat caller list: ANI, repeat count, days between calls, first/last conversationId |
+| 3 | `analytics.get.single.conversation.analytics` | `conversationId` (repeat only) | Segment detail for each repeat conversation: routing path, wrapup, agent |
+| 4 | `routing.get.queue.wrapup.codes.by.queue` | `wrapUpCode` | Decode wrapup codes — repeated codes reveal the unresolved issue category |
+| 5 | `quality.get.surveys` | `conversationId` | CSAT/NPS from repeat caller conversations — CX impact confirmation |
+| 6 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | Agent concentration: are repeat callers concentrated on specific agents? |
+
+### Exclusions (apply before ANI grouping)
+
+- `tAbandon < 10s` — short abandons (caller hung up immediately)
+- Conversations with no agent segment (IVR-only, no ACD routing)
+- Outbound campaign-initiated conversations
+
+### Executive Metrics
+
+```
+repeatCallerRate%      = uniqueRepeatANIs / totalUniqueANIs
+fcrProxy%              = 1 − repeatCallerRate%
+avgDaysBetweenCalls    (for repeat callers only)
+repeatCallerCsatAvg    (from survey results where present)
+topRepeatWrapupCodes   (top-3 wrapup codes in repeat chains)
+```
+
+**Executive presentation:** FCR Proxy% KPI card (target > 85%); queue-level repeat rate table sorted worst-to-best; highlight queues with repeatCallerRate% > 15% in red.
+
+---
+
+## 12. Skill Group Routing Investigation
+
+**Subject:** `queueId` or `skillGroupId` + time window  
+**Use case:** A contact centre architect or WFM planner investigates why a skill-based routing queue is missing SLA — is the eligible agent pool too small, too low-proficiency, or consistently off-queue?
+
+**Core question:** *Are the right agents with the right skills on-queue when the calls arrive?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.skill.groups` | seed → `id` | All configured skill groups, member counts, division assignments |
+| 2 | `routing.get.skill.group.members` | `skillGroupId` | Eligible agent pool per skill group with proficiency ratings |
+| 3 | `users.get.user.routing.skills` | `userId` | Individual skill proficiency per agent — tier distribution analysis |
+| 4 | `routing.get.single.queue.config` | `queueId` | Routing method: BEST_AVAILABLE / TIMESTAMP / SKILL_BASED; skill evaluation mode |
+| 5 | `routing-queue-members` | `queueId` | Live membership with routing status and presence — actual vs. eligible staffing |
+| 6 | `analytics.query.queue.aggregates.service.level` | `queueId` | SLA achievement — correlate skill coverage to service level |
+| 7 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | AHT by agent in queue — confirms if low-proficiency agents have higher AHT |
+
+### Division Note
+
+Skill groups span queues within a division. An agent's primary `divisionId` does not restrict which queues they appear in. Use `authorization.list.division.queues` to enumerate all queues served by a skill group's eligible agents within a division.
+
+### Diagnostic Signals
+
+| Signal | Diagnosis |
+|--------|-----------|
+| `eligibleAgentCount` adequate, `onQueueEligibleCount` low | Agents have the skill but are off-queue — presence audit |
+| SLA miss + `eligibleAgentCount` low | Coverage gap is the SLA cause, not overall headcount |
+| Queue `memberCount` >> `skillGroupMemberCount` | Queue allows more members than are skill-eligible — overflow to unqualified agents |
+| `avgHandleTime[tier-1]` >> `avgHandleTime[tier-4]` | Skill-based routing is correct; training to raise proficiency tiers will reduce AHT |
+
+---
+
+## 13. BYOI External Conversation Investigation
+
+**Subject:** One `conversationId` where `externalTag != null`  
+**Use case:** A conversation injected via the BYOI provider API (`POST /api/v2/conversations/providers/{providerId}/calls`) has a quality complaint, missing recording, or routing anomaly. The external provider needs a cross-reference using `externalConversationId`.
+
+**BYOI Identification Check (prerequisite):**
+- `conversations.get.specific.conversation.details` → `externalTag` is non-null
+- `participants[].purpose = "external"` confirms provider participant
+- If `externalTag` is null → use standard Single Conversation Deep Dive instead
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | `externalTag`, `externalConversationId`, participant roster |
+| 2 | `conversations.get.conversation.customattributes` | `conversationId` | Provider-set attributes: CRM case ID, external call ID, intent label |
+| 3 | `conversations.search.participant.attributes` | `conversationId` | Architect flow variables: intent capture, data action results |
+| 4 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timing — BYOI flows through identical analytics pipeline |
+| 5 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP trace of the provider SIP-to-SIP handoff (not a PSTN leg) |
+| 6 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording metadata — BYOI recordings follow queue policy |
+| 7 | `quality.get.evaluations.query` | `conversationId` | Quality evaluation — identical to native calls |
+| 8 | `quality.get.conversation.surveys` | `conversationId` | Post-interaction survey result |
+
+### Voice Engineer Notes (BYOI-Specific)
+
+- SIP trace shows **provider IP in SDP Contact/Via** — not a carrier leg. Compare to expected provider CIDR.
+- SIP `4xx` on provider INVITE → provider-side rejection. Use `externalConversationId` as the provider's reference for their own logs.
+- Recording absent + policy active → check if BYOI provider set a consent-blocked flag in `custom-attributes`.
+- `analytics IVR duration > 0` → call transited an Architect flow. Check `participant-attributes` to confirm intent capture worked.
+
+---
+
+## 14. Agent Occupancy and Idle Analysis (Executive)
+
+**Subject:** Division or management unit + time window  
+**Use case:** A VP of Operations or workforce manager identifies agents who are technically on-queue but contributing low interaction volume — a hidden staffing efficiency problem.
+
+**Core question:** *Which agents are on-queue but idle, and by how much?*
+
+### Dataset Steps (ordered)
+
+| Layer | Dataset Key | Metric |
+|-------|-------------|--------|
+| Identity | `users.division.analysis.get.users.with.division.info` | Agent list with division |
+| On-queue time | `analytics.query.user.aggregates.login.activity` | `tAgentRoutingStatus[ON_QUEUE]` |
+| Interacting time | `analytics.query.user.aggregates.performance.metrics` | `nConnected × avgTHandle` ≈ `tInteracting` |
+| Live status | `routing-queue-members` | Current presence + routing status |
+| Adherence | `workforce.get.management.unit.adherence` | Scheduled vs. actual (WFM licensed) |
+
+### Computed Metrics
+
+```
+tIdleTime      = tOnQueueTime − tInteractingTime
+occupancyPct%  = tInteractingTime / tOnQueueTime
+```
+
+**Executive presentation:** Agent occupancy heat map sorted by `occupancyPct%`; flag agents below 50% occupancy while on-queue; group by division and management unit for peer comparison.
+
+---
+
+## 15. First-Call Resolution Proxy Report (Executive)
+
+**Subject:** Organisation or queue group + monthly window  
+**Use case:** Monthly CX strategy review when a formal IVR-based FCR system is not deployed. Uses ANI recurrence as the FCR proxy.
+
+### Dataset Steps
+
+| Dataset Key | Purpose |
+|-------------|---------|
+| `analytics-conversation-details-query` | All connected conversations — group by normalised ANI |
+| `routing-queues` | Queue names for the output table |
+| `routing.get.all.wrapup.codes` | Wrapup label resolution |
+| `quality.get.surveys` | CSAT from repeat-caller conversations |
+
+### Computation Notes
+
+- **Exclude:** `tAbandon < 10s`, IVR-only sessions, outbound campaign calls
+- **Repeat window:** Default 7 days; configurable per business context
+- **ANI normalisation:** Strip country code, format to E.164 before grouping
+
+### Executive Output
+
+```
+FCR Proxy%             = 1 − repeatCallerRate%       (target: > 85%)
+Repeat Caller CSAT     = avgCsatScore for repeat ANIs
+Top Repeat Wrapup      = most frequent wrapup in repeat chains
+Worst Queue            = queue with highest repeatCallerRate%
+```
+
+**Trend view:** week-over-week FCR Proxy% by queue; highlight regression queues in red (> 15% repeat rate).
+
+---
+
+## 16. Voice Infrastructure Executive Health (Executive)
+
+**Subject:** Organisation-wide (no subject ID required)  
+**Use case:** Executive operational review, major-incident bridge, or monthly infrastructure health board report.
+
+**Core question:** *Is the voice infrastructure operating within safe parameters right now?*
+
+### Dataset Steps
+
+| Dataset Key | Metric |
+|-------------|--------|
+| `telephony.get.edges` | Edge availability: `statusCode = ACTIVE` count vs. total |
+| `telephony.get.trunks` | Trunk in-service count: `inService = true` |
+| `telephony.get.trunk.metrics.summary` | `currentCalls / maxConcurrentCalls` → utilisation% |
+| `alerting.get.alerts` | Firing alert count by severity |
+| `alerting.get.rules` | Confirm alerting thresholds are configured |
+| `conversations.get.active.calls` | Current call volume against capacity headroom |
+
+### Stoplight Thresholds
+
+| Layer | Green | Amber | Red |
+|-------|-------|-------|-----|
+| Edge availability | 100% | 90-99% | < 90% |
+| Trunk utilisation | < 70% | 70-85% | > 85% |
+| Active CRITICAL alerts | 0 | 1-2 | > 2 |
+
+---
+
+## 17. Bot and Self-Service Containment Report (Executive)
+
+**Subject:** Organisation-wide or specific bot flows + time window  
+**Use case:** Bot investment justification, NLU model retraining decisions, and automation roadmap prioritisation.
+
+**Core question:** *How many customers did bots and IVR resolve without agent escalation, and is that rate trending in the right direction?*
+
+### Dataset Steps
+
+| Dataset Key | Metric |
+|-------------|--------|
+| `analytics.query.bot.aggregates` | `nBotSessions`, `nBotTransferredToAgent`, `avgConversationTurns` |
+| `analytics.query.flow.aggregates.execution.metrics` | `nFlow`, `nFlowOutcome`, `nFlowOutcomeFailed` |
+| `flows.get.all.flows` | Flow names and types for labelling |
+| `flows.get.flow.outcomes` | Outcome definitions for classification |
+| `analytics-conversation-details-query` | Bot-originated conversations that reached queue (escaped containment) |
+
+### Computed Metrics
+
+```
+containmentRate%  = 1 − (nBotTransferredToAgent / nBotSessions)
+ivrContainment%   = 1 − (nFlowOutcomeFailed / nFlow)
+deflectedVolume   = nBotSessions − nBotTransferredToAgent
+nlConfidence%     = nIntentConfident / nBotSessions
+```
+
+**Executive presentation:** Containment rate KPI card (target > 40% for bots, > 60% for IVR); deflection volume as cost-avoidance estimate; week-over-week NLU confidence trend.
+
+---
+
+## 18. WebRTC / Softphone Registration Audit (Voice Engineer)
+
+**Subject:** Organisation-wide (no subject ID required)  
+**Use case:** Proactive shift-start audit of station registration health, or reactive investigation when agents report calls not ringing despite being "on queue."
+
+**Core question:** *Which stations are unregistered, and which on-queue agents cannot receive calls as a result?*
+
+### Dataset Steps
+
+| Dataset Key | Join Key | What It Adds |
+|-------------|----------|--------------|
+| `stations.get.stations` | seed → `id` | All stations: `registered`, `type`, `associatedUser`, `webRtcUserId`, `status` |
+| `users` | `userId` | Presence and routing status for associated users |
+| `analytics.query.user.observations.real.time.status` | `userId` | Real-time `oUserPresence`, `oUserRoutingStatus` |
+| `analytics.query.queue.observations.real.time.stats` | `queueId` | `oOnQueueUsers` vs. `oInteracting` ratio — detects ghost-agent queues |
+
+### Derived Metric
+
+```
+ghostAgentCount = users where routingStatus=ON_QUEUE AND station.registered=false
+```
+
+### Diagnostic Signals
+
+| Signal | Root Cause |
+|--------|-----------|
+| `station.registered=false` + `routingStatus=ON_QUEUE` | Ghost agent — ACD will offer, auto-answer will NOT_RESPOND |
+| `station.webRtcUserId != user.id` | Station assigned to wrong user — reassign in admin portal |
+| `oOnQueueUsers >> count(registered stations)` | Registration epidemic — check DNS, STUN/TURN (UDP 3478), firewall |
+| `station.status=ASSOCIATED` + `registered=false` | ICE negotiation failure — WebRTC media port blocked |
+
+**Enrich with:** `audit-logs` (EntityType=Station), `telephony.get.edge.performance.metrics` (if site-wide).
+
+---
+
+## 19. DNIS Routing Path Verification (Voice Engineer)
+
+**Subject:** DNIS value or `queueId`  
+**Use case:** Calls are reaching the wrong queue, playing the wrong IVR greeting, or being answered by incorrectly-skilled agents. A DNIS routing problem is suspected.
+
+**Core question:** *Is the DNIS landing in the expected queue, and is the routing path correct at every hop?*
+
+### Dataset Steps
+
+| Dataset Key | Join Key | What It Adds |
+|-------------|----------|--------------|
+| `analytics-conversation-details-query` (DNIS filter) | seed → `conversationId` | Conversations matching the DNIS: actual `queueId`, `agentId`, routing path |
+| `conversations.get.specific.conversation.details` | `conversationId` | `participants[].calls[].dnis` — actual DNIS received by the platform |
+| `routing.get.single.queue.config` | `queueId` | Queue name, routing method — confirms expected queue is correctly configured |
+| `routing.get.queue.wrapup.codes.by.queue` | `queueId` | Wrapup codes — 'wrong-team' codes confirm agent-side awareness of mis-routing |
+| `telephony.get.sip.message.for.conversation` | `conversationId` | SIP `INVITE To:` header DNIS — confirms carrier-delivered DNIS |
+| `routing.get.all.routing.skills` | `skillId` | Skill labels — verify conversation segments have the expected skill tag |
+
+### Diagnostic Decision Tree
+
+```
+analytics queueId != expected queue    → Architect flow routing to wrong queue
+SIP INVITE To: DNIS != expected DNIS  → carrier-side mismatch; raise with carrier
+SIP 404 Not Found on INVITE            → DNIS not configured; check DID table and inbound flow
+No skill tag in segments               → Architect flow not requesting required skill
+IVR segment with no queueId            → Call terminated in IVR; check for missing Transfer action
+```
+
+**Enrich with:** `flows.get.all.flows` (match by DNIS entries), `analytics.query.flow.aggregates.execution.metrics` (confirm flow is executing), `audit-logs` (EntityType=Architect, recent deployments).
+
+---
+
+## 20. Hold, Escalation, and Transfer Pattern Investigation (Voice Engineer)
+
+**Subject:** `queueId` + time window  
+**Use case:** CSAT surveys cite hold time, or supervisors observe agents making frequent consult calls. The investigation determines whether hold and transfer behaviour is systemic across a queue or concentrated in a specific agent cohort.
+
+**Core question:** *Are agents using hold and transfer appropriately, and where is the behaviour costing the most in AHT and CSAT?*
+
+### Dataset Steps
+
+| Dataset Key | Join Key | What It Adds |
+|-------------|----------|--------------|
+| `analytics.query.conversation.aggregates.queue.performance` | `queueId` | `tHeld`, `tHandle`, `nConnected` — hold ratio at queue level |
+| `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | `nTransferred`, `nBlindTransferred`, `nConsultTransferred` |
+| `analytics-conversation-details-query` | `queueId` | Conversation list filtered by `tHeld > threshold` |
+| `analytics.get.single.conversation.analytics` | `conversationId` | Segment-level hold → resume → transfer event chains |
+| `quality.get.evaluations.query` | `conversationId` | Evaluation scores for high-hold/high-transfer conversations |
+| `quality.get.surveys` | `conversationId` | CSAT correlation: low scores on high-hold conversations |
+
+### Key Thresholds
+
+| Metric | Threshold | Interpretation |
+|--------|-----------|----------------|
+| `tHeld / tHandle` | > 25% | Systemic hold overuse at queue level |
+| `nConsultTransferred / nConnected` | > 15% | Agents escalating before attempting resolution |
+| `nBlindTransferred / nTransferred` | > 50% | Blind transfer dominant — no handoff briefing for customers |
+| `tHeld` on individual conversation | > 120s | Customer patience threshold; correlate to CSAT |
+
+### Diagnostic Pattern: Hold-Seek-Transfer
+
+A conversation with the segment sequence `hold → resume → hold → consult-transfer` is an agent who does not know the answer, puts the customer on hold while seeking help, then transfers rather than resolving. This pattern indicates an empowerment or knowledge-base gap, not a system issue.
+
+**Enrich with:** `coaching.get.appointments` (cross-reference high-hold agents with recent coaching), `routing.get.queue.wrapup.codes.by.queue` (decode wrapup codes from transferred conversations — the resolution type the agent could not provide).
+
+---
+
+## 21. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+**Investigation patterns:** Conv = Single Conversation Deep Dive · Queue = Queue Investigation · Div = Division Investigation · Agent = Agent Investigation · LHT = Long Handle Time · Repeat = Repeat Caller / FCR Proxy · Skill = Skill Group Routing · BYOI = BYOI External Conversation
+
+**Reporting patterns:** Exec = Executive Rollup · RT = Real-Time Monitoring · Occ = Occupancy/Idle · FCR = FCR Proxy Report · VoiceInfra = Voice Infrastructure Health · Bot = Bot Containment
+
+**Voice Engineer patterns:** VE-Conv = Single Call Forensics · VE-Trunk = Trunk/Edge Health · VE-Reg = WebRTC Registration Audit · VE-DNIS = DNIS Routing Verification · VE-Hold = Hold/Transfer Investigation
+
+| Dataset Key | Conv | Queue | Div | Agent | LHT | Repeat | Skill | BYOI | Exec | RT | Occ | FCR | VoiceInfra | Bot | VE-Conv | VE-Trunk | VE-Reg | VE-DNIS | VE-Hold |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.specific.conversation.details` | ● | | | | ○ | | | ● | | | | | | | ● | | | ● | |
+| `analytics.get.single.conversation.analytics` | ● | | | | ● | ● | | ● | | | | | | | ● | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | ● | | | | | | | ● | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | ● | | | | | | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | | ● | | | | | | | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | | | | | | | | | | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | | | | | | | | | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | ● | ○ | ● | | | ● | | | | | | | ● | | | | ○ |
+| `quality.get.surveys` | ● | | | | | ● | | ● | ● | | | ● | | | | | | | ○ |
+| `quality.get.conversation.surveys` | ● | | | | | | | ● | | | | | | | | | | | |
+| `quality.get.agents.activity` | | | ● | ○ | | | | | ● | | | | | | | | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | ● | | | | | | | ● | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | | | | | | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | | | | | | | | | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | | | | | | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | | | | | | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | ● | | | | | | | | | | | ● | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | ● | ● | | | | | | | | | | | | ● | ● |
+| `routing.get.skill.groups` | | | | | | | ● | | | | | | | | | | | | |
+| `routing.get.skill.group.members` | | | | | | | ● | | | | | | | | | | | | |
+| `routing.get.user.utilization` | | | | ○ | | | | | | | | | | | | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | | | | | | ● | | | | | | | | | |
+| `routing-queue-members` | | ● | | | | | ● | | | | ● | | | | | | ● | ● | |
+| `analytics-conversation-details-query` | | ● | | ○ | ● | ● | | | | | | ● | | ○ | | | | ● | ● |
+| `analytics.get.multiple.conversations.by.ids` | | | | | | | | | | | | | | | | | | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | ● | | | | ● | | ● | | | | | | | | | | ● |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | | | | | | ● | | | | | | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | | | | ● | | ● | | | | | | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | | | | | | ● | | | | | | | | | | ● |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | | | | | | ● | | | | | | | | | | ● |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | ● | ● | ● | | ● | | ● | | | | | | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | | | | | | ● | | | | | | | | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | | | | ● | | ● | | | | | | | | |
+| `analytics.query.user.aggregates.performance.metrics` | | | | ● | | | | | | | ● | | | | | | | | |
+| `analytics.query.user.details.activity.report` | | | ● | ● | | | | | | | | | | | | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | ● | | | | | | | | ● | | | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | | | | | | ● | | | | | | | | | |
+| `analytics.query.user.observations.real.time.status` | | ● | | | | | | | | ● | | | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | ○ | | | | | | ○ | | | | | | | | | |
+| `analytics.query.flow.aggregates.execution.metrics` | | | | | | | | | | | | | | ● | | | | | |
+| `analytics.query.flow.observations` | | | | | | | | | | ● | | | | | | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | | | | | | ● | | | | | | | | | | |
+| `analytics.query.bot.aggregates` | | | | | | | | | | | | | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | | | | | | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | ● | | | | | | | | | | | | |
+| `authorization.get.division.grants` | | | ● | | | | | | | | | | | | | | | | |
+| `users.get.user.details.with.full.expansion` | | | | ● | ● | | | | | | | | | | | | | | |
+| `users.get.user.routing.skills` | | | | ● | | | ● | | | | | | | | | | | | |
+| `users.get.user.queue.memberships` | | | | ● | | | | | | | | | | | | | | | |
+| `users.get.bulk.user.presences` | | | | ● | | | | | | | | | | | | | | | |
+| `users.get.agent.active.conversations` | | | | ○ | | | | | | ○ | | | | | | | | | |
+| `users.get.agent.current.routing.status` | | | | ○ | | | | | | ○ | | | | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | | | | | | ● | | | | | | | | |
+| `audit-logs` | | | | ● | | | | | | | | | | | | | ○ | ○ | |
+| `stations.get.stations` | | | | | | | | | | | | | | | | ● | ● | | |
+| `users` | | | | | | | | | | | | | | | ● | | ● | | |
+| `telephony.get.edges` | | | | | | | | | | | | | ● | | | ● | | | |
+| `telephony.get.trunks` | | | | | | | | | | | | | ● | | | ● | | | |
+| `telephony.get.trunk.metrics.summary` | | | | | | | | | ○ | | | | ● | | | ● | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | | | | | | | | | | | | ● | ○ | | |
+| `telephony.get.sip.message.for.conversation` | | | | | | | | | | | | | | | ● | | | ● | |
+| `alerting.get.alerts` | | | | | | | | | ○ | | | | ● | | | ● | | | |
+| `alerting.get.rules` | | | | | | | | | | | | | ● | | | ● | | | |
+| `coaching.get.appointments` | | | ● | ○ | | | | | | | | | | | | | | | ○ |
+| `flows.get.all.flows` | | | | | | | | | | | | | | ● | | | | ○ | |
+| `flows.get.flow.outcomes` | | | | | | | | | | | | | | ● | | | | | |
+| `flows.get.flow.milestones` | | | | | | | | | | | | | | ● | | | | | |
+| `workforce.get.management.units` | | | | | | | | | ● | | | | | | | | | | |
+| `workforce.get.business.units` | | | | | | | | | ● | | | | | | | | | | |
+| `workforce.get.management.unit.users` | | | | | | | | | ● | | | | | | | | | | |
+| `workforce.get.management.unit.adherence` | | | | | | | | | ● | | ● | | | | | | | | |
+| `workforce.get.agent.management.unit` | | | | ● | | | | | | | | | | | | | | | |
+| `workforce.get.adherence.bulk` | | | | ● | | | | | | | | | | | | | | | |
+| `routing.get.all.wrapup.codes` | | | | | | ● | | | ● | | | ● | | | | | | | |
+| `outbound.get.campaigns` | | | | | | | | | ● | | | | | | | | | | |
+| `outbound.get.contact.lists` | | | | | | | | | ● | | | | | | | | | | |
+| `outbound.get.events` | | | | | | | | | ● | | | | | | | | | | |
+| `conversations.get.active.calls` | | | | | | | | | | | | | ● | | | ● | | | |
+| `quality.get.published.evaluation.forms` | | | | | | | | | | | | | | | | | | | |
 
 ---
 

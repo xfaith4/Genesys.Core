@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-05  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,11 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Digital Conversation Investigation (Chat / Email / Messaging)](#11-digital-conversation-investigation-chat--email--messaging)
+12. [AI Copilot & Agent Assist Enrichment](#12-ai-copilot--agent-assist-enrichment)
+13. [External Contact & Repeat Caller Investigation](#13-external-contact--repeat-caller-investigation)
+14. [Bot-Assisted & Self-Service Investigation](#14-bot-assisted--self-service-investigation)
+15. [Recording & Compliance Coverage](#15-recording--compliance-coverage)
 
 ---
 
@@ -484,6 +489,301 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `conversations.get.email.messages` | ○ | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | ○ |
+| `conversations.get.call.detail` | ○ | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ○ | | | | | |
+| `quality.get.conversation.surveys` | ○ | | | ● | | |
+| `routing.get.queue.estimated.wait.time` | | | | | ○ | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | |
+| `authorization.get.division.grants` | | | ○ | | | |
+| `workforce.get.adherence.bulk` | | | | ● | ○ | |
+| `workforce.get.agent.management.unit` | | | | | | ○ |
+| `externalcontacts.get.contact.details` | ○ | | | | | |
+| `analytics.query.bot.aggregates` | | | | ● | ○ | |
+| `recording.get.media.retention.policies` | | | | ● | | |
+| `analytics.query.knowledge.aggregates` | | | | ● | | ○ |
+
+---
+
+## 11. Digital Conversation Investigation (Chat / Email / Messaging)
+
+**Subject:** One `conversationId` where `mediaType` is `chat`, `email`, `message`, or `webmessaging`  
+**Use case:** An operator or QM analyst investigates a digital interaction — a chat abandoned mid-session, an email thread with no reply, a messaging conversation that escalated to a supervisor. Digital interactions lack SIP traces but have message threads, bot handoffs, and asynchronous session windows.
+
+**Core question:** *What was the full digital interaction lifecycle — content, routing, AI enrichment, and customer outcome?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | Confirms `mediaType`, participant roster, `externalContactId`, originating direction, queue assignment |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment-level timing: ACD wait, agent response time, ACW — identical structure to voice |
+| 3 *(email only)* | `conversations.get.email.messages` | `conversationId` | Full message thread: subject, body, from/to addresses, attachment metadata, timestamps |
+| 4 | `conversations.get.conversation.summaries` | `conversationId` | Copilot/Agent Assist AI summary — reason for contact, resolution notes, wrap-up prediction |
+| 5 *(chat/messaging, STA licensed)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary for the digital session |
+| 6 | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Interaction categories (e.g., "Billing Dispute", "Technical Issue") applied by the S&TA engine |
+| 7 | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | AI-generated per-leg summaries and detected key phrases from the S&TA transcription pipeline |
+| 8 *(externalContactId non-null)* | `externalcontacts.get.contact.details` | `participants[].externalContactId` | Full CRM contact record — name, organisation, all phone/email identifiers, notes |
+| 9 | `quality.get.evaluations.query` | `conversationId` (filter) | QM evaluation score, critical items, evaluator — digital interactions are fully evaluatable |
+| 10 | `quality.get.conversation.surveys` | `conversationId` | Post-interaction CSAT/NPS survey outcome if triggered |
+
+### Key Joins
+
+```
+conversations.get.specific.conversation.details.conversationId
+  → analytics.get.single.conversation.analytics.conversationId
+  → conversations.get.email.messages.conversationId         [email only]
+  → conversations.get.conversation.summaries.conversationId
+  → speechandtextanalytics.get.conversation.categories.conversationId
+  → quality.get.evaluations.query[].conversationId          [left join]
+  → quality.get.conversation.surveys[].conversationId       [left join]
+
+conversations.get.specific.conversation.details.participants[].externalContactId
+  → externalcontacts.get.contact.details.contactId          [left join, when non-null]
+```
+
+### Conditional Execution
+
+| Step | Run When |
+|------|----------|
+| `conversations.get.email.messages` | `mediaType = 'email'` |
+| `conversations.get.speech.text.analytics` | `mediaType in {chat, message, webmessaging}` and S&TA licensed |
+| `speechandtextanalytics.get.conversation.categories` | S&TA licensed |
+| `speechandtextanalytics.get.conversation.summaries.detail` | S&TA transcription pipeline active |
+| `externalcontacts.get.contact.details` | `participants[].externalContactId` is non-null |
+
+### Analytical Questions Answered
+
+- What was the full message exchange? (email thread or chat session content)
+- How long did the customer wait before an agent joined?
+- What topic did the S&TA engine classify this interaction under?
+- What was the Copilot summary — reason for contact, resolution?
+- Who was the customer? Do they have a CRM record?
+- Was the digital interaction scored by QM? What was the result?
+- Did the customer complete a post-interaction survey?
+
+### Digital-Specific Notes
+
+- **Email threading:** `conversations.get.email.messages` returns all messages in the ACD email conversation, including reply chains. The `messageSubject` and `messageBody` fields are PII-rich — apply the `conversation-investigation-recordings` redaction profile.
+- **Bot handoffs:** If the digital conversation was preceded by a bot session, the bot conversationId is linked via `participants[].purpose = 'acd'` segment transitions. Cross-reference with `analytics.query.bot.aggregates` to see if the bot resolved intent before escalating.
+- **No SIP trace:** Digital conversations have no telephony signalling. The analytics detail record is the primary timing source.
+
+---
+
+## 12. AI Copilot & Agent Assist Enrichment
+
+**Subject:** One `conversationId` or a set of conversations per agent/queue over a window  
+**Use case:** An ops lead wants to confirm Agent Copilot is being used and adding value — are agents searching the knowledge base, are summaries being generated, does higher knowledge use correlate with better QM scores? A training team wants to identify agents who are not adopting AI tooling.
+
+**Core question:** *Is Agent Copilot being used, and is it improving agent outcomes?*
+
+### Dataset Steps — Per-Conversation Enrichment
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.summaries` | `conversationId` | Copilot AI summary: reason for contact, resolution notes, wrap-up code prediction |
+| 2 | `analytics.query.knowledge.aggregates` | `conversationId`, `userId` | Knowledge searches, articles surfaced, document views, positive/negative feedback signals |
+| 3 | `quality.get.evaluations.query` | `conversationId` | QM score alongside Copilot usage — correlation bridge |
+
+### Dataset Steps — Per-Agent/Queue Adoption Rollup
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.knowledge.aggregates` | `userId`, `queueId` | Aggregate knowledge search counts, surfacing rate, document view rate per agent/queue |
+| 2 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | AHT, nConnected — handle time baseline for adoption correlation |
+| 3 | `quality.get.agents.activity` | `userId` | QM scores — correlation: does high knowledge use predict higher eval scores? |
+| 4 *(low adopters)* | `coaching.get.appointments` | `userId` | Coaching schedule — confirm whether low-adoption agents have active coaching interventions |
+
+### Key Joins
+
+```
+analytics.query.knowledge.aggregates.userId
+  → analytics.query.conversation.aggregates.agent.performance.userId (AHT correlation)
+  → quality.get.agents.activity.userId                                 (QM correlation)
+  → coaching.get.appointments.userId                                   [left join]
+
+conversations.get.conversation.summaries.conversationId
+  → quality.get.evaluations.query[].conversationId                    [left join]
+```
+
+### Derived Metrics
+
+| Metric | Formula |
+|--------|---------|
+| `knowledgeSurfacingRate%` | `nKnowledgeSurfaced / nConnected` |
+| `knowledgeAdoptionRate%` | `nKnowledgeDocumentView / nKnowledgeSurfaced` |
+| `knowledgeFeedbackScore%` | `nKnowledgeFeedbackPositive / (nKnowledgeFeedbackPositive + nKnowledgeFeedbackNegative)` |
+| `copilotSummaryRate%` | conversations with non-empty summary / nConnected |
+
+### Diagnostic Signals
+
+- `nKnowledgeSearch = 0` for agent across window → agent not using knowledge search; coaching candidate
+- `nKnowledgeFeedbackNegative / nKnowledgeSurfaced > 0.3` → articles surfaced are not relevant; review knowledge base content
+- High AHT + low `nKnowledgeDocumentView` → agent searching manually rather than using Copilot
+- `nKnowledgeSurfaced / nConnected` well below org average → queue may not have Agent Copilot configured
+- Low knowledge use + low QM score + no `coaching.get.appointments` entry → immediate coaching intervention needed
+
+---
+
+## 13. External Contact & Repeat Caller Investigation
+
+**Subject:** One `externalContactId` (CRM contact record) over a time window  
+**Use case:** A supervisor or QM analyst suspects a customer has contacted the centre multiple times without resolution — the repeat-contact pattern. Investigation spans all conversations linked to that customer identity across any queue or channel, surfacing unresolved issues, CSAT trends, and escalation history.
+
+**Core question:** *Why does this customer keep calling back, and is the issue getting resolved?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts.get.contact.details` | seed → `externalContactId` | Customer identity anchor: name, org, all phone numbers, email, CRM notes |
+| 2 | `analytics-conversation-details-query` | `externalContactId` (filter via `participantAttributes` or ANI match) | All conversationIds for the customer in the window, queue routing, handle times, wrap-up codes |
+| 3 *(fan-out)* | `conversations.get.specific.conversation.details` | `conversationId` per row | Full participant roster, state, queue assignment, originating direction per conversation |
+| 4 *(fan-out)* | `conversations.get.conversation.summaries` | `conversationId` per row | Copilot reason-for-contact and resolution per conversation — rapid cross-conversation topic mapping |
+| 5 *(fan-out)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` per row | Sentiment timeline per conversation — declining score across repeat contacts confirms systemic issue |
+| 6 *(fan-out, optional)* | `quality.get.evaluations.query` | `conversationId` per row | QM scores — reveals whether QM caught repeated issues |
+| 7 *(fan-out, optional)* | `quality.get.conversation.surveys` | `conversationId` per row | CSAT per conversation — tracks whether satisfaction improved or degraded across repeat contacts |
+
+### Key Joins
+
+```
+externalcontacts.get.contact.details.id (= externalContactId)
+  → analytics-conversation-details-query[].participants[].externalContactId
+      → conversations.get.specific.conversation.details.conversationId  [fan-out]
+      → conversations.get.conversation.summaries.conversationId         [fan-out]
+      → speech.and.text.analytics.get.sentiment.for.conversation.id     [fan-out]
+      → quality.get.evaluations.query[].conversationId                  [fan-out, left join]
+      → quality.get.conversation.surveys[].conversationId               [fan-out, left join]
+```
+
+### Derived Metrics
+
+| Metric | Formula |
+|--------|---------|
+| `repeatContactCount` | `COUNT(conversationIds)` in window |
+| `firstContactResolutionRate%` | Conversations with `wrapUpCode != 'Unresolved'` / total |
+| `avgCSATTrend` | CSAT scores ordered by `conversationStart` — slope indicates resolution trajectory |
+| `escalationRate%` | Conversations with supervisor join or transfer / total |
+| `channelSwitchCount` | Unique `mediaTypes` across the conversation set |
+
+### Investigation Notes
+
+- **Identity resolution:** `externalContactId` is not always populated. For voice, ANI matching against `externalcontacts.get.contact.details.phoneNumbers` may be needed to link conversations. This is a known gap — document in the run manifest.
+- **Fan-out volume:** Limit the analytics query window to prevent excessive fan-out. A 90-day window on an active customer can return dozens of conversations.
+- **Copilot summaries as rapid triage:** Running `conversations.get.conversation.summaries` in the fan-out before pulling full recordings allows the analyst to map all reasons for contact in seconds without listening to audio.
+
+---
+
+## 14. Bot-Assisted & Self-Service Investigation
+
+**Subject:** One or more `botId` / `flowId` values over a time window, optionally scoped to a queue  
+**Use case:** An IVR/bot engineer or operations lead investigates why self-service containment has dropped, why escalation rates are rising, or whether a recent bot training update improved intent matching. Combines bot aggregate metrics with flow execution data and the queue performance at the escalation destination.
+
+**Core question:** *How effectively are bots and IVR flows resolving customer intent before reaching a live agent?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `flows.get.all.flows` | seed | Flow inventory: name, type (bot/inbound/outbound), active version |
+| 2 | `flows.get.flow.outcomes` | `flowId` | Configured outcome types for each flow — which outcomes indicate resolution vs. escalation |
+| 3 | `analytics.query.bot.aggregates` | `botId`, `flowId` | Bot session counts, average turns per session, intent match rate, response time |
+| 4 | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | Total executions, outcome distribution, exit reasons |
+| 5 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` (escalation destination) | Post-escalation AHT and volume — the cost of bot failure |
+| 6 *(real-time)* | `analytics.query.flow.observations` | `flowId` | Currently active flow sessions — use during a live degradation incident |
+
+### Key Joins
+
+```
+flows.get.all.flows.id (= flowId)
+  → flows.get.flow.outcomes.flowId
+  → analytics.query.flow.aggregates.execution.metrics.groupByValue[flowId]
+  → analytics.query.bot.aggregates.groupByValue[flowId]
+
+analytics.query.bot.aggregates.groupByValue[botId]
+  → flows.get.all.flows (botId is a flowId for bot flows in Genesys)
+
+escalation destination queue from flow outcome
+  → analytics.query.conversation.aggregates.queue.performance.groupByValue[queueId]
+```
+
+### Derived Metrics
+
+| Metric | Formula |
+|--------|---------|
+| `containmentRate%` | Bot/flow sessions resolved without agent / total `nBotInteractions` |
+| `intentMatchRate%` | `nBotIntentMatched / (nBotIntentMatched + nBotIntentNotMatched)` |
+| `avgBotTurns` | `nBotSessionTurnAvgCount` |
+| `escalationToAgentRate%` | `nFlowOutcomeFailed / nFlow` |
+| `postEscalationAHT` | `tHandle` on conversations in the escalation queue |
+| `botResponseTimeP95` | `tBotResponseTime` at P95 — latency indicator |
+
+### Diagnostic Signals
+
+- `intentMatchRate%` drop after a bot update → training regression; review added/modified intents
+- `avgBotTurns` spike → bot asking more clarifying questions; simplify utterance model
+- `containmentRate%` down + `escalation queue nOffered` up → bot failing to resolve; check flow outcome configuration
+- `tBotResponseTime` P95 above 2s → NLU or fulfillment latency issue; check bot integration health
+- `nBotInteractions` up + queue `oWaiting` unchanged → bot deflecting successfully at increased volume
+
+### Voice Engineer Notes
+
+- Run step 6 (`analytics.query.flow.observations`) first when triaging a live bot degradation — active session count confirms the scope before pulling historical aggregates.
+- Compare `flows.get.flow.outcomes` against `analytics.query.flow.aggregates.execution.metrics` outcome distribution to confirm that all expected outcome types are firing.
+
+---
+
+## 15. Recording & Compliance Coverage
+
+**Subject:** One queue, one agent, or the entire org over an audit window  
+**Use case:** A compliance officer or QM manager needs to confirm that every interaction subject to recording policy was actually recorded and archived. Critical for GDPR/HIPAA audit periods, legal hold reviews, or after a recording system outage.
+
+**Core question:** *Was every conversation that should have been recorded actually recorded, and is the recording safely retained?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `recording.get.media.retention.policies` | seed | Policy inventory: conditions (queue, agent, mediaType), retention duration, archival destination, deletion schedule |
+| 2 | `routing-queues` | `queueId` | Queue metadata — confirm which queues are covered by which policies |
+| 3 | `analytics-conversation-details-query` | `queueId` / window | All conversations in scope — the denominator for coverage calculation |
+| 4 | `conversations.get.conversation.recording.metadata` | `conversationId` (fan-out) | Recording metadata per conversation: recording IDs, media type, duration, `archiveDate`, deletion status |
+| 5 *(optional)* | `quality.get.evaluations.query` | `conversationId` (fan-out filter) | Evaluation coverage — confirms QM sampling rate against connected volume |
+
+### Key Joins
+
+```
+recording.get.media.retention.policies[].conditions.queueIds[]
+  → routing-queues.id (= queueId)
+  → analytics-conversation-details-query[].queueId
+      → conversations.get.conversation.recording.metadata.conversationId  [fan-out]
+      → quality.get.evaluations.query[].conversationId                     [fan-out, left join]
+```
+
+### Derived Metrics
+
+| Metric | Formula |
+|--------|---------|
+| `recordingCoverageRate%` | Conversations with ≥1 recording / `nConnected` |
+| `evaluationCoverageRate%` | Conversations with ≥1 evaluation / `nConnected` |
+| `recordingsAtRisk` | Recordings where `archiveDate < today` and `archiveDestination` is null |
+| `policyMismatches` | Conversations where `recording.mediaType` ≠ `conversation.mediaType` |
+
+### Diagnostic Signals
+
+- `recordingCoverageRate% < 100%` on a policy-required queue → edge recording policy misconfigured or media capture service interrupted
+- `archiveDate` past with no `archiveDestination` → archival export job not running; records at deletion risk
+- `evaluationCoverageRate%` below target → QM staffing gap or form-filter misconfiguration
+- `policyMismatches` > 0 → a recording exists but was captured under the wrong media classification; affects retention rule application
+- Queue has conversations but no matching policy entry → coverage gap; queue was added after the policy was last reviewed
+
+### Compliance Notes
+
+- **Legal hold:** Conversations under an active legal hold should be excluded from `recordingsAtRisk` — check `recording.get.conversation.recording.metadata` for `restoreExpirationTime` before flagging for deletion risk.
+- **Fan-out volume:** Limit the analytics query to the audit period only. Do not pull conversation-level recording metadata for the full retention window in one run.
+- **Policy condition precedence:** Genesys applies the most specific matching policy. Confirm that the policy order in `recording.get.media.retention.policies` matches the expected precedence for the queues under audit.
 
 ---
 

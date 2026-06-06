@@ -1297,6 +1297,276 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code and status for a specific participant in a conversation — resolves the agent-selected disposition per participant. Requires iterating over agent participants from conversations.get.conversation.object.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Voice call conversation detail — full participants, call legs, hold events, ANI/DNIS routing path. Voice-specific enrichment for conversation investigations.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications from Speech and Text Analytics for a single conversation — detected categories, scores, and matched topic labels.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation — rapid content review without listening to recordings.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI summaries for a conversation — reason for contact, resolution, and next-best-action notes per communication leg.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a specific conversation — survey status, scores, and response metadata keyed by conversationId.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.evaluation": {
+      "description": "Full evaluation detail for a specific conversation and evaluationId — scores, form answers, calibration status, and evaluator identity.",
+      "endpoint": "quality.get.conversation.evaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "Quality calibration sessions list — inter-rater reliability sessions where multiple evaluators score the same conversation to align scoring standards across the QM team.",
+      "endpoint": "quality.get.calibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "WFM management unit membership for a specific agent — returns managementUnitId and businessUnitId used to retrieve schedule and adherence data.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Current schedule adherence for a list of agents — scheduled vs. actual presence state, adherence percentage, and impact score per agent. Use for real-time WFM compliance checks.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.realtime.adherence": {
+      "description": "Real-time schedule adherence for a list of agents queried by userId — scheduled vs. actual state with adherence percentage. Used for live WFM supervisor dashboards and immediate intervention.",
+      "endpoint": "workforce.get.realtime.adherence",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Estimated wait time for a routing queue — real-time EWT per media type for supervisor wallboards and customer-facing queue announcements.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Full external contact record by contactId — CRM-linked contact details, organisation membership, communication preferences, and merge history. Primary enrichment step for BYOI conversations.",
+      "endpoint": "externalcontacts.get.contact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.search.contacts": {
+      "description": "Search external contacts by name, email, phone, or external system ID — use to resolve a customer identity before drilling into conversation history.",
+      "endpoint": "externalcontacts.search.contacts",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Journey sessions linked to an external contact — digital engagement sessions (web, app, chat) showing customer intent before and alongside a conversation.",
+      "endpoint": "externalcontacts.get.contact.journey.sessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session": {
+      "description": "Journey session detail — digital engagement session for a customer including channel, duration, device, referrer, and outcome scores. Used to understand digital context before or alongside a conversation.",
+      "endpoint": "journey.get.session",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.events": {
+      "description": "All events within a journey session — page views, form submissions, chat starts, and custom events. Shows customer self-service attempts and intent signals before contacting the centre.",
+      "endpoint": "journey.get.session.events",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.outcome.predictors": {
+      "description": "Predictive engagement outcome predictor definitions — ML models that score customers on conversion likelihood, churn risk, or custom business outcomes for predictive routing.",
+      "endpoint": "journey.get.outcome.predictors",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.post.knowledge.aggregates.query": {
+      "description": "Knowledge article and Agent Assist usage analytics — query article search counts, presentation rates, positive/negative feedback, and deflection rates by queue and user. Used to measure knowledge base ROI and identify content gaps.",
+      "endpoint": "analytics.post.knowledge.aggregates.query",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.predictors": {
+      "description": "Predictive routing predictor definitions — ML models that route interactions to best-matched agents based on predicted outcomes. Returns predictor IDs, KPI targets, queue assignments, and model status.",
+      "endpoint": "routing.get.predictors",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "recording.post.batch.request": {
+      "description": "Submit a batch recording download request — asynchronous job to retrieve recordings by ID list in their original format. Returns a jobId for polling via recording.get.batch.request.",
+      "endpoint": "recording.post.batch.request",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "recording.get.batch.request": {
+      "description": "Get status and results for a batch recording download job — returns completed signed download URLs per recording or per-recording errors. Poll until state = FULFILLED.",
+      "endpoint": "recording.get.batch.request",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -39593,6 +39863,176 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContact",
+      "tags": ["External Contacts"],
+      "summary": "Fetch an external contact by ID \u2014 full CRM-linked contact record including organisation, communication channels, and merge history.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      },
+      "notes": ["Fetch full external contact record by ID.", "group: External Contacts"]
+    },
+    "externalcontacts.search.contacts": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContacts",
+      "tags": ["External Contacts"],
+      "summary": "Search for external contacts by name, phone, email, or external system ID.",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1",
+        "q": ""
+      },
+      "notes": ["Search external contacts by name, phone, or email.", "group: External Contacts"]
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactJourneySessions",
+      "tags": ["External Contacts"],
+      "summary": "Retrieve all journey sessions linked to an external contact \u2014 digital engagement history.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here",
+        "pageSize": "25",
+        "pageNumber": "1"
+      },
+      "notes": ["Retrieve all journey sessions for an external contact.", "group: External Contacts"]
+    },
+    "quality.get.calibrations": {
+      "method": "GET",
+      "path": "/api/v2/quality/calibrations",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getQualityCalibrations",
+      "tags": ["Quality"],
+      "summary": "Get the list of calibration sessions \u2014 inter-rater reliability exercises where multiple evaluators score the same conversation.",
+      "defaultQueryParams": {
+        "pageSize": "25",
+        "pageNumber": "1"
+      },
+      "notes": ["Get list of quality calibration sessions.", "group: Quality"]
+    },
+    "recording.post.batch.request": {
+      "method": "POST",
+      "path": "/api/v2/recording/batchrequests",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postRecordingBatchrequests",
+      "tags": ["Recording"],
+      "summary": "Submit a batch download request for recordings by ID list. Returns a jobId for polling.",
+      "notes": ["Submit batch recording download request \u2014 returns jobId for polling.", "group: Recording"]
+    },
+    "recording.get.batch.request": {
+      "method": "GET",
+      "path": "/api/v2/recording/batchrequests/{jobId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getRecordingBatchrequest",
+      "tags": ["Recording"],
+      "summary": "Get status and results for a batch recording download job \u2014 returns signed download URLs or per-recording errors.",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": ["Get status and results for a batch recording download job.", "group: Recording"]
+    },
+    "workforce.get.realtime.adherence": {
+      "method": "GET",
+      "path": "/api/v2/workforcemanagement/adherence",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWorkforcemanagementAdherence",
+      "tags": ["Workforce Management"],
+      "summary": "Get a list of UserScheduleAdherence records for the requested users \u2014 real-time scheduled vs. actual state.",
+      "defaultQueryParams": {
+        "userId": "user-id-1,user-id-2"
+      },
+      "notes": ["Real-time schedule adherence for a list of agents.", "group: Workforce Management"]
+    },
+    "journey.get.session": {
+      "method": "GET",
+      "path": "/api/v2/journey/sessions/{sessionId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getJourneySession",
+      "tags": ["Journey"],
+      "summary": "Retrieve a single journey session \u2014 digital engagement session with channel, duration, device, and outcome scores.",
+      "defaultQueryParams": {
+        "sessionId": "session-id-goes-here"
+      },
+      "notes": ["Retrieve a single journey session.", "group: Journey"]
+    },
+    "journey.get.session.events": {
+      "method": "GET",
+      "path": "/api/v2/journey/sessions/{sessionId}/events",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getJourneySessionEvents",
+      "tags": ["Journey"],
+      "summary": "Retrieve all events for a given journey session \u2014 page views, form submissions, chat starts, and custom events.",
+      "defaultQueryParams": {
+        "sessionId": "session-id-goes-here",
+        "pageSize": "25",
+        "pageNumber": "1"
+      },
+      "notes": ["Retrieve all events for a journey session.", "group: Journey"]
+    },
+    "journey.get.outcome.predictors": {
+      "method": "GET",
+      "path": "/api/v2/journey/outcomes/predictors",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getJourneyOutcomesPredictors",
+      "tags": ["Journey"],
+      "summary": "Retrieve all outcome predictors \u2014 ML models scoring customers on conversion, churn, or custom KPIs.",
+      "notes": ["Retrieve all journey outcome predictors.", "group: Journey"]
+    },
+    "analytics.post.knowledge.aggregates.query": {
+      "method": "POST",
+      "path": "/api/v2/analytics/knowledge/aggregates/query",
+      "itemsPath": "$.results",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "operationId": "postAnalyticsKnowledgeAggregatesQuery",
+      "tags": ["Analytics"],
+      "summary": "Query for knowledge aggregates \u2014 article search counts, presentation rates, and feedback by queue/user.",
+      "notes": [
+        "Query knowledge aggregates \u2014 article usage, search counts, deflection rates.",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-06-01T00:00:00.000Z/2026-06-07T23:59:59.999Z\",\n  \"groupBy\": [\"knowledgeBaseId\", \"userId\"],\n  \"metrics\": [\"nKnowledgeDocumentsSearched\", \"nKnowledgeDocumentsPresented\", \"nKnowledgeDocumentsFeedbackPositive\", \"nKnowledgeDocumentsFeedbackNegative\"],\n  \"filter\": { \"type\": \"and\", \"predicates\": [] }\n}"
+      ]
+    },
+    "routing.get.predictors": {
+      "method": "GET",
+      "path": "/api/v2/routing/predictors",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "operationId": "getRoutingPredictors",
+      "tags": ["Routing"],
+      "summary": "Retrieve all predictive routing predictors \u2014 ML models and their KPI targets and queue assignments.",
+      "defaultQueryParams": {
+        "pageSize": "100"
+      },
+      "notes": ["Retrieve all predictive routing predictors.", "group: Routing"]
     }
   },
   "combinations": {
@@ -40173,6 +40613,181 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "byoi-external-contact-enrichment": {
+        "description": "BYOI conversation enrichment via external contacts — resolves the CRM-linked external contact from a BYOI-injected conversation, retrieves their full profile, and surfaces their digital journey sessions prior to the voice interaction. Used when conversations originate in an external system and need CRM-side context to complete the picture. Trigger: conversations.get.conversation.object returns a non-null externalContactId on any participant.",
+        "subjectParam": "conversationId (with externalContactId from participants)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[].externalContactId, participants[].purpose",
+            "description": "Base conversation object — confirms BYOI origin via externalTag and surfaces externalContactId for the customer participant"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set attributes: CRM case ID, external call ID, intent label",
+            "description": "Custom attributes injected by the BYOI provider — CRM context carried alongside the conversation"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "Architect/bot flow variables captured during the injected conversation flow",
+            "description": "IVR/Architect variables set during the interaction — intent, routing path, self-service attempts"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "filterBy": "externalContactId from participants",
+            "joinKey": "externalContactId",
+            "provides": "firstName, lastName, organisation, emails, phones, externalSystemUrl",
+            "description": "Full CRM external contact record — confirms customer identity and CRM linkage"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "filterBy": "contactId from external-contact step",
+            "joinKey": "contactId",
+            "provides": "sessionId list with channel, origin, duration",
+            "description": "All digital journey sessions for this contact — shows web/app visits before or alongside the call"
+          },
+          {
+            "step": "journey-detail",
+            "dataset": "journey.get.session",
+            "filterBy": "sessionId from journey-sessions (most recent or conversation-correlated)",
+            "joinKey": "sessionId",
+            "provides": "channel, referrer, device, outcomescores",
+            "description": "Session detail for the most relevant session — device, referrer, and outcome predictor scores"
+          },
+          {
+            "step": "journey-events",
+            "dataset": "journey.get.session.events",
+            "filterBy": "sessionId",
+            "joinKey": "sessionId",
+            "provides": "page views, form submissions, chat attempts, custom events",
+            "description": "Event timeline within the session — shows self-service attempts and failure points before calling"
+          }
+        ],
+        "joinSequence": "seed (conversation-base) → externalContactId → external-contact → contactId → journey-sessions → sessionId → journey-detail → journey-events",
+        "triggerCondition": "conversations.get.conversation.object.participants[].externalContactId is non-null OR externalTag is non-null",
+        "diagnosticSignals": [
+          "externalContactId present but getExternalcontactsContact returns 404 → CRM sync gap; contact not yet synced or was deleted",
+          "journeySession.originatingDirection = 'inbound' + channel = 'web' → customer browsed website before calling; check page visited for deflection opportunity",
+          "journey events include formSubmit → customer attempted self-service before calling; investigate why form did not resolve",
+          "journey events include chatStart → customer tried chat before voice; confirm chat was not an option or check why chat was abandoned",
+          "journeySession.awayCount > 2 → customer bounced multiple pages before calling; high frustration prior to contact",
+          "custom-attributes.externalTag contains CRM case ID → conversation is linked to an open case; surface for agent context"
+        ],
+        "executiveValue": "Omni-channel journey completeness — reveals digital-to-voice escalation paths for CX strategy and self-service deflection reporting"
+      },
+      "digital-channel-conversation-deep-dive": {
+        "description": "Complete investigation of a digital channel conversation (chat, email, web messaging, co-browse) — mirrors the single-conversation investigation but replaces voice-specific steps (SIP trace, call detail) with digital-specific ones (AI summaries, bot flow variables, external contact linkage). Used by digital channel analysts, QA teams, and supervisors for chat/email incident review.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "description": "Segment timing: queue wait, agent connect, ACW, total handle time for the digital interaction"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "joinKey": "conversationId",
+            "provides": "mediaType, originatingDirection, participantRoster, externalTag, externalContactId",
+            "description": "Base conversation object — confirms mediaType (chat/email/message) and participant list including externalContactId"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "bot-set attributes, CRM case ID, intent label, routing path",
+            "description": "Custom attributes set by bot or IVR flow before agent handoff — context and intent"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "participant-level Architect/bot flow variables",
+            "description": "Architect/bot flow variables captured during the interaction — self-service outcomes and routing decisions"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, mediaType — screen recording availability for co-browse sessions",
+            "description": "Recording metadata — for chat this may include screen/co-browse recording references"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "conversations.get.speech.text.analytics",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore, analysisStatus",
+            "description": "S&TA summary — sentiment analysis on text content; overtalk/silence metrics are absent for digital channels"
+          },
+          {
+            "step": "sta-categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "categoryName, score, matched topic labels",
+            "description": "Topic and category classifications from the S&TA engine — intent and escalation signals"
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution, nextBestAction",
+            "description": "AI-generated summaries — reason for contact and resolution notes from Copilot/Agent Assist"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId",
+            "description": "QM evaluation if the digital interaction was sampled for review"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction survey results — confirm digital channel survey delivery is configured"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "filterBy": "externalContactId from conversation-base participants",
+            "joinKey": "externalContactId",
+            "conditional": true,
+            "provides": "CRM contact identity and organisation",
+            "description": "CRM external contact record — only run if externalContactId is present"
+          }
+        ],
+        "joinSequence": "seed (analytics-detail) → conversation-base (conversationId) → custom-attributes → sta-overview → sta-categories → ai-summaries → evaluation (filter) → survey → external-contact (conditional on externalContactId)",
+        "digitalChannelNotes": [
+          "No SIP trace step — digital channels do not use SIP signalling",
+          "No call-detail step — voice-specific; substitute conversation-base + custom-attributes for routing path",
+          "AI summaries are particularly valuable for digital as they eliminate need to re-read chat transcripts",
+          "S&TA on digital channels analyses text content — overtalk and silence metrics will be zero or absent",
+          "Screen/co-browse recording: for co-browse sessions, recording.mediaType = 'screen' in recording-metadata"
+        ],
+        "diagnosticSignals": [
+          "tAcw spike → agent spending excessive time writing wrap-up notes; knowledge base or template gap",
+          "sta-categories: 'escalation' or 'complaint' topic → flag for QA priority review",
+          "survey absent for completed conversation → survey delivery not configured for this digital channel",
+          "evaluation.criticalItemFailed = true → mandatory QM item missed; trigger coaching appointment",
+          "ai-summaries.resolution = 'unresolved' → chat ended without resolution; check for follow-up contact within 48 hours",
+          "externalTag present → BYOI/external-origin digital interaction; run byoi-external-contact-enrichment in parallel"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40998,89 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "quality-deep-dive-with-calibration": {
+        "description": "Quality management deep-dive combining calibration sessions, individual evaluation scores, survey results, and agent coaching activity. Used by QM managers to assess evaluator consistency, identify scoring drift, correlate QM scores with CSAT, and confirm the coaching pipeline is reaching agents who need it. Divisions are the natural scope boundary: an agent belongs to a division regardless of queue membership.",
+        "subjectParam": "queueId or divisionId + time window",
+        "datasetsInOrder": [
+          "quality.get.evaluations.query",
+          "quality.get.calibrations",
+          "quality.get.published.evaluation.forms",
+          "quality.get.agents.activity",
+          "quality.get.conversation.surveys",
+          "coaching.get.appointments"
+        ],
+        "joinOn": "conversationId (evaluations → surveys), agentUserId (evaluations → agents.activity → coaching), calibrationId (evaluations → calibrations), formId (evaluations → published forms)",
+        "groupBy": ["agentUserId", "evaluationFormId", "queueId"],
+        "outputMetrics": [
+          "evaluationCoverageRate% = evaluations / nConnected",
+          "avgEvaluationScore by agent and form",
+          "criticalItemFailRate% by agent and form question",
+          "calibrationAgreementRate% = calibrated evaluations scoring within tolerance / total calibrated",
+          "csatCorrelation (evalScore vs. surveyScore, joined on conversationId)",
+          "coachingCoverage% = agents with coaching appointment / agents in bottom-score quartile"
+        ],
+        "diagnosticSignals": [
+          "Low calibrationAgreementRate → evaluators scoring inconsistently; schedule calibration and re-calibrate the form",
+          "High criticalItemFailRate on specific question → systemic training gap; review that question with team leads",
+          "evalScore high + csatScore low → agent meeting QM criteria but not customer expectations; review form weighting",
+          "evalScore low + csatScore high → QM form misaligned with what customers value; re-weight or retire underperforming questions",
+          "coachingCoverage < 50% for bottom-quartile agents → coaching not reaching agents who need it most"
+        ],
+        "executivePresentation": "QM scorecard heat map by agent + calibration adherence gauge + CSAT vs. eval correlation scatter"
+      },
+      "predictive-routing-effectiveness": {
+        "description": "Evaluate predictive routing model performance — compare conversations routed by predictor against baseline (skill-based or last-in-first-out) on handle time, CSAT, and first-contact resolution. Used to justify or tune predictive routing configuration. Run monthly or after predictor model updates.",
+        "subjectParam": "queueId + time window",
+        "datasetsInOrder": [
+          "routing.get.predictors",
+          "analytics-conversation-details-query",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "quality.get.surveys",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "queueId (predictors → conversations → aggregates), conversationId (conversations → surveys)",
+        "groupBy": ["predictorId", "userId", "queueId"],
+        "outputMetrics": [
+          "predictiveRoutedPct% = conversations with predictor routing attribute / total conversations",
+          "avgHandleTime: predictive-routed vs. baseline",
+          "avgCSAT: predictive-routed vs. baseline",
+          "firstContactResolutionProxy% = single-contact conversations with no transfer and no repeat within 48h",
+          "transferRate: predictive-routed vs. non-predictive-routed"
+        ],
+        "diagnosticSignals": [
+          "predictiveRoutedPct low despite predictor enabled → predictor not receiving sufficient queue traffic; check model status in routing.get.predictors",
+          "tHandle higher for predictive-routed conversations → model optimising on wrong KPI; re-train with handle time as objective",
+          "CSAT uplift < 1% → predictor not improving CX; review KPI weighting in model configuration",
+          "High transfer rate for predictive-routed conversations → agent skill mismatch despite predictor; audit skill proficiency levels"
+        ],
+        "executivePresentation": "Predictive vs. baseline side-by-side KPI table; uplift % column for each metric"
+      },
+      "knowledge-and-agent-assist-analytics": {
+        "description": "Knowledge base and Agent Assist usage analysis — measure article search rates, presentation rates, positive/negative feedback, and deflection proxy. Used to optimise knowledge content, demonstrate self-service ROI, and identify content gaps driving unnecessary calls. Groups by knowledgeBaseId and userId to surface both article-level and agent-level patterns.",
+        "subjectParam": "queueId or knowledgeBaseId + time window",
+        "datasetsInOrder": [
+          "analytics.post.knowledge.aggregates.query",
+          "conversations.get.conversation.suggestions",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.conversation.aggregates.transfer.metrics"
+        ],
+        "joinOn": "queueId (knowledge aggregates → queue performance), conversationId (suggestions — per-conversation investigation only)",
+        "groupBy": ["knowledgeBaseId", "userId", "queueId"],
+        "outputMetrics": [
+          "knowledgeSearchRate% = nKnowledgeDocumentsSearched / nConnected",
+          "presentationRate% = nKnowledgeDocumentsPresented / nKnowledgeDocumentsSearched",
+          "positiveFeedbackRate% = nKnowledgeDocumentsFeedbackPositive / nKnowledgeDocumentsPresented",
+          "deflectionProxy% = conversations where knowledge was used AND no transfer occurred",
+          "avgHandleTime delta: conversations with knowledge use vs. without (from queue performance)"
+        ],
+        "diagnosticSignals": [
+          "Low searchRate despite knowledge base configured → agents not triggering search; check Agent Assist training and UI prompts",
+          "High searchRate + low presentationRate → search returning irrelevant results; review knowledge content tagging",
+          "negativeFeedbackRate > 20% → articles not meeting agent needs; schedule content review sprint",
+          "Handle time lower for knowledge-using conversations → validates knowledge base ROI for executive reporting"
+        ],
+        "executivePresentation": "Knowledge ROI summary: search-to-present funnel + AHT delta + feedback score trend"
       }
     },
     "voiceEngineerPlaybooks": {

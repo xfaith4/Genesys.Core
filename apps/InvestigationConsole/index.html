@@ -765,6 +765,51 @@ function fmtRange(w) {
 }
 function runKey(m) { return `${m.investigationKey}::${m.runId}`; }
 function pluralS(n, s) { return n === 1 ? `1 ${s}` : `${n} ${s}s`; }
+async function readJsonFileSafe(file, warnings) {
+  try {
+    return JSON.parse(await file.text());
+  } catch (err) {
+    warnings.push(`${file.name}: ${err.message}`);
+    return null;
+  }
+}
+function inferInvestigationKind(summary) {
+  if (!summary || typeof summary !== 'object') return 'imported-investigation';
+  if (summary.agent || summary.routingStatus || summary.utilization || summary.activity) return 'agent-investigation';
+  if (summary.queue || summary.members || summary.observations || summary.wrapupDistribution) return 'queue-investigation';
+  if (summary.conversation || summary.participants || summary.recordings || summary.surveys) return 'conversation-investigation';
+  if (summary.campaign || summary.outbound) return 'campaign-investigation';
+  return 'imported-investigation';
+}
+function synthesizeManifestFromSummary(summary) {
+  const investigationKey = inferInvestigationKind(summary);
+  const subjectType = investigationKey.replace('-investigation', '') || 'imported';
+  const inferredSubjectId =
+    summary?.subjectId ||
+    summary?.agent?.userId ||
+    summary?.queue?.queueId ||
+    summary?.conversation?.conversationId ||
+    summary?.campaign?.campaignId ||
+    'imported-subject';
+  const runId =
+    (typeof summary?.runId === 'string' && summary.runId.trim())
+      ? summary.runId.trim()
+      : `imported-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const now = new Date().toISOString();
+  return {
+    investigationKey,
+    runId,
+    subjectType,
+    subjectId: String(inferredSubjectId),
+    window: summary?.window && typeof summary.window === 'object' ? summary.window : {},
+    datasetsInvoked: [],
+    joinPlan: [],
+    redactionProfile: { datasets: {} },
+    startedAt: now,
+    finishedAt: now,
+    composerVersion: 'imported-summary'
+  };
+}
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -815,6 +860,7 @@ function clearAllRuns() {
 // prefix. If only summary.json arrives we still create a partial run.
 async function ingestFiles(fileList) {
   const files = Array.from(fileList);
+  const parseWarnings = [];
   if (state.demoMode) {
     clearAllRuns();
   }
@@ -843,20 +889,15 @@ async function ingestFiles(fileList) {
     if (!manifestFile && !summaryFile) continue;
 
     let manifest = null, summary = null;
-    if (manifestFile) manifest = JSON.parse(await manifestFile.text());
-    if (summaryFile)  summary  = JSON.parse(await summaryFile.text());
+    if (manifestFile) manifest = await readJsonFileSafe(manifestFile, parseWarnings);
+    if (summaryFile)  summary  = await readJsonFileSafe(summaryFile, parseWarnings);
+    if (!manifest && !summary) continue;
     if (!manifest && summary) {
-      // synthesize a placeholder manifest so the run still appears
-      manifest = {
-        investigationKey: 'unknown-investigation',
-        runId: `imported-${Date.now()}`,
-        subjectType: 'unknown', subjectId: '?',
-        window: {}, datasetsInvoked: [], joinPlan: [],
-        redactionProfile: { datasets: {} },
-        startedAt: new Date().toISOString(),
-        finishedAt: new Date().toISOString(),
-        composerVersion: 'imported'
-      };
+      manifest = synthesizeManifestFromSummary(summary);
+    }
+    if (!manifest?.investigationKey || !manifest?.runId) {
+      parseWarnings.push(`Skipped run with missing manifest identity fields (${manifestFile?.name || summaryFile?.name || 'unknown source'}).`);
+      continue;
     }
     const events = eventsFile ? await eventsFile.text() : null;
     const dataFiles = new Map();
@@ -870,8 +911,15 @@ async function ingestFiles(fileList) {
   }
 
   if (added === 0) {
-    alert('No manifest.json or summary.json found in the dropped files.');
+    if (parseWarnings.length > 0) {
+      alert(`No usable runs were imported.\n\n${parseWarnings.slice(0, 6).join('\n')}`);
+    } else {
+      alert('No manifest.json or summary.json found in the dropped files.');
+    }
   } else {
+    if (parseWarnings.length > 0) {
+      alert(`Imported ${added} run(s) with ${parseWarnings.length} warning(s):\n\n${parseWarnings.slice(0, 6).join('\n')}`);
+    }
     renderAll();
   }
 }

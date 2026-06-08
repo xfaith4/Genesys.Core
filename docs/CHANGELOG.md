@@ -8,6 +8,17 @@
   source-definition assertion accepts indented function declarations in
   `modules/Genesys.Ops/Genesys.Ops.psm1`; this removes a false-negative failure
   in the unit suite while preserving the export-surface verification intent.
+- Hardened dropped-file ingestion in `apps/InvestigationConsole/index.html` by
+  replacing placeholder manifest synthesis with summary-derived run identities
+  and guarded JSON parse handling; malformed dropped files are now skipped with
+  operator-visible warning details instead of aborting import.
+- Added `tests/unit/InvestigationConsole.ImportHardening.Tests.ps1` to lock in
+  the hardened import behavior (no placeholder manifest keys, guarded parse
+  path, and investigation-kind inference).
+- Added `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1` and
+  `docs/READINESS_REVIEW.md` Section 10 (`J-01`, `J-02`) as a Release 1.3
+  checkpoint slice so Session 20 trend contract + docs alignment are asserted
+  in the main unit suite.
 - Updated `docs/ROADMAP.md` to a status-board format with explicit `Completed`,
   `Active`, `Next`, and `Maintenance` sections plus an operational sustainment
   checklist for scheduled tests, dependency checks, docs review, CI review, and

@@ -94,6 +94,12 @@ the engineering teams that automate against them.
 
 ### Active
 
+- [ ] Release 1.3 checkpoint evidence hardening (2026-06-08): added
+      `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1` and
+      `READINESS_REVIEW.md` Section 10 (`J-01`, `J-02`) so trend pull/import
+      contract and operator docs are asserted in the main unit suite. Remaining
+      closure work: promote this from checkpoint coverage to full release
+      evidence with explicit artifact references and release-tag sign-off.
 - [ ] Track A live-validation closure for remaining 1.0/1.1/1.2 endpoint sets
       (`users`, conversation-only endpoints, queue-only endpoints) with catalog
       `validationStatus` evidence updates.
@@ -102,9 +108,9 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Release 1.3 backlog closure: convert Session 20 temporal trend status to
-      a fully evidenced release checkpoint (tests + docs + readiness review
-      cross-reference) and close the parent item when evidence is complete.
+- [ ] Release 1.3 backlog closure: promote the Session 20 checkpoint from
+     code-presence/readiness assertions to full release evidence with fixture
+     execution output and readiness sign-off references.
 - [ ] Scope one additional flagship investigation candidate (Division, Flow, or
       Outbound Campaign) with a concrete operator use case and fixture contract.
 

@@ -132,6 +132,18 @@ change together with the evidence (test output, artifact, or PR link).
 
 ---
 
+## 10. Release 1.3 checkpoint — Session 20 temporal trends
+
+> This checkpoint tracks Release 1.3 evidence only. It does not alter the
+> Release 1.0 blocking criteria.
+
+| # | Criterion | Status | Verifiable by |
+|---|-----------|--------|---------------|
+| J-01 | Trend pull + import contract remains wired (`Get-TrendReport`, `Import-TrendReport`, `Get-TrendComparisonRows`, `Get-TrendChangeLeaders`, `Get-IncidentImpactSummary`, `Export-IncidentImpactSummary`) with persisted trend schema artifacts (`report_trend_windows`, `report_trend_comparison`, `report_trend_delta`). | ✅ GREEN | `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`; app module sources under `apps/ConversationAnalyzer/modules/`. |
+| J-02 | Trend operator workflow documentation and readiness cross-reference remain aligned with shipped behavior. | ✅ GREEN | `apps/ConversationAnalyzer/README.md` Trend section and `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`. |
+
+---
+
 ## Overall Release 1.0 Gate
 
 Release 1.0 is **not ready** until every criterion above is ✅ GREEN. The
@@ -195,4 +207,3 @@ resolved in the 2026-05-01 corrective refactor and are now ✅ GREEN.
   as of 2026-04-29).
 - Redaction policy was heuristic and not yet fully profile-driven by
   dataset/endpoint sensitivity class (now addressed by criterion E-02/E-03).
-

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-08
+
+### Changed
+
+- Hardened `tests/unit/GenesysOps.Phase5Exports.Tests.ps1` so the
+  source-definition assertion accepts indented function declarations in
+  `modules/Genesys.Ops/Genesys.Ops.psm1`; this removes a false-negative failure
+  in the unit suite while preserving the export-surface verification intent.
+- Updated `docs/ROADMAP.md` to a status-board format with explicit `Completed`,
+  `Active`, `Next`, and `Maintenance` sections plus an operational sustainment
+  checklist for scheduled tests, dependency checks, docs review, CI review, and
+  live-validation evidence gates.
+
 ## 2026-05-13
 
 ### Added

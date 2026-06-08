@@ -47,7 +47,7 @@ Describe 'Genesys.Ops Phase 5 export surface' {
 
     It 'defines each expected Phase 5 command in module source' {
         foreach ($fn in $phase5Cmdlets) {
-            [regex]::IsMatch($moduleSource, "(?m)^function\s+$([regex]::Escape($fn))\s*\{") | Should -BeTrue
+            [regex]::IsMatch($moduleSource, "(?m)^\s*function\s+$([regex]::Escape($fn))\s*\{") | Should -BeTrue
         }
     }
 

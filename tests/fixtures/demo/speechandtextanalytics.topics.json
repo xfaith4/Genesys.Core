@@ -1,0 +1,58 @@
+{
+  "entities": [
+    {
+      "id": "topic-0001-billing",
+      "name": "Billing Inquiry",
+      "description": "Conversations about billing statements, charges, and refunds",
+      "language": "en-US",
+      "published": true,
+      "strictness": "medium",
+      "programsCount": 2,
+      "tags": ["billing", "finance"],
+      "phrases": [
+        { "id": "phrase-0001-a", "value": "billing statement", "tag": "billing" },
+        { "id": "phrase-0001-b", "value": "charge on my account", "tag": "billing" },
+        { "id": "phrase-0001-c", "value": "request a refund", "tag": "refund" },
+        { "id": "phrase-0001-d", "value": "unexpected charge", "tag": "billing" }
+      ],
+      "selfUri": "/api/v2/speechandtextanalytics/topics/topic-0001-billing"
+    },
+    {
+      "id": "topic-0002-cancellation",
+      "name": "Cancellation Request",
+      "description": "Conversations about cancelling service or subscription",
+      "language": "en-US",
+      "published": true,
+      "strictness": "high",
+      "programsCount": 1,
+      "tags": ["cancellation", "churn"],
+      "phrases": [
+        { "id": "phrase-0002-a", "value": "cancel my account", "tag": "cancellation" },
+        { "id": "phrase-0002-b", "value": "want to cancel", "tag": "cancellation" },
+        { "id": "phrase-0002-c", "value": "close my account", "tag": "cancellation" }
+      ],
+      "selfUri": "/api/v2/speechandtextanalytics/topics/topic-0002-cancellation"
+    },
+    {
+      "id": "topic-0003-escalation",
+      "name": "Escalation Trigger",
+      "description": "Phrases indicating customer frustration or escalation need",
+      "language": "en-US",
+      "published": true,
+      "strictness": "high",
+      "programsCount": 3,
+      "tags": ["escalation", "sentiment"],
+      "phrases": [
+        { "id": "phrase-0003-a", "value": "speak to your supervisor", "tag": "escalation" },
+        { "id": "phrase-0003-b", "value": "this is unacceptable", "tag": "frustration" },
+        { "id": "phrase-0003-c", "value": "never experienced this before", "tag": "frustration" },
+        { "id": "phrase-0003-d", "value": "escalate this issue", "tag": "escalation" }
+      ],
+      "selfUri": "/api/v2/speechandtextanalytics/topics/topic-0003-escalation"
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 25,
+  "total": 3,
+  "pageCount": 1
+}

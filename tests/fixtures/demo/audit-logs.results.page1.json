@@ -1,0 +1,165 @@
+{
+  "results": [
+    {
+      "id": "audit-r001",
+      "timestamp": "2026-02-13T08:14:22.000Z",
+      "serviceName": "routing",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "queueid-0001-0001-0001-aabbccddeeff",
+        "entityName": "Tier-1 Support",
+        "type": "Queue"
+      }
+    },
+    {
+      "id": "audit-r002",
+      "timestamp": "2026-02-14T09:31:05.000Z",
+      "serviceName": "quality",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0002-0002-0002-aabbccddeeff",
+      "userEmail": "bob.qm@corp.example.com",
+      "userName": "Bob QM",
+      "remoteIp": "10.0.1.55",
+      "context": {
+        "entityId": "evalid-0002-0002-0002-aabbccddeeff",
+        "entityName": "Agent Call Review",
+        "type": "EvaluationForm"
+      }
+    },
+    {
+      "id": "audit-r003",
+      "timestamp": "2026-02-15T11:02:44.000Z",
+      "serviceName": "routing",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "queueid-0001-0001-0001-aabbccddeeff",
+        "entityName": "Tier-1 Support",
+        "type": "Queue",
+        "changes": [
+          { "field": "memberCount", "before": "8", "after": "10" }
+        ]
+      }
+    },
+    {
+      "id": "audit-r004",
+      "timestamp": "2026-02-16T13:47:18.000Z",
+      "serviceName": "architect",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0003-0003-0003-aabbccddeeff",
+      "userEmail": "carol.dev@corp.example.com",
+      "userName": "Carol Dev",
+      "remoteIp": "10.0.2.11",
+      "context": {
+        "entityId": "flowid-0003-0003-0003-aabbccddeeff",
+        "entityName": "Inbound Main IVR",
+        "type": "InboundCallFlow"
+      }
+    },
+    {
+      "id": "audit-r005",
+      "timestamp": "2026-02-17T15:22:09.000Z",
+      "serviceName": "analytics",
+      "action": "VIEW",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "reportid-0005-0005-aabbccddeeff",
+        "entityName": "Conversation Details Report",
+        "type": "Report"
+      }
+    },
+    {
+      "id": "audit-r006",
+      "timestamp": "2026-02-18T10:05:33.000Z",
+      "serviceName": "recording",
+      "action": "VIEW",
+      "userId": "a1b2c3d4-0004-0004-0004-aabbccddeeff",
+      "userEmail": "svc.automation@corp.example.com",
+      "userName": "Automation Service",
+      "remoteIp": "10.0.3.200",
+      "context": {
+        "entityId": "recordid-0006-0006-aabbccddeeff",
+        "entityName": "conv-v001-recording",
+        "type": "Recording"
+      }
+    },
+    {
+      "id": "audit-r007",
+      "timestamp": "2026-02-19T14:00:00.000Z",
+      "serviceName": "routing",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0003-0003-0003-aabbccddeeff",
+      "userEmail": "carol.dev@corp.example.com",
+      "userName": "Carol Dev",
+      "remoteIp": "10.0.2.11",
+      "context": {
+        "entityId": "queueid-0002-0002-0002-aabbccddeeff",
+        "entityName": "Tier-2 Escalation",
+        "type": "Queue",
+        "changes": [
+          { "field": "description", "before": "Old description", "after": "Escalation queue for complex customer issues" }
+        ]
+      }
+    },
+    {
+      "id": "audit-r008",
+      "timestamp": "2026-02-20T08:22:00.000Z",
+      "serviceName": "platform",
+      "action": "DELETE",
+      "userId": "a1b2c3d4-0004-0004-0004-aabbccddeeff",
+      "userEmail": "svc.automation@corp.example.com",
+      "userName": "Automation Service",
+      "remoteIp": "10.0.3.200",
+      "context": {
+        "entityId": "sessionid-0008-0008-aabbccddeeff",
+        "entityName": "OAuth Session",
+        "type": "OAuthSession"
+      }
+    },
+    {
+      "id": "audit-r009",
+      "timestamp": "2026-02-21T11:30:00.000Z",
+      "serviceName": "quality",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0002-0002-0002-aabbccddeeff",
+      "userEmail": "bob.qm@corp.example.com",
+      "userName": "Bob QM",
+      "remoteIp": "10.0.1.55",
+      "context": {
+        "entityId": "evalid-0002-0002-0002-aabbccddeeff",
+        "entityName": "Agent Call Review",
+        "type": "EvaluationForm",
+        "changes": [
+          { "field": "status", "before": "Draft", "after": "Published" }
+        ]
+      }
+    },
+    {
+      "id": "audit-r010",
+      "timestamp": "2026-02-22T09:45:00.000Z",
+      "serviceName": "routing",
+      "action": "VIEW",
+      "userId": "a1b2c3d4-0005-0005-0005-aabbccddeeff",
+      "userEmail": "dan.supervisor@corp.example.com",
+      "userName": "Dan Supervisor",
+      "remoteIp": "10.0.1.88",
+      "context": {
+        "entityId": "queueid-0001-0001-0001-aabbccddeeff",
+        "entityName": "Tier-1 Support",
+        "type": "Queue"
+      }
+    }
+  ],
+  "nextUri": "/api/v2/audits/query/demo-audit-tx-001/results?pageNumber=2",
+  "totalHits": 20
+}

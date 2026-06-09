@@ -514,3 +514,260 @@ The matrix below shows which datasets are used across which investigations and r
 *All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*  
 *All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*  
 *Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
+
+---
+
+## 11. Customer Journey Investigation
+
+**Subject:** One `conversationId` (with `externalContactId` resolved from participants)
+**Use case:** An analyst or QM reviewer wants to understand who the customer is, what they tried before calling, and how the interaction was handled — the complete cross-channel picture. Especially powerful for B2B interactions where the contact is linked to an external organisation.
+
+**Core question:** *Who is this customer, what journey did they take before calling, and was the interaction handled well?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, `externalContactId`, `externalTag`, ANI/DNIS |
+| 2 | `externalcontacts.get.contact` | `externalContactId` | Customer name, email, phone, org linkage, custom schema fields |
+| 3 *(if B2B)* | `externalcontacts.get.organization` | `externalOrganizationId` | Company name, industry, account tier |
+| 4 | `externalcontacts.get.contact.journey.sessions` | `externalContactId` | All web/app journey sessions — select sessions near conversation start |
+| 5 | `journey.get.session.events` | `sessionId` (pre-call session) | Page views, form submissions, action-map triggers in the pre-call session |
+| 6 | `analytics.get.single.conversation.analytics` | `conversationId` | Full segment timing — IVR, ACD wait, talk, hold, ACW |
+| 7 *(optional)* | `quality.get.evaluations.query` | `conversationId` | QM evaluation if the conversation was scored |
+| 8 *(optional)* | `quality.get.surveys` | `conversationId` | Post-call CSAT/NPS result |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id
+  → externalcontacts.get.contact.journey.sessions.contactId
+  → journey.get.session.events.sessionId (select most-recent pre-call session)
+```
+
+### Analytical Questions Answered
+
+- Who is the customer? Are they a known contact linked to an account?
+- Did the customer try self-service (web/app) before calling? How many pages/actions did they take?
+- Did a predictive engagement action-map fire? Did it match the queue they reached?
+- Was this a repeat escalation (multiple journey sessions in 24h before call)?
+- How was the interaction handled? Was it evaluated? What was the CSAT?
+
+### BYOI Note
+
+If `externalTag` is non-null in step 1, this is a BYOI conversation — use Combination 14 (BYOI Provider Investigation) alongside this pattern. The `externalContactId` linkage works identically for BYOI conversations.
+
+---
+
+## 12. Recording Access Workflow (QM Bulk Download)
+
+**Subject:** Queue + time window (or explicit `conversationId` list)
+**Use case:** A QM team or compliance auditor needs the actual audio/video recordings for a set of conversations — not just metadata, but the files themselves. This is the correct multi-step pattern; direct media links in recording metadata have short expiry windows that make ad-hoc bulk retrieval unreliable.
+
+**Core question:** *How do I retrieve the actual recordings for these conversations?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` *(queueId filter)* | seed → `conversationId` list | Conversation IDs with `mediaType=voice` filter |
+| 2 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, `fileState`, `duration`, `archivalStatus` — filter out ERROR/DELETED/ARCHIVED |
+| 3 | `recording.post.batch.request` | `conversationId + recordingId` pairs | Submits batch download job → returns `jobId` |
+| 4 | `recording.get.batch.request` | `jobId` | Polls until FULFILLED → returns signed download URLs (15-second expiry — download immediately) |
+
+### Operational Notes
+
+- Batch size is capped at **100 recordings per request** — fan out for larger sets
+- `fileState = ARCHIVED` recordings require a restore workflow before batch download is available
+- Signed URLs have a **15-second validity window** from the time the batch job completes
+- This pattern is the correct one for compliance audits — do not parse `mediaUris` from recording metadata directly as those URLs have inconsistent expiry behaviour
+
+---
+
+## 13. WFM Adherence + Performance Investigation
+
+**Subject:** One `userId` + `managementUnitId` + time window
+**Use case:** A workforce operations manager or team leader needs to understand whether an agent is following their schedule, and whether off-schedule time correlates with reduced performance or quality scores.
+
+**Core question:** *Was the agent on schedule, and if not, did it affect their performance?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `users.get.user.details.with.full.expansion` | seed → `userId` | Agent identity, WFM management unit assignment |
+| 2 | `workforce.get.management.units` | `managementUnitId` | Management unit name and timezone (critical for schedule alignment) |
+| 3 | `workforce.search.agent.schedules` | `managementUnitId + userId` | Planned shifts: scheduled start/end, activity codes, breaks, meetings |
+| 4 | `workforce.post.historical.adherence.query` | `managementUnitId + userId` | Actual vs. scheduled state: `adherencePct`, `activityExceptions`, off-schedule gaps |
+| 5 | `analytics.query.user.details.activity.report` | `userId` | Actual presence/routing-status timeline — reconcile with scheduled shifts |
+| 6 | `analytics-conversation-details-query` *(userId filter)* | `userId` | All conversations handled — overlay against scheduled shifts to confirm productive on-queue time |
+
+### Derived Metrics
+
+- **Adherence %** = scheduledSeconds with matching actual state / totalScheduledSeconds
+- **On-queue %** = tOnQueue / totalScheduledSeconds × 100
+- **Off-schedule gap** = sum of presence-activity gaps that fall outside scheduled shifts
+- **Occupancy %** = nConnected × avgTHandle / tOnQueue × 100
+
+### Analytical Questions Answered
+
+- Was the agent's actual login/logout aligned with their schedule?
+- How much time was spent off-queue during scheduled on-queue periods?
+- Does low adherence correlate with lower conversation counts or higher AHT?
+- Was the agent off-queue during peak periods for their queue(s)?
+
+---
+
+## 14. BYOI Provider Conversation Investigation
+
+**Subject:** One `conversationId` where `externalTag` is non-null
+**Use case:** A voice engineer or integration specialist investigates a conversation that was injected via a BYOI provider — understanding the provider's SIP handoff, the injected context attributes, and whether Genesys handled the conversation correctly after injection.
+
+**Core question:** *Where did this conversation come from, how was it handed off, and did Genesys process it correctly?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | `externalTag`, `externalConversationId`, participant purposes, ANI/DNIS |
+| 2 | `conversations.get.conversation.customattributes` | `conversationId` | Provider-set attributes: CRM case ID, intent, external call ID |
+| 3 | `conversations.search.participant.attributes` | `conversationId` | Architect flow variables set after injection |
+| 4 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timing: `originatingDirection`, IVR, ACD wait, talk, hold, ACW |
+| 5 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signalling — INVITE From/To headers show provider SIP URI, not PSTN number |
+| 6 *(if linked)* | `externalcontacts.get.contact` | `externalContactId` | Customer identity from provider-linked external contact record |
+| 7 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording confirmation — BYOI conversations record identically if policy applies |
+
+### BYOI Detection
+
+| Field | BYOI Indicator |
+|-------|----------------|
+| `externalTag` | Non-null = BYOI conversation; value is the provider's tag |
+| `externalConversationId` | Provider's internal conversation ID |
+| `participants[].purpose = 'external'` | Provider-injected participant |
+| SIP INVITE From URI | Provider SIP URI (not E.164 PSTN number) |
+
+---
+
+## 15. Predictive Routing Audit
+
+**Subject:** Queue + time window (with predictive routing enabled)
+**Use case:** A routing architect or contact centre strategist wants to understand which predictive routing models are applied to a queue, what KPIs they optimize, and whether model performance correlates with improved quality scores.
+
+**Core question:** *Is predictive routing applied to this queue, and is it improving outcomes?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.single.queue.config` | seed → `queueId` | Queue routing method — confirms `scoringMethod = PREDICTIVE_ROUTING` |
+| 2 | `routing.get.predictors` | `queueId` | Predictor configurations — KPIs being optimized (ABANDON_RATE, AVG_HANDLE_TIME, etc.) |
+| 3 | `analytics-conversation-details-query` *(queueId filter)* | `conversationId` | All conversations — extract agent assignments for correlation |
+| 4 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Aggregate KPIs over the window — compare against queue's pre-predictive-routing baseline |
+| 5 | `quality.get.agents.activity` | `userId` | Per-agent evaluation scores — correlate with which agents predictive routing selected |
+
+### Analytical Questions Answered
+
+- Is predictive routing active on this queue? Which KPI does it optimize?
+- Does the queue show improved tHandle / lower abandon rate versus non-predictive queues?
+- Which agents are being selected most frequently by the predictor, and are they the highest-scoring?
+
+---
+
+## 16. Real-Time Queue Depth + EWT Validation
+
+**Subject:** One or more `queueId`s (point-in-time)
+**Use case:** A real-time analyst or supervisor sees customer complaints about hold times. They need to validate whether the Estimated Wait Time the system is telling callers matches the actual wait experience.
+
+**Core question:** *Is the EWT accurate, and does it explain the abandon rate?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.queue.observations.real.time.stats` | `queueId` | `oWaiting`, `oInteracting`, `oOnQueueUsers`, `oLongestWaiting` (live) |
+| 2 | `routing.get.queue.estimated.wait.time` | `queueId` | EWT the system is currently telling callers |
+| 3 | `analytics.query.conversation.activity.real.time` | `queueId` | `oAlerting`, `oLongestWaiting` by media type |
+| 4 | `analytics.query.conversation.aggregates.abandon.metrics` *(last 1h)* | `queueId` | Recent abandon count — correlate EWT accuracy with abandons |
+
+### Key Comparison
+
+```
+EWT accuracy = |routing.get.queue.estimated.wait.time.estimatedWaitTime - oLongestWaiting| / oLongestWaiting
+```
+
+If EWT is significantly lower than `oLongestWaiting`, callers are waiting longer than told → high abandon probability.
+
+---
+
+## Updated Dataset Combination Reference Matrix
+
+*(New datasets added in Release 1.4)*
+
+| Dataset Key | Conv Deep Dive | Queue Inv | Division Inv | Exec Rollup | Real-Time | Agent Inv | Customer Journey | Recording Access | WFM Adherence | BYOI Inv |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | ● | | | ● |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | ● | | | ● |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | ● | | ● |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | | | ● |
+| `conversations.search.participant.attributes` | ● | | | | | | | | | ● |
+| `conversations.get.call.detail` | ● | | | | | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | ○ | | | |
+| `quality.get.surveys` | ● | | | ● | | | ○ | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | | | ○ |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | | | | | |
+| `routing.get.predictors` | | ○ | | | | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | | ● | ● | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | | | | |
+| `routing-queue-members` | | ● | | | | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | | | |
+| `authorization.get.division.grants` | | | ● | | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | | | | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | | | | |
+| `coaching.get.appointments` | | | ● | | | ○ | | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | | | | |
+| `analytics.query.flow.observations` | | | | | ● | | | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | | | |
+| `alerting.get.alerts` | | | | ○ | ● | | | | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | | | | |
+| `users.get.user.queue.memberships` | | | | | | ● | | | | |
+| `routing.get.user.utilization` | | | | | | ○ | | | | |
+| `audit-logs` | | | | | | ● | | | | ● |
+| `externalcontacts.get.contact` | | | | | | | ● | | | ○ |
+| `externalcontacts.get.organization` | | | | | | | ○ | | | |
+| `externalcontacts.get.contact.journey.sessions` | | | | | | | ● | | | |
+| `journey.get.session.events` | | | | | | | ● | | | |
+| `recording.post.batch.request` | | | | | | | | ● | | |
+| `recording.get.batch.request` | | | | | | | | ● | | |
+| `workforce.get.management.units` | | | | | | | | | ● | |
+| `workforce.search.agent.schedules` | | | | | | | | | ● | |
+| `workforce.post.historical.adherence.query` | | | | ● | | | | | ● | |
+| `workforce.get.management.unit.adherence` | | | | | | | | | ● | |
+
+---
+
+*All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*
+*All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*
+*Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*

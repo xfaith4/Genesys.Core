@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-10  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,12 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Skill Group Investigation](#10-skill-group-investigation)
+11. [Outbound Campaign Investigation](#11-outbound-campaign-investigation)
+12. [MOS / Voice Quality Investigation](#12-mos--voice-quality-investigation)
+13. [Executive Playbook Extensions](#13-executive-playbook-extensions)
+14. [Dataset Combination Reference Matrix](#14-dataset-combination-reference-matrix)
+15. [Appendix: Metric Glossary](#appendix-metric-glossary)
 
 ---
 
@@ -431,63 +436,338 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Skill Group Investigation
+
+**Subject:** One `skillGroupId` + time window  
+**Use case:** A routing administrator or workforce analyst needs to understand how a skill-based
+routing group is performing — which agents belong to it, how their proficiency is distributed,
+what queues they cover, and whether skill routing is yielding measurable performance differences.
+
+Skill groups cut across queues and divisions, making them the right lens when agents serve
+multiple queues under a single skill umbrella.
+
+**Core question:** *Is this skill group properly staffed, and is higher proficiency actually
+producing better outcomes?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.skill.groups` | seed → `skillGroupId` | Group name, member count, owning division |
+| 2 | `routing.get.skill.group.members` | `skillGroupId` | All agent userIds in the group |
+| 3 | `users.get.user.routing.skills` | `userId` (each member) | Individual skill proficiency ratings per agent |
+| 4 | `users.get.user.queue.memberships` | `userId` (each member) | Queues each agent serves — maps group to queue coverage |
+| 5 | `analytics.query.user.aggregates.performance.metrics` | `userId` list | nConnected, tHandle, tTalk, tAcw per agent |
+| 6 | `analytics-conversation-details-query` | `userId` list | All conversations by skill-group members in the window |
+| 7 | `quality.get.agents.activity` | `userId` list | Evaluation counts and scores per member |
+
+### Key Joins
+
+```
+routing.get.skill.groups.id
+  → routing.get.skill.group.members.skillGroupId (member enumeration)
+
+routing.get.skill.group.members[].id
+  → users.get.user.routing.skills[].userId (proficiency overlay)
+  → analytics.query.user.aggregates.performance.metrics[].group.userId
+  → quality.get.agents.activity[].user.id
+
+analytics.query.user.aggregates.performance.metrics[].group.userId
+  (group by proficiencyRating band for skill-performance correlation)
+```
+
+### Analytical Questions Answered
+
+- Are high-proficiency agents handling calls faster (lower AHT)?
+- Does the skill group have sufficient coverage across the queues it supports?
+- Which agents have proficiency ratings that don't match their actual handle time?
+- Are any skill-group members missing evaluations for the window?
+- Is proficiency distribution heavily bottom-weighted (many P1 agents, few P5)?
+
+---
+
+## 11. Outbound Campaign Investigation
+
+**Subject:** One `campaignId` + time window  
+**Use case:** A dialer administrator or outbound operations manager needs to understand campaign
+reach rates, contact dispositions, agent efficiency, and pacing health for a single outbound
+campaign.
+
+**Core question:** *Is this campaign reaching contacts effectively, and what are the outcomes?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `outbound.get.campaigns` | seed → `campaignId` | Mode, status, queueId, contactListId, callerName |
+| 2 | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Real-time health: outstanding contacts, contacts/hour, error count |
+| 3 | `outbound.get.contact.lists` | `contactListId` from step 1 | Contact list size and import health |
+| 4 | `outbound.get.events` | `campaignId` | Per-contact dialer events: CONNECTED, NO_ANSWER, BUSY, MACHINE |
+| 5 | `analytics-conversation-details-query` | `queueId` from step 1 | Conversations that connected — tTalk, tHandle, wrapUpCode |
+| 6 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Queue-level handle metrics for the outbound queue |
+| 7 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup outcome distribution (sales, callbacks, refusals) |
+
+### Key Joins
+
+```
+outbound.get.campaigns.id
+  → outbound.get.campaign.diagnostics.summary.campaignId
+  → outbound.get.contact.lists[].id (via contactListId)
+  → outbound.get.events[].campaignId
+
+outbound.get.events[].conversationId (where present)
+  → analytics-conversation-details-query[].conversationId (outcome overlay)
+
+outbound.get.campaigns.queueId
+  → analytics.query.conversation.aggregates.queue.performance[].group.queueId
+  → analytics.query.conversation.aggregates.wrapup.distribution[].group.queueId
+```
+
+### Computed Campaign KPIs
+
+```
+connectRate%        = nConnected / totalDialed × 100
+machineRate%        = MACHINE_DETECT events / totalDialed × 100
+noAnswerRate%       = NO_ANSWER events / totalDialed × 100
+penetrationRate%    = contactsDialed / contactListSize × 100
+avgHandleTime       = tHandle / nConnected (for connected calls only)
+rightPartyContact%  = SALE/COMMITTED wrapUps / nConnected × 100
+```
+
+### Diagnostic Signals
+
+- `contactsPerHour` well below target pacing → check `dialingMode`; progressive/power campaigns
+  throttle based on agent availability
+- High `MACHINE_DETECT` rate → AMD (Answering Machine Detection) sensitivity; tune sensitivity
+  level in campaign config
+- High `errorCount` in diagnostics → check campaign's phone column mapping and contact timezone
+  settings
+- `campaignStatus = STOPPING` but not complete → campaign may be hitting DNC list matches or
+  contact attempt limits
+
+---
+
+## 12. MOS / Voice Quality Investigation
+
+**Subject:** Queue, edge, or organisation-wide + time window  
+**Use case:** A voice engineer receives complaints about call audio quality — choppy audio,
+echo, or one-way audio. They need to identify which conversations had degraded MOS scores,
+which infrastructure handled them, and whether the degradation is systemic (edge/trunk) or
+episodic (single call).
+
+**Core question:** *Which calls had degraded audio quality, and is there a common infrastructure
+cause?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` | `queueId` or all queues | `mediaStatsMinConversationMos`, `mediaStatsMinConversationRFactor` per conversation |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` (for each low-MOS call) | Segment timing, edgeId from participant sessions |
+| 3 | `telephony.get.edges` | `edgeId` from step 2 | Edge name, site, status, softwareVersion |
+| 4 | `telephony.get.trunk.metrics.summary` | trunks used in window | SIP trunk utilisation, packet loss, error counters |
+| 5 | `telephony.get.edge.performance.metrics` | `edgeId` from step 2 | CPU, memory, active call count during degraded window |
+
+### MOS Threshold Reference
+
+| MOS Range | Quality | Action |
+|-----------|---------|--------|
+| 4.3–5.0 | Excellent | No action |
+| 4.0–4.3 | Good | Monitor |
+| 3.6–4.0 | Fair | Investigate if trending |
+| 3.1–3.6 | Poor | Active investigation |
+| < 3.1 | Bad | Escalate immediately |
+
+### Diagnostic Signals
+
+- Multiple low-MOS calls on same `edgeId` → edge resource pressure or codec misconfiguration
+- Low MOS + trunk error spikes at same timestamps → carrier issue on specific trunk
+- CPU > 80% on `telephony.get.edge.performance.metrics` during the window → edge overload,
+  consider call load rebalancing
+- Low MOS isolated to WebRTC sessions (`participantType = WebRTC`) → client-side network or
+  browser issue, not edge
+- Low `mediaStatsMinConversationRFactor` (< 70) without matching MOS degradation → jitter/
+  packet-loss profile, possibly transient
+
+### Voice Engineer Notes
+
+`mediaStatsMinConversationMos` is populated only when the Genesys Edge has media statistics
+collection enabled. If the field is absent, verify Edge analytics settings. Use
+`telephony.get.sip.message.for.conversation` on specific low-MOS calls for codec SDP validation —
+a G.711 call forced to a low-bandwidth codec produces predictable MOS degradation.
+
+---
+
+## 13. Executive Playbook Extensions
+
+Three new executive playbooks added to the catalog, covering gaps in quality correlation,
+AI feature adoption, and skill-routing ROI.
+
+### 13a. CSAT and Survey Quality Rollup
+
+**Use case:** Monthly quality board reporting — link survey completion rates to evaluation
+coverage so leadership can see whether QM investment aligns with customer satisfaction.
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.surveys.aggregates.query` | `queueId`, `userId` | nSurveysSent, nSurveysCompleted, oSurveyScore |
+| `quality.get.agents.activity` | `userId` | evalCount, avgScore, criticalItemFailCount |
+| `quality.get.surveys` | `conversationId` | Individual survey responses for case-level drill |
+| `analytics.query.conversation.aggregates.queue.performance` | `queueId` | nConnected (denominator for coverage %) |
+
+**Computed KPIs:**
+```
+surveyCompletionRate%  = nSurveysCompleted / nSurveysSent × 100
+avgCsatScore           = oSurveyScore aggregate (0–10 scale)
+qmCoverage%            = evalCount / nConnected × 100
+avgEvalScore           = from quality.get.agents.activity
+```
+
+**Executive presentation:** 2×2 scatter plot (CSAT vs QM score by queue) — highlight the
+low-CSAT, low-QM-coverage quadrant as the highest-risk area.
+
+---
+
+### 13b. AI Summary Coverage Report
+
+**Use case:** Measure Copilot/Agent Assist AI summary adoption after rollout — track which
+queues and agents are generating summaries and whether failure rates are elevated.
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.summaries.aggregates.query` | `queueId`, `userId` | nSummariesGenerated, nSummariesFailed |
+| `analytics.query.conversation.aggregates.queue.performance` | `queueId` | nConnected (denominator) |
+| `routing-queues` | — | Queue names for label resolution |
+
+**Computed KPIs:**
+```
+aiSummaryCoverage%  = nSummariesGenerated / nConnected × 100
+aiSummaryFailRate%  = nSummariesFailed / (nSummariesGenerated + nSummariesFailed) × 100
+```
+
+**Note:** A summary failure rate > 10% on a queue indicates a transcription or AI configuration
+issue for that queue. Check the queue's transcription settings and language model configuration.
+
+---
+
+### 13c. Skills Routing Effectiveness
+
+**Use case:** Validate that skill-based routing investments are yielding measurable performance
+differences — lower AHT, fewer transfers, better quality on skill-matched interactions.
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `routing.get.all.routing.skills` | — | Skill catalog (name/id lookup) |
+| `routing.get.skill.groups` | — | Skill group definitions |
+| `analytics.query.user.aggregates.performance.metrics` | `userId` | tHandle per agent (compare across proficiency bands) |
+| `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Queue baseline AHT |
+| `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer rate per queue |
+
+**Join:** Enrich agent performance with skill proficiency from `users.get.user.routing.skills`
+→ group agents into proficiency tiers (P1–P5) → compare average tHandle per tier.
+
+**Expected pattern:** P4/P5 agents should show 10–20% lower AHT than P1/P2 on the same queue.
+If no difference is observed, skill assignments may be nominal rather than reflective of actual
+competency.
+
+---
+
+## 14. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+Columns: **Conv** = Conversation Deep Dive · **Queue** = Queue Investigation · **Div** = Division Investigation · **Exec** = Executive Rollup · **RT** = Real-Time Monitoring · **Agent** = Agent Investigation · **Skill** = Skill Group Investigation · **OB** = Outbound Campaign · **MOS** = Voice Quality/MOS
+
+| Dataset Key | Conv | Queue | Div | Exec | RT | Agent | Skill | OB | MOS |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.specific.conversation.details` | ● | | | | | | | | |
+| `conversations.get.call.detail` | ● | | | | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | | | ● |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | | |
+| `conversations.get.recordings` | ● | | | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | ○ | | | ● | ○ | | |
+| `quality.get.surveys` | ● | | | ● | | | | | |
+| `quality.get.conversation.surveys` | ● | | | | | | | | |
+| `telephony.get.sip.message.for.conversation` | ○ | | | | | | | | ○ |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | ○ | | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.data.for.conversation` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | | ○ | |
+| `routing.get.queue.wrapup.codes` | | ● | | | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | | |
+| `routing.get.queue.members.with.status` | | ● | | | ● | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● | ● | ● |
+| `analytics.query.conversation.details.by.queue` | | ● | | | | | | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | ● | ● | | | | ● | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | ● | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | | ● | |
+| `routing-queue-members` | | ● | | | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | | |
+| `authorization.search.division.objects` | | | ● | | | | | | |
+| `authorization.get.division.grants` | | | ● | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | | | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | | | |
+| `analytics.division.conversation.aggregates` | | | ● | | | | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | ● | | |
+| `coaching.get.appointments` | | | ● | | | ○ | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | | |
+| `analytics.query.conversation.aggregates.by.media.type` | | | | ● | | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | | |
+| `analytics.surveys.aggregates.query` | | | | ● | | | | | |
+| `analytics.summaries.aggregates.query` | | | | ● | | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | | |
+| `analytics.query.user.observations.real.time.status` | | ● | | | ● | ● | | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | | | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | | | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | | | |
+| `analytics.query.flow.observations` | | | | | ● | | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | | ● |
+| `telephony.get.edges` | | | | | ● | | | | ● |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | | ● |
+| `telephony.create.edge.logs.job` | | | | | | | | | ○ |
+| `telephony.get.edge.logs.job` | | | | | | | | | ○ |
+| `alerting.get.alerts` | | | | ○ | ● | | | | |
+| `alerting.get.rules` | | | | | | | | | ○ |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | | | |
+| `users.get.user.routing.skills` | | | | | | ● | ● | | |
+| `users.get.user.queue.memberships` | | | | | | ● | ● | | |
+| `users.get.bulk.user.presences` | | | | | | ● | | | |
+| `routing.get.user.utilization` | | | | | | ○ | | | |
+| `routing.get.skill.groups` | | | | ● | | | ● | | |
+| `routing.get.skill.group.members` | | | | | | | ● | | |
+| `routing.get.all.routing.skills` | | | | ● | | | ○ | | |
+| `outbound.get.campaigns` | | | | | | | | ● | |
+| `outbound.get.campaign.diagnostics.summary` | | | | | | | | ● | |
+| `outbound.get.contact.lists` | | | | | | | | ● | |
+| `outbound.get.events` | | | | | | | | ● | |
+| `outbound.get.messaging.campaigns` | | | | | | | | ● | |
+| `workforce.get.adherence.bulk` | | | | | | ● | | | |
+| `workforce.get.agent.management.unit` | | | | | | ● | | | |
+| `workforce.get.management.units` | | | | ● | | | | | |
+| `workforce.get.management.unit.users` | | | | ● | | | | | |
+| `workforce.get.management.unit.adherence` | | | | ● | | | | | |
+| `audit-logs` | | | ○ | | | ● | | | |
+| `stations.get.stations` | | | | | | ○ | | | ○ |
 
 ---
 
 ## Appendix: Metric Glossary
+
+### Analytics Metrics (Conversation & Queue)
 
 | Metric | Meaning | Typical Use |
 |--------|---------|-------------|
@@ -497,20 +777,128 @@ The matrix below shows which datasets are used across which investigations and r
 | `tHandle` | Total handle time (talk + hold + ACW) | AHT numerator |
 | `tTalk` | Total talk time | Talk-time component |
 | `tAcw` | After-call work time | ACW component |
+| `tHeld` | Total hold time | Hold-time component |
 | `tAnswered` | Time from offered to answered | Speed of answer |
+| `tAbandon` | Time before abandonment | Abandon patience |
+| `tShortAbandon` | Abandon time below short-abandon threshold | IVR-triggered or accidental hang-ups |
 | `nTransferred` | Conversations transferred | Transfer volume |
+| `nBlindTransferred` | Blind (cold) transfers | Transfer quality indicator |
+| `nConsultTransferred` | Consult transfers | Warm transfer volume |
 | `oServiceLevel` | Current SLA percentage | Real-time SLA |
 | `nOverSla` | Conversations that exceeded SLA threshold | SLA misses |
+| `nAnsweredIn20` | Calls answered within 20 seconds | Speed-of-answer sub-metric |
+
+### Analytics Metrics (Real-Time Observations)
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
 | `oInteracting` | Agents currently on interactions | Active agents |
 | `oWaiting` | Interactions waiting in queue | Queue depth |
-| `oLongestWaiting` | Seconds the longest-waiting customer has been waiting | Worst-case wait |
+| `oAlerting` | Interactions alerting an agent | In-progress answer |
+| `oOnQueueUsers` | Agents on-queue and available | Staffed capacity |
+| `oOffQueueUsers` | Agents off-queue | Absent capacity |
+| `oLongestWaiting` | Seconds the longest-waiting customer has waited | Worst-case wait |
+
+### Agent Analytics Metrics
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
 | `tAgentRoutingStatus` | Time in each routing status | On-queue vs off-queue time |
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
+| `nNotResponding` | Times agent entered NOT_RESPONDING | Auto-answer failure count |
+
+### Speech & Text Analytics
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `agentSentimentScore` | Agent-side sentiment average | Agent tone monitoring |
+| `customerSentimentScore` | Customer-side sentiment average | CX quality indicator |
+| `overtalkPercent` | % of conversation with overlapping speech | Conversation dynamic |
+| `silencePercent` | % of conversation in silence | Dead air / hold indicator |
+
+### Voice Quality
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
+| `mediaStatsMinConversationMos` | Minimum MOS score observed in conversation | Audio quality floor |
+| `mediaStatsMinConversationRFactor` | Minimum R-Factor (0–100) | Jitter/packet-loss indicator |
+
+### Survey & Quality
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
+| `nSurveysSent` | Surveys triggered after conversations | Survey outreach volume |
+| `nSurveysCompleted` | Surveys completed by customers | Response volume |
+| `oSurveyScore` | Aggregate CSAT/NPS survey score | Voice-of-customer KPI |
+| `evalCount` | Evaluations completed for an agent | QM coverage |
+| `evalAvgScore` | Average evaluation score | QM performance |
+| `criticalItemFailCount` | Critical item failures in evaluations | Compliance risk indicator |
+
+### AI / Copilot
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
+| `nSummariesGenerated` | AI summaries successfully created | Copilot adoption |
+| `nSummariesFailed` | AI summary generation failures | Feature reliability |
+
+### Outbound / Dialer
+
+| Metric | Meaning | Typical Use |
+|--------|---------|-------------|
+| `connectRate%` | nConnected / totalDialed | Campaign reach |
+| `machineRate%` | MACHINE_DETECT / totalDialed | AMD accuracy |
+| `penetrationRate%` | contactsDialed / contactListSize | List progress |
+| `rightPartyContact%` | Successful outcome wrapups / nConnected | Campaign quality |
 
 ---
 
 *All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*  
 *All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*  
-*Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
+*Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*  
+
+---
+
+## Appendix: Endpoint → Dataset Quick Reference
+
+Key Genesys Cloud API paths and their catalog dataset keys for rapid lookup.
+
+| API Path | Method | Dataset Key |
+|----------|--------|-------------|
+| `/api/v2/conversations/{conversationId}` | GET | `conversations.get.specific.conversation.details` |
+| `/api/v2/conversations/calls/{conversationId}` | GET | `conversations.get.call.detail` |
+| `/api/v2/conversations/{conversationId}/participants/{participantId}/wrapup` | GET | `conversations.get.conversation.participant.wrapup` |
+| `/api/v2/conversations/{conversationId}/summaries` | GET | `conversations.get.conversation.summaries` |
+| `/api/v2/conversations/{conversationId}/recordingmetadata` | GET | `conversations.get.conversation.recording.metadata` |
+| `/api/v2/conversations/{conversationId}/recordings` | GET | `conversations.get.recordings` |
+| `/api/v2/analytics/conversations/{conversationId}/details` | GET | `analytics.get.single.conversation.analytics` |
+| `/api/v2/analytics/conversations/details/query` | POST | `analytics-conversation-details-query`, `analytics.query.conversation.details.by.queue` |
+| `/api/v2/analytics/conversations/details/jobs` | POST | `analytics-conversation-details` (async) |
+| `/api/v2/analytics/conversations/aggregates/query` | POST | `analytics.query.conversation.aggregates.*` |
+| `/api/v2/analytics/queues/observations/query` | POST | `analytics.query.queue.observations.real.time.stats` |
+| `/api/v2/analytics/users/observations/query` | POST | `analytics.query.user.observations.real.time.status` |
+| `/api/v2/analytics/users/aggregates/query` | POST | `analytics.query.user.aggregates.*` |
+| `/api/v2/analytics/users/details/query` | POST | `analytics.query.user.details.activity.report` |
+| `/api/v2/analytics/flows/aggregates/query` | POST | `analytics.query.flow.aggregates.execution.metrics` |
+| `/api/v2/analytics/transcripts/aggregates/query` | POST | `analytics.post.transcripts.aggregates.query` |
+| `/api/v2/analytics/surveys/aggregates/query` | POST | `analytics.surveys.aggregates.query` |
+| `/api/v2/analytics/summaries/aggregates/query` | POST | `analytics.summaries.aggregates.query` |
+| `/api/v2/routing/queues` | GET | `routing-queues` |
+| `/api/v2/routing/queues/{queueId}` | GET | `routing.get.single.queue.config` |
+| `/api/v2/routing/queues/{queueId}/members` | GET | `routing.get.queue.members.with.status` |
+| `/api/v2/routing/queues/{queueId}/wrapupcodes` | GET | `routing.get.queue.wrapup.codes` |
+| `/api/v2/routing/queues/{queueId}/estimatedwaittime` | GET | `routing.get.queue.estimated.wait.time` |
+| `/api/v2/routing/skillgroups` | GET | `routing.get.skill.groups` |
+| `/api/v2/routing/skillgroups/{skillGroupId}/members` | GET | `routing.get.skill.group.members` |
+| `/api/v2/speechandtextanalytics/conversations/{conversationId}` | GET | `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` |
+| `/api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments` | GET | `speech.and.text.analytics.get.sentiment.data.for.conversation` |
+| `/api/v2/speechandtextanalytics/conversations/{conversationId}/categories` | GET | `speechandtextanalytics.get.conversation.categories` |
+| `/api/v2/speechandtextanalytics/conversations/{conversationId}/summaries` | GET | `speechandtextanalytics.get.conversation.summaries.detail` |
+| `/api/v2/quality/evaluations/query` | GET | `quality.get.evaluations.query` |
+| `/api/v2/quality/conversations/{conversationId}/surveys` | GET | `quality.get.conversation.surveys` |
+| `/api/v2/authorization/divisions/{divisionId}/objects` | GET | `authorization.search.division.objects` |
+| `/api/v2/authorization/divisions/{divisionId}/grants` | GET | `authorization.get.division.grants` |
+| `/api/v2/telephony/sipmessages/conversations/{conversationId}` | GET | `telephony.get.sip.message.for.conversation` |
+| `/api/v2/workforcemanagement/adherence` | GET | `workforce.get.adherence.bulk` |
+| `/api/v2/workforcemanagement/agents/{agentId}/managementunit` | GET | `workforce.get.agent.management.unit` |

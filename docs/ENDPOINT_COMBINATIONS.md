@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-11  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,13 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Digital Channel Investigation (Chat / Email / Messaging)](#11-digital-channel-investigation-chat--email--messaging)
+12. [BYOI Full Provenance Chain](#12-byoi-full-provenance-chain)
+13. [Executive QM & VoC Combined Rollup](#13-executive-qm--voc-combined-rollup)
+14. [Bot Containment & Self-Service Analysis](#14-bot-containment--self-service-analysis)
+15. [Knowledge Base & Agent-Assist Effectiveness](#15-knowledge-base--agent-assist-effectiveness)
+16. [Agent Station & Audio Quality Investigation](#16-agent-station--audio-quality-investigation)
+17. [New Dataset Quick Reference](#17-new-dataset-quick-reference)
 
 ---
 
@@ -508,6 +515,342 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nEvaluations` | Evaluations completed in the window | QM coverage numerator |
+| `oEvaluationScore` | Average evaluation score | QM quality indicator |
+| `nEvaluationsCriticalItem` | Evaluations with a critical item failure | Compliance risk signal |
+| `nSurveySent` | Post-call surveys triggered | VoC outreach volume |
+| `nSurveyResponses` | Surveys with a customer response | VoC response rate denominator |
+| `oSurveyScore` | Average CSAT score from survey responses | Customer satisfaction |
+| `nSurveyPromoter` | Survey responses scoring 9–10 (NPS) | Promoter count |
+| `nSurveyDetractor` | Survey responses scoring 0–6 (NPS) | Detractor count |
+| `nBotSessions` | Total bot/virtual-agent sessions initiated | Self-service attempt volume |
+| `nBotSessionsContained` | Bot sessions resolved without live agent | Containment count |
+| `nBotTransfers` | Bot sessions escalated to a live agent | Escalation count |
+| `tSessionMinutes` | Total bot session duration | Self-service engagement time |
+| `nKnowledgeSessionSuggestions` | Agent-assist suggestions surfaced to agents | Suggestion delivery |
+| `nKnowledgeConfirmedAnswers` | Suggestions accepted/confirmed by agents | Suggestion acceptance |
+| `nKnowledgeSelfServiceArticles` | Self-service article views (non-agent) | Self-service deflection |
+
+---
+
+## 11. Digital Channel Investigation (Chat / Email / Messaging)
+
+**Subject:** One `conversationId` where `mediaType ∈ {chat, email, message, callback}`  
+**Use case:** A supervisor or QM analyst is reviewing a digital interaction — a chat that went poorly, an email that took too long, or a WhatsApp message thread with a complaint. They need the same structured investigation as a voice call, adapted to the digital context.
+
+**Core question:** *What happened in this digital interaction and why did the customer or agent experience it that way?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | Media type, state, participants, originatingDirection, email subject/from/to, chat queue |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timeline: routing wait, chat active time, ACW, hold (if callback) |
+| 3 | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code per agent participant — iterate over agent participants from step 1 |
+| 4 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs — for digital, may include chat transcript or email body recording |
+| 5 | `conversations.get.conversation.summaries` | `conversationId` | AI Copilot summaries: reason for contact, resolution, action items |
+| 6 | `speechandtextanalytics.get.conversation.categories` | `conversationId` | S&TA topic/category classifications via text analytics (chat and messaging) |
+| 7 | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | S&TA-generated per-leg summaries (distinct from Copilot summaries) |
+| 8 | `quality.get.evaluations.query` | `conversationId` (filter) | QM evaluation scores, form used, evaluator |
+| 9 | `quality.get.conversation.evaluation.detail` | `conversationId` + `evaluationId` | Per-question scores and critical answers — drill-in from step 8 evaluation IDs |
+| 10 | `quality.get.conversation.surveys` | `conversationId` | CSAT/NPS survey result scoped to this conversation |
+
+### Key Joins
+
+```
+conversations.get.specific.conversation.details.participants[{purpose=agent}].id
+  → conversations.get.conversation.participant.wrapup.participantId  (per agent)
+
+analytics.get.single.conversation.analytics.participants[].sessions[].communicationId
+  → speechandtextanalytics.get.conversation.summaries.detail (per-leg)
+
+quality.get.evaluations.query[].evaluationId
+  → quality.get.conversation.evaluation.detail.evaluationId  (drill-in)
+```
+
+### Channel Variations
+
+| Channel | tTalk Meaning | AI Summary | STA |
+|---------|---------------|------------|-----|
+| Chat | Active chat engagement time (exclude idle periods) | High value — saves reading the transcript | Text analytics applies |
+| Email | Time to read + compose the response | Highest value — email threads are long | Text analytics applies |
+| Messaging (SMS/WhatsApp) | Async thread span hours to days | Critical — conversation may span multiple shifts | Text analytics applies |
+| Callback | Agent-initiated outbound leg; voice after connect | Lower value — treat as voice post-connection | Voice STA applies |
+
+### Analytical Questions Answered
+
+- How long did the customer wait before an agent accepted the digital interaction?
+- What wrapup code was applied and by which agent?
+- What did Copilot summarise as the reason for contact and resolution?
+- Were any compliance or topic categories detected in the transcript?
+- Was the agent evaluated? What were the per-question scores?
+- Did the customer respond to the CSAT survey?
+
+---
+
+## 12. BYOI Full Provenance Chain
+
+**Subject:** One `conversationId` with `externalTag ≠ null`  
+**Use case:** A conversation was injected via the BYOI provider API (`POST /api/v2/conversations/providers/{providerId}/calls`). Platform engineers and integrations teams need to correlate the Genesys conversation record back to the originating external system (CRM case, third-party call ID, external SBC).
+
+**BYOI Detection:** `GET /api/v2/conversations/{conversationId}` returning a non-null `externalTag` or `externalConversationId` confirms BYOI injection. Any participant with `purpose = external` further confirms.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | `externalTag`, `externalConversationId`, external participant purpose, originatingDirection |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timing — applies identically for BYOI conversations |
+| 3 | `conversations.get.conversation.customattributes` | `conversationId` | **Primary cross-system linkage** — provider-set fields: CRM case ID, external call ID, correlation token |
+| 4 | `conversations.search.participant.attributes` | `conversationId` | IVR/Architect flow variables set during the injected conversation |
+| 5 | `conversations.get.conversation.summaries` | `conversationId` | Copilot AI summaries (if licensed) |
+| 6 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording metadata — proceeds identically for BYOI |
+| 7 | `quality.get.evaluations.query` | `conversationId` (filter) | QM evaluation if assigned |
+| 8 | `quality.get.conversation.surveys` | `conversationId` | CSAT survey result |
+| 9 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP trace showing provider SIP-to-SIP handoff — From/To headers carry provider SIP identity |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.externalTag
+  → external CRM / ticketing system (out-of-band lookup using the tag value)
+
+conversations.get.conversation.customattributes.results[]
+  → provider-specific fields, e.g. "crmCaseId", "externalCallId", "correlationToken"
+
+telephony.get.sip.messages.for.conversation[{method=INVITE}].headers.From
+  → provider's SIP identity / originating SBC address
+```
+
+### Analytical Questions Answered
+
+- Was this conversation BYOI-injected? (externalTag check)
+- What external system originated this call? (custom attributes + SIP From header)
+- What IVR context did the provider supply? (participant attributes)
+- Did Genesys apply its full quality process (recording, evaluation, CSAT)?
+- Where in the SIP signalling did the provider hand off to Genesys? (SIP trace)
+
+---
+
+## 13. Executive QM & VoC Combined Rollup
+
+**Subject:** Organisation-wide or multi-queue + reporting window (weekly/monthly)  
+**Use case:** A QM Manager or VP of Operations needs a single view of quality and customer satisfaction — QM scores, evaluation coverage, CSAT, and NPS — aggregated at queue and division level, suitable for the monthly executive review deck.
+
+**Core question:** *How are we performing on quality and customer experience, and where are the gaps?*
+
+### Dataset Steps by Layer
+
+#### Layer 1 — QM Coverage & Score
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.evaluations.aggregates.by.queue` | `queueId`, `userId`, daily granularity | nEvaluations, oEvaluationScore, nEvaluationsCriticalItem |
+| `quality.get.published.evaluation.forms` | — | Form definitions for label resolution (formId → form name) |
+| `quality.get.agents.activity` | `userId` | Per-agent eval count, avg/high/low scores — for agent-level QM comparison |
+
+#### Layer 2 — Voice of Customer
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.surveys.aggregates.by.queue` | `queueId`, daily granularity | nSurveySent, nSurveyResponses, oSurveyScore, nSurveyPromoter, nSurveyDetractor |
+| `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | oSentimentScore, nSpeechTextAnalyzedConversations — STA sentiment trend |
+
+#### Layer 3 — QM + Volume Context (join with Layer 1)
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `analytics.query.conversation.aggregates.queue.performance` | `queueId`, daily | nConnected — denominator for qmCoverageRate |
+
+### Computed Executive Metrics
+
+```
+QM Coverage Rate      = SUM(nEvaluations) / SUM(nConnected) × 100   (per queue, per month)
+Avg QM Score          = AVG(oEvaluationScore)                        (weighted by nEvaluations)
+Critical Fail Rate    = SUM(nEvaluationsCriticalItem) / SUM(nEvaluations) × 100
+Survey Response Rate  = SUM(nSurveyResponses) / SUM(nSurveySent) × 100
+NPS Score             = (nSurveyPromoter - nSurveyDetractor) / nSurveyResponses × 100
+Avg CSAT              = AVG(oSurveyScore)
+STA Sentiment Trend   = daily AVG(oSentimentScore) — negative trend flags CX degradation
+```
+
+### Key Joins
+
+```
+routing-queues[].id
+  → analytics.query.evaluations.aggregates.by.queue[].group.queueId
+  → analytics.query.surveys.aggregates.by.queue[].group.queueId
+  → analytics.query.conversation.aggregates.queue.performance[].group.queueId
+
+analytics.query.evaluations.aggregates.by.queue[].group.userId
+  → quality.get.agents.activity[].user.id  (agent-level detail)
+
+analytics.query.evaluations.aggregates.by.queue[].group.formId
+  → quality.get.published.evaluation.forms[].id  (form name resolution)
+```
+
+---
+
+## 14. Bot Containment & Self-Service Analysis
+
+**Subject:** Organisation-wide or specific bot/flow + reporting window  
+**Use case:** A VP of Digital or Head of Operations needs to know what percentage of interactions are being handled without a live agent. Used for capacity planning, bot investment justification, and IVR performance reviews.
+
+**Core question:** *How effectively is automation containing interactions, and where are callers escalating to live agents?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.bot.aggregates` | `botId` / `flowId` / `queueId` | nBotSessions, nBotSessionsContained, nBotTransfers, nBotSessionsAbandoned, tSessionMinutes |
+| 2 | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | nFlow, nFlowOutcome, nFlowOutcomeFailed — flow execution health |
+| 3 | `flows.get.all.flows` | `flowId` | Flow name resolution — join friendly name onto bot/flow IDs |
+| 4 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | nConnected — live agent volume for containment rate denominator |
+| 5 | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | nAbandoned — post-bot abandon rate (callers leaving after escalation) |
+
+### Computed Executive Metrics
+
+```
+Containment Rate    = nBotSessionsContained / nBotSessions × 100
+Escalation Rate     = nBotTransfers / nBotSessions × 100
+Self-Service Defl.  = nBotSessionsContained / (nBotSessionsContained + nConnected) × 100
+Bot Abandon Rate    = nBotSessionsAbandoned / nBotSessions × 100
+Flow Failure Rate   = nFlowOutcomeFailed / nFlow × 100
+```
+
+### Diagnostic Signals
+
+- Containment Rate sudden drop → bot config change or NLU degradation; check `flows.get.all.flows` for recent publishes
+- nBotTransfers spike without nBotSessions change → new intent falling through to escalation path
+- nFlowOutcomeFailed / nBotSessions > 0.05 → backend data action timeouts inside the bot flow
+- nBotSessionsAbandoned / nBotSessions > 0.15 → excessive bot menu depth or poor prompt UX
+
+---
+
+## 15. Knowledge Base & Agent-Assist Effectiveness
+
+**Subject:** Organisation-wide or per-queue + reporting window  
+**Use case:** A Contact Centre Director or Knowledge Manager wants to understand whether Agent Assist is helping agents handle interactions faster and with higher quality — and whether the knowledge base is surfacing the right articles.
+
+**Core question:** *Is Agent Assist making agents more effective, and is the knowledge base content relevant?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.knowledge.aggregates` | `queueId` / `userId` / `knowledgeBaseId` | nKnowledgeSessionSuggestions, nKnowledgeConfirmedAnswers, nKnowledgeSelfServiceArticles |
+| 2 | `analytics.query.conversation.aggregates.agent.performance` | `userId` | tHandle (avg) per agent — AHT comparison for agents using vs. not using assist |
+| 3 | `quality.get.agents.activity` | `userId` | avgQMScore — quality comparison for agents with high vs. low suggestion acceptance |
+| 4 | `analytics.post.transcripts.aggregates.query` | `queueId` | oSentimentScore — sentiment context alongside suggestion data |
+
+### Computed Metrics
+
+```
+Suggestion Accept Rate   = nKnowledgeConfirmedAnswers / nKnowledgeSessionSuggestions × 100
+Agent Assist Coverage    = nKnowledgeSessionSuggestions / nConnected × 100   (requires step 2 join)
+Self-Service Rate        = nKnowledgeSelfServiceArticles / nKnowledgeSessionSuggestions × 100
+```
+
+### Diagnostic Signals
+
+- Suggestion Accept Rate < 10% → agents not engaging; check UI placement or suggestion latency
+- Agent Assist Coverage < 50% → knowledge base topic gaps for this queue's common intents
+- High suggestionAcceptRate but no QM score improvement → suggestions accurate but insufficient to influence evaluation criteria
+- Zero nKnowledgeSessionSuggestions for a queue → knowledge base not configured for that queue's Architect flow
+
+---
+
+## 16. Agent Station & Audio Quality Investigation
+
+**Subject:** One `userId` + optional `conversationId`  
+**Use case:** An agent reports one-way audio, echo, clipping, or dropped calls. A voice engineer needs to trace the complaint from the agent's phone/softphone through the Edge appliance to the SIP trunk, using the specific call's signalling and media endpoint statistics as evidence.
+
+**Core question:** *Is this a phone problem, a network problem, or a trunk/Edge problem — and what does the SIP trace say?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `users.get.user.details.with.full.expansion` | seed → `userId` | `station.id`, `station.type` (WebRTC/desk-phone), current presence and routing status |
+| 2 | `stations.get.stations` | `stationId` from step 1 | Station type (WebRTC/managed/BYOC), line appearances, registered WebRTC endpoint |
+| 3 | `telephony.get.edges` | `edgeId` from station (BYOC/managed only) | Edge `statusCode`, `onlineStatus`, `softwareVersion`, peer connections |
+| 4 | `telephony.get.edge.performance.metrics` | `edgeId` from step 3 | Real-time CPU, memory, `activeCallCount`, SIP error counters |
+| 5 *(specific call)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SDP offer/answer (codec, IP, port), re-INVITE events, BYE cause |
+| 6 *(specific call)* | `analytics.get.single.conversation.analytics` | `conversationId` | `mediaEndpointStats`: MOS score, jitter, packet loss, round-trip time |
+
+### Key Joins
+
+```
+users.get.user.details.with.full.expansion.station.id
+  → stations.get.stations[].id (station detail)
+  → telephony.get.edges[].stationIds[] (edge ↔ station mapping, if managed)
+
+telephony.get.sip.messages.for.conversation[{method=INVITE}].headers.Contact
+  → Edge IP address (confirms which edge handled the call)
+
+analytics.get.single.conversation.analytics.participants[].sessions[].mediaEndpointStats
+  → MOS score < 3.5 confirms audible quality degradation
+```
+
+### Diagnostic Decision Tree
+
+| Symptom | Check | Signal |
+|---------|-------|--------|
+| One-way audio | SIP SDP offer/answer IP | RFC1918 NAT IP in SDP → ICE failure; check STUN/TURN config |
+| Echo | Station type | WebRTC softphone → acoustic echo; Managed phone → tail cancellation issue |
+| Clipping / choppy | Edge CPU or mediaEndpointStats.jitter | CPU > 80% → resource-induced loss; jitter > 40ms → QoS issue |
+| Call drops | SIP BYE cause + edge online status | `DISCONNECTED` edge during window → edge failover mid-call |
+| No SIP trace returned | Edge type | BYOC Cloud trunk → carrier-side SIP; engage Genesys Cloud Support |
+
+### Enrichment
+
+```
+telephony.get.trunk.metrics.summary → confirm trunk error rates were normal during the window
+alerting.get.alerts               → check for active edge/trunk alerts during the window
+audit-logs (service=Telephony)    → recent Edge config changes that could affect routing
+```
+
+---
+
+## 17. New Dataset Quick Reference
+
+The following datasets were added in the 2026-06-11 catalog update. Each resolves gaps identified from the `combinations` section and from the Genesys API evaluation.
+
+| Dataset Key | API Path | Primary Use Case |
+|-------------|----------|-----------------|
+| `conversations.get.call.detail` | `GET /api/v2/conversations/calls/{conversationId}` | Voice-specific call legs, hold events, ANI/DNIS routing path |
+| `conversations.get.conversation.participant.wrapup` | `GET /api/v2/conversations/{conversationId}/participants/{participantId}/wrapup` | Wrapup code per agent participant in multi-participant conversations |
+| `conversations.get.conversation.summaries` | `GET /api/v2/conversations/{conversationId}/summaries` | Copilot AI-generated reason for contact, resolution, action items |
+| `speechandtextanalytics.get.conversation.categories` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/categories` | S&TA topic/category classifications with confidence scores |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/summaries` | S&TA per-leg AI summaries |
+| `quality.get.conversation.evaluation.detail` | `GET /api/v2/quality/conversations/{conversationId}/evaluations/{evaluationId}` | Per-question evaluation scores and critical item answers |
+| `quality.get.conversation.surveys` | `GET /api/v2/quality/conversations/{conversationId}/surveys` | CSAT/NPS survey result scoped to a single conversation |
+| `routing.get.queue.estimated.wait.time` | `GET /api/v2/routing/queues/{queueId}/estimatedwaittime` | Real-time EWT for a queue — used in live supervisor views |
+| `authorization.get.division.grants` | `GET /api/v2/authorization/divisions/{divisionId}/grants` | RBAC grants within a division for access audit |
+| `workforce.get.agent.management.unit` | `GET /api/v2/workforcemanagement/agents/{agentId}/managementunit` | Agent WFM management unit — bridge to schedule/adherence |
+| `workforce.get.adherence.bulk` | `GET /api/v2/workforcemanagement/adherence` | Bulk schedule adherence for a list of agents |
+| `analytics.query.conversation.details.by.queue` | `POST /api/v2/analytics/conversations/details/query` | Conversation-level analytics detail filtered to one queue |
+| `analytics.query.evaluations.aggregates.by.queue` | `POST /api/v2/analytics/evaluations/aggregates/query` | QM score aggregates by queue and agent — executive QM reporting |
+| `analytics.query.surveys.aggregates.by.queue` | `POST /api/v2/analytics/surveys/aggregates/query` | CSAT/NPS aggregates by queue — executive VoC reporting |
+| `analytics.query.bot.aggregates` | `POST /api/v2/analytics/bots/aggregates/query` | Bot/virtual-agent containment, transfer, and session metrics |
+| `analytics.query.knowledge.aggregates` | `POST /api/v2/analytics/knowledge/aggregates/query` | Knowledge base suggestion, acceptance, and self-service metrics |
+| `routing.get.skill.group.members` | `GET /api/v2/routing/skillgroups/{skillGroupId}/members` | Agents in a routing skill group — preferred-agent routing investigation |
+
+### Key Analytics Metrics Added
+
+| Metric | Source Dataset | Meaning |
+|--------|----------------|---------|
+| `nEvaluations` | `analytics.query.evaluations.aggregates.by.queue` | Evaluation volume — QM coverage numerator |
+| `oEvaluationScore` | `analytics.query.evaluations.aggregates.by.queue` | Average evaluation score — QM quality indicator |
+| `nEvaluationsCriticalItem` | `analytics.query.evaluations.aggregates.by.queue` | Critical failure count — compliance risk signal |
+| `nSurveySent` / `nSurveyResponses` | `analytics.query.surveys.aggregates.by.queue` | VoC outreach and response volumes |
+| `oSurveyScore` | `analytics.query.surveys.aggregates.by.queue` | Average CSAT score |
+| `nSurveyPromoter` / `nSurveyDetractor` | `analytics.query.surveys.aggregates.by.queue` | NPS promoter/detractor counts for NPS calculation |
+| `nBotSessions` | `analytics.query.bot.aggregates` | Total bot sessions — self-service attempt volume |
+| `nBotSessionsContained` | `analytics.query.bot.aggregates` | Sessions resolved without live agent — containment count |
+| `nBotTransfers` | `analytics.query.bot.aggregates` | Escalations from bot to live agent |
+| `nKnowledgeSessionSuggestions` | `analytics.query.knowledge.aggregates` | Agent-assist suggestions surfaced |
+| `nKnowledgeConfirmedAnswers` | `analytics.query.knowledge.aggregates` | Suggestions accepted by agents |
 
 ---
 

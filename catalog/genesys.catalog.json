@@ -1297,6 +1297,120 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries": {
+      "description": "AI-generated conversation summaries for a single conversation \u2014 abstractive summary, reason, resolution, follow-up actions, and agent coaching notes produced by Genesys Cloud's generative AI layer.",
+      "endpoint": "getSpeechandtextanalyticsConversationSummaries",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Detected Speech and Text Analytics categories for a single conversation \u2014 topic categories matched against configured STA programs (billing, cancellation, escalation, etc.).",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "QM calibration sessions \u2014 conversations scored by multiple evaluators to establish scoring consistency. Includes calibrator, expert evaluator, participant evaluators, scores, and conversation IDs.",
+      "endpoint": "getQualityCalibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.evaluation.form.detail": {
+      "description": "Published evaluation form definition for a single form \u2014 question groups, individual questions, scoring weights, critical questions, and N/A availability. Join target for quality.get.evaluations.query to surface the scoring structure behind a score.",
+      "endpoint": "getQualityPublishedformsEvaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "recording.post.batch.requests": {
+      "description": "Submit a bulk recording batch download job \u2014 accepts a list of recording IDs and returns a jobId. Recordings are returned in original codec/format. Use for compliance audits and bulk QM sampling. Requires recording:recording:view permission; sensitive-data redaction applies at org level.",
+      "endpoint": "postRecordingBatchrequests",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "recording.get.batch.request.status": {
+      "description": "Status and signed download URLs for a bulk recording batch job \u2014 returns per-recording result entries each containing either a time-limited download URL or an error. Poll until all entries are resolved.",
+      "endpoint": "getRecordingBatchrequest",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Full external contact profile \u2014 name, email, phone, account, organisation, and custom schema fields. Seed step for Customer Journey Investigation when an external contact ID is retrieved from a conversation participant.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-users",
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.campaign.progress": {
+      "description": "Real-time progress for a single outbound dialing campaign \u2014 contacted count, remaining contacts, percentage complete, and current campaign status. Use as the triage step before pulling full conversation detail for a campaign investigation.",
+      "endpoint": "getOutboundCampaignProgress",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.edge.groups": {
+      "description": "All Edge groups in the organisation \u2014 named groups of Edge appliances sharing trunks and configuration. Seed step for telephony infrastructure investigations; join to telephony.get.edges on edgeGroupId to map individual appliances.",
+      "endpoint": "getTelephonyProvidersEdgesEdgegroups",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

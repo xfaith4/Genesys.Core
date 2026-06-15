@@ -1297,6 +1297,227 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.ai.summaries": {
+      "description": "AI-generated summary for a single conversation — concise outcome description, action items, and follow-up indicators produced by Genesys AI summarisation. High-value first read in any conversation investigation.",
+      "endpoint": "getSpeechandtextanalyticsConversationSummaries",
+      "itemsPath": "$.summaries",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Detected STA category labels for a single conversation — which configured topic categories (Billing, Tech Support, Churn Risk, etc.) were triggered. Join with speechandtextanalytics.get.topics for label resolution.",
+      "endpoint": "getSpeechandtextanalyticsConversationCategories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.programs.mappings": {
+      "description": "Mapping of STA programs to queues and flows — shows which queues have speech analytics coverage and which STA program governs each queue. Use to validate STA coverage before expecting sentiment/topic data.",
+      "endpoint": "getSpeechandtextanalyticsProgramsMappings",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External contact profile — name, phone numbers, email, external organisation, account tier. Resolved from the externalContactId on a conversation participant. Adds customer identity context to conversation and queue investigations.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Notes on an external contact — free-text interaction history, escalation notes, and manual observations logged by agents or supervisors. Adds customer relationship history to conversation investigations.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Journey sessions for an external contact — web and app sessions linked to this contact via identity resolution. Reveals digital activity before and after a voice interaction.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.lookup.by.identifier": {
+      "description": "Lookup external contact by identifier type and value (phone, email, externalId) — resolves the ANI or email from a conversation participant to a CRM contact record when externalContactId is not already present on the conversation object.",
+      "endpoint": "postExternalcontactsIdentifierlookup",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.calibrations": {
+      "description": "QM calibration sessions — list of calibration events with conversation, calibrator, evaluator group, and scoring convergence data. Use to assess calibration programme health and inter-rater reliability.",
+      "endpoint": "getQualityCalibrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.evaluators.activity": {
+      "description": "Evaluator activity summary — per-evaluator counts of evaluations completed, average scores given, and calibration participation. Use to balance evaluator workload and detect scoring bias across a QM programme.",
+      "endpoint": "getQualityEvaluatorsActivity",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.survey.detail": {
+      "description": "Full detail for a single survey response — all question scores, free-text feedback, NPS value, and survey form version. Use to understand why a customer gave a low CSAT score.",
+      "endpoint": "getQualitySurvey",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "All survey responses for a specific conversation — direct lookup by conversationId returning the survey form and scored answers. Faster than quality.get.surveys query when the conversationId is already known.",
+      "endpoint": "getQualityConversationSurveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.agent.insights": {
+      "description": "Gamification performance insights for a specific agent — how the agent is trending against their performance profile metrics relative to peers. Use to contextualise quality scores and coaching decisions.",
+      "endpoint": "getGamificationInsightsUserDetails",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.scorecard.user": {
+      "description": "Workday performance scorecard for a specific agent — all tracked gamification metrics (handle count, AHT, quality score, etc.) for the requested workday period. Single-agent complement to analytics aggregates.",
+      "endpoint": "getGamificationScorecardsUser",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.insights.summary": {
+      "description": "Performance insights summary across a division or performance profile — group-level trending for all tracked KPIs. Use in executive reporting to show which teams are trending up or down versus the prior period.",
+      "endpoint": "getGamificationInsights",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "gamification.get.leaderboard": {
+      "description": "Leaderboard rankings for a division or performance profile — agent rankings by gamification point totals. Use to identify top performers and outliers in team comparisons.",
+      "endpoint": "getGamificationLeaderboardAll",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "recording.get.media.retention.policies": {
+      "description": "Media retention policy list — all configured recording retention rules, their conditions, actions, and scope. Use in conversation investigation to determine whether a recording should exist and what deletion schedule applies.",
+      "endpoint": "getRecordingMediaretentionpolicies",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "recording.get.batch.request.status": {
+      "description": "Status and download URLs for a recording batch request job — poll after submitting a batch request to retrieve signed download links for multiple recordings at once.",
+      "endpoint": "getRecordingBatchrequest",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-recordings",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

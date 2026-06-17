@@ -6676,7 +6676,7 @@ function Invoke-GenesysDataset {
         @(
             @{
                 Name           = 'conversationLookup'
-                DatasetKey     = 'conversations.get.specific.conversation.details'
+                DatasetKey     = 'conversations.get.conversation.object'
                 Parameters     = $conversationLookupParameters
                 SubjectFilter  = $isTargetConversation
                 SubjectUpdater = $updateSubjectWithConversationWindow

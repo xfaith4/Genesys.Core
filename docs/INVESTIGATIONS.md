@@ -185,7 +185,7 @@ not the manifest.
 
 | Step | DatasetKey | JoinOn | Purpose |
 | --- | --- | --- | --- |
-| conversationLookup | `conversations.get.specific.conversation.details` | seed | Get conversation start/end times for the required analytics interval |
+| conversationLookup | `conversations.get.conversation.object` | seed | Get conversation start/end times for the required analytics interval |
 | conversation | `analytics-conversation-details-query` | `conversationId` | Full participant timeline using the interval derived from `conversationLookup` |
 | participants | (derived from conversation) | seed | Extract participant userIds |
 | agents | `users` (per participant) | `userId` | Identity for each agent |
@@ -252,7 +252,7 @@ under Track A.
 | Investigation | Datasets that must pass `Live Invoke-Dataset acceptance passed` first |
 | --- | --- |
 | Agent | `users.get.user.details.with.full.expansion`, `users.get.user.routing.skills`, `users.get.user.queue.memberships`, bulk presences with one-user query parameters, user activity report with a user/window body, `analytics-conversation-details-query` with a user/window body, `audit-logs` with EntityType/EntityId filters |
-| Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
+| Conversation | `conversations.get.conversation.object`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
 
 The mirror-catalog cutover should also land before any investigation references

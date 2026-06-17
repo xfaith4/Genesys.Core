@@ -22,7 +22,7 @@ Describe 'Conversation Investigation flagship — fixture-driven contract' {
         # Fixture data. Records intentionally include rows for OTHER conversations/agents
         # so SubjectFilter and participant-derived filtering logic is exercised.
         $script:Fixture = @{
-            'conversations.get.specific.conversation.details' = @(
+            'conversations.get.conversation.object' = @(
                 [pscustomobject]@{
                     id        = 'conv-fixture-001'
                     startTime = '2026-05-01T14:00:00.000Z'

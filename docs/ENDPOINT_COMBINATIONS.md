@@ -91,7 +91,8 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
+the call was injected via the BYOI integration (`POST /api/v2/conversations/calls` for voice, or
+`POST /api/v2/conversations/messages/agentless` for messaging channels).
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
 
@@ -329,9 +330,10 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI conversation-injection
+API (`POST /api/v2/conversations/calls` for voice, `POST /api/v2/conversations/messages/agentless`
+for messaging). The conversation appears in Genesys analytics and recordings, but context lives in
+the external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 

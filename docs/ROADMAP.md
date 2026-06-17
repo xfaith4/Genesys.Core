@@ -359,7 +359,7 @@ content it surfaces.
       failure, redaction (no auth headers), manifest validity, and no-participant
       edge case. All tests under `tests/integration/ConversationInvestigation.Tests.ps1`.
 - [ ] Live validation of any Conversation-only datasets not covered in 1.0
-      (`conversations.get.specific.conversation.details`,
+      (`conversations.get.conversation.object`,
       `analytics-conversation-details-query`, recordings, evaluations,
       surveys).
 

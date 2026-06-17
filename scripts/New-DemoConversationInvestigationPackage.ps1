@@ -30,7 +30,7 @@ New-Item -Path $tempRoot -ItemType Directory -Force | Out-Null
 
 try {
     $fixture = @{
-        'conversations.get.specific.conversation.details' = @(
+        'conversations.get.conversation.object' = @(
             [pscustomobject]@{
                 id        = $conversationId
                 startTime = '2026-05-01T14:00:00.000Z'

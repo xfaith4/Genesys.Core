@@ -10,7 +10,7 @@
   "datasetsInvoked": [
     {
       "stepName": "conversationLookup",
-      "datasetKey": "conversations.get.specific.conversation.details",
+      "datasetKey": "conversations.get.conversation.object",
       "runId": "demo-conversationLookup",
       "validationStatus": "unvalidated",
       "recordCount": 1,
@@ -166,7 +166,7 @@
   ],
   "redactionProfile": {
     "datasets": {
-      "conversations.get.specific.conversation.details": null,
+      "conversations.get.conversation.object": null,
       "analytics-conversation-details-query": "agent-investigation-conversations",
       "users": "agent-investigation-users",
       "users.division.analysis.get.users.with.division.info": "agent-investigation-division",

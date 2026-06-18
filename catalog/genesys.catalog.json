@@ -1297,6 +1297,42 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "events.publish.conversation.batch": {
+      "description": "BYOI conversation-injection write action \u2014 publishes externally-handled conversation interaction events into Genesys Cloud so Analytics, WFM, and QM process them like native conversations (catalog-derived).",
+      "endpoint": "postEventsConversations",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "events.publish.user.routingstatus": {
+      "description": "BYOI agent-state write action \u2014 publishes an externally-routed agent's routing status (on/off-queue) into Genesys Cloud so it is reflected in real-time and historical agent reporting (catalog-derived).",
+      "endpoint": "postEventsUsersRoutingstatus",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "events.publish.user.presence": {
+      "description": "BYOI agent-state write action \u2014 publishes an externally-routed agent's presence into Genesys Cloud; the submitted presenceId must match an existing organization presence definition or the event is dropped silently (catalog-derived).",
+      "endpoint": "postEventsUsersPresence",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -39724,7 +39760,13 @@
           "evaluationScore",
           "csatScore",
           "wrapUpCode"
-        ]
+        ],
+        "embeddableFrameworkFieldMap": {
+          "description": "The Genesys Cloud Embeddable Framework's condensed conversation information (used in agent-facing screen-pop widgets) surfaces a deliberately small field set rather than the full forensic detail above — the same minimalism principle this catalog targets for executive and supervisor-facing views. When building a live, in-app conversation summary, prefer this small field set over re-running the full recipe.",
+          "queueId": "supplied by conversation-base (per-participant queue assignment in participantRoster)",
+          "isInternal": "derived from conversation-base.originatingDirection plus absence of an external ANI/DNIS pair",
+          "totalAcdDurationSeconds": "equivalent to analytics-detail.tHandle (time from ACD offer to agent disposition)"
+        }
       },
       "agent-investigation": {
         "description": "Multi-dimensional investigation of a single agent \u2014 identity, division, skills, queue memberships, conversation history, performance aggregates, quality scores, adherence, and coaching. Used for performance reviews, PIPs, and escalation root-cause. Divisions are the cross-queue grouping unit: an agent's divisionId ties them to queues across the organisation regardless of queue configuration.",
@@ -40173,6 +40215,103 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "byoi-conversation-injection-investigation": {
+        "description": "Verifies that conversations and agent-state events ingested from an externally-routed system via the BYOI (Bring Your Own Interactions) conversation-injection API are processed identically to native Genesys Cloud interactions \u2014 i.e. that they land correctly in Analytics, Workforce Management, and Quality Management. Used by integration/voice engineers validating a new BYOI connector and by data-quality owners auditing whether outsourced or third-party-routed volume is fully represented in core executive reporting.",
+        "subjectParam": "conversationId",
+        "subjectNote": "subjectParam is the Genesys-Cloud-assigned conversationId returned by the injection call, not the external system's interaction id; capture the id mapping at injection time so the two can be correlated during investigation.",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "injection-action",
+            "dataset": "events.publish.conversation.batch",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "per-event accept/reject status in the synchronous POST response",
+            "description": "POST /api/v2/events/conversations \u2014 the BYOI write action under investigation. Conversation injection translates externally-handled interaction events into Genesys Cloud conversation events; inspect the synchronous response body for per-event errors before assuming success."
+          },
+          {
+            "step": "agent-state-actions",
+            "dataset": "events.publish.user.routingstatus",
+            "joinKey": "userId",
+            "provides": "per-event accept/reject status for injected routing-status changes",
+            "description": "POST /api/v2/events/users/routingstatus \u2014 companion BYOI action that synchronizes the externally-routed agent's routing status. Run alongside conversation injection whenever the agent's on/off-queue state must be reflected in Genesys Cloud."
+          },
+          {
+            "step": "agent-presence-action",
+            "dataset": "events.publish.user.presence",
+            "joinKey": "userId",
+            "provides": "per-event accept/reject status for injected presence changes",
+            "description": "POST /api/v2/events/users/presence \u2014 synchronizes the externally-routed agent's presence; the submitted presenceId must already exist as an organization presence definition or the event is dropped silently."
+          },
+          {
+            "step": "conversation-appeared",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "mediaType, state, participantRoster, queueId per participant",
+            "description": "Confirms the injected conversation now exists as a native conversation object. A 200 from injection-action followed by a 404 here means the batch was accepted but the conversation entity failed to materialize \u2014 check for out-of-order or missing start/disconnect events in the injected payload."
+          },
+          {
+            "step": "analytics-ingested",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "tHandle, tTalk, tAcw, tHeld computed from the injected segment timestamps",
+            "description": "Proves downstream Analytics processed the injected events the same way it processes native conversations \u2014 the core BYOI guarantee. Zero or null durations despite a non-zero duration in the source system indicate malformed or out-of-sequence injected timestamps."
+          },
+          {
+            "step": "queue-attribution",
+            "dataset": "analytics.query.conversation.details.by.queue",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "queueId",
+            "provides": "confirms the conversation rolls up under the expected queueId/divisionId",
+            "description": "Executive rollups (service-level-and-abandon-kpis, division-investigation) silently under-count BYOI volume if the injected event carried a missing or invalid queueId; this step is the data-completeness checkpoint."
+          },
+          {
+            "step": "routing-status-sync-check",
+            "dataset": "users.get.agent.current.routing.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "the agent's current routingStatus value and timestamp of last change",
+            "description": "Cross-check against the value submitted in agent-state-actions; a mismatch means the submitted status code was not a recognized Genesys Cloud routing status and was rejected or coerced."
+          },
+          {
+            "step": "presence-definition-check",
+            "dataset": "presence.get.organization.presence.definitions",
+            "joinKey": "presenceId",
+            "provides": "valid organization presence catalog (id, systemPresence, languageLabels)",
+            "description": "The presenceId submitted in agent-presence-action must match an entry here; an unrecognized id is the most common cause of a silently-dropped presence injection."
+          },
+          {
+            "step": "evaluation-eligibility",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, evaluatorId if QM picked up the injected conversation",
+            "description": "Confirms QM treats the injected conversation like a native one for evaluation-form assignment; an externally-sourced conversation that never appears here despite matching assignment rules suggests a media-type or direction property in the injected payload is excluding it from QM eligibility."
+          }
+        ],
+        "joinSequence": "injection-action (write) \u2192 agent-state-actions / agent-presence-action (write) \u2192 conversation-appeared (conversationId) \u2192 analytics-ingested (conversationId) \u2192 queue-attribution (queueId) \u2192 routing-status-sync-check / presence-definition-check (userId) \u2192 evaluation-eligibility (conversationId)",
+        "diagnosticSignals": [
+          "200 response from injection-action but 404 on conversation-appeared \u2192 accepted batch, failed materialization; check event ordering (start before connect before disconnect)",
+          "conversation-appeared exists but analytics-ingested shows tHandle=0 \u2192 timestamps in the injected payload are malformed or out of sequence",
+          "queue-attribution missing the conversation despite analytics-ingested succeeding \u2192 queueId in the injected event is null, invalid, or not provisioned in this org",
+          "routing-status-sync-check value differs from the status submitted in agent-state-actions \u2192 unrecognized routing status code; injected value was rejected or coerced to a default",
+          "presence id submitted in agent-presence-action absent from presence-definition-check \u2192 custom presence not provisioned in the org; the presence event is dropped silently with no downstream error",
+          "evaluation-eligibility returns no results for a conversation that matches an active evaluation-form assignment rule \u2192 a property on the injected conversation (mediaType, direction, queueId) is excluding it from QM scope",
+          "the same external interaction id maps to different Genesys conversationIds across retries \u2192 injection batch is not idempotent; confirm the source system reuses the same external id on retry"
+        ],
+        "executiveMetrics": [
+          "injectionAcceptRate% = accepted events / submitted events (from injection-action response)",
+          "conversationMaterializationRate% = conversations found in conversation-appeared / accepted injections",
+          "queueAttributionRate% = conversations correctly rolled up in queue-attribution / materialized conversations",
+          "routingStatusSyncAccuracy%",
+          "presenceSyncAccuracy%",
+          "qmEligibilityRate% = injected conversations evaluated by QM / injected conversations matching an active assignment rule"
+        ],
+        "sourceDocs": [
+          "https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/",
+          "https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40522,30 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "byoi-injection-data-completeness": {
+        "description": "Data-trust rollup for organisations that route some volume through externally-hosted systems and inject it into Genesys Cloud via the BYOI conversation-injection API. Quantifies how much of that externally-handled volume is actually visible in the same Analytics, SLA, and QM rollups used for natively-routed conversations, so executives are not unknowingly under-reporting outsourced or third-party-routed channel performance.",
+        "datasetsInOrder": [
+          "events.publish.conversation.batch",
+          "analytics.query.conversation.details.by.queue",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "quality.get.evaluations.query"
+        ],
+        "joinOn": "conversationId \u2192 queueId",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "sourceSystem (externally tagged, if the injection payload carries a custom attribute identifying the origin)"
+        ],
+        "outputMetrics": [
+          "injectedConversationCount (from injection-action responses in the window)",
+          "queueAttributionRate% = injected conversations present in analytics.query.conversation.details.by.queue / injectedConversationCount",
+          "injectedVolumeShare% = injectedConversationCount / total conversation volume per queue",
+          "qmEligibilityRate% = injected conversations evaluated / injected conversations matching an active QM assignment rule",
+          "avgHandleTime (injected vs. native, for parity comparison)"
+        ],
+        "executivePresentation": "Side-by-side native-vs-injected volume and SLA comparison; flag any queue where queueAttributionRate% < 99% as a reporting-completeness risk",
+        "relatedRecipe": "byoi-conversation-injection-investigation"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40407,11 +40570,13 @@
           "recording absent (empty result from conversations.get.recordings) \u2192 edge recording policy or consent flag missing",
           "sentimentScore < -0.5 \u2192 severe CX impact; escalate to QM for evaluation priority",
           "ANI displayed as 'Anonymous' \u2192 CLI blocking active on inbound DID",
-          "originatingDirection=outbound on inbound DID \u2192 DNIS routing to wrong queue direction"
+          "originatingDirection=outbound on inbound DID \u2192 DNIS routing to wrong queue direction",
+          "no SIP trace and no native trunk/edge association despite a valid conversation record \u2192 conversation may be BYOI-injected; switch to byoi-conversation-injection-investigation"
         ],
         "enrichWith": [
           "users (for agent identity given userId from analytics-detail participants)",
-          "quality.get.evaluations.query (for evaluation if one exists)"
+          "quality.get.evaluations.query (for evaluation if one exists)",
+          "events.publish.conversation.batch (confirms whether this conversation originated from an externally-injected BYOI batch rather than a native call)"
         ]
       },
       "trunk-and-edge-health-check": {

@@ -26,6 +26,7 @@ Goal: finish the current ConversationAnalyser reporting phases, review and harde
 | Conversation package API PCAP export | complete | Removed the live `-SipTracePath` requirement, derived the analytics interval from `GET /api/v2/conversations/{conversationId}`, added SIP metadata/PCAP API export, regenerated the sample package, and reran targeted/full validation. |
 | Session 20 temporal trend reporting | complete | Backend foundation and WPF Trend surface are now wired: two-window pull/import, comparison/delta accessors, regression/improvement panels, hourly overlay, incident-summary export, and case-date-range defaults. |
 | Release 1.3 Edge Alarms & Event Feed | complete | Added Edge log-job catalog datasets and exported `Get-GenesysEdgeEvent` as a normalized NOC feed over Edge, trunk, alert, and optional Edge log-job status signals. Live endpoint acceptance remains a separate Track A gate. |
+| Catalog combinations gap reconciliation | complete | Reconciled all dangling `combinations` dataset references in `catalog/genesys.catalog.json`: added 13 new dataset entries, fixed 2 raw-endpoint bugs (division-aggregates `itemsPath`, S&TA summaries `pagingProfile`), corrected 10 stale alias references, and extended `docs/ENDPOINT_COMBINATIONS.md` with the new datasets across the conversation/division/real-time/executive/agent sections. |
 
 ## Current Task Scope
 

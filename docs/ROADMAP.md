@@ -27,6 +27,16 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Catalog combinations gap reconciliation (2026-06-19): closed all dangling
+      dataset references inside `catalog/genesys.catalog.json` `combinations`
+      planning blocks by adding 13 new dataset entries, fixed two raw-endpoint
+      bugs (the division conversation-aggregates dataset had `itemsPath:
+      "$.conversations"` against a response shape that only exposes `results`,
+      always returning zero items; the S&TA conversation summaries detail
+      dataset referenced a non-existent paging profile), corrected 10 stale
+      alias references, and extended `docs/ENDPOINT_COMBINATIONS.md` with the
+      new datasets across the conversation/division/real-time/executive/agent
+      sections.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

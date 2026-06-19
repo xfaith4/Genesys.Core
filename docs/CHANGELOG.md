@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-06-19
+
+### Added
+
+- **Catalog combinations gap reconciliation:** added 13 new dataset entries to
+  `catalog/genesys.catalog.json` (voice call detail, participant wrap-up,
+  division access grants, division aggregate performance, queue estimated
+  wait time, S&TA conversation categories/summaries, conversation summaries,
+  conversation transcript topic trends, and WFM management-unit/adherence
+  datasets) so every dataset key referenced from the catalog's own
+  `combinations` planning blocks actually resolves.
+- Extended `docs/ENDPOINT_COMBINATIONS.md` with the new datasets across the
+  Single Conversation Deep Dive, Division/Agent Group Investigation, Executive
+  Reporting Rollup, Real-Time Operations Monitoring, and Agent Investigation
+  Extensions sections, the Dataset Combination Reference Matrix, and the
+  Metric Glossary.
+
+### Fixed
+
+- Fixed `analytics.query.conversation.aggregates.division.performance`
+  (division-level conversation aggregates) referencing `itemsPath:
+  "$.conversations"` when the live response shape only exposes `results`,
+  which meant the dataset silently returned zero items on every call.
+- Fixed the speech-and-text-analytics conversation summaries detail dataset
+  referencing a non-existent `pagingProfile`.
+- Corrected 10 stale dataset-key aliases inside `catalog/genesys.catalog.json`
+  `combinations` blocks that referenced renamed/removed dataset keys.
+
 ## 2026-06-08
 
 ### Changed

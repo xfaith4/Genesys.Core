@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-06-20
+
+### Fixed
+
+- Repaired `catalog.combinations` recipes/playbooks that referenced 10 stale or
+  incorrect dataset keys (e.g. `conversations.get.specific.conversation.details`,
+  `telephony.get.sip.message.for.conversation`, `quality.get.conversation.surveys`,
+  `routing.get.queue.wrapup.codes`, `routing.get.queue.members.with.status`,
+  `authorization.search.division.objects`, `analytics.query.conversation.details.by.queue`),
+  none of which existed as `catalog.datasets` keys. These recipes are
+  documentary guidance only (not schema-validated or executed by any code
+  path), so the breakage was silent; all references now resolve to existing,
+  correct dataset keys.
+
+### Added
+
+- Promoted 10 `catalog.endpoints` entries to runnable `catalog.datasets`
+  entries, enabling deeper conversation, queue, division, and agent
+  investigations: `conversations.get.call.detail`,
+  `conversations.get.conversation.participant.wrapup`,
+  `conversations.get.conversation.summaries`,
+  `speechandtextanalytics.get.conversation.categories`,
+  `speechandtextanalytics.get.conversation.summaries.detail`,
+  `authorization.get.division.grants`,
+  `routing.get.queue.estimated.wait.time`, `workforce.get.adherence.bulk`,
+  `workforce.get.agent.management.unit`, and
+  `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`
+  (division-level conversation volume/handle-time rollup).
+- Documented the above in `docs/ENDPOINT_COMBINATIONS.md`: new steps in
+  Section 1 (Single Conversation Deep Dive), Section 2 (All Conversations in a
+  Queue), Section 3 (Division / Agent Group Investigation), Section 7 (Agent
+  Investigation Extensions), Section 8 (Conversation Investigation
+  Extensions), Section 9 (Queue Investigation Extensions), and the Section 10
+  reference matrix.
+
 ## 2026-06-08
 
 ### Changed

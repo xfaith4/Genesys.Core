@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-21  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -21,11 +21,12 @@ when the API is exhausted.
 3. [Division / Agent Group Investigation](#3-division--agent-group-investigation)
 4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
 5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
-6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
+6. [External-Origin Conversation Enrichment](#6-external-origin-conversation-enrichment)
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Conversation Forensics & WFM Extensions](#11-conversation-forensics--wfm-extensions)
 
 ---
 
@@ -40,7 +41,7 @@ when the API is exhausted.
 
 | Step | Dataset Key | Join Key | What It Adds |
 |------|-------------|----------|--------------|
-| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, externalTag (BYOI indicator) |
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, externalTag (free-form external/third-party tag, if set) |
 | 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Per-segment timing: IVR duration, ACD wait, talk time, hold time, ACW, conference, recording start/stop |
 | 3 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, media type, duration, deletion schedule |
 | 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
@@ -88,12 +89,21 @@ The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/pro
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
 
-### BYOI Indicator
+### External-Origin Indicators
 
-If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+`conversations.get.conversation.object` exposes two independent signals for a conversation with
+external-system context, neither of which implies a dedicated "BYOI provider" injection endpoint
+(no such endpoint — e.g. `POST /api/v2/conversations/providers/{providerId}/calls` — exists in the
+Genesys Cloud API):
+- A non-null top-level `externalTag` — a free-form tag string set via
+  `PUT /api/v2/conversations/{conversationId}/tags`.
+- A participant with `purpose: "external"` and a populated `externalContactId`/`externalOrganizationId` —
+  set by associating the conversation with an external contact via
+  `PUT /api/v2/externalcontacts/conversations/{conversationId}`.
+
+Custom attributes in step 4 may still contain external-system context (CRM case ID, external call ID)
+if the integration that created the conversation set them. The SIP trace (step 8) reflects whatever
+signaling path actually carried the call; there is no guaranteed "provider SIP-to-SIP handoff" shape.
 
 ---
 
@@ -325,47 +335,56 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ---
 
-## 6. BYOI External Conversation Enrichment
+## 6. External-Origin Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
-**Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+**Subject:** One `conversationId` that carries external-system context  
+**Use case:** A conversation is linked to an external contact/organization (CRM record, third-party
+case, an external party represented as a participant) or carries a free-form external tag. There is
+no dedicated "BYOI provider injection" endpoint in the Genesys Cloud API — conversations are not
+created via a `providers/{providerId}/calls`-style route. External linkage is expressed through two
+independent, ordinary fields described below, both of which can be set or read through standard
+Conversations/External Contacts endpoints.
 
-**Core question:** *Where did this conversation come from, and what external context does it carry?*
+**Core question:** *Does this conversation carry external-system context, and what is it?*
 
-### How to Identify a BYOI Conversation
+### How to Identify External-System Context
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+In step 1 of the Conversation Investigation, `conversations.get.conversation.object` may return:
 
 ```json
 {
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
+  "externalTag": "<free-form tag set via PUT /api/v2/conversations/{conversationId}/tags>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    {
+      "purpose": "external",
+      "externalContactId": "...",
+      "externalOrganizationId": "..."
+    }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+`externalTag` is a free-form string with no required format. `externalContactId`/`externalOrganizationId`
+are populated when a participant has been associated with an external contact/org record via
+`PUT /api/v2/externalcontacts/conversations/{conversationId}` (supply `externalContactId` to associate,
+omit it to disassociate). Neither field implies the conversation was created through a special
+provider-injection API — both are set independently of how the conversation itself originated.
 
-### Additional Steps for BYOI Conversations
+### Additional Steps for External-Context Conversations
 
 | Step | Dataset Key | What It Adds |
 |------|-------------|--------------|
-| + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
-| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `conversations.get.conversation.customattributes` | Custom attributes set by IVR/Architect flows: CRM case ID, intent label, external call ID |
+| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the conversation flow |
 
-### BYOI Conversation in Analytics
+### External-Context Conversations in Analytics
 
-BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
-as native Genesys conversations. The following datasets apply identically:
+Conversations with external-system context flow through the same Architect flows, queue routing,
+and analytics pipeline as any other conversation. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
 - `conversations.get.conversation.recording.metadata` — recordings exist if enabled
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — reflects whatever signaling path actually carried the call
 
 ### Embeddable Framework Conversations
 
@@ -484,6 +503,63 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `analytics.query.conversation.transcripts` | ○ | | | | | |
+| `conversations.get.call.detail` | ○ | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ○ | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | |
+| `quality.get.conversation.surveys` | ○ | | | ○ | | |
+| `routing.get.queue.estimated.wait.time` | | ○ | | | ● | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | |
+| `workforce.get.adherence.bulk` | | | | | ○ | ○ |
+| `workforce.get.agent.management.unit` | | | | | | ○ |
+| `authorization.get.division.grants` | | | ○ | | | |
+| `analytics.query.conversation.aggregates.division.performance` | | | ● | ● | | |
+| `conversations.get.specific.conversation.details` | ○ | | | | | |
+
+---
+
+## 11. Conversation Forensics & WFM Extensions
+
+These datasets were added to close gaps surfaced by recipe/playbook combinations that referenced
+capabilities not yet present in the catalog: full-text transcript search, deeper per-call forensic
+detail, division-scoped access auditing, and a few WFM lookups.
+
+| Dataset Key | Endpoint | What It Adds |
+|-------------|----------|---------------|
+| `analytics.query.conversation.transcripts` | `POST /api/v2/analytics/conversations/transcripts/query` | Full-text search across conversation transcripts; returns conversation-detail-shaped records (requires `analytics:conversationDetail:view`) |
+| `conversations.get.call.detail` | `GET /api/v2/conversations/calls/{conversationId}` | Full call conversation detail — participants, recordings, ANI/DNIS, call legs, hold events |
+| `conversations.get.conversation.participant.wrapup` | `GET /api/v2/conversations/{conversationId}/participants/{participantId}/wrapup` | Wrapup code selected by a specific participant |
+| `conversations.get.conversation.summaries` | `GET /api/v2/conversations/{conversationId}/summaries` | AI-generated Copilot/Einstein summary per communication leg |
+| `quality.get.conversation.surveys` | `GET /api/v2/quality/conversations/{conversationId}/surveys` | Post-interaction CSAT/NPS survey scores and answers |
+| `routing.get.queue.estimated.wait.time` | `GET /api/v2/routing/queues/{queueId}/estimatedwaittime` | Real-time estimated wait time for a queue |
+| `speechandtextanalytics.get.conversation.categories` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/categories` | S&TA topic/category classifications for a conversation |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/summaries` | AI-generated S&TA summaries per communication leg |
+| `workforce.get.adherence.bulk` | `GET /api/v2/workforcemanagement/adherence` | Bulk schedule adherence for a list of user IDs (1–100 per request) |
+| `workforce.get.agent.management.unit` | `GET /api/v2/workforcemanagement/agents/{agentId}/managementunit` | The WFM management unit an agent belongs to |
+| `authorization.get.division.grants` | `GET /api/v2/authorization/divisions/{divisionId}/grants` | Access control grants (subjects + permissions) scoped to a division |
+| `analytics.query.conversation.aggregates.division.performance` | `POST /api/v2/analytics/conversations/aggregates/query` | Conversation aggregates grouped by division (sibling of the queue-performance aggregate) |
+| `conversations.get.specific.conversation.details` | `GET /api/v2/conversations/{conversationId}` | Same response shape as `conversations.get.conversation.object`; kept as a distinct key because some combinations reference it by this name |
+
+### PII Review Caveat for AI-Generated Summaries
+
+`conversations.get.conversation.summaries` and `speechandtextanalytics.get.conversation.summaries.detail`
+return free-text AI-generated summary content (`summary.text`, `summary.editedSummary`, and per-leg
+equivalents). No `removeFields`-based redaction profile is applied to either dataset, because the
+summary text itself is the payload being requested — there is no structured field to strip without
+destroying the dataset's purpose. Summary text can include customer-disclosed PII (names, account
+numbers, callback details) verbatim. Review summary/editedSummary content for PII before sharing run
+outputs outside the investigation team, and treat run artifacts containing these datasets as sensitive.
+
+### Redaction Profiles Added
+
+- `conversation-investigation-call-detail` (`address`, `ani`, `dnis`, `externalContact`,
+  `externalOrganization`, `notes`) — applied to `conversations.get.call.detail`.
+- `conversation-investigation-participant-wrapup` (`notes`) — applied to
+  `conversations.get.conversation.participant.wrapup`.
+- `analytics.query.conversation.transcripts` reuses the existing `agent-investigation-conversations`
+  profile, since its response is the same `AnalyticsConversationWithoutAttributes` shape as
+  `analytics-conversation-details-query`.
 
 ---
 

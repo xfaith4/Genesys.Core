@@ -1297,6 +1297,201 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Conversation detail records for a single queue over the investigation window \u2014 conversationId, agentId, wrapUpCode, and per-conversation duration metrics. Seed for per-conversation drilldown from a queue investigation.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.transcripts": {
+      "description": "Transcript aggregate metrics by queue/user \u2014 analyzed conversation counts, sentiment scores, and agent/customer speech time. Drives org-wide sentiment trend reporting.",
+      "endpoint": "analytics.query.conversation.transcripts",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division \u2014 subjects (users/roles) and their granted permissions within this division.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full call conversation detail \u2014 participants, recordings, ANI/DNIS, call legs, and hold events.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific participant in a conversation.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated summaries for a conversation (Copilot/Agent Assist summary per communication leg) \u2014 reason for contact and resolution notes.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a specific conversation.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue \u2014 real-time caller wait forecast in seconds, by media type.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the speech & text analytics engine.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated speech & text analytics summaries for each communication leg of a conversation.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs \u2014 scheduled vs. actual routing status with adherence percentage.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit an agent belongs to \u2014 used to locate the agent's schedule, adherence, and WFM team.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates \u2014 division performance: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered, nError grouped by divisionId. Daily rollup for division-scoped executive reporting; replace the interval in defaultBody with the investigation window.",
+      "endpoint": "analytics.query.conversation.aggregates.division.performance",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.evaluations.aggregates.score.rollup": {
+      "description": "Quality evaluation score rollup \u2014 evaluation count and average overall/critical score, grouped by divisionId or queueId. Faster executive QM rollup than iterating individual evaluations; change groupBy to queueId for a queue-scoped view.",
+      "endpoint": "analytics.query.evaluations.aggregates.score.rollup",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.surveys.aggregates.csat.rollup": {
+      "description": "Customer survey (CSAT/NPS) rollup \u2014 response counts, average score, and NPS promoter/detractor counts, grouped by divisionId or queueId. Faster executive CSAT rollup than iterating individual survey results; change groupBy to queueId for a queue-scoped view.",
+      "endpoint": "analytics.query.surveys.aggregates.csat.rollup",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -39593,6 +39788,42 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Query Conversation Aggregates - Division Performance",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.evaluations.aggregates.score.rollup": {
+      "method": "POST",
+      "path": "/api/v2/analytics/evaluations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Query Evaluation Aggregates - QM Score Rollup",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nEvaluations\",\n    \"oTotalScore\",\n    \"oTotalCriticalScore\"\n  ]\n}"
+      ]
+    },
+    "analytics.query.surveys.aggregates.csat.rollup": {
+      "method": "POST",
+      "path": "/api/v2/analytics/surveys/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Query Survey Aggregates - CSAT/NPS Rollup",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nSurveyResponses\",\n    \"oSurveyTotalScore\",\n    \"nSurveyNpsPromoters\",\n    \"nSurveyNpsDetractors\",\n    \"nSurveysSent\"\n  ]\n}"
+      ]
     }
   },
   "combinations": {
@@ -39612,7 +39843,7 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
             "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
             "description": "Base conversation object with media type, state, and full participant roster"
@@ -39647,7 +39878,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39928,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39861,7 +40092,7 @@
           }
         ],
         "joinSequence": "seed (identity) \u2192 division (id) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
-        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.search.division.objects with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
+        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.list.division.queues (objectType=QUEUE) to enumerate all queues in a division before computing queue-scoped aggregates.",
         "executiveMetrics": [
           "nConnected",
           "tHandle (avg)",
@@ -39875,7 +40106,7 @@
         ]
       },
       "agent-not-responding-autoanswer": {
-        "description": "Focused root-cause investigation of agents repeatedly entering NOT_RESPONDING while ACD auto-answer is enabled — the classic 'auto-answer fires but the call never connects, so the agent is flipped off-queue' failure. Seeds on the auto-answer-enabled cohort, quantifies NOT_RESPONDING frequency/duration per agent, drills into the individual episodes, then correlates each episode to the specific interaction that failed to connect and to the agent's station registration state. Used by contact-centre supervisors and voice engineers when agents report 'I never got the call' or queues show ghost agents.",
+        "description": "Focused root-cause investigation of agents repeatedly entering NOT_RESPONDING while ACD auto-answer is enabled \u2014 the classic 'auto-answer fires but the call never connects, so the agent is flipped off-queue' failure. Seeds on the auto-answer-enabled cohort, quantifies NOT_RESPONDING frequency/duration per agent, drills into the individual episodes, then correlates each episode to the specific interaction that failed to connect and to the agent's station registration state. Used by contact-centre supervisors and voice engineers when agents report 'I never got the call' or queues show ghost agents.",
         "subjectParam": "userId",
         "subjectOptional": true,
         "subjectNote": "Omit userId to scan the entire auto-answer-enabled cohort; supply a userId to scope the same join to one agent.",
@@ -39888,7 +40119,7 @@
             "filter": "acdAutoAnswer = true",
             "joinKey": "id",
             "provides": "id, name, email, state, presence, routingStatus, acdAutoAnswer",
-            "description": "All users with ACD auto-answer enabled — the population at risk for auto-answer-induced NOT_RESPONDING. acdAutoAnswer is surfaced by the users dataset normalizer; filter the seed to acdAutoAnswer=true."
+            "description": "All users with ACD auto-answer enabled \u2014 the population at risk for auto-answer-induced NOT_RESPONDING. acdAutoAnswer is surfaced by the users dataset normalizer; filter the seed to acdAutoAnswer=true."
           },
           {
             "step": "not-responding-rollup",
@@ -39897,7 +40128,7 @@
             "joinKey": "userId",
             "filter": "routingStatus = NOT_RESPONDING",
             "provides": "tAgentRoutingStatus (NOT_RESPONDING time), occurrence count, tOnQueue, tOffQueue per userId",
-            "description": "Efficient per-agent roll-up — one aggregates query (metric tAgentRoutingStatus, groupBy userId) gives total NOT_RESPONDING time and episode count across the window. Rank the cohort by occurrence count to find the worst offenders before drilling in."
+            "description": "Efficient per-agent roll-up \u2014 one aggregates query (metric tAgentRoutingStatus, groupBy userId) gives total NOT_RESPONDING time and episode count across the window. Rank the cohort by occurrence count to find the worst offenders before drilling in."
           },
           {
             "step": "not-responding-segments",
@@ -39906,7 +40137,7 @@
             "joinKey": "userId",
             "filter": "routingStatus segments where status = NOT_RESPONDING",
             "provides": "per-episode startTime/endTime, systemPresence at time of episode, routingStatusSegments",
-            "description": "Per-episode timeline — the exact start/end of each NOT_RESPONDING segment per agent. Provides the timestamps used to correlate episodes to the interaction that triggered them. NOT_RESPONDING is not server-side filterable on the details query; select the segments client-side."
+            "description": "Per-episode timeline \u2014 the exact start/end of each NOT_RESPONDING segment per agent. Provides the timestamps used to correlate episodes to the interaction that triggered them. NOT_RESPONDING is not server-side filterable on the details query; select the segments client-side."
           },
           {
             "step": "failed-interactions",
@@ -39915,7 +40146,7 @@
             "joinKey": "userId",
             "filter": "agent session segmentType = ALERT with no subsequent CONNECTED segment, time-aligned to a NOT_RESPONDING episode",
             "provides": "conversationId, queueId, mediaType, segmentType, segmentStart, disconnectType",
-            "description": "The interaction behind each episode — an auto-answer that alerts the agent but never reaches CONNECTED is the confirmed missed call. Join on userId, then time-align each ALERT-without-CONNECT segment to a not-responding-segments episode to attribute cause."
+            "description": "The interaction behind each episode \u2014 an auto-answer that alerts the agent but never reaches CONNECTED is the confirmed missed call. Join on userId, then time-align each ALERT-without-CONNECT segment to a not-responding-segments episode to attribute cause."
           },
           {
             "step": "station-registration",
@@ -39923,7 +40154,7 @@
             "filterBy": "userId (associated station)",
             "joinKey": "userId",
             "provides": "stationId, status, registered, webRtcUserId, lineAppearanceId",
-            "description": "Station / WebRTC registration state — the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
+            "description": "Station / WebRTC registration state \u2014 the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
           },
           {
             "step": "real-time-status",
@@ -39931,7 +40162,7 @@
             "filterBy": "userId",
             "joinKey": "userId",
             "provides": "oUserPresence, oUserRoutingStatus, oActiveQueues",
-            "description": "Point-in-time current state — confirms whether affected agents are NOT_RESPONDING right now versus historically. Optional; only meaningful for live triage."
+            "description": "Point-in-time current state \u2014 confirms whether affected agents are NOT_RESPONDING right now versus historically. Optional; only meaningful for live triage."
           },
           {
             "step": "config-audit",
@@ -39939,10 +40170,10 @@
             "filterBy": "EntityType=User + EntityId=userId + investigation window",
             "joinKey": "userId",
             "provides": "timestamp, action, serviceName, actor, changed property",
-            "description": "Account-change audit — surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
+            "description": "Account-change audit \u2014 surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
           }
         ],
-        "joinSequence": "autoanswer-cohort (id) → not-responding-rollup (userId) → not-responding-segments (userId) → failed-interactions (participantUserId → conversationId, time-aligned to episodes) → station-registration (userId) → real-time-status (userId) → config-audit (userId)",
+        "joinSequence": "autoanswer-cohort (id) \u2192 not-responding-rollup (userId) \u2192 not-responding-segments (userId) \u2192 failed-interactions (participantUserId \u2192 conversationId, time-aligned to episodes) \u2192 station-registration (userId) \u2192 real-time-status (userId) \u2192 config-audit (userId)",
         "derivedMetrics": [
           "notRespondingCount = count of NOT_RESPONDING segments per agent in window",
           "notRespondingTime = sum tAgentRoutingStatus[NOT_RESPONDING] per agent",
@@ -39950,18 +40181,18 @@
           "episodesWithUnregisteredStation = NOT_RESPONDING episodes overlapping a registered=false station window"
         ],
         "diagnosticSignals": [
-          "acdAutoAnswer=true + high notRespondingCount → auto-answer firing but media not landing; prime suspect for this investigation",
-          "NOT_RESPONDING episode start aligns with an ALERT segment that never reaches CONNECTED → confirmed missed auto-answered call",
-          "presence = 'On Queue' but routingStatus = NOT_RESPONDING → ghost agent; cross-check station-registration",
-          "station registered=false (or no associated station) during episode → softphone/WebRTC registration is the root cause; check network/DNS",
-          "missedAutoAnswerRate% elevated across many agents on one edge/site → environmental (edge, network, or DNS), not per-agent",
-          "config-audit shows acdAutoAnswer toggled on shortly before episodes began → recent enablement exposed an unready station/headset setup",
-          "notRespondingCount high but no ALERT-without-CONNECT segments → cause is presence/manual off-queue, not auto-answer; exit this playbook"
+          "acdAutoAnswer=true + high notRespondingCount \u2192 auto-answer firing but media not landing; prime suspect for this investigation",
+          "NOT_RESPONDING episode start aligns with an ALERT segment that never reaches CONNECTED \u2192 confirmed missed auto-answered call",
+          "presence = 'On Queue' but routingStatus = NOT_RESPONDING \u2192 ghost agent; cross-check station-registration",
+          "station registered=false (or no associated station) during episode \u2192 softphone/WebRTC registration is the root cause; check network/DNS",
+          "missedAutoAnswerRate% elevated across many agents on one edge/site \u2192 environmental (edge, network, or DNS), not per-agent",
+          "config-audit shows acdAutoAnswer toggled on shortly before episodes began \u2192 recent enablement exposed an unready station/headset setup",
+          "notRespondingCount high but no ALERT-without-CONNECT segments \u2192 cause is presence/manual off-queue, not auto-answer; exit this playbook"
         ],
         "enrichWith": [
           "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
-          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
-          "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
+          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings \u2014 endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
+          "telephony.get.sip.messages.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
         ]
       },
       "queue-investigation": {
@@ -39979,7 +40210,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40218,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40106,7 +40337,7 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
             "queryParam": "objectType=QUEUE",
             "joinKey": "divisionId",
@@ -40139,7 +40370,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40160,9 +40391,25 @@
             "joinKey": "userId",
             "provides": "evalCount, avgScore per agent in division",
             "description": "Quality scores for all agents in the division"
+          },
+          {
+            "step": "quality-score-rollup-by-division",
+            "dataset": "analytics.query.evaluations.aggregates.score.rollup",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "nEvaluations, oTotalScore, oTotalCriticalScore by divisionId",
+            "description": "Evaluation score rollup for the division \u2014 a single aggregate query (groupBy divisionId) instead of iterating every individual evaluation; the fast path for the executive QM metric."
+          },
+          {
+            "step": "csat-rollup-by-division",
+            "dataset": "analytics.query.surveys.aggregates.csat.rollup",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "nSurveyResponses, oSurveyTotalScore, nSurveyNpsPromoters, nSurveyNpsDetractors by divisionId",
+            "description": "CSAT/NPS rollup for the division \u2014 a single aggregate query (groupBy divisionId) instead of iterating every individual survey result; the fast path for the executive CSAT/NPS metric."
           }
         ],
-        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.list.division.queues (objectType=QUEUE) to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
         "executiveMetrics": [
           "nOffered (division total)",
           "nConnected",
@@ -40171,7 +40418,9 @@
           "abandonRate%",
           "evalAvgScore",
           "agentCount",
-          "queueCount"
+          "queueCount",
+          "csatAvgScore",
+          "npsScore"
         ]
       }
     },
@@ -40252,18 +40501,26 @@
         "executivePresentation": "Wrapup pie chart + transfer type bar chart per queue; flag queues with blind transfer > 20%"
       },
       "quality-and-csat-summary": {
-        "description": "QM rollup \u2014 evaluation scores and CSAT/NPS completion rates per agent and queue. Feeds quality management dashboards and calibration sessions.",
+        "description": "QM rollup \u2014 evaluation scores and CSAT/NPS completion rates per agent and queue. Feeds quality management dashboards and calibration sessions. Use the aggregate rollup datasets for fast division/queue-level executive metrics, then drill into the per-record datasets only for calibration sessions or low-score investigation.",
         "datasetsInOrder": [
+          "analytics.query.evaluations.aggregates.score.rollup",
+          "analytics.query.surveys.aggregates.csat.rollup",
           "quality.get.evaluations.query",
           "quality.get.agents.activity",
           "quality.get.surveys"
         ],
         "joinOn": "agentUserId or conversationId",
         "groupBy": [
-          "agentUserId",
-          "queueId"
+          "divisionId",
+          "queueId",
+          "agentUserId"
         ],
         "outputMetrics": [
+          "nEvaluations (rollup, by division/queue)",
+          "avgEvaluationScore% (rollup, by division/queue)",
+          "nSurveyResponses (rollup, by division/queue)",
+          "avgCsatScore (rollup, by division/queue)",
+          "npsScore (rollup, by division/queue)",
           "evalCount",
           "avgEvaluationScore%",
           "criticalItemFailRate%",
@@ -40391,12 +40648,12 @@
         "subjectParam": "conversationId",
         "datasetsInOrder": [
           "analytics.get.single.conversation.analytics",
-          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.object",
           "conversations.get.call.detail",
-          "telephony.get.sip.message.for.conversation",
+          "telephony.get.sip.messages.for.conversation",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata",
-          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          "conversations.get.speech.text.analytics"
         ],
         "diagnosticSignals": [
           "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
@@ -40442,7 +40699,7 @@
         "datasetsInOrder": [
           "analytics.query.queue.observations.real.time.stats",
           "routing.get.queue.estimated.wait.time",
-          "routing.get.queue.members.with.status",
+          "routing-queue-members",
           "analytics.query.user.observations.real.time.status",
           "analytics.query.conversation.aggregates.queue.performance",
           "analytics.query.conversation.aggregates.abandon.metrics"

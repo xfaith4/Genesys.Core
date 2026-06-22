@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-06-22
 
 ## 1. Product Intent
 
@@ -27,6 +27,22 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Endpoint-combination catalog audit (2026-06-22): promoted 12
+      endpoint-only aliases referenced by `catalog.combinations` into proper
+      `datasets` entries so they resolve at runtime (dataset resolution has
+      no endpoint fallback), repointed combinations references that used raw
+      endpoint-key names instead of existing dataset keys, replaced a broken
+      hardcoded-date legacy dataset reference, and added division/queue QM
+      score and CSAT rollup datasets
+      (`analytics.query.evaluations.aggregates.score.rollup`,
+      `analytics.query.surveys.aggregates.csat.rollup`). Fixed a documentation
+      inaccuracy claiming the user aggregation query supports a `divisionId`
+      filter (it only supports `userId`; division scoping must resolve user
+      IDs first). `docs/ENDPOINT_COMBINATIONS.md` extensively updated with the
+      new datasets, a recording-compliance pattern, and a reference-matrix
+      sweep; `docs/INVESTIGATIONS.md` cross-references the catalog's richer
+      `combinations.investigationRecipes` block to explain why flagship
+      cmdlet step tables and catalog recipes intentionally differ in size.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

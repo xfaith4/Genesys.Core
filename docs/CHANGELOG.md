@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026-06-22
+
+### Added
+
+- Promoted 12 endpoint-only aliases referenced by
+  `catalog.combinations` into proper `catalog/genesys.catalog.json`
+  `datasets` entries (`analytics.query.conversation.details.by.queue`,
+  `analytics.query.conversation.aggregates.division.performance`,
+  `analytics.query.conversation.transcripts`, and others) so they resolve at
+  runtime — `Resolve-DatasetEndpointSpec` throws on any dataset key it cannot
+  find and never falls back to `catalog.endpoints`, so an unresolved
+  combinations reference was a real runtime bug, not a cosmetic one.
+- Added division/queue rollup datasets
+  `analytics.query.evaluations.aggregates.score.rollup` and
+  `analytics.query.surveys.aggregates.csat.rollup` for QM-score and CSAT
+  executive rollups by division or queue.
+- Added `docs/ENDPOINT_COMBINATIONS.md` coverage for all newly promoted
+  datasets: expanded Section 1 (Single Conversation Deep Dive, 11 → 16
+  steps) with call-detail, participant wrapup, AI/STA summaries, and
+  conversation surveys; expanded Section 2 (Queue investigation) and
+  Section 5 (Real-Time Monitoring) with `routing.get.queue.estimated.wait.time`;
+  expanded Section 3 (Division Investigation, 9 → 13 steps) with division
+  grants, division-wide performance/QM/CSAT rollups, and coaching
+  appointments; added a Recording Compliance Pattern subsection to Section 9;
+  added 15 rows to the Section 10 reference matrix and 7 rows to the metric
+  glossary.
+
+### Fixed
+
+- Corrected a documentation inaccuracy in `docs/ENDPOINT_COMBINATIONS.md`
+  claiming `analytics.query.user.aggregates.login.activity` supports a
+  `divisionId` filter — the Genesys Cloud `UserAggregationQuery` predicate
+  only supports `userId`. Added a new "Aggregation Query `divisionId`
+  Support" subsection explaining which aggregate query families
+  (conversation/evaluation/survey vs. user) accept `divisionId`, and how to
+  scope user-aggregate metrics to a division by resolving its user IDs first.
+- Repointed `catalog.combinations` references that used raw endpoint-key
+  names instead of the already-existing, correctly named dataset keys, and
+  replaced a broken hardcoded-date/wrong-`itemsPath` legacy dataset
+  reference with a clean, reusable one.
+
+### Changed
+
+- `docs/INVESTIGATIONS.md` Section 9 now cross-references
+  `catalog.combinations.investigationRecipes` to explain why the shipped
+  flagship-cmdlet step tables (Section 4) are intentionally smaller than the
+  catalog's combinations reference, instead of leaving the size mismatch
+  looking like undocumented drift.
+
 ## 2026-06-08
 
 ### Changed

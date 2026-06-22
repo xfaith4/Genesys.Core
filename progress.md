@@ -120,3 +120,50 @@
 - Validation passed: parser checks for `App.UI.ps1`, `App.Index.psm1`, `Invoke-AllTests.ps1`, and `Test-Compliance.ps1`; `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed 270 checks, 0 failed, 2 skipped for missing WSL `e_sqlite3`.
 - Investigated blank `data/analytics-conversation-details.jsonl` artifacts. The async dataset intentionally writes a zero-byte JSONL when the Genesys results endpoint returns zero conversations, so the run now writes non-PII request-shape diagnostics to `summary.json`, emits explicit `analytics.conversationDetails.request` and `analytics.conversationDetails.zeroResults` events, and carries a manifest warning for zero-result full runs.
 - Validation passed: parser checks for `modules/Genesys.Core/Private/Datasets.ps1` and `tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1`; `Invoke-Pester -Path ./tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1 -Output Normal` passed 9 tests.
+
+## 2026-06-22
+
+- Audited the catalog endpoint-combination work for a single-conversation,
+  queue, agent, and division investigation against the Genesys Cloud API
+  Explorer / blueprints / BYOI conversation-injection docs, building on the
+  endpoint promotions and combinations repoints already landed on `main`
+  (commits `43985ca`, `c639093`). Confirmed those catalog fixes were sound
+  and focused this session on closing the remaining documentation gaps
+  rather than re-doing the catalog work.
+- Found and fixed a real documentation inaccuracy in
+  `docs/ENDPOINT_COMBINATIONS.md`: it claimed
+  `analytics.query.user.aggregates.login.activity` supports a `divisionId`
+  filter. The Genesys Cloud `UserAggregationQuery` predicate only supports
+  `userId` (conversation/evaluation/survey aggregation queries do support
+  `divisionId`). Corrected the table entry and added an "Aggregation Query
+  `divisionId` Support" subsection explaining the distinction and the
+  resolve-user-IDs-first workaround.
+- Extensively expanded `docs/ENDPOINT_COMBINATIONS.md` to document the 12
+  newly promoted/added catalog datasets from the prior session: Single
+  Conversation Deep Dive grew from 11 to 16 steps (call detail, participant
+  wrapup, AI/STA summaries, conversation surveys, STA categories); Division
+  Investigation grew from 9 to 13 steps (division grants, division-wide
+  performance/QM/CSAT rollups, coaching appointments); added
+  `routing.get.queue.estimated.wait.time` to the Queue and Real-Time
+  Monitoring sections; added a Recording Compliance Pattern subsection;
+  added 15 rows to the dataset combination reference matrix and 7 rows to
+  the metric glossary; fixed stale internal step cross-references after
+  renumbering.
+- Added a cross-reference note to `docs/INVESTIGATIONS.md` Section 9
+  explaining the relationship between the shipped `Invoke-Investigation`
+  flagship-cmdlet step tables (fixed, code-implemented) and the catalog's
+  richer `combinations.investigationRecipes` reference block (the WFM
+  management-unit/adherence steps in the catalog's `agent-investigation`
+  recipe are a backlog candidate for the flagship cmdlet, not a doc bug).
+  Updated `docs/ROADMAP.md` Status Board and added a `docs/CHANGELOG.md`
+  entry summarizing the full session.
+- Validation: `catalog/genesys.catalog.json` parses as valid JSON;
+  `Assert-Catalog -CatalogPath ./catalog/genesys.catalog.json -SchemaPath
+  ./catalog/schema/genesys.catalog.schema.json` passed; a live
+  `Resolve-DatasetEndpointSpec` sweep of all 73 real dataset keys referenced
+  anywhere in `catalog.combinations` (investigation recipes + executive
+  reporting playbooks + voice engineer playbooks) resolved with zero
+  failures against the 126-entry `datasets` map. Pester is not installed and
+  no package registry is reachable in this sandbox, so the full
+  `scripts/Invoke-Tests.ps1` unit/integration suite could not be executed
+  this session.

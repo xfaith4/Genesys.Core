@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-22  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -42,24 +42,34 @@ when the API is exhausted.
 |------|-------------|----------|--------------|
 | 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, externalTag (BYOI indicator) |
 | 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Per-segment timing: IVR duration, ACD wait, talk time, hold time, ACW, conference, recording start/stop |
-| 3 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, media type, duration, deletion schedule |
-| 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
-| 5 | `conversations.search.participant.attributes` | `conversationId` | Participant-level attributes (IVR variables, data action outcomes, flow-set values) |
-| 6 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores, form used, evaluator, calibration status |
-| 7 | `quality.get.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
-| 8 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace: INVITE, 200 OK, BYE, re-INVITE, codec negotiation |
-| 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
-| 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
-| 11 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
+| 3 *(voice only)* | `conversations.get.call.detail` | `conversationId` | Call-leg detail: ANI/DNIS, call legs, hold events — telephony-specific complement to the analytics segment timing in step 2 |
+| 4 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, media type, duration, deletion schedule |
+| 5 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
+| 6 | `conversations.search.participant.attributes` | `conversationId` | Participant-level attributes (IVR variables, data action outcomes, flow-set values) |
+| 7 | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code selected by a specific participant — confirms the agent-recorded outcome for this conversation |
+| 8 | `conversations.get.conversation.summaries` | `conversationId` | AI-generated (Copilot/Agent Assist) summary per communication leg — reason for contact and resolution notes, when available |
+| 9 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores, form used, evaluator, calibration status |
+| 10 | `quality.get.conversation.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
+| 11 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace: INVITE, 200 OK, BYE, re-INVITE, codec negotiation |
+| 12 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
+| 13 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
+| 14 *(STA enabled)* | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Topic/category classifications applied by the STA engine — answers "what was this call about" without reading the transcript |
+| 15 *(STA enabled)* | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | AI-generated STA summary for each communication leg — complements step 8's Copilot summary with the STA-engine view |
+| 16 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
 
 ### Key Joins
 
 ```
 conversations.get.conversation.object.conversationId
   → analytics.get.single.conversation.analytics.conversationId (segment overlay)
+  → conversations.get.call.detail.conversationId (voice call-leg detail)
   → conversations.get.conversation.recording.metadata.conversationId
   → telephony.get.sip.messages.for.conversation.conversationId (voice only)
   → quality.get.evaluations.query[].conversationId (left join — evaluations may not exist)
+  → quality.get.conversation.surveys.conversationId (left join — survey may not have been triggered)
+
+conversations.get.conversation.object.participants[].id
+  → conversations.get.conversation.participant.wrapup.participantId
 
 analytics.get.single.conversation.analytics.participants[].sessions[].communicationId
   → speechandtextanalytics.get.conversation.communication.transcripturl.communicationId
@@ -75,14 +85,19 @@ analytics.get.single.conversation.analytics.participants[].sessions[].communicat
 - Was the agent rated? What was the QM score?
 - Was the customer surveyed? What was the CSAT result?
 - What intent/attributes did the IVR capture before routing?
+- What wrapup code did the agent select, and does it match the AI-generated summary and STA topics?
 
 ### Voice Engineer Notes
 
-Step 8 (SIP trace) is the definitive source for:
+Step 11 (SIP trace) is the definitive source for:
 - Call setup failures (no 200 OK, 486 Busy, 503 Service Unavailable)
 - One-way audio (media IP mismatch in SDP)
 - Premature disconnection (BYE before expected, no 200 OK to BYE)
 - Codec negotiation failures
+
+Step 3 (`conversations.get.call.detail`) is the fastest way to confirm ANI/DNIS and hold events
+without parsing the full analytics segment payload from step 2 — pull it first when the complaint
+is specifically about call setup or hold handling.
 
 The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/providers/edges/{edgeId}/metrics`)
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
@@ -92,8 +107,8 @@ resource pressure during the conversation window.
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
 the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+Custom attributes in step 5 will contain the provider's context (CRM case ID, external call ID).
+The SIP trace (step 11) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
 
 ---
 
@@ -112,26 +127,28 @@ rates, and wrapup outcomes.
 |------|-------------|----------|--------------|
 | 1 | `routing.get.single.queue.config` | seed → `queueId` | Queue name, routing method, SLA targets, media types, skill evaluation mode |
 | 2 | `routing.get.queue.wrapup.codes.by.queue` | `queueId` | Human-readable wrapup code labels for the queue |
-| 3 | `analytics-conversation-details-query` (queueId filter) | `queueId` | Every conversation that touched this queue in the window, with participant/segment detail |
-| 4 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Aggregate: nConnected, tHandle, tTalk, tAcw, tAnswered, tHeld, nOffered, nOutbound |
-| 5 | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon count: nAbandoned, tAbandon, tShortAbandon |
-| 6 | `analytics.query.queue.aggregates.service.level` | `queueId` | SLA achievement: nAnsweredIn20/30/60, oServiceLevel, oServiceTarget, nOverSla |
-| 7 | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer analysis: nTransferred, nBlindTransferred, nConsultTransferred |
-| 8 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` + wrapUpCode | Wrapup code frequencies (join step 2 for labels) |
-| 9 | `routing-queue-members` | `queueId` | Current membership roster with routing status and presence |
-| 10 | `quality.get.evaluations.query` (queueId filter) | `conversationId` | QM evaluation coverage and scores for conversations in this queue |
+| 3 | `routing.get.queue.estimated.wait.time` | `queueId` | Current EWT in seconds by media type — point-in-time context for whether the historical window started hot or calm |
+| 4 | `analytics.query.conversation.details.by.queue` | `queueId` | Every conversation that touched this queue in the window, with conversationId/agentId/wrapUpCode/duration detail — the curated, queue-scoped seed for per-conversation drilldown |
+| 5 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` | Aggregate: nConnected, tHandle, tTalk, tAcw, tAnswered, tHeld, nOffered, nOutbound |
+| 6 | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId` | Abandon count: nAbandoned, tAbandon, tShortAbandon |
+| 7 | `analytics.query.queue.aggregates.service.level` | `queueId` | SLA achievement: nAnsweredIn20/30/60, oServiceLevel, oServiceTarget, nOverSla |
+| 8 | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer analysis: nTransferred, nBlindTransferred, nConsultTransferred |
+| 9 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` + wrapUpCode | Wrapup code frequencies (join step 2 for labels) |
+| 10 | `routing-queue-members` | `queueId` | Current membership roster with routing status and presence |
+| 11 | `quality.get.evaluations.query` (queueId filter) | `conversationId` | QM evaluation coverage and scores for conversations in this queue |
 
 ### Key Joins
 
 ```
 routing.get.single.queue.config.id
   → analytics.query.conversation.aggregates.*.queueId (aggregate overlay)
+  → routing.get.queue.estimated.wait.time.queueId (real-time EWT)
   → routing-queue-members.queueId (who was staffed)
 
 analytics.query.conversation.aggregates.wrapup.distribution.wrapUpCode
   → routing.get.queue.wrapup.codes.by.queue.id (label resolution)
 
-analytics-conversation-details-query[].conversationId
+analytics.query.conversation.details.by.queue[].conversationId
   → quality.get.evaluations.query[].conversationId (left join — not all conversations are evaluated)
 ```
 
@@ -168,21 +185,31 @@ quality scores, and coaching coverage.
 | Step | Dataset Key | Join Key | What It Adds |
 |------|-------------|----------|--------------|
 | 1 | `authorization.get.single.division` | seed → `divisionId` | Division name, description, home-division flag |
-| 2 | `authorization.list.division.queues` | `divisionId` | All queue IDs assigned to this division |
-| 3 | `users.division.analysis.get.users.with.division.info` | `divisionId` | All agents assigned to the division with user IDs |
-| 4 | `analytics.query.conversation.aggregates.agent.performance` (divisionId filter) | `userId` | Per-agent: nConnected, tHandle, tTalk, tAcw, tAnswered |
-| 5 | `analytics.query.user.aggregates.login.activity` (divisionId filter) | `userId` | Per-agent time-in-state: tAgentRoutingStatus, tSystemPresence, tOrganizationPresence |
-| 6 | `analytics.query.user.details.activity.report` (userId list) | `userId` | Login/logout/on-queue presence event timeline per agent |
-| 7 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
-| 8 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
-| 9 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
+| 2 | `authorization.get.division.grants` | `divisionId` | Access control grants on this division — which users/roles can manage it |
+| 3 | `authorization.list.division.queues` | `divisionId` | All queue IDs assigned to this division |
+| 4 | `users.division.analysis.get.users.with.division.info` | `divisionId` | All agents assigned to the division with user IDs |
+| 5 | `analytics.query.conversation.aggregates.division.performance` | `divisionId` | Division-wide rollup in a single row: nConnected, tHandle, tTalk, tAcw, tAnswered, nOffered, nError |
+| 6 | `analytics.query.conversation.aggregates.agent.performance` (divisionId filter) | `userId` | Per-agent: nConnected, tHandle, tTalk, tAcw, tAnswered |
+| 7 | `analytics.query.user.aggregates.login.activity` (`userId` list from step 4) | `userId` | Per-agent time-in-state: tAgentRoutingStatus, tSystemPresence, tOrganizationPresence |
+| 8 | `analytics.query.user.details.activity.report` (userId list) | `userId` | Login/logout/on-queue presence event timeline per agent |
+| 9 | `analytics.query.evaluations.aggregates.score.rollup` (`divisionId` groupBy) | `divisionId` | Division-wide QM rollup: nEvaluations, oTotalScore, oTotalCriticalScore — faster than aggregating step 11 per agent |
+| 10 | `analytics.query.surveys.aggregates.csat.rollup` (`divisionId` groupBy) | `divisionId` | Division-wide CSAT/NPS rollup: nSurveyResponses, oSurveyTotalScore, nSurveyNpsPromoters, nSurveyNpsDetractors |
+| 11 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
+| 12 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
+| 13 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
 
 ### Key Joins
 
 ```
 authorization.get.single.division.id
+  → authorization.get.division.grants.divisionId (access/grant enumeration)
   → authorization.list.division.queues.divisionId (queue enumeration)
   → users.division.analysis.get.users.with.division.info.divisionId (agent enumeration)
+
+authorization.get.single.division.id
+  → analytics.query.conversation.aggregates.division.performance[].group.divisionId (division-wide volume rollup)
+  → analytics.query.evaluations.aggregates.score.rollup[].group.divisionId (QM rollup)
+  → analytics.query.surveys.aggregates.csat.rollup[].group.divisionId (CSAT/NPS rollup)
 
 users.division.analysis.get.users.with.division.info[].id
   → analytics.query.conversation.aggregates.agent.performance[].userId
@@ -191,10 +218,25 @@ users.division.analysis.get.users.with.division.info[].id
   → coaching.get.appointments[].attendees[].id
 ```
 
+### Aggregation Query `divisionId` Support
+
+Genesys Cloud aggregation queries differ in which predicate dimensions they support — this is a
+common source of bugs when an investigation tries to filter every aggregate query the same way.
+Conversation, evaluation, and survey aggregation queries (`analytics.query.conversation.aggregates.*`,
+`analytics.query.evaluations.aggregates.score.rollup`, `analytics.query.surveys.aggregates.csat.rollup`)
+all accept `divisionId` as both a `groupBy` and a filter `dimension`. The **user** aggregation query
+(`analytics.query.user.aggregates.login.activity`, `analytics.query.user.aggregates.performance.metrics`)
+does **not** — its predicate only supports `userId`. To scope user-aggregate metrics to a division,
+resolve the division's user IDs first (step 4) and pass that list as the `userId` filter (step 7),
+rather than attempting a `divisionId` predicate that the API will reject.
+
 ### Analytical Questions Answered
 
 - How many agents are in this division and who are they?
 - What queues does this division own?
+- Who has administrative access/grants over this division?
+- What is the division's overall connected volume and handle time, rolled up to a single number?
+- What is the division's average QM score and CSAT/NPS, without iterating every agent or conversation?
 - Which agents handled the most volume? Which had the highest AHT?
 - Which agents spent the most time off-queue or in non-productive states?
 - Which agents have been evaluated? Who has the highest/lowest scores?
@@ -224,6 +266,7 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `analytics.query.conversation.aggregates.queue.performance` | `queueId`, `mediaType`, daily granularity | nOffered, nConnected, tHandle (avg), tTalk (avg), tAcw (avg) |
+| `analytics.query.conversation.aggregates.division.performance` | `divisionId`, daily | Same shape as queue.performance, grouped by business unit instead of queue — for region/BU-level executive rollups |
 | `analytics.query.conversation.aggregates.abandon.metrics` | `queueId`, `mediaType`, daily | nAbandoned, tAbandon, nOffered (abandon rate = nAbandoned/nOffered) |
 | `analytics.query.conversation.aggregates.digital.channels` | `mediaType`, `queueId`, daily | Channel mix: nOffered, nConnected by voice/chat/email/message |
 
@@ -243,9 +286,11 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 #### Layer 4 — Quality & Voice-of-Customer
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
-| `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
-| `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
-| `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
+| `analytics.query.evaluations.aggregates.score.rollup` | `divisionId` or `queueId`, daily | nEvaluations, oTotalScore (avg), oTotalCriticalScore (avg) — preferred for headline QM rollups |
+| `analytics.query.surveys.aggregates.csat.rollup` | `divisionId` or `queueId`, daily | nSurveyResponses, oSurveyTotalScore (avg), nSurveyNpsPromoters, nSurveyNpsDetractors — NPS = (promoters − detractors) / responses × 100 |
+| `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution — per-agent detail behind the rollup above |
+| `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score — per-conversation detail behind the rollup above |
+| `analytics.post.transcripts.aggregates.query` (alias: `analytics.query.conversation.transcripts`) | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
 
 #### Layer 5 — Infrastructure Health (optional, voice-focused)
 | Dataset Key | Grouping | Metrics |
@@ -304,14 +349,15 @@ agent availability right now, without waiting for a historical analytics job.
 | Step | Dataset Key | Scope | What It Shows |
 |------|-------------|-------|---------------|
 | 1 | `analytics.query.queue.observations.real.time.stats` | All queues | oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers per queue |
-| 2 | `analytics.query.conversation.activity.real.time` | All queues | oInteracting, oWaiting, oAlerting, oLongestWaiting per queue × mediaType |
-| 3 | `analytics.query.user.observations.real.time.status` | All agents | oUserPresence (system presence), oUserRoutingStatus per agent |
-| 4 | `analytics.get.agent.active.status` | One agent | Full real-time channel assignment for a specific agent — active conversation IDs |
-| 5 | `users.get.agent.active.conversations` | One agent | All in-progress conversations for a specific agent |
-| 6 | `users.get.agent.current.routing.status` | One agent | Current routing state (IDLE / INTERACTING / NOT_RESPONDING / OFF_QUEUE) |
-| 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
-| 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
-| 9 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
+| 2 | `routing.get.queue.estimated.wait.time` | One queue | Forecast wait time in seconds by media type — the number to escalate on if rising fast |
+| 3 | `analytics.query.conversation.activity.real.time` | All queues | oInteracting, oWaiting, oAlerting, oLongestWaiting per queue × mediaType |
+| 4 | `analytics.query.user.observations.real.time.status` | All agents | oUserPresence (system presence), oUserRoutingStatus per agent |
+| 5 | `analytics.get.agent.active.status` | One agent | Full real-time channel assignment for a specific agent — active conversation IDs |
+| 6 | `users.get.agent.active.conversations` | One agent | All in-progress conversations for a specific agent |
+| 7 | `users.get.agent.current.routing.status` | One agent | Current routing state (IDLE / INTERACTING / NOT_RESPONDING / OFF_QUEUE) |
+| 8 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
+| 9 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
+| 10 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
 
 ### Polling Note
 
@@ -322,6 +368,10 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
+
+`routing.get.queue.estimated.wait.time` is also point-in-time and pairs naturally with step 1 on
+the same polling cadence — a queue with rising `oWaiting` and a rising EWT together signal that a
+staffing intervention is needed now, not after the next reporting cycle.
 
 ---
 
@@ -388,11 +438,13 @@ datasets enrich the investigation without replacing any existing step.
 | currentStatus | `users.get.agent.current.routing.status` | `userId` | Routing state at investigation time (IDLE / INTERACTING / OFF_QUEUE) |
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
+| managementUnit | `workforce.get.agent.management.unit` | `userId` | WFM management unit the agent belongs to — required lookup before pulling adherence |
+| adherence | `workforce.get.adherence.bulk` | `userId` list | Scheduled vs. actual routing status with adherence percentage — flags no-shows and schedule drift |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
-agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+agent being in an active state at investigation time. `managementUnit`, `adherence`, and `coaching`
+steps are conditional on WFM being licensed and configured.
 
 ---
 
@@ -404,15 +456,21 @@ These additional datasets complete the deep-dive picture.
 | Extension Step | Dataset Key | JoinOn | What It Adds |
 |----------------|-------------|--------|--------------|
 | analyticsDetail | `analytics.get.single.conversation.analytics` | `conversationId` | Per-segment timing (IVR, ACD wait, talk, hold, ACW) — replaces the query-based analytics step |
+| callDetail | `conversations.get.call.detail` | `conversationId` | Call-leg detail: ANI/DNIS, call legs, hold events (voice only, conditional) |
 | sipTrace | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace (voice only, conditional) |
 | sentimentTimeline | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Per-utterance sentiment (STA enabled only, conditional) |
+| staCategories | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Topic/category classifications (STA enabled only, conditional) |
+| staSummary | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | AI-generated STA summary per communication leg (STA enabled only, conditional) |
 | customAttributes | `conversations.get.conversation.customattributes` | `conversationId` | IVR/Architect custom attribute payload |
 | participantAttributes | `conversations.search.participant.attributes` | `conversationId` | Participant-level flow variables |
+| participantWrapup | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code selected by a specific participant |
+| aiSummary | `conversations.get.conversation.summaries` | `conversationId` | AI-generated (Copilot/Agent Assist) summary per communication leg |
+| conversationSurvey | `quality.get.conversation.surveys` | `conversationId` | Post-call CSAT/NPS survey result, scoped to this one conversation |
 | transcriptUrl | `speechandtextanalytics.get.conversation.communication.transcripturl` | `communicationId` | Transcript download URL (transcription enabled only) |
 
-**Conditional steps:** `sipTrace` runs only when `conversations.get.conversation.object.participants[].calls` is
-non-empty (voice conversation). `sentimentTimeline` runs only when `conversations.get.speech.text.analytics`
-returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
+**Conditional steps:** `callDetail` and `sipTrace` run only when `conversations.get.conversation.object.participants[].calls` is
+non-empty (voice conversation). `sentimentTimeline`, `staCategories`, and `staSummary` run only when
+`conversations.get.speech.text.analytics` returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
 
 ---
 
@@ -425,9 +483,16 @@ complete the picture.
 |----------------|-------------|--------|--------------|
 | queueConfig | `routing.get.single.queue.config` | `queueId` | Full queue config (replaces/enriches the routing-queues list step) |
 | wrapupLabels | `routing.get.queue.wrapup.codes.by.queue` | `queueId` | Human-readable labels for the wrapup distribution step |
+| estimatedWaitTime | `routing.get.queue.estimated.wait.time` | `queueId` | Real-time EWT in seconds by media type — the number a supervisor checks when a queue looks hot |
 | transfers | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer rate and type breakdown |
 | wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup code frequencies (join wrapupLabels for labels) |
-| conversationDetail | `analytics-conversation-details-query` (queueId filter) | `conversationId` | Individual conversations for case-level review |
+| conversationDetail | `analytics.query.conversation.details.by.queue` | `conversationId` | Individual conversations for case-level review — curated queue-scoped variant of `analytics-conversation-details-query` |
+
+### Recording Compliance Pattern
+
+To audit recording coverage for a queue: `analytics.query.conversation.details.by.queue` →
+`conversations.get.recordings` → `conversations.get.conversation.recording.metadata`. Flag any
+`conversationId` with a recording-eligible media type but zero recording metadata entries.
 
 ---
 
@@ -440,18 +505,26 @@ The matrix below shows which datasets are used across which investigations and r
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | `conversations.get.conversation.object` | ● | | | | | |
 | `analytics.get.single.conversation.analytics` | ● | | | | | |
+| `conversations.get.call.detail` | ○ | | | | | |
 | `conversations.get.conversation.recording.metadata` | ● | | | | | |
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | |
+| `conversations.get.conversation.summaries` | ● | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
+| `quality.get.conversation.surveys` | ● | | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
+| `analytics.query.conversation.details.by.queue` | | ● | | | | |
 | `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
 | `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
 | `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
@@ -459,15 +532,22 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
 | `routing-queue-members` | | ● | | | | |
 | `authorization.get.single.division` | | | ● | | | |
+| `authorization.get.division.grants` | | | ● | | | |
 | `authorization.list.division.queues` | | | ● | | | |
 | `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
+| `analytics.query.conversation.aggregates.division.performance` | | | ● | ● | | |
 | `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
 | `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
 | `analytics.query.user.details.activity.report` | | | ● | | | ● |
+| `analytics.query.evaluations.aggregates.score.rollup` | | | ● | ● | | |
+| `analytics.query.surveys.aggregates.csat.rollup` | | | ● | ● | | |
 | `quality.get.agents.activity` | | | ● | ● | | ○ |
 | `coaching.get.appointments` | | | ● | | | ○ |
+| `workforce.get.agent.management.unit` | | | | | | ○ |
+| `workforce.get.adherence.bulk` | | | | | | ○ |
 | `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
 | `analytics.post.transcripts.aggregates.query` | | | | ● | | |
+| `analytics.query.conversation.transcripts` | | | | ● | | |
 | `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
 | `analytics.query.conversation.activity.real.time` | | | | | ● | |
 | `analytics.query.user.observations.real.time.status` | | | | | ● | |
@@ -508,6 +588,13 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nEvaluations` | Quality evaluations completed | QM coverage numerator |
+| `oTotalScore` | Average overall evaluation score | QM score rollup |
+| `oTotalCriticalScore` | Average critical-question evaluation score | QM critical-failure rollup |
+| `nSurveyResponses` | Customer survey responses received | CSAT response volume |
+| `oSurveyTotalScore` | Average overall survey score | CSAT rollup |
+| `nSurveyNpsPromoters` / `nSurveyNpsDetractors` | NPS promoter/detractor response counts | NPS = (promoters − detractors) / responses × 100 |
+| Estimated Wait Time (EWT) | Forecast wait time in seconds for the next caller to a queue | Real-time queue health, staffing escalation trigger |
 
 ---
 

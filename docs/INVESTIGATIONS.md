@@ -320,6 +320,18 @@ These predate this design. Disposition resolved in **Release 1.2**:
 
 No existing cmdlet is renamed or removed by this work.
 
+A third structure lives alongside these composers: `catalog.combinations.investigationRecipes`
+in `catalog/genesys.catalog.json` (documented in `docs/ENDPOINT_COMBINATIONS.md`). That JSON
+block is a broader, analyst-facing reference of dataset combinations worth pulling for a given
+investigation type — it currently includes WFM and coaching datasets
+(`workforce.get.agent.management.unit`, `workforce.get.adherence.bulk`, `coaching.get.appointments`)
+that the Release 1.0–1.2 flagship cmdlets above do not yet compose. This is expected: the catalog
+recipes describe the full investigation surface area as endpoints are added to the catalog, while
+the step tables in Section 4 describe what `Invoke-Investigation` actually executes today. When a
+catalog recipe step has no matching row above, treat it as a backlog candidate for Track A/B —
+promote it into the relevant `Get-Genesys*Investigation` step table once its dataset has
+`Live Invoke-Dataset acceptance passed` — rather than a documentation bug to fix by editing this file.
+
 ## 10. Open questions
 
 - **Parameter expansion vs. dataset filtering.** Some catalog datasets

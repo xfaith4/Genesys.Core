@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-24  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -91,9 +91,14 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+the call was injected via the BYOI integration. The specific BYOI provider-injection endpoint is **not
+present** in the swagger-derived catalog (`catalog/genesys.catalog.json` has no `conversations/providers/...`
+path — only the unrelated `telephony/providers/edges/...` trunk/edge-config surface exists under
+`providers`), so no catalog dataset can be cited for the injection call itself; treat any specific REST
+signature for it as unverified until confirmed against a live org. What downstream investigation *can*
+rely on the catalog for: custom attributes in step 4 will contain the provider's context (CRM case ID,
+external call ID), and the SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an
+inbound PSTN leg.
 
 ---
 
@@ -329,9 +334,12 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API. The
+exact REST signature of the injection call is **not present** in the swagger-derived catalog (no
+`conversations/providers/...` path exists in `catalog/genesys.catalog.json` — see the Track A trust
+gate in `docs/ROADMAP.md`); this section covers only what the catalog can verify downstream of
+injection. The conversation appears in Genesys analytics and recordings, but context lives in the
+external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 

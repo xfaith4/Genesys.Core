@@ -88,12 +88,31 @@ The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/pro
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
 
-### BYOI Indicator
+### Voice Quality (MOS) Signal
 
-If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
+Step 2 (`analytics.get.single.conversation.analytics`) already returns Mean Opinion Score (MOS)
+call-quality data — no extra dataset is needed:
+- `mediaStatsMinConversationMos` / `mediaStatsMinConversationRFactor` — the worst MOS/R-factor
+  observed across the whole conversation, at the top level of the response.
+- `participants[].sessions[].mediaEndpointStats[].minMos` — per-session worst MOS, scoped to one
+  participant's media leg (use this to tell whether a quality problem was on the agent side, the
+  customer side, or both).
+
+A `mediaStatsMinConversationMos` below ~3.5 corroborates a customer audio-quality complaint without
+needing to listen to the recording; pair it with the SIP trace (step 8) to distinguish a network/codec
+issue (packet loss, jitter — visible in SDP/RTP negotiation) from a one-sided complaint with clean SIP
+signaling (likely an acoustic/headset issue on one leg).
+
+### BYOI / External-System Indicator
+
+If `conversations.get.conversation.object` returns a non-null `externalTag`, the conversation was
+injected from (or tagged by) an external system rather than originating natively in Genesys Cloud.
+`externalTag` is the only confirmed field for this on `Conversation` / `AnalyticsConversation` —
+treat any other "external conversation ID" claim as unverified against the current API surface.
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+See [Section 6](#6-byoi-external-conversation-enrichment) for the verified participant-level and
+provider-tie-back mechanisms.
 
 ---
 
@@ -207,6 +226,37 @@ users.division.analysis.get.users.with.division.info[].id
 | `queueId` | Specific queue complaints | All conversations + SLA + wrapup + member roster |
 | `divisionId` | Business unit or team scope | All queues + all agents + group performance |
 | `userId` (Agent Investigation) | Specific agent complaint | That agent's conversations + skills + presence |
+
+### WFM Management Unit Cross-Reference
+
+A **division** is an authorization/permissions boundary; a **WFM management unit** is a separate,
+schedule-and-adherence grouping of the same agents — and a management unit carries its own
+`division` reference (`ManagementUnit.division`), so the two groupings line up but are not the same
+object. Critically, `UserScheduleAdherence.activeQueues` lists every queue an agent is *currently*
+joined to, which is exactly the "divisions span queues" view: one agent can show up in several
+queues' real-time data while belonging to one division and one management unit.
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `workforce.get.management.units` | seed → `managementUnitId` | Management units and the `division` each one belongs to (`ManagementUnit.division.id`) |
+| 2 | `workforce.get.management.unit.users` | `managementUnitId` | The scheduling-team roster — `userId` list for adherence joins |
+| 3 | `workforce.get.management.unit.adherence` | `managementUnitId` | Per-agent `adherenceState` (InAdherence/OutOfAdherence/Unscheduled/...), `impact`, `scheduledActivityCategory` vs `actualActivityCategory`, and `activeQueues` |
+
+```
+authorization.get.single.division.id
+  → workforce.get.management.units[].division.id   (which management unit(s) serve this division)
+  → workforce.get.management.unit.users.managementUnitId (agent roster)
+  → workforce.get.management.unit.adherence.managementUnitId
+      .activeQueues[]   (cross-queue presence for each agent, independent of queue-scoped investigations)
+      .adherenceState / .impact   (schedule compliance, regardless of which queue the agent is currently on)
+```
+
+Use this when the division/agent investigation needs a real-time "is this team on schedule, and
+which queues are they actually sitting on right now" answer rather than (or in addition to) the
+historical aggregate performance covered by steps 4-9 above. This is the same WFM data the
+`agent-investigation` recipe and `wfm-adherence-and-occupancy` executive playbook draw from in
+`catalog/genesys.catalog.json`'s `combinations` section — this section documents the division-scoped
+entry point into that same data.
 
 ---
 
@@ -327,45 +377,74 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
-**Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+**Subject:** One `conversationId` with external-system context  
+**Use case:** A conversation originated in, or is tied to, an external system — a CRM, a
+third-party contact centre, or a digital-messaging platform — and Genesys Cloud needs to carry
+that external context alongside the native conversation record. There are two distinct, verified
+mechanisms for this; pick the one matching the channel:
 
-**Core question:** *Where did this conversation come from, and what external context does it carry?*
+1. **Voice / any channel — external-contact tie-back.** Associate an `ExternalContact` (CRM
+   identity) with a conversation so investigators can pivot from the conversation to the customer's
+   CRM record. This is the mechanism to use when a voice conversation needs to be linked to
+   external case/contact context — there is no public, documented "BYOI provider call-injection"
+   endpoint in the current Genesys Cloud Platform API; `externalTag` and participant-level external
+   IDs are the supported surface.
+2. **Digital channels — Open Messaging.** A third-party messaging platform injects inbound
+   messages/events into a Genesys Cloud conversation via the Open Messaging integration. This is
+   the genuine, documented "bring your own channel" mechanism for chat/SMS/social platforms.
 
-### How to Identify a BYOI Conversation
+**Core question:** *What external system is this conversation tied to, and what context does it carry?*
+
+### How to Identify External Context on a Conversation
 
 In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
 
 ```json
 {
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
+  "externalTag": "<provider-set-tag>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    {
+      "purpose": "external",
+      "externalContactId": "<externalcontacts-contact-id>",
+      "externalOrganizationId": "<externalcontacts-org-id>",
+      "externalContactInitialDivisionId": "<division-id>"
+    }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+`externalTag` (on `Conversation` / `AnalyticsConversation`) is the only confirmed top-level
+external-system marker. `Participant.externalContactId` / `externalOrganizationId` are the
+confirmed fields for tying a specific participant to an External Contacts CRM record — both
+verified against the live Genesys Cloud Platform API schema (`Participant`, `ConversationParticipant`).
 
-### Additional Steps for BYOI Conversations
+### Voice / CRM Tie-Back Steps
 
-| Step | Dataset Key | What It Adds |
-|------|-------------|--------------|
+| Step | Dataset / Endpoint | What It Adds |
+|------|---------------------|--------------|
+| 1 | `conversations.get.conversation.object` | `participants[].externalContactId` — confirms whether this conversation has CRM context |
+| 2 | `getExternalcontactsContact` (`GET /api/v2/externalcontacts/contacts/{contactId}`) | External Contact profile — name, CRM identifiers, contact attributes |
+| 3 *(write)* | `putExternalcontactsConversation` (`PUT /api/v2/externalcontacts/conversations/{conversationId}`) | Associate or disassociate an External Contact with this conversation — the supported way to attach CRM context after the fact |
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
-| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the conversation flow |
 
-### BYOI Conversation in Analytics
+### Digital Channel / Open Messaging Steps
 
-BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
-as native Genesys conversations. The following datasets apply identically:
+| Step | Endpoint | What It Adds |
+|------|----------|--------------|
+| 1 | `postConversationsMessagesInboundOpen` (`POST /api/v2/conversations/messages/inbound/open`) | The inbound message that originates a new Open Messaging conversation from the external platform |
+| 2 | `postConversationsMessageInboundOpenEvent` (`POST /api/v2/conversations/messages/{integrationId}/inbound/open/event`) | Typing/presence-style events on an existing Open Messaging conversation |
+| 3 | `postConversationsMessageInboundOpenReceipt` (`POST /api/v2/conversations/messages/{integrationId}/inbound/open/receipt`) | Delivery/read receipts fed back into the conversation timeline |
+| 4 | `conversations.get.conversation.object` | The resulting conversation appears with its normal participant/session shape — `provider` on the message session identifies the Open Messaging integration |
+
+### External-Context Conversations in Analytics
+
+Conversations carrying external context flow through the same Architect flows, queue routing, and
+analytics pipeline as any other conversation. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
-- `conversations.get.conversation.recording.metadata` — recordings exist if enabled
+- `conversations.get.conversation.recording.metadata` — recordings exist if enabled (voice)
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — for voice, reflects the actual SIP signaling for that leg
 
 ### Embeddable Framework Conversations
 
@@ -466,6 +545,9 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.user.details.activity.report` | | | ● | | | ● |
 | `quality.get.agents.activity` | | | ● | ● | | ○ |
 | `coaching.get.appointments` | | | ● | | | ○ |
+| `workforce.get.management.units` | | | ● | ○ | | |
+| `workforce.get.management.unit.users` | | | ● | ○ | | |
+| `workforce.get.management.unit.adherence` | | | ● | ○ | | ○ |
 | `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
 | `analytics.post.transcripts.aggregates.query` | | | | ● | | |
 | `analytics.query.queue.observations.real.time.stats` | | | | | ● | |

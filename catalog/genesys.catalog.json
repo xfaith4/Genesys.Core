@@ -12557,6 +12557,18 @@
       ],
       "summary": "Get the summaries of the conversation."
     },
+    "getConversationAssistantCopilotcontext": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/assistant/copilotcontext",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationAssistantCopilotcontext",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Get copilot context values for a conversation."
+    },
     "patchConversationSummaryEngagements": {
       "method": "PATCH",
       "path": "/api/v2/conversations/{conversationId}/summaries/{summaryId}/engagements",
@@ -39193,6 +39205,21 @@
         "conversationId": "conversation-id-goes-here"
       }
     },
+    "conversations.get.conversation.assistant.copilotcontext": {
+      "method": "GET",
+      "path": "/api/v2/conversations/{conversationId}/assistant/copilotcontext",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationAssistantCopilotcontext",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Copilot/Agent Assist context values surfaced to the agent during the conversation, grouped by assistant — knowledge suggestions and other context the bot showed in real time.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
     "conversations.get.conversation.participant.wrapup": {
       "method": "GET",
       "path": "/api/v2/conversations/{conversationId}/participants/{participantId}/wrapup",
@@ -40403,6 +40430,7 @@
           "SIP 503 Service Unavailable \u2192 edge or trunk provider outage",
           "SIP 487 Request Terminated \u2192 caller hung up before answer (confirmed abandon)",
           "SIP 4xx on INVITE with wrong DNIS \u2192 routing table misconfiguration",
+          "mediaStatsMinConversationMos < 3.5 (analytics-detail) \u2192 corroborates an audio-quality complaint; check mediaEndpointStats[].minMos per participant to isolate agent vs. customer leg",
           "tTalkComplete=0 + tAbandon>0 in analytics \u2192 caller abandoned in queue before agent",
           "recording absent (empty result from conversations.get.recordings) \u2192 edge recording policy or consent flag missing",
           "sentimentScore < -0.5 \u2192 severe CX impact; escalate to QM for evaluation priority",

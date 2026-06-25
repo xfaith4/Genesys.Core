@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-25
+
+### Added
+
+- Added the `getConversationAssistantCopilotcontext` endpoint (raw and friendly-keyed
+  `conversations.get.conversation.assistant.copilotcontext`) to `catalog/genesys.catalog.json`,
+  confirmed against the live Genesys Cloud Platform API spec and previously missing from the catalog.
+- Added a WFM Management Unit cross-reference subsection to `docs/ENDPOINT_COMBINATIONS.md` Section 3
+  (Division / Agent Group Investigation), covering `workforce.get.management.units`,
+  `workforce.get.management.unit.users`, and `workforce.get.management.unit.adherence`, plus matching
+  rows in the Section 10 dataset matrix.
+- Documented Mean Opinion Score call-quality signals (`mediaStatsMinConversationMos`,
+  `mediaStatsMinConversationRFactor`, per-participant `mediaEndpointStats[].minMos`) in
+  `docs/ENDPOINT_COMBINATIONS.md` Section 1 and in the `single-call-forensics` voice-engineer playbook's
+  `diagnosticSignals`.
+
+### Fixed
+
+- Corrected inaccurate BYOI claims in `docs/ENDPOINT_COMBINATIONS.md` Section 6: `externalConversationId`
+  and a `POST /api/v2/conversations/providers/{providerId}/calls` injection endpoint are not present in
+  the current Genesys Cloud Platform API. Replaced with two verified mechanisms — voice/CRM tie-back via
+  `externalTag` / `Participant.externalContactId` / `getExternalcontactsContact` /
+  `putExternalcontactsConversation`, and the digital-channel Open Messaging inbound family.
+
 ## 2026-06-08
 
 ### Changed

@@ -1297,6 +1297,160 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates — division performance: nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError grouped by divisionId. Drives division-wide executive rollups across every queue in the division.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Query Conversation Details — full per-conversation records filtered to a single queue. Use for queue investigations that need raw per-conversation rows rather than aggregated metrics.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — subjects (users/roles) and their granted permissions within this division.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full call conversation detail — participants, recordings, ANI/DNIS, call legs, and hold events. Voice engineer single-call forensics anchor; ANI/DNIS are preserved (not redacted) because they are the primary diagnostic signal.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-call-detail",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific participant in a conversation.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated summaries for a conversation (Copilot summary per communication leg) — concise narrative of issue, resolution, and follow-up. High-value enrichment for single-conversation investigation without re-reading the full transcript.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a specific conversation.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue — real-time caller wait forecast in seconds. Use alongside queue performance aggregates to investigate current vs. historical saturation.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs — scheduled vs. actual routing status with adherence percentage.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit an agent belongs to — used to locate the agent's schedule, adherence, and WFM team.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1555,6 +1709,15 @@
           "privacyHeader",
           "remotePartyId",
           "pPrivacyHeader"
+        ]
+      },
+      "voice-engineer-call-detail": {
+        "mode": "pii-restrictive",
+        "description": "Applied to conversations.get.call.detail in voice engineer single-call forensics. Removes participant display names and external-contact linkage, but deliberately preserves ani/dnis since those are the primary diagnostic signal for call-routing and carrier troubleshooting.",
+        "removeFields": [
+          "participantName",
+          "externalContactId",
+          "externalOrganizationId"
         ]
       },
       "conversation-sentiment": {
@@ -39612,7 +39775,7 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
             "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
             "description": "Base conversation object with media type, state, and full participant roster"
@@ -39647,7 +39810,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39860,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39961,7 +40124,7 @@
         "enrichWith": [
           "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
           "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
-          "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
+          "telephony.get.sip.messages.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
         ]
       },
       "queue-investigation": {
@@ -39979,7 +40142,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40150,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40106,7 +40269,7 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
             "queryParam": "objectType=QUEUE",
             "joinKey": "divisionId",
@@ -40139,7 +40302,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40276,7 +40439,6 @@
       "speech-text-analytics-sentiment-trends": {
         "description": "Org-wide sentiment and topic trends for voice channels. Identifies rising negativity, compliance-risk conversations, and topic spikes that require targeted coaching or process changes.",
         "datasetsInOrder": [
-          "analytics.query.conversation.transcripts",
           "speechandtextanalytics.get.topics",
           "analytics.post.transcripts.aggregates.query"
         ],
@@ -40391,12 +40553,12 @@
         "subjectParam": "conversationId",
         "datasetsInOrder": [
           "analytics.get.single.conversation.analytics",
-          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.object",
           "conversations.get.call.detail",
-          "telephony.get.sip.message.for.conversation",
+          "telephony.get.sip.messages.for.conversation",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata",
-          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          "conversations.get.speech.text.analytics"
         ],
         "diagnosticSignals": [
           "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
@@ -40442,7 +40604,7 @@
         "datasetsInOrder": [
           "analytics.query.queue.observations.real.time.stats",
           "routing.get.queue.estimated.wait.time",
-          "routing.get.queue.members.with.status",
+          "routing-queue-members",
           "analytics.query.user.observations.real.time.status",
           "analytics.query.conversation.aggregates.queue.performance",
           "analytics.query.conversation.aggregates.abandon.metrics"

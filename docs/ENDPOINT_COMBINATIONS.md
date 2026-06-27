@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-27  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -51,6 +51,8 @@ when the API is exhausted.
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
 | 11 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
+| 12 *(externalContactId present)* | `externalcontacts.get.contact` | `externalContactId` | CRM-style contact identity for a participant linked to an external contact (BYOI/Open Messaging-originated interactions) |
+| 13 *(step 12 resolved)* | `externalcontacts.get.contact.journey.sessions` | `externalContactId` | Cross-channel journey sessions surrounding this conversation |
 
 ### Key Joins
 
@@ -63,6 +65,10 @@ conversations.get.conversation.object.conversationId
 
 analytics.get.single.conversation.analytics.participants[].sessions[].communicationId
   → speechandtextanalytics.get.conversation.communication.transcripturl.communicationId
+
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id (left join — only present on BYOI/Open Messaging participants)
+  → externalcontacts.get.contact.journey.sessions.externalContactId
 ```
 
 ### Analytical Questions Answered
@@ -91,9 +97,13 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+or a participant carries an `externalContactId` (already a recognized field — see the
+`agent-investigation-conversations` and `agent-investigation-activity` redaction profiles in the
+catalog, which strip it), the conversation originated outside Genesys Cloud and was reported in via
+BYOI/Open Messaging rather than a native PSTN, chat, or email leg. Custom attributes in step 4 will
+contain the provider's context (CRM case ID, external call ID). The SIP trace (step 8), if present,
+will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg. See §6 for the dedicated
+enrichment steps (steps 12–13 above) once `externalContactId` is confirmed.
 
 ---
 
@@ -323,15 +333,27 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
 
+This pattern is codified as the `real-time-operations-wallboard` entry under
+`combinations.voiceEngineerPlaybooks` in `catalog/genesys.catalog.json` — the org-wide,
+non-queue-scoped variant alongside the single-subject `queue-saturation-and-staffing-analysis`
+and `trunk-and-edge-health-check` playbooks. Use the wallboard playbook for continuous monitoring;
+drop into the queue- or edge-specific playbook once it flags a subject worth investigating.
+
 ---
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that was reported into Genesys Cloud via BYOI or Open Messaging  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider, a digital channel adapter) and was reported into Genesys Cloud
+through the BYOI integration so it flows through Analytics, WFM, and QM like a native interaction.
+BYOI is a write-side ingestion capability (conversation/agent-state reporting and, for digital
+channels, the agentless conversation-creation endpoints already in this catalog — see the
+`endpoints` entries `postConversationsEmailsAgentless` and `postConversationsMessagesAgentless`);
+there is no separate read-side "BYOI conversation" object, and no curated dataset wraps these
+write-only endpoints. Once reported, the conversation appears in the same
+`conversations.get.conversation.object` / analytics surface as any other conversation, identified
+by the markers below.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
@@ -357,6 +379,8 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + *(externalContactId present)* | `externalcontacts.get.contact` | CRM-style identity for the external participant — name, organization, contact methods |
+| + *(contact resolved)* | `externalcontacts.get.contact.journey.sessions` | Cross-channel journey sessions (web, BYOI, digital) around this conversation — answers "what did this customer do before/after this contact?" |
 
 ### BYOI Conversation in Analytics
 
@@ -409,10 +433,14 @@ These additional datasets complete the deep-dive picture.
 | customAttributes | `conversations.get.conversation.customattributes` | `conversationId` | IVR/Architect custom attribute payload |
 | participantAttributes | `conversations.search.participant.attributes` | `conversationId` | Participant-level flow variables |
 | transcriptUrl | `speechandtextanalytics.get.conversation.communication.transcripturl` | `communicationId` | Transcript download URL (transcription enabled only) |
+| byoiContactIdentity | `externalcontacts.get.contact` | `externalContactId` | CRM-style contact identity for a BYOI/Open Messaging-originated participant (conditional) |
+| byoiJourneyContext | `externalcontacts.get.contact.journey.sessions` | `externalContactId` | Cross-channel journey sessions around this conversation (conditional, depends on `byoiContactIdentity`) |
 
 **Conditional steps:** `sipTrace` runs only when `conversations.get.conversation.object.participants[].calls` is
 non-empty (voice conversation). `sentimentTimeline` runs only when `conversations.get.speech.text.analytics`
-returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
+returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`. `byoiContactIdentity` runs only when a
+participant on `conversations.get.conversation.object` carries a non-null `externalContactId`; `byoiJourneyContext`
+runs only when `byoiContactIdentity` resolves a contact. See §6 for full BYOI detection and enrichment detail.
 
 ---
 
@@ -449,6 +477,8 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
+| `externalcontacts.get.contact` | ○ | | | | | |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
@@ -476,6 +506,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.agent.current.routing.status` | | | | | ○ | ○ |
 | `analytics.query.flow.observations` | | | | | ● | |
 | `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
+| `telephony.get.edges` | | | | | ● | |
 | `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
 | `alerting.get.alerts` | | | | ○ | ● | |
 | `users.get.user.details.with.full.expansion` | | | | | | ● |

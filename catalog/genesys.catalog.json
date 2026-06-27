@@ -1297,6 +1297,32 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External contact profile linked to a conversation participant via externalContactId — CRM-style identity (name, organization, contact methods) used to enrich BYOI and Open Messaging interactions with customer identity context.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Customer journey sessions for an external contact — cross-channel touchpoints (web, BYOI, digital) before and after a conversation. Use to attribute conversation outcomes to upstream journey context.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-external-contact",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1564,6 +1590,25 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "conversation-investigation-external-contact": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts.get.contact and externalcontacts.get.contact.journey.sessions when used as BYOI/external-contact enrichment steps in Conversation and Agent Investigation. Removes direct CRM contact PII (names, phone numbers, addresses) while preserving the journey/segment metadata needed to correlate cross-channel context to the conversation.",
+        "removeFields": [
+          "firstName",
+          "middleName",
+          "lastName",
+          "title",
+          "workPhone",
+          "cellPhone",
+          "homePhone",
+          "otherPhone",
+          "twitterId",
+          "lineId",
+          "whatsAppId",
+          "facebookId",
+          "addresses"
         ]
       }
     }
@@ -39704,9 +39749,28 @@
             ],
             "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
             "description": "Raw SIP signalling log \u2014 critical for trunk routing diagnosis and call failure forensics"
+          },
+          {
+            "step": "byoi-contact-identity",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "externalContactId",
+            "conditional": true,
+            "condition": "Run only when a participant on the seed/conversation-base record carries an externalContactId (set on participants created via Open Messaging/agentless conversations or linked through the BYOI/conv-injection flow). Skip entirely for conversations with no externalContactId on any participant.",
+            "provides": "CRM-style contact identity (name, organization, contact methods) for the externally-sourced participant",
+            "description": "External contact profile for a BYOI/Open Messaging-originated participant \u2014 resolves who the customer is when the interaction was not initiated as a native Genesys conversation"
+          },
+          {
+            "step": "byoi-journey-context",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "externalContactId",
+            "conditional": true,
+            "condition": "Run only when byoi-contact-identity returns a contact (i.e. externalContactId resolved). Provides the cross-channel sessions that surround this conversation.",
+            "provides": "journey session list \u2014 channel, device, and timestamps of touchpoints before/after this conversation",
+            "description": "Customer journey sessions correlated to the external contact \u2014 shows the cross-channel path (web, BYOI-injected interaction, digital) that led to or followed this conversation"
           }
         ],
-        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
+        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey \u2192 byoi-contact-identity (externalContactId, conditional) \u2192 byoi-journey-context (externalContactId, conditional)",
+        "byoiNote": "BYOI (Bring Your Own Interactions) and Open Messaging conversations surface as ordinary conversation records with a participant-level externalContactId rather than a distinct conversation type. There is no dedicated catalog endpoint for raw BYOI provider/channel injection (it is a write-side ingestion API, not a query surface) \u2014 detect a BYOI-originated conversation by an externalContactId or externalTag on a participant in conversation-base, then enrich via byoi-contact-identity and byoi-journey-context.",
         "voiceEngineerHighlights": [
           "sip-trace: SIP 486/503/487 responses reveal trunk capacity or routing-rule failure",
           "call-detail: DNIS value vs. expected queue DNIS confirms correct routing table entry",
@@ -40502,6 +40566,31 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "real-time-operations-wallboard": {
+        "description": "Org-wide (non-queue-scoped) real-time health snapshot for a NOC/wallboard view — live conversation activity, queue saturation, agent routing status, flow execution, and trunk/edge health in one pass. Used by voice engineers and NOC operators for continuous monitoring rather than a single-subject drilldown; pairs with queue-saturation-and-staffing-analysis and trunk-and-edge-health-check when a specific queue or edge needs deeper investigation.",
+        "datasetsInOrder": [
+          "analytics.query.queue.observations.real.time.stats",
+          "analytics.query.conversation.activity.real.time",
+          "analytics.query.user.observations.real.time.status",
+          "analytics.query.flow.observations",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.edges",
+          "alerting.get.alerts"
+        ],
+        "diagnosticSignals": [
+          "oWaiting rising across multiple queues simultaneously → systemic staffing or routing issue, not a single-queue anomaly",
+          "oFlow high org-wide with flat queue oInteracting → calls stuck in flow/IVR layer before reaching routing",
+          "oUserRoutingStatus = NOT_RESPONDING count rising → station/network issue affecting many agents at once",
+          "trunk.currentCalls / trunk.maxConcurrentCalls > 0.85 on any trunk → capacity risk that will surface as queue oWaiting within minutes",
+          "edge onlineStatus = DISCONNECTED → isolate affected sites before triaging queue-level symptoms",
+          "alerting.get.alerts has open telephony/queue alerts → correlate against the above before manual triage"
+        ],
+        "enrichWith": [
+          "routing-queues (to resolve queueId to name/division for the board legend)",
+          "users (to resolve userId to name for the agent-status panel)",
+          "Get-GenesysQueueInvestigation (drill into a single queue once the wallboard flags it)"
         ]
       }
     }

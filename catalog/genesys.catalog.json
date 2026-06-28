@@ -40097,12 +40097,12 @@
         "steps": [
           {
             "step": "division-detail",
-            "dataset": "authorization.get.all.divisions",
+            "dataset": "authorization.get.single.division",
             "role": "seed",
             "filterBy": "divisionId",
             "joinKey": "id",
             "provides": "name, description, homeDivision flag",
-            "description": "Division metadata \u2014 name and description"
+            "description": "Division metadata \u2014 name and description. Uses the by-ID lookup (not the unfiltered all-divisions list) since the investigation is scoped to one division."
           },
           {
             "step": "division-queues",
@@ -40172,6 +40172,91 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "agent-in-queue-cross-section": {
+        "description": "Lean intersection view of one agent's activity within one specific queue — not a re-run of the full Agent Investigation or Queue Investigation. Answers the recurring supervisor question 'how is this agent doing in this queue specifically' without pulling the agent's entire cross-queue history or the queue's entire roster. Grounded in the analytics aggregates query's documented support for combining a queueId predicate with a userId groupBy/filter in the same request.",
+        "subjectParam": [
+          "userId",
+          "queueId"
+        ],
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "agent-identity",
+            "dataset": "users.get.user.details.with.full.expansion",
+            "role": "seed",
+            "filterBy": "userId",
+            "joinKey": "id",
+            "provides": "name, email, state, department",
+            "description": "Single-agent identity lookup — anchors the cross-section to a named agent"
+          },
+          {
+            "step": "queue-config",
+            "dataset": "routing-queues",
+            "filterBy": "queueId",
+            "joinKey": "id",
+            "provides": "name, divisionId, mediaSettings, acwSettings",
+            "description": "Queue configuration — anchors the cross-section to a named queue"
+          },
+          {
+            "step": "membership-verification",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId",
+            "joinKey": "queueId",
+            "provides": "joined date, divisionId (confirms the agent is actually a member of this queue)",
+            "description": "Confirms queue membership before drawing conclusions from zero-volume results — a non-member will show no conversations for a reason unrelated to performance"
+          },
+          {
+            "step": "performance-in-queue",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "queueId + userId (combined predicate)",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw, tAnswered scoped to this agent in this queue only",
+            "description": "Add a userId predicate alongside the existing queueId predicate in the same filter.predicates array (both dimensions are supported together by this query) to scope the aggregate to the intersection, not the whole queue or the agent's whole workload"
+          },
+          {
+            "step": "conversations-in-queue",
+            "dataset": "analytics.query.conversation.details.by.queue",
+            "filterBy": "queueId (conversationFilters) + userId (segmentFilters)",
+            "joinKey": "userId",
+            "provides": "conversationId, wrapUpCode, tTalk, tHandle for conversations this agent personally handled in this queue",
+            "description": "Seed list for per-conversation drilldown — hand any conversationId here to the Single Conversation Investigation"
+          },
+          {
+            "step": "wrapup-distribution-in-queue",
+            "dataset": "analytics.query.conversation.aggregates.wrapup.distribution",
+            "filterBy": "queueId + userId",
+            "joinKey": "userId",
+            "provides": "nConnected by wrapUpCode for this agent in this queue",
+            "description": "Compare against the queue-wide wrapup distribution (Queue Investigation step 'wrapup-distribution') to spot an agent whose call-reason mix is skewed relative to peers in the same queue"
+          },
+          {
+            "step": "evaluations-in-queue",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "agentUserId + queueId",
+            "joinKey": "userId",
+            "provides": "evaluationScore, criticalItemFailed for evaluations tied to this agent's conversations in this queue",
+            "description": "Quality signal scoped to the queue in question, not the agent's overall average"
+          },
+          {
+            "step": "adherence",
+            "dataset": "workforce.get.adherence.bulk",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "adherenceState, adherencePct, impact",
+            "description": "Schedule adherence is not queue-scoped in Genesys WFM, but is included as context — an agent off-adherence explains low volume in any one queue they serve"
+          }
+        ],
+        "joinSequence": "seed (agent-identity, userId) → queue-config (queueId) → membership-verification → performance-in-queue (queueId+userId combined predicate) → conversations-in-queue → wrapup-distribution-in-queue → evaluations-in-queue → adherence",
+        "executiveMetrics": [
+          "nConnected",
+          "tHandle (avg)",
+          "tTalk (avg)",
+          "tAcw (avg)",
+          "evalAvgScore",
+          "topWrapUpCode",
+          "adherencePct"
         ]
       }
     },
@@ -40383,6 +40468,31 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "cross-division-executive-comparison": {
+        "description": "Side-by-side rollup of conversation volume, handle time, and headcount across ALL divisions in the org — not scoped to one division or queue. Answers 'which business unit/region is over capacity or underperforming relative to its peers' for a multi-division executive review. Complements the division-investigation recipe (which drills into a single division in depth) by comparing divisions against each other; pivot to division-investigation once this rollup flags a division of interest. Divisions are the cross-queue grouping unit in Genesys Cloud, so this is the only rollup level above an individual queue or agent that still spans the whole organisation regardless of how queues are split.",
+        "datasetsInOrder": [
+          "authorization.get.all.divisions",
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8"
+        ],
+        "joinOn": "divisionId",
+        "groupBy": [
+          "divisionId"
+        ],
+        "granularity": "P1D",
+        "outputMetrics": [
+          "divisionName",
+          "headcount (agent count per division, from users.division.analysis.get.users.with.division.info)",
+          "nOffered",
+          "nConnected",
+          "tHandle (avg)",
+          "tTalk (avg)",
+          "tAcw (avg)",
+          "nError",
+          "conversationsPerAgent = nConnected / headcount"
+        ],
+        "executivePresentation": "Division comparison table ranked by conversationsPerAgent and avg handle time, plus a volume-share bar chart — the rollup leadership uses to compare business units/regions side by side before drilling into one division"
       }
     },
     "voiceEngineerPlaybooks": {

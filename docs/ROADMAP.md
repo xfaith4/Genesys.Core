@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-06-28
 
 ## 1. Product Intent
 
@@ -27,6 +27,28 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Scheduled catalog/schema drift check and endpoint coverage review
+      (2026-06-28): cross-checked `catalog/genesys.catalog.json` combinations
+      against the live endpoint set and the Genesys developer documentation
+      (the docs site returned HTTP 403 to automated fetches in this
+      environment, so findings were corroborated via search and the catalog's
+      own recorded `defaultBody` examples instead). Fixed the
+      `division-investigation` recipe's seed step to use the by-ID
+      `authorization.get.single.division` dataset instead of the unfiltered
+      all-divisions list. Corrected a fabricated BYOI endpoint claim in
+      `docs/ENDPOINT_COMBINATIONS.md` (no `/conversations/providers/{id}/calls`
+      endpoint exists) with a dated correction pointing to the real
+      conversation-injection datasets (`postConversationsCalls`,
+      `*MessagesAgentless`, `*EmailsAgentless`, `*MessagingIntegrationsOpen`).
+      Added two new catalog combinations grounded in verified endpoint
+      capabilities: `agent-in-queue-cross-section` (investigation recipe
+      joining an agent's identity/membership/performance/evaluations/adherence
+      scoped to one queue) and `cross-division-executive-comparison`
+      (executive playbook grouping headcount and conversation metrics by
+      division org-wide). Both are documented in `docs/ENDPOINT_COMBINATIONS.md`
+      §10–11 with an updated §12 reference matrix, and validated against the
+      catalog's referential-integrity rules (111 datasets, 3102 endpoints, 128
+      combination references, zero errors).
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

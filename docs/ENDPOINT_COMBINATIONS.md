@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-28  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,9 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Agent-in-Queue Cross Section](#10-agent-in-queue-cross-section)
+11. [Cross-Division Executive Comparison](#11-cross-division-executive-comparison)
+12. [Dataset Combination Reference Matrix](#12-dataset-combination-reference-matrix)
 
 ---
 
@@ -40,7 +42,7 @@ when the API is exhausted.
 
 | Step | Dataset Key | Join Key | What It Adds |
 |------|-------------|----------|--------------|
-| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, externalTag (BYOI indicator) |
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, external-origin indicators (see [§6](#6-byoi-external-conversation-enrichment)) |
 | 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Per-segment timing: IVR duration, ACD wait, talk time, hold time, ACW, conference, recording start/stop |
 | 3 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, media type, duration, deletion schedule |
 | 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
@@ -90,10 +92,13 @@ resource pressure during the conversation window.
 
 ### BYOI Indicator
 
-If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+A conversation injected through Bring Your Own Interactions (BYOI) is still created through the
+standard conversation-creation surface (`postConversationsCalls`, `postConversationsMessagesAgentless`,
+`postConversationsEmailsAgentless`, or the Open Messaging family — see [§6](#6-byoi-external-conversation-enrichment)
+for the full mapping); there is no separate `/conversations/providers/{providerId}/calls` endpoint in
+this catalog. Custom attributes in step 4 will typically contain the provider's context (CRM case ID,
+external call ID) if the injecting integration set them. The SIP trace (step 8) will reflect the
+provider's SIP-to-SIP handoff, not an inbound PSTN leg, for voice BYOI conversations.
 
 ---
 
@@ -327,29 +332,54 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that was injected via Bring Your Own Interactions (BYOI)  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was injected into Genesys Cloud so Analytics, WFM, and Quality
+treat it like a native conversation. The conversation appears in Genesys analytics and recordings,
+but context lives in the external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
+> **Correction (2026-06-28):** an earlier version of this section cited a specific injection
+> endpoint, `POST /api/v2/conversations/providers/{providerId}/calls`, that does not exist anywhere
+> in this repo's swagger-derived catalog of 3,100+ endpoints (`catalog/genesys.catalog.json`), and no
+> endpoint in the catalog is tagged or described as BYOI-related. The corrected mapping below uses
+> only endpoints that are actually present in the catalog. The official BYOI integration guide
+> (`developer.genesys.cloud/platform/integrations/byoi-integration-guide/`) and its conversation
+> injection page were not reachable from this environment at the time of writing (HTTP 403, site-side
+> bot protection) — treat the endpoint names below as the best catalog-grounded mapping, not a
+> byte-for-byte transcription of the BYOI guide, and re-verify against that guide directly when it is
+> reachable.
+
+### How BYOI Conversations Are Actually Created
+
+There is no dedicated `/conversations/providers/{providerId}/calls` resource in the catalog.
+Externally-originated interactions are injected through the same conversation-creation family every
+other agentless/external integration uses:
+
+| Injection Channel | Dataset / Endpoint Key | Path |
+|---|---|---|
+| Voice (BYOI call leg) | `postConversationsCalls` | `POST /api/v2/conversations/calls` |
+| Agentless outbound message | `postConversationsMessagesAgentless` | `POST /api/v2/conversations/messages/agentless` |
+| Agentless outbound email | `postConversationsEmailsAgentless` | `POST /api/v2/conversations/emails/agentless` |
+| Open Messaging inbound (legacy) | `postConversationsMessagesInboundOpen` | `POST /api/v2/conversations/messages/inbound/open` |
+| Open Messaging integration setup | `postConversationsMessagingIntegrationsOpen` | `POST /api/v2/conversations/messaging/integrations/open` |
+
+BYOI also ingests **agent-state events** (not just conversations) for the externally-handled
+interaction, so WFM adherence and presence reporting line up. This repo's catalog does not currently
+carry a dedicated agent-state-ingestion dataset — that is a documentation/catalog gap, not a claim
+that no such API exists. Flagging it here rather than inventing a path.
+
 ### How to Identify a BYOI Conversation
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
-
-```json
-{
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
-  "participants": [
-    { "purpose": "external", "externalContactId": "..." }
-  ]
-}
-```
-
-A non-null `externalTag` is the definitive BYOI indicator.
+Genesys's documented convention for externally-sourced objects is a tag/external-ID field (commonly
+named `externalTag` / `externalConversationId` in other Genesys APIs), but **this catalog's endpoint
+metadata does not capture response schemas**, so the presence and exact naming of those fields on
+`conversations.get.conversation.object` is not independently verified from this repo alone. Treat a
+non-null external-tag-style field as a strong signal, confirm the exact field name against the live
+BYOI integration guide or a sample payload before building automation on it, and fall back to
+`participants[].purpose == "external"` (which the conversation object schema does support) as a
+secondary signal.
 
 ### Additional Steps for BYOI Conversations
 
@@ -370,10 +400,17 @@ as native Genesys conversations. The following datasets apply identically:
 ### Embeddable Framework Conversations
 
 Conversations visible to agents via the Embeddable Framework return the same object shape as
-`conversations.get.conversation.object`. The condensed view used by the embedded client includes:
+`conversations.get.conversation.object`. The condensed view used by the embedded client
+(`developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info`) includes:
 `participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+`participants[].calls[].muted`, `participants[].calls[].held`, and `queueId`. These fields are
+present in the full object returned by the dataset and need no special handling. The condensed
+`queueId` attribute is the same value the Queue Investigation (§2) groups by, so a supervisor working
+from the embedded client can jump directly from "what queue is this agent's call in right now" to a
+full Queue Investigation for that `queueId` without re-deriving it from a different dataset. The
+framework also exposes an `Interaction.addCustomAttributes` action for client-side code to set
+custom attributes on a live conversation — those attributes surface later through
+`conversations.get.conversation.customattributes` in step 4 above.
 
 ---
 
@@ -431,59 +468,181 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Agent-in-Queue Cross Section
+
+**Subject:** One `userId` + one `queueId` + time window  
+**Use case:** A supervisor gets a complaint or a coaching signal about one agent in one specific
+queue — "how is this agent doing in *this* queue" — without wanting the agent's entire cross-queue
+history (Agent Investigation, §7) or the queue's entire roster (Queue Investigation, §2/§9). This is
+the lean intersection of the two, scoped to stay informative without dumping either full investigation.
+
+**Core question:** *How is this specific agent performing in this specific queue, and is that
+performance distinguishable from their overall average or from the queue's overall average?*
+
+This recipe is grounded in a real catalog capability: the conversation aggregates query
+(`POST /api/v2/analytics/conversations/aggregates/query`, dataset
+`analytics.query.conversation.aggregates.agent.performance`) already documents a `filter.predicates`
+array that combines a `queueId` predicate with a `userId`-scoped result via `groupBy: ["userId"]` in
+the same request — the catalog's own `defaultBody` example for this dataset filters by `queueId` and
+groups by `userId`. Adding a second `userId` predicate to the same `filter.predicates` array (both
+dimensions are supported together) scopes the aggregate to one agent in one queue, rather than every
+agent in the queue or every queue the agent touches.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `users.get.user.details.with.full.expansion` | seed → `userId` | Agent identity — name, email, state, department |
+| 2 | `routing-queues` | seed → `queueId` | Queue identity — name, divisionId, media settings |
+| 3 | `users.get.user.queue.memberships` | `userId` → filter for `queueId` | Confirms the agent is actually a member of this queue before drawing conclusions from a zero-volume result |
+| 4 | `analytics.query.conversation.aggregates.agent.performance` | `queueId` + `userId` (combined predicate) | nConnected, tHandle, tTalk, tAcw, tAnswered — scoped to this agent in this queue only |
+| 5 | `analytics.query.conversation.details.by.queue` | `queueId` (conversationFilters) + `userId` (segmentFilters) | The actual conversations this agent handled in this queue — seed list for per-conversation drilldown via §1 |
+| 6 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` + `userId` | This agent's wrapup-code mix in this queue, comparable against the queue-wide mix from §2/§9 |
+| 7 | `quality.get.evaluations.query` | `agentUserId` + `queueId` | Evaluation scores scoped to this queue, comparable against the agent's overall average from Agent Investigation |
+| 8 | `workforce.get.adherence.bulk` | `userId` | Schedule adherence — not queue-scoped in Genesys WFM, included as context for low volume in any one queue |
+
+### Key Joins
+
+```
+users.get.user.details.with.full.expansion.id (userId)
+  → analytics.query.conversation.aggregates.agent.performance (filter.predicates: queueId AND userId)
+  → analytics.query.conversation.details.by.queue (conversationFilters: queueId; segmentFilters: userId)
+  → analytics.query.conversation.aggregates.wrapup.distribution (filter.predicates: queueId AND userId)
+  → quality.get.evaluations.query (agentUserId + queueId)
+```
+
+### Analytical Questions Answered
+
+- Is this agent actually a member of this queue, or is the complaint based on a stale assumption?
+- What is this agent's handle/talk/ACW time *in this queue specifically*, vs. their cross-queue average?
+- Which conversations did this agent personally handle in this queue, for spot-check drilldown?
+- Does this agent's wrapup-code mix in this queue differ from the queue's overall mix — are they
+  resolving differently, or seeing a different mix of contact reasons?
+- Are this agent's evaluation scores in this queue consistent with their overall average?
+- Is schedule adherence a contributing factor to low volume in this queue?
+
+### Why Not Just Run the Full Agent or Queue Investigation?
+
+The full Agent Investigation (16 steps) and Queue Investigation (13 steps) both answer broader
+questions than "this agent in this queue." Running either in full and manually filtering the output
+re-introduces the "overwhelming data dump" the catalog explicitly tries to avoid. This cross-section
+exists as its own recipe so the combined `queueId`+`userId` predicate is used at the API level —
+the filtering happens server-side, not by discarding rows after the fact.
+
+---
+
+## 11. Cross-Division Executive Comparison
+
+**Subject:** Organisation-wide — every division, no single-division filter — + reporting window  
+**Use case:** A VP or Director of Operations needs to compare business units or regions (divisions)
+against each other — "which division is over capacity, understaffed, or underperforming relative to
+its peers" — before deciding which one warrants a deeper Division Investigation (§3). Divisions are
+the cross-queue grouping unit in Genesys Cloud: an agent's division does not restrict which queues
+(potentially in other divisions) they serve, so a division-level rollup is the right level above an
+individual queue or agent that still spans the whole org regardless of how queues happen to be split.
+
+**Core question:** *How do divisions compare to each other this period, and which one needs a closer
+look?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `authorization.get.all.divisions` | seed (no filter — all divisions) | divisionId, name, description for every division in the org |
+| 2 | `users.division.analysis.get.users.with.division.info` | `divisionId` | Headcount — agent count per division |
+| 3 | `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` | `divisionId` | nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError — grouped by `divisionId` |
+
+### Key Joins
+
+```
+authorization.get.all.divisions[].id
+  → users.division.analysis.get.users.with.division.info.divisionId (headcount)
+  → analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8 (group.divisionId)
+```
+
+### Output Metrics
+
+- `divisionName`
+- `headcount` (agent count per division)
+- `nOffered`, `nConnected`, `nError`
+- `tHandle` (avg), `tTalk` (avg), `tAcw` (avg)
+- `conversationsPerAgent = nConnected / headcount` — the cross-division capacity signal
+
+### Executive Presentation
+
+A division comparison table ranked by `conversationsPerAgent` and average handle time, plus a
+volume-share chart across divisions. This is intentionally the *only* rollup level above a single
+queue or agent — once a division is flagged here, pivot directly into the Division Investigation
+(§3) for that `divisionId` rather than adding more breadth to this comparison.
+
+### Relationship to the Division Investigation (§3)
+
+This is not a replacement for §3 — it is the wide-but-shallow comparison that decides *which*
+division gets the deep-but-narrow treatment in §3. Note that the Division Investigation's seed step
+uses `authorization.get.single.division` (by-ID lookup) because it is scoped to one division, while
+this comparison deliberately uses the unfiltered `authorization.get.all.divisions` because it needs
+every division at once.
+
+---
+
+## 12. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Agent-in-Queue Cross Section | Cross-Division Comparison |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | ● | |
+| `quality.get.surveys` | ● | | | ● | | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | ● | |
+| `routing-queues` | | | | | | | ● | ● |
+| `routing-queue-members` | | ● | | | | | | |
+| `authorization.get.all.divisions` | | | | | | | | ● |
+| `authorization.get.single.division` | | | ● | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | | ● |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | ● | |
+| `analytics.query.conversation.details.by.queue` | | | | | | | ● | |
+| `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` | | | | | | | | ● |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | | |
+| `coaching.get.appointments` | | | ● | | | ○ | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | | |
+| `analytics.query.flow.observations` | | | | | ● | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | |
+| `alerting.get.alerts` | | | | ○ | ● | | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | | |
+| `users.get.user.queue.memberships` | | | | | | ● | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | | |
+| `routing.get.user.utilization` | | | | | | ○ | | |
+| `audit-logs` | | | | | | ● | | |
+| `workforce.get.adherence.bulk` | | | | | | | ● | |
 
 ---
 

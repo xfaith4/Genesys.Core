@@ -39593,6 +39593,134 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "conversations.get.messaging.integrations": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessagingIntegrations",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Registry of configured messaging integrations (Open Messaging/BYOI, Apple Business Chat, Facebook, Instagram, WhatsApp) available to originate or receive digital conversations."
+    },
+    "conversations.get.open.messaging.integration.detail": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Configuration detail for a single Open Messaging (BYOI) integration — outbound notification webhook target, supported content types, and integration status.",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact.details": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContact",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "External contact profile — the identity record a conversation participant resolves to across channels, used to build a single-customer view.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactJourneySessions",
+      "tags": [
+        "External Contacts",
+        "Journey"
+      ],
+      "summary": "All journey sessions (web, app, and conversation channels) recorded for an external contact — the cross-channel timeline leading up to and following a conversation.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/segments",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactJourneySegments",
+      "tags": [
+        "External Contacts",
+        "Journey"
+      ],
+      "summary": "Journey segment assignments for an external contact — marketing/behavioral segments active at the time of a conversation, useful for explaining why a customer was routed or treated a particular way.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
+    },
+    "conversations.get.active.cobrowse.sessions": {
+      "method": "GET",
+      "path": "/api/v2/conversations/cobrowsesessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsCobrowsesessions",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Active cobrowse sessions for the logged-in user — confirms whether a screen-share/cobrowse channel is live alongside a voice or chat conversation."
+    },
+    "conversations.get.cobrowse.session.detail": {
+      "method": "GET",
+      "path": "/api/v2/conversations/cobrowsesessions/{conversationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsCobrowsesession",
+      "tags": [
+        "Conversations"
+      ],
+      "summary": "Cobrowse session detail for a specific conversation — session state, viewer/agent pairing, and readonly/control permissions, for diagnosing cobrowse-assisted interactions.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "webdeployments.get.deployments": {
+      "method": "GET",
+      "path": "/api/v2/webdeployments/deployments",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWebdeploymentsDeployments",
+      "tags": [
+        "Web Deployments"
+      ],
+      "summary": "Registry of Web Messenger / Embeddable Framework deployments — the deployment IDs and domains that front digital conversations and condensed-conversation-info widgets."
+    },
+    "webdeployments.get.deployment.active.configuration": {
+      "method": "GET",
+      "path": "/api/v2/webdeployments/deployments/{deploymentId}/configurations",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getWebdeploymentsDeploymentConfigurations",
+      "tags": [
+        "Web Deployments"
+      ],
+      "summary": "Active configuration for a Web Deployment — messenger styling, cobrowse/journey settings, and the queue/routing target the Embeddable Framework widget hands off to.",
+      "defaultQueryParams": {
+        "deploymentId": "deployment-id-goes-here"
+      }
     }
   },
   "combinations": {
@@ -40173,6 +40301,89 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "external-and-digital-channel-investigation": {
+        "description": "Digital/messaging-channel extension of single-conversation-investigation — resolves which BYOI/Open Messaging integration or Web Deployment originated a conversation, the external-contact identity and cross-channel journey behind it, and whether a cobrowse session ran alongside it. Run single-conversation-investigation first for the core timeline/recording/quality forensics; layer these steps on for any conversation whose mediaType is message/chat, or that carries an externalContactId.",
+        "extendsRecipe": "single-conversation-investigation",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "integration-registry",
+            "dataset": "conversations.get.messaging.integrations",
+            "joinKey": "(none — org-wide registry)",
+            "provides": "integrationId, integrationType, name, status per configured messaging integration",
+            "description": "Every BYOI/Open Messaging, Apple, Facebook, Instagram, and WhatsApp integration configured in the org; resolve the conversation's originating integration by matching against the participant address/name surfaced on conversation-base"
+          },
+          {
+            "step": "integration-detail",
+            "dataset": "conversations.get.open.messaging.integration.detail",
+            "filterBy": "integrationId from integration-registry",
+            "joinKey": "integrationId",
+            "provides": "outbound notification webhook target, supported content types, integration status",
+            "description": "Confirms the Open Messaging integration's outbound webhook is correctly configured — a stale or misconfigured webhook is the top root cause of 'agent replies never reach the customer' reports"
+          },
+          {
+            "step": "deployment-registry",
+            "dataset": "webdeployments.get.deployments",
+            "joinKey": "(none — org-wide registry)",
+            "provides": "deploymentId, allowedDomains, status per Web Messenger / Embeddable Framework deployment",
+            "description": "For web-messenger-originated conversations, resolves which deployment (and which allowed domain) the conversation was launched from"
+          },
+          {
+            "step": "deployment-configuration",
+            "dataset": "webdeployments.get.deployment.active.configuration",
+            "filterBy": "deploymentId from deployment-registry",
+            "joinKey": "deploymentId",
+            "provides": "messenger styling, cobrowse/journey toggles, default queue/routing target",
+            "description": "Confirms the Embeddable Framework widget's active configuration — including whether cobrowse and journey tracking are enabled, and the queueId it hands off to — matches what the agent's condensed-conversation-info panel and the customer actually experienced"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact.details",
+            "filterBy": "externalContactId from the customer participant on conversation-base",
+            "joinKey": "contactId",
+            "provides": "durable external-contact identity — name, known channel addresses",
+            "description": "Resolves the customer participant to the durable external-contact record, enabling a single-customer view across every channel they have used, not just this conversation"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "filterBy": "contactId from external-contact",
+            "joinKey": "contactId",
+            "provides": "web/app journey sessions — device, referrer, page views",
+            "description": "Cross-channel journey timeline; correlate session timestamps with the conversation start time to see what the customer was doing immediately before they reached out"
+          },
+          {
+            "step": "journey-segments",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "filterBy": "contactId from external-contact",
+            "joinKey": "contactId",
+            "provides": "active marketing/behavioral segment assignments",
+            "description": "Explains why a customer may have been treated differently (e.g. VIP segment routing); cross-reference against the routing/queue decision recorded on conversation-base"
+          },
+          {
+            "step": "cobrowse-session",
+            "dataset": "conversations.get.cobrowse.session.detail",
+            "joinKey": "conversationId",
+            "provides": "cobrowse session state, viewer/agent pairing, control permissions",
+            "description": "Confirms whether a cobrowse session ran alongside this conversation and whether the agent had control; an empty result despite a customer report of cobrowse use points at deployment-configuration rather than agent error"
+          }
+        ],
+        "joinSequence": "conversation-base (conversationId) → integration-registry / deployment-registry (org-wide, resolve by name/id) → integration-detail / deployment-configuration (by id) → external-contact (by externalContactId) → journey-sessions / journey-segments (by contactId) → cobrowse-session (conversationId)",
+        "voiceEngineerHighlights": [
+          "integration-detail: a disabled or misconfigured outbound webhook explains 'agent replies never reach the customer' reports for Open Messaging/BYOI channels",
+          "deployment-configuration: an allowedDomains mismatch against the page the widget was embedded on is the top cause of a Web Messenger deployment silently failing to load",
+          "journey-sessions: a session gap immediately before contact often correlates with a broken or slow page — useful evidence when a digital escalation is blamed on routing instead of the web property",
+          "cobrowse-session: an empty result despite a customer report of cobrowse use indicates the deployment configuration has cobrowse disabled, not an agent error",
+          "synthetic test: conversations.send.inbound.open.message (operationId postConversationsMessageInboundOpenMessage) can be called against integration-detail's integrationId to send a synthetic round-trip message and confirm the integration is live end-to-end before escalating to the BYOI partner"
+        ],
+        "executiveMetrics": [
+          "integrationCount (active)",
+          "deploymentCount (active)",
+          "conversationsByIntegration",
+          "journeySessionToContactRate"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40594,31 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "messaging-integration-portfolio-rollup": {
+        "description": "Inventory and adoption rollup for BYOI/Open Messaging and other digital-channel integrations — how many integrations and Web Deployments are configured and active, how much volume the digital channels carry, and rollout velocity. Used by digital CX leadership to track BYOI adoption and channel-mix shift over time.",
+        "datasetsInOrder": [
+          "conversations.get.messaging.integrations",
+          "webdeployments.get.deployments",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "audit-logs"
+        ],
+        "joinOn": "mediaType (integration-to-conversation volume is approximate — see caveats)",
+        "groupBy": [
+          "integrationType",
+          "mediaType",
+          "status"
+        ],
+        "outputMetrics": [
+          "integrationCount (active vs. inactive)",
+          "deploymentCount (active vs. inactive)",
+          "nOffered by mediaType (digital channels only)",
+          "integrationsAddedThisQuarter (derived from audit-logs create events)"
+        ],
+        "executivePresentation": "Integration/deployment inventory table (status, type, age) above a digital-channel volume trend line; flag any integration with zero associated conversation volume in the window as a stalled rollout",
+        "caveats": [
+          "Genesys Analytics does not expose integrationId as a groupable dimension on conversation aggregates — per-integration volume cannot be queried directly. Approximate it by sampling conversations.get.specific.conversation.details for message-type participants and reading the integration reference on that participant, or by correlating mediaType volume trend breakpoints against integration-registry create/update timestamps from audit-logs."
+        ]
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40502,6 +40738,49 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "byoi-and-digital-channel-health-check": {
+        "description": "Health check for BYOI/Open Messaging integrations and Web Messenger deployments — confirms integrations are active and correctly configured, deployments are reachable, and recent digital-channel volume is actually flowing. Used when a digital-channel partner reports an outage or a 'messages not arriving' escalation comes in.",
+        "subjectParam": "integrationId or deploymentId",
+        "datasetsInOrder": [
+          "conversations.get.messaging.integrations",
+          "conversations.get.open.messaging.integration.detail",
+          "webdeployments.get.deployments",
+          "webdeployments.get.deployment.active.configuration",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "audit-logs"
+        ],
+        "diagnosticSignals": [
+          "integration status != 'Active' → integration disabled at the platform level; confirm with the BYOI partner before assuming a code issue",
+          "integration-detail outbound notification webhook unreachable or misconfigured → outbound replies silently fail while inbound messages still arrive — the classic asymmetric-failure signature for Open Messaging",
+          "deployment allowedDomains missing the domain the widget is embedded on → widget fails to load, often misreported as 'messaging is down'",
+          "nOffered for the affected mediaType drops to zero at a specific timestamp → correlate against audit-logs for an integration or deployment config change at that same timestamp",
+          "deployment-configuration cobrowse/journey toggles disabled → expected if those features were never purchased; do not treat as a defect"
+        ],
+        "enrichWith": [
+          "conversations.send.inbound.open.message (operationId postConversationsMessageInboundOpenMessage) — send a synthetic inbound test message through the integration to confirm round-trip delivery before escalating to the partner",
+          "conversations.get.specific.conversation.details (on a recent conversationId for this integration) — confirm the participant's externalContactId resolved correctly"
+        ]
+      },
+      "embeddable-framework-screen-pop-diagnostics": {
+        "description": "Reconciles what the agent's Embeddable Framework / condensed-conversation-info widget displayed (queueId, isInternal, call.UUIData) against the backend conversation and deployment records. Used when an agent reports the wrong queue name, missing screen-pop data, or incorrect internal/external call flagging on their toolbar.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "conversations.get.specific.conversation.details",
+          "webdeployments.get.deployment.active.configuration",
+          "externalcontacts.get.contact.details",
+          "audit-logs"
+        ],
+        "diagnosticSignals": [
+          "widget queueId differs from conversation-base's queueId → stale client-side cache, or a transfer the widget did not re-render for",
+          "widget isInternal=true on a conversation with an external ANI/DNIS → UUIData was not populated by the originating flow; check the Architect flow's Update Data action",
+          "call.UUIData missing fields the widget expects → confirm the flow sets UUIData before transferring to the queue — condensed-conversation-info only displays data it was given, it does not derive it",
+          "deployment-configuration default queue/routing target does not match conversation-base.queueId → the deployment config changed after the widget cached client-side; have the agent refresh"
+        ],
+        "enrichWith": [
+          "externalcontacts.get.contact.details — confirm the external-contact identity the widget's screen-pop should have resolved",
+          "audit-logs (filter by service=Architect or WebDeployments) — find the most recent flow/deployment change that could explain a sudden UUIData or queue-label regression"
         ]
       }
     }

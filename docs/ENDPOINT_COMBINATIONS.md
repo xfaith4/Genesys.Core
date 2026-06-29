@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-06-29  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,8 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Open Messaging / BYOI Digital-Channel Investigation (Public API)](#11-open-messaging--byoi-digital-channel-investigation-public-api)
+12. [Embeddable Framework Condensed Conversation Info Reconciliation](#12-embeddable-framework-condensed-conversation-info-reconciliation)
 
 ---
 
@@ -484,6 +486,103 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Open Messaging / BYOI Digital-Channel Investigation (Public API)
+
+**Subject:** One `conversationId` on a digital channel (message/chat), or an org-wide integration/deployment inventory.
+
+**Use case:** A digital-channel partner (Open Messaging, Apple Business Chat, Facebook, Instagram,
+WhatsApp) or a Web Messenger embed reports messages not arriving, replies not delivering, or a
+widget failing to load. A voice engineer or digital CX analyst needs to confirm the integration and
+deployment are configured correctly and that conversation volume is actually flowing.
+
+**This section is distinct from Section 6.** Section 6 covers the SIP/telephony-style BYOI call
+injection (`externalTag`, provider-based call injection) used for voice migrations. This section
+covers the **public, Swagger-documented** Open Messaging REST API
+(`developer.genesys.cloud/platform/integrations/byoi-integration-guide/`) that digital channels use
+to exchange messages with Genesys Cloud, plus the Web Deployments API that fronts Web Messenger /
+Embeddable Framework widgets. Every dataset key below resolves to a real, live-synced entry in
+`catalog/genesys.catalog.json` `endpoints` (verified against the Genesys Cloud Swagger spec) — there
+is no fabricated or speculative endpoint in this section.
+
+**Core question:** *Which integration or deployment is this conversation tied to, and is that
+integration/deployment actually healthy?*
+
+### Dataset Steps (ordered) — `external-and-digital-channel-investigation` recipe
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| seed | `conversations.get.specific.conversation.details` (from §1) | `conversationId` | Customer participant's `externalContactId`, mediaType, originating address |
+| 1 | `conversations.get.messaging.integrations` | org-wide registry | All configured Open Messaging/Apple/Facebook/Instagram/WhatsApp integrations |
+| 2 | `conversations.get.open.messaging.integration.detail` | `integrationId` | Outbound webhook target, supported content types, integration status |
+| 3 | `webdeployments.get.deployments` | org-wide registry | All Web Messenger / Embeddable Framework deployments and their allowed domains |
+| 4 | `webdeployments.get.deployment.active.configuration` | `deploymentId` | Messenger styling, cobrowse/journey toggles, default queue/routing target |
+| 5 | `externalcontacts.get.contact.details` | `contactId` (= `externalContactId`) | Durable external-contact identity for a single-customer view |
+| 6 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Web/app journey timeline surrounding the conversation |
+| 7 | `externalcontacts.get.contact.journey.segments` | `contactId` | Marketing/behavioral segment assignments active at contact time |
+| 8 | `conversations.get.cobrowse.session.detail` | `conversationId` | Cobrowse session state if a screen-share ran alongside the conversation |
+
+Full step-by-step detail, join sequence, and voice-engineer highlights are codified in
+`catalog/genesys.catalog.json` → `combinations.investigationRecipes.external-and-digital-channel-investigation`.
+
+### Executive Rollup — `messaging-integration-portfolio-rollup` playbook
+
+Tracks BYOI/Open Messaging adoption: active integration and deployment counts, digital-channel
+volume by media type, and rollout velocity (integrations added per quarter, from `audit-logs`).
+**Caveat documented in the catalog:** Genesys Analytics does not expose `integrationId` as a
+groupable dimension on conversation aggregates, so per-integration volume must be approximated via
+`mediaType`/message-participant sampling rather than queried directly — this is called out explicitly
+rather than presenting an unreliable join as fact.
+
+### Voice Engineer Playbook — `byoi-and-digital-channel-health-check`
+
+| Signal | Root Cause |
+|--------|------------|
+| Integration `status != 'Active'` | Disabled at the platform level — confirm with the BYOI partner before assuming a code defect |
+| Outbound webhook unreachable/misconfigured | Asymmetric failure: inbound messages arrive, agent replies silently fail to deliver |
+| Deployment `allowedDomains` missing the embed domain | Widget fails to load — frequently misreported as "messaging is down" |
+| `nOffered` for the mediaType drops to zero at a timestamp | Correlate against `audit-logs` for an integration/deployment config change at that same time |
+
+A synthetic round-trip test is available via the raw operationId `postConversationsMessageInboundOpenMessage`
+(`conversations.send.inbound.open.message` is intentionally **not** aliased as an investigation
+dataset, since it sends a real message — call it explicitly by operationId when a synthetic test is
+warranted, not as a step in an automated read-only investigation).
+
+---
+
+## 12. Embeddable Framework Condensed Conversation Info Reconciliation
+
+**Subject:** One `conversationId` visible to an agent through the Embeddable Framework widget.
+
+**Use case:** An agent reports the toolbar/screen-pop showed the wrong queue name, missing
+context data, or incorrectly flagged an external call as internal. The condensed-conversation-info
+view (`developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info`) surfaces
+a reduced field set — notably `queueId`, `isInternal`, and `call.UUIData` — and only ever displays
+data it was handed by the routing flow; it does not derive or validate it.
+
+**Core question:** *Did the widget display what the backend actually has, and if not, where did the
+two diverge?*
+
+| Step | Dataset Key | What It Adds |
+|------|-------------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | Authoritative `queueId`, participant roster, ANI/DNIS — the ground truth the widget should match |
+| 2 | `webdeployments.get.deployment.active.configuration` | The deployment's default queue/routing target and whether journey/cobrowse context is even enabled for this widget |
+| 3 | `externalcontacts.get.contact.details` | The external-contact identity the screen-pop should have resolved |
+| 4 | `audit-logs` (filter `service=Architect` or `service=WebDeployments`) | Most recent flow/deployment change that could explain a sudden `UUIData` or queue-label regression |
+
+### Diagnostic Signals
+
+- Widget `queueId` differs from `conversation-base.queueId` → stale client-side cache, or a transfer
+  the widget did not re-render for.
+- Widget `isInternal=true` on a conversation with an external ANI/DNIS → the originating Architect
+  flow never set `UUIData` via an Update Data action before transferring to the queue.
+- `call.UUIData` missing fields the widget expects → the flow, not the widget, is the place to fix
+  this — condensed-conversation-info has no fallback/derivation logic.
+
+This pattern is codified as `combinations.voiceEngineerPlaybooks.embeddable-framework-screen-pop-diagnostics`
+in the catalog.
 
 ---
 

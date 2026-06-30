@@ -1297,6 +1297,190 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
+      "description": "Conversation volume and handle-time aggregates grouped by division — the headline KPI rollup for division-investigation and territory/region executive reporting.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Full conversation detail list scoped to a single queue — seed dataset for per-conversation drilldown within a queue investigation.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.transcripts": {
+      "description": "Transcript-derived sentiment and speech-time aggregates grouped by queue/user — feeds org-wide sentiment trend reporting without exposing raw transcript text.",
+      "endpoint": "analytics.query.conversation.transcripts",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — which subjects (users/roles) hold which permissions within this division scope.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Voice-specific call detail for a single conversation — call legs, hold/mute events, and ANI/DNIS routing path. Complements the analytics participant timeline with raw telephony detail.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific participant in a conversation — join target for per-agent wrapup attribution in single-conversation investigations.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI-generated summaries for a conversation — reason for contact and resolution notes per communication leg.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a single conversation.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue by media type — real-time caller wait forecast used for live SLA risk triage.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine — feeds the sta-categories step of single-conversation investigations.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation — rapid content review without listening to the recording.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for one or more agents — scheduled vs. actual routing status with adherence percentage and impact.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "WFM management unit an agent belongs to — used to locate the agent's schedule, adherence, and WFM team for the agent-investigation recipe.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.identity": {
+      "description": "Single-customer-view identity record for an external contact — name and contact channels resolved from a conversation participant's externalContactId. Join target for customer-identity enrichment in single-conversation-investigation.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "customer-identity-pii",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Cross-channel journey sessions for an external contact — prior web, app, and conversation touchpoints. Use to show a customer's history beyond the current interaction.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "customer-identity-pii",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1564,6 +1748,21 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "customer-identity-pii": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts.* datasets used for single-customer-view identity resolution. Keeps the contact name and the identifiers needed to join back to the conversation (id, externalContactId) while stripping direct-contact channels and physical address.",
+        "removeFields": [
+          "address",
+          "workPhone",
+          "cellPhone",
+          "homePhone",
+          "otherEmails",
+          "twitterId",
+          "lineId",
+          "whatsAppId",
+          "facebookId"
         ]
       }
     }
@@ -39612,10 +39811,18 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
-            "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
-            "description": "Base conversation object with media type, state, and full participant roster"
+            "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS, externalTag, externalConversationId",
+            "description": "Base conversation object with media type, state, and full participant roster. Also the BYOI detection point: a non-null externalTag confirms the conversation was injected via the BYOI provider API rather than originating natively."
+          },
+          {
+            "step": "customer-identity",
+            "dataset": "externalcontacts.get.contact.identity",
+            "joinKey": "externalContactId",
+            "optional": true,
+            "provides": "contact name and resolved contact channels",
+            "description": "Single-customer-view identity lookup; requires an externalContactId from a participant with purpose=external on the conversation-base step. Skip if no external-purpose participant is present."
           },
           {
             "step": "participant-wrapup",
@@ -39647,7 +39854,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39904,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39713,6 +39920,13 @@
           "recording-metadata: absent recording (empty result) indicates edge policy or consent gap",
           "sta-overview: extreme sentiment + silence > 30% flags CX issue for QM escalation",
           "analytics-detail: tTalkComplete=0 with tAbandon>0 confirms abandoned before agent answer"
+        ],
+        "byoiIndicators": [
+          "conversation-base.externalTag non-null → conversation was injected via the BYOI provider API (POST /api/v2/conversations/providers/{providerId}/calls) rather than originating natively; externalConversationId is the provider's own identifier for the interaction",
+          "conversation-base.participants[].purpose = 'external' with a populated externalContactId → join target for customer-identity to resolve the caller against the single-customer-view",
+          "BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline as native conversations — analytics-detail, recording-metadata, evaluation, and sip-trace all apply identically and need no special handling",
+          "sip-trace on a BYOI conversation reflects the BYOI SIP-to-SIP handoff between the external system and Genesys Cloud, not a PSTN leg — expect this when diagnosing call-setup signalling",
+          "Embeddable Framework agent UI views (condensed conversation info) expose participants[].purpose, participants[].state, participants[].calls[].state/muted/held — these are a subset of the conversation-base object and require no separate dataset"
         ],
         "executiveMetrics": [
           "tTalk",
@@ -39979,7 +40193,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40201,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40106,7 +40320,7 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
             "queryParam": "objectType=QUEUE",
             "joinKey": "divisionId",
@@ -40391,12 +40605,12 @@
         "subjectParam": "conversationId",
         "datasetsInOrder": [
           "analytics.get.single.conversation.analytics",
-          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.object",
           "conversations.get.call.detail",
-          "telephony.get.sip.message.for.conversation",
+          "telephony.get.sip.messages.for.conversation",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata",
-          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          "conversations.get.speech.text.analytics"
         ],
         "diagnosticSignals": [
           "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
@@ -40407,11 +40621,13 @@
           "recording absent (empty result from conversations.get.recordings) \u2192 edge recording policy or consent flag missing",
           "sentimentScore < -0.5 \u2192 severe CX impact; escalate to QM for evaluation priority",
           "ANI displayed as 'Anonymous' \u2192 CLI blocking active on inbound DID",
-          "originatingDirection=outbound on inbound DID \u2192 DNIS routing to wrong queue direction"
+          "originatingDirection=outbound on inbound DID \u2192 DNIS routing to wrong queue direction",
+          "conversation-object.externalTag non-null \u2192 conversation was injected via BYOI; sip-trace reflects the BYOI SIP-to-SIP handoff rather than a PSTN leg, so PSTN-specific signals (e.g. trunk capacity codes) do not apply"
         ],
         "enrichWith": [
           "users (for agent identity given userId from analytics-detail participants)",
-          "quality.get.evaluations.query (for evaluation if one exists)"
+          "quality.get.evaluations.query (for evaluation if one exists)",
+          "externalcontacts.get.contact.identity (resolve caller identity when a participant has purpose=external and an externalContactId, including BYOI-injected conversations)"
         ]
       },
       "trunk-and-edge-health-check": {
@@ -40442,7 +40658,7 @@
         "datasetsInOrder": [
           "analytics.query.queue.observations.real.time.stats",
           "routing.get.queue.estimated.wait.time",
-          "routing.get.queue.members.with.status",
+          "routing-queue-members",
           "analytics.query.user.observations.real.time.status",
           "analytics.query.conversation.aggregates.queue.performance",
           "analytics.query.conversation.aggregates.abandon.metrics"
@@ -40479,8 +40695,8 @@
           "nFlow drop without corresponding queue drop \u2192 calls not reaching the flow (DID routing issue)"
         ],
         "enrichWith": [
-          "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "analytics-conversation-details-query (to correlate flow failures to specific conversations)",
+          "telephony.get.sip.messages.for.conversation (for IVR-originated SIP failures)"
         ]
       },
       "recording-compliance-audit": {

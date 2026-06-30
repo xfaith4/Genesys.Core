@@ -357,6 +357,12 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `externalcontacts.get.contact.identity` | Single-customer-view identity for the participant with `purpose=external`, joined on `externalContactId` — works identically for BYOI and natively-originated conversations |
+| + | `externalcontacts.get.contact.journey.sessions` | Prior cross-channel touchpoints for that external contact, when journey context is needed |
+
+The `single-conversation-investigation` recipe in `catalog/genesys.catalog.json` includes a
+`customer-identity` step (optional, joined on `externalContactId`) that performs this resolution
+by default — it does not require a separate BYOI-specific recipe.
 
 ### BYOI Conversation in Analytics
 

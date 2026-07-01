@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-05-13
+> Last updated: 2026-06-08
 
 ## 1. Product Intent
 
@@ -23,7 +23,19 @@ the engineering teams that automate against them.
 
 ---
 
-## 2. Recently Completed
+## 2. Status Board
+
+### Completed
+
+- [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
+      Session 20 trend checkpoint from static presence checks to release
+      evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`
+      assertions for command-log/sign-off references and
+      `docs/RELEASE_1_3_TREND_EVIDENCE.md` command output + artifact links.
+- [x] Phase 5 export-surface hardening (2026-06-08): fixed
+      `tests/unit/GenesysOps.Phase5Exports.Tests.ps1` source-definition regex to
+      accept indented function declarations so the test validates real module
+      source instead of failing on formatting-only indentation.
 
 - [x] Short Voice Conversation Analyzer (2026-05-14): Added a Core-first
       short-call workflow for the Conversation Analyzer app with a dedicated
@@ -84,6 +96,40 @@ the engineering teams that automate against them.
       retained with cross-references to the new investigation; full
       fixture-driven integration test suite under
       `tests/integration/QueueInvestigation.Tests.ps1`.
+
+### Active
+
+- [ ] Track A live-validation closure for remaining 1.0/1.1/1.2 endpoint sets
+      (`users`, conversation-only endpoints, queue-only endpoints) with catalog
+      `validationStatus` evidence updates.
+- [ ] Ops-layer hardening identified by live validation findings
+      (paging profile swaps, itemsPath fixes, and endpoint-specific guardrails).
+
+### Next
+
+- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
+      Outbound Campaign) with a concrete operator use case and fixture contract.
+
+### Maintenance
+
+- [ ] Weekly unit + fixture integration sweep (`scripts/Invoke-Tests.ps1`).
+- [ ] Monthly roadmap/docs consistency audit (`README.md`, `docs/CHANGELOG.md`,
+      `docs/ROADMAP.md`, `docs/READINESS_REVIEW.md`).
+- [ ] Scheduled catalog/schema drift check and endpoint coverage review.
+- [ ] Quarterly redaction profile review against new datasets and fields.
+
+### Operational Review Process (Sustainment Checklist)
+
+- [ ] Scheduled testing: run `pwsh -NoProfile -File ./scripts/Invoke-Tests.ps1`
+      at least weekly; capture pass/fail counts in `progress.md`.
+- [ ] Dependency and contract checks: run catalog/schema validation
+      (`Assert-Catalog`) after catalog or schema edits.
+- [ ] Documentation review: ensure release notes and onboarding docs match shipped
+      script behavior before roadmap status flips.
+- [ ] CI workflow health: verify `.github/workflows/ci.yml` and dataset workflows
+      remain green or have explicit open issue links for known failures.
+- [ ] Live-validation gate: do not mark live-validation items complete without
+      command evidence and artifact paths.
 
 ---
 

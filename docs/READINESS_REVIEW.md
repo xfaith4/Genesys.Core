@@ -132,6 +132,19 @@ change together with the evidence (test output, artifact, or PR link).
 
 ---
 
+## 10. Release 1.3 checkpoint — Session 20 temporal trends
+
+> This checkpoint tracks Release 1.3 evidence only. It does not alter the
+> Release 1.0 blocking criteria.
+
+| # | Criterion | Status | Verifiable by |
+|---|-----------|--------|---------------|
+| J-01 | Trend pull + import contract remains wired (`Get-TrendReport`, `Import-TrendReport`, `Get-TrendComparisonRows`, `Get-TrendChangeLeaders`, `Get-IncidentImpactSummary`, `Export-IncidentImpactSummary`) with persisted trend schema artifacts (`report_trend_windows`, `report_trend_comparison`, `report_trend_delta`). | ✅ GREEN | `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`; app module sources under `apps/ConversationAnalyzer/modules/`. |
+| J-02 | Trend operator workflow documentation and readiness cross-reference remain aligned with shipped behavior. | ✅ GREEN | `apps/ConversationAnalyzer/README.md` Trend section and `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`. |
+| J-03 | Release 1.3 checkpoint now includes executable fixture evidence and release sign-off references. | ✅ GREEN | `docs/RELEASE_1_3_TREND_EVIDENCE.md` (command log + artifact references + sign-off checklist) and `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`. |
+
+---
+
 ## Overall Release 1.0 Gate
 
 Release 1.0 is **not ready** until every criterion above is ✅ GREEN. The
@@ -150,6 +163,7 @@ resolved in the 2026-05-01 corrective refactor and are now ✅ GREEN.
 
 | Date | Change |
 |------|--------|
+| 2026-06-08 | Added Release 1.3 checkpoint closure evidence (`J-03`) with command-level fixture/test outputs and explicit sign-off references in `docs/RELEASE_1_3_TREND_EVIDENCE.md`. |
 | 2026-05-01 | Promoted `C-03` (paging max-page ceiling on `Invoke-PagingNextUri`) and `F-03` (CI determinism assertion in `RunContract.Tests.ps1`) to ✅ GREEN. Live-validation gates `H-01` through `H-08` remain blocking. |
 | 2026-04-30 | Promoted Agent Investigation Track B implementation gates I-02 through I-06 after fixture integration validation. Live validation H-01 through H-08 remains blocking. |
 | 2026-04-29 | Rewrote as formal verifiable checklist for Release 1.0 (Track A deliverable). Previous narrative review archived below. |
@@ -195,4 +209,3 @@ resolved in the 2026-05-01 corrective refactor and are now ✅ GREEN.
   as of 2026-04-29).
 - Redaction policy was heuristic and not yet fully profile-driven by
   dataset/endpoint sensitivity class (now addressed by criterion E-02/E-03).
-

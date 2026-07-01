@@ -1,0 +1,129 @@
+{
+  "title": "Genesys Interrogator",
+  "summary": {
+    "description": "A lightweight WPF validator for Genesys.Core. One window, one list of every dataset in the catalog, one JSON parameter editor, and one results grid.",
+    "driven_by": {
+      "dataset_list": "catalog",
+      "parameter_form": "each endpoint's declared defaults",
+      "grid_columns": "response shape"
+    },
+    "purpose": "Prove that each dataset in the catalog can be queried end-to-end and show the response in a logical way.",
+    "not_intended_as": [
+      "analytics tool",
+      "case store",
+      "reporting app"
+    ]
+  },
+  "run": {
+    "from": "repo root",
+    "commands": [
+      "Set-Location .\\apps\\GenesysInterrogator",
+      ".\\App.ps1"
+    ],
+    "requirements": [
+      "Windows PowerShell 5.1",
+      "PowerShell 7.x on Windows",
+      "WPF"
+    ]
+  },
+  "workflow": [
+    {
+      "step": 1,
+      "title": "Connect",
+      "details": "Paste a Genesys Cloud bearer token or set GENESYS_BEARER_TOKEN before launching, pick a region, and click Connect."
+    },
+    {
+      "step": 2,
+      "title": "Select dataset",
+      "details": "Use the filter to find a dataset or scroll the left-hand list. Every dataset defined in catalog/genesys.catalog.json is shown, grouped by the endpoint's group note."
+    },
+    {
+      "step": 3,
+      "title": "Edit dataset parameters",
+      "details": "The Dataset parameters editor is pre-populated from endpoint defaultQueryParams and any defaultBody note. Edits are passed verbatim as the -DatasetParameters hashtable to Invoke-Dataset."
+    },
+    {
+      "step": 4,
+      "title": "Initial launch behavior",
+      "details": "The app auto-selects the first dataset on launch so the parameter editor is ready immediately. If GENESYS_BEARER_TOKEN is set, the header indicates a bearer token is already available before Bearer is clicked."
+    },
+    {
+      "step": 5,
+      "title": "Run dataset",
+      "details": "Click Run dataset. The dataset run starts in a background runspace, the footer status updates as the run folder appears, and the Live events tab tails events.jsonl while the run is in progress.",
+      "result_tabs": [
+        {
+          "name": "Rows",
+          "description": "Auto-generated DataGrid columns from first-level properties of each response row. Nested objects and arrays are rendered as compact JSON."
+        },
+        {
+          "name": "Summary & manifest",
+          "description": "Contents of summary.json and manifest.json from the run folder."
+        },
+        {
+          "name": "Raw JSON (first rows)",
+          "description": "Compact JSONL preview of the first 50 records, with a pointer to the full JSONL file."
+        }
+      ]
+    }
+  ],
+  "output": {
+    "written_by": "Genesys.Core",
+    "path_pattern": "apps/GenesysInterrogator/out/<dataset-key>/<runId>/",
+    "contents": [
+      "manifest",
+      "summary",
+      "events",
+      "data"
+    ],
+    "actions": [
+      {
+        "name": "Open run folder",
+        "description": "Inspect the full run output."
+      },
+      {
+        "name": "Cancel run",
+        "description": "Stop the active run if the wrong dataset or parameters were started."
+      }
+    ]
+  },
+  "design_notes": [
+    {
+      "topic": "Core adapter",
+      "detail": "App.CoreAdapter.psm1 is the only module that imports Genesys.Core and Genesys.Auth, in line with every other app in the repo."
+    },
+    {
+      "topic": "UI architecture",
+      "detail": "The UI is deliberately minimal: four panels, one DataGrid, no XAML resource dictionaries, no styles, and no MVVM. Controls are found by name and wired with Add_Click and Add_SelectionChanged."
+    },
+    {
+      "topic": "Execution model",
+      "detail": "Invoke-Dataset runs in a background runspace. The UI stays responsive, shows live event progress, and can cancel the active run. Runs should remain narrow because this is a validator, not a bulk extraction tool."
+    },
+    {
+      "topic": "Caching",
+      "detail": "Nothing is cached. Each run is a fresh Core invocation and a fresh read from disk."
+    }
+  ],
+  "settings": {
+    "file": "App.Settings.psd1",
+    "contains": [
+      "relative paths to Core",
+      "relative paths to Auth",
+      "relative paths to catalog",
+      "relative paths to schema",
+      "region list",
+      "preview row cap"
+    ],
+    "ui_preview_rows": {
+      "setting": "Ui.PreviewRows",
+      "default": 500,
+      "description": "Adjust this value to see more or fewer rows in the grid."
+    }
+  },
+  "source": {
+    "file": "README(29).md",
+    "converted_from": "Markdown",
+    "conversion_notes": "Converted into structured JSON while preserving the README's documented intent, run instructions, workflow, output behavior, design notes, and settings."
+  }
+}

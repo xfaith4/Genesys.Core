@@ -180,7 +180,6 @@ Secondary persona (supported): **WFM / QA Analyst**
 
 ---
 
-
 # HARD GATES (REJECTION CRITERIA)
 
 If ANY gate fails, the work is rejected.
@@ -357,4 +356,3 @@ Return:
 * code for each file
 * brief run instructions
 * manual test steps
-

@@ -156,6 +156,45 @@
       "redactionProfile": "agent-investigation-division",
       "validationStatus": "unvalidated"
     },
+    "directory.list.groups": {
+      "description": "Directory Groups - list all ad-hoc groups (cross-queue, cross-division team rosters).",
+      "endpoint": "directory.list.groups",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "directory.get.group": {
+      "description": "Directory Groups - single group detail (name, description, type, owners).",
+      "endpoint": "directory.get.group",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "directory.get.group.members": {
+      "description": "Directory Groups - member roster for one group.",
+      "endpoint": "directory.get.group.members",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
     "conversations.get.call.history": {
       "description": "Get Call History (catalog-derived)",
       "endpoint": "conversations.get.call.history",
@@ -2211,11 +2250,12 @@
       "itemsPath": "$.entities",
       "defaultQueryParams": {
         "userId": "user-id-goes-here",
-        "expand": "routingStatus,presence,conversationSummary,outOfOffice,geolocation,station,authorization"
+        "expand": "routingStatus,presence,conversationSummary,outOfOffice,geolocation,station,authorization,groups,team"
       },
       "notes": [
         "Get User Details with Full Expansion",
-        "group: Users"
+        "group: Users",
+        "groups/team expansion returns id+name+selfUri summaries only — resolve full group detail and rosters via directory.get.group / directory.get.group.members"
       ]
     },
     "analytics.query.user.observations.real.time.status": {
@@ -2260,6 +2300,51 @@
       "notes": [
         "Get All Divisions",
         "group: Authorization"
+      ]
+    },
+    "directory.list.groups": {
+      "method": "GET",
+      "path": "/api/v2/groups",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "List ad-hoc directory Groups — team rosters that can span multiple divisions and queues, distinct from the permission-scoped Division. Used as the seed for a cross-queue team/group investigation.",
+        "group: Groups"
+      ]
+    },
+    "directory.get.group": {
+      "method": "GET",
+      "path": "/api/v2/groups/{groupId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "groupId": "group-id-goes-here"
+      },
+      "notes": [
+        "Get a single directory Group — name, description, type (official/social), and owner list. Resolves the groupId returned in a user's groups expansion or a division rollup.",
+        "group: Groups"
+      ]
+    },
+    "directory.get.group.members": {
+      "method": "GET",
+      "path": "/api/v2/groups/{groupId}/members",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "groupId": "group-id-goes-here",
+        "pageSize": "100",
+        "pageNumber": "1"
+      },
+      "notes": [
+        "Get all members of a directory Group — individuals, owners, and dynamically-included members. Roster fan-out for group-scoped performance rollups.",
+        "group: Groups"
       ]
     },
     "audits.query.submit": {
@@ -39748,6 +39833,14 @@
             "description": "Division assignment derived from the scoped identity response"
           },
           {
+            "step": "groups",
+            "dataset": "directory.get.group",
+            "filterBy": "groupId list from identity.groups[] (requires expand=groups)",
+            "joinKey": "groupId",
+            "provides": "group.name, group.description, group.type (official/social)",
+            "description": "Resolves the ad-hoc directory Groups this agent belongs to — unlike Division, a Group is an arbitrary team roster that can cross both divisions and queues (e.g. ‘Night Shift’, ‘Tenured Champions’). Optional but high-value when the complaint is team-scoped rather than queue- or division-scoped."
+          },
+          {
             "step": "skills",
             "dataset": "users.get.user.routing.skills",
             "filterBy": "userId",
@@ -39860,8 +39953,9 @@
             "description": "Coaching and development sessions for the agent in the window"
           }
         ],
-        "joinSequence": "seed (identity) \u2192 division (id) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
+        "joinSequence": "seed (identity) \u2192 division (id) \u2192 groups (groupId list) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
         "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.search.division.objects with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
+        "groupNote": "Directory Groups (directory.list.groups / directory.get.group.members) are a second, independent cross-queue grouping mechanism alongside Division. A Division is a permission/data-access boundary an agent belongs to exactly once; a Group is an arbitrary, unlimited-membership team roster (shift, tenure cohort, pilot program) that can itself span multiple divisions and queues. When a complaint or rollup is framed around a team name rather than a business unit, resolve it as a Group investigation, not a Division investigation.",
         "executiveMetrics": [
           "nConnected",
           "tHandle (avg)",
@@ -40172,6 +40266,71 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "group-investigation": {
+        "description": "Cross-queue, cross-division analysis scoped to an ad-hoc directory Group (e.g. a shift team, a pilot cohort, a tenure band). A Group is distinct from a Division: Division is a permission/data-access boundary an agent belongs to exactly once, while a Group is an unrestricted team roster that can pull members from multiple divisions and any number of queues. Use this recipe when a complaint, coaching initiative, or ad-hoc report is framed around a team name rather than a business unit or a single queue.",
+        "subjectParam": "groupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "group-detail",
+            "dataset": "directory.get.group",
+            "role": "seed",
+            "filterBy": "groupId",
+            "joinKey": "id",
+            "provides": "name, description, type (official/social), rulesVisible, ownerIds",
+            "description": "Group metadata — confirms the group exists and its membership rule type before fanning out"
+          },
+          {
+            "step": "group-members",
+            "dataset": "directory.get.group.members",
+            "filterBy": "groupId",
+            "joinKey": "groupId",
+            "provides": "userId list with name, email — individuals, owners, and dynamically-included members",
+            "description": "Full roster for this group — the userId list drives every step below; members may belong to different divisions and queues"
+          },
+          {
+            "step": "member-queue-memberships",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "queueId, queueName per member",
+            "description": "Enumerates every queue the group's members actually work — a group's queue footprint is the union of its members' queue memberships, not a fixed set"
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.user.aggregates.performance.metrics",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per member",
+            "description": "Performance aggregates for all members of the group over the window"
+          },
+          {
+            "step": "quality-by-group",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore, highScore, lowScore per member",
+            "description": "Quality scores for all members of the group — useful for cohort comparisons (e.g. pilot group vs. control group)"
+          },
+          {
+            "step": "coaching-by-group",
+            "dataset": "coaching.get.appointments",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "appointmentDate, status, facilitatorId, topic per member",
+            "description": "Coaching coverage across the group — identifies members who have not received recent coaching"
+          }
+        ],
+        "groupNote": "Because a group's queue footprint is derived (union of members' queue memberships) rather than declared like a division's, always run member-queue-memberships before attempting any queue-scoped rollup — do not assume a fixed queue list for a group the way authorization.search.division.objects provides one for a division.",
+        "divisionVsGroup": "Division = exactly-one, permission-scoped, org-chart-like boundary. Group = many-to-many, roster-scoped, purpose-built team (shift, cohort, pilot). Both are valid 'cross-queue' investigation entry points; pick Division for business-unit/territory reporting and Group for team- or initiative-scoped reporting.",
+        "executiveMetrics": [
+          "memberCount",
+          "nConnected (group total)",
+          "tHandle (group avg)",
+          "evalAvgScore",
+          "coachingCoveragePct = members coached in window / memberCount"
         ]
       }
     },

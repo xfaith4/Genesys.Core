@@ -1,8 +1,14 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-02  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+>
+> **2026-07-02:** Added §4 Cross-Queue Team Investigation using the directory Groups API
+> (`directory.list.groups`, `directory.get.group`, `directory.get.group.members`) — a second,
+> ad-hoc cross-queue/cross-division grouping mechanism distinct from Division. The Agent
+> Investigation identity step (`users.get.user.details.with.full.expansion`) now expands
+> `groups,team` so a single-agent investigation can pivot straight into a team-level one.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,
@@ -19,13 +25,14 @@ when the API is exhausted.
 1. [Single Conversation Deep Dive (Voice Engineer)](#1-single-conversation-deep-dive-voice-engineer)
 2. [All Conversations in a Queue](#2-all-conversations-in-a-queue)
 3. [Division / Agent Group Investigation](#3-division--agent-group-investigation)
-4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
-5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
-6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
-7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
-8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
-9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+4. [Cross-Queue Team Investigation (Directory Groups)](#4-cross-queue-team-investigation-directory-groups)
+5. [Executive Reporting Rollup](#5-executive-reporting-rollup)
+6. [Real-Time Operations Monitoring](#6-real-time-operations-monitoring)
+7. [BYOI External Conversation Enrichment](#7-byoi-external-conversation-enrichment)
+8. [Agent Investigation Extensions](#8-agent-investigation-extensions-release-13)
+9. [Conversation Investigation Extensions](#9-conversation-investigation-extensions-release-13)
+10. [Queue Investigation Extensions](#10-queue-investigation-extensions-release-13)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -200,17 +207,101 @@ users.division.analysis.get.users.with.division.info[].id
 - Which agents have been evaluated? Who has the highest/lowest scores?
 - Which agents have received recent coaching? Is coaching correlated with score improvement?
 
-### Division vs Queue as Investigation Entry Point
+### Division vs Queue vs Group as Investigation Entry Point
 
 | Start with | When you know | You get |
 |------------|---------------|---------|
 | `queueId` | Specific queue complaints | All conversations + SLA + wrapup + member roster |
-| `divisionId` | Business unit or team scope | All queues + all agents + group performance |
+| `divisionId` | Business unit or territory scope | All queues + all agents + group performance |
+| `groupId` (§4 below) | A named team, shift, or cohort | The team's members + their derived queue footprint + group performance |
 | `userId` (Agent Investigation) | Specific agent complaint | That agent's conversations + skills + presence |
+
+Division and Group are **not the same grouping mechanism**, even though both are commonly described
+informally as "a group of agents." See §4 for the distinction and when to use each.
 
 ---
 
-## 4. Executive Reporting Rollup
+## 4. Cross-Queue Team Investigation (Directory Groups)
+
+**Subject:** One `groupId` (a Genesys Cloud *directory Group*) + time window
+**Use case:** A workforce analyst, team lead, or executive sponsor needs to evaluate a named team
+that is **not** a division and **not** a single queue — a night-shift roster, a new-hire cohort, a
+pilot program group, a cross-functional escalation pod. These teams are modeled in Genesys Cloud as
+directory **Groups** (`/api/v2/groups`), a membership mechanism that is independent of, and can cut
+across, both Divisions and Queues.
+
+**Core question:** *How did this named team perform, regardless of which divisions or queues its
+members actually work in?*
+
+### Division vs Group — they are not interchangeable
+
+| | Division | Group |
+|---|---|---|
+| Purpose | Permission/data-access boundary; organisational (business-unit/territory) scope | Arbitrary team roster — shift, tenure cohort, pilot program, escalation pod |
+| Membership | Exactly one division per user (primary org placement) | Unlimited — a user can belong to any number of groups |
+| Queue relationship | A division owns a declared set of queues (`authorization.search.division.objects`) | A group has no declared queues — its queue footprint is the *union* of its members' individual queue memberships |
+| Typical seed | `divisionId` | `groupId` |
+| Best for | Business-unit / territory executive reporting | Team-, initiative-, or cohort-scoped reporting that cuts across divisions and queues |
+
+Both are valid answers to "agents assigned to X are a group in themselves, even across queues" —
+Division is the *declared* cross-queue grouping; Group is the *ad-hoc* cross-queue (and cross-division)
+grouping. Pick the recipe that matches how the requester actually framed the question: by business
+unit (Division) or by team name (Group).
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `directory.get.group` | seed → `groupId` | Group name, description, type (official/social), owners |
+| 2 | `directory.get.group.members` | `groupId` | Full roster — individuals, owners, and dynamically-included members |
+| 3 | `users.get.user.queue.memberships` | `userId` (per member) | Derives the group's actual queue footprint — the union of every member's queue memberships |
+| 4 | `analytics.query.user.aggregates.performance.metrics` | `userId` list | Per-member nConnected, tHandle, tTalk, tAcw for the window |
+| 5 | `quality.get.agents.activity` | `userId` list | Per-member evaluation count, average/high/low score — enables cohort comparison (e.g. pilot vs. control) |
+| 6 | `coaching.get.appointments` | `userId` list | Coaching coverage across the group — flags members who have gone without recent coaching |
+
+Optional discovery step: `directory.list.groups` enumerates every group in the org when the caller
+knows a team name but not its `groupId`.
+
+### Key Joins
+
+```
+directory.get.group.id
+  → directory.get.group.members.groupId (roster fan-out)
+
+directory.get.group.members[].id (userId)
+  → users.get.user.queue.memberships[].userId (derived queue footprint — no fixed list, unlike a division)
+  → analytics.query.user.aggregates.performance.metrics[].userId
+  → quality.get.agents.activity[].user.id
+  → coaching.get.appointments[].attendees[].id
+```
+
+### Analytical Questions Answered
+
+- Who is actually on this team right now, including dynamically-included members?
+- Which queues and divisions does this team's work actually touch?
+- How did the team perform as a cohort — volume, AHT, quality — compared to the rest of the org?
+- Is a pilot/rollout group outperforming or underperforming its control group?
+- Is coaching being delivered evenly across the team, or are some members being missed?
+
+### Enrichment Note — Resolving Group Membership from a User
+
+Rather than starting from `groupId`, the Agent Investigation (`users.get.user.details.with.full.expansion`)
+now requests `expand=groups,team` on `GET /api/v2/users/{userId}`. The response returns lightweight
+`{id, name, selfUri}` summaries for every group the agent belongs to — pass each `id` to
+`directory.get.group` to resolve full group detail, or to `directory.get.group.members` to pull the
+rest of that team's roster. This lets a single-agent investigation pivot directly into a team-level
+investigation without a separate discovery call.
+
+### When Not to Use This Recipe
+
+If every member of the "team" the requester means is actually just "everyone whose primary division
+is X," use the Division / Agent Group Investigation (§3) instead — division rollups already answer
+that question more cheaply, and creating a directory Group as a proxy for a division duplicates data
+that Genesys Cloud already models.
+
+---
+
+## 5. Executive Reporting Rollup
 
 **Subject:** Organisation-wide (or multi-queue) + reporting window (weekly/monthly)  
 **Use case:** A VP or Director of Operations needs a concise performance summary suitable for
@@ -291,7 +382,7 @@ analytics.query.conversation.aggregates.wrapup.distribution[].group.wrapUpCode
 
 ---
 
-## 5. Real-Time Operations Monitoring
+## 6. Real-Time Operations Monitoring
 
 **Subject:** Organisation or specific queues (no fixed window — point-in-time)  
 **Use case:** A real-time analyst, supervisor, or NOC team needs a live view of queue health and
@@ -325,7 +416,7 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ---
 
-## 6. BYOI External Conversation Enrichment
+## 7. BYOI External Conversation Enrichment
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
@@ -377,7 +468,7 @@ full object returned by the dataset and need no special handling.
 
 ---
 
-## 7. Agent Investigation Extensions (Release 1.3)
+## 8. Agent Investigation Extensions (Release 1.3)
 
 The existing Agent Investigation (`Get-GenesysAgentInvestigation`) covers 8 steps. These additional
 datasets enrich the investigation without replacing any existing step.
@@ -389,14 +480,17 @@ datasets enrich the investigation without replacing any existing step.
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
+| groups | `directory.get.group` | `groupId` (from identity's `groups` expansion) | Resolves the ad-hoc directory Groups the agent belongs to — see §4 for how this differs from Division |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
 agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+licensed and configured. `groups` step is conditional on the identity step's `expand` parameter
+including `groups` (now the default for `users.get.user.details.with.full.expansion`) and only runs
+when the agent belongs to at least one group.
 
 ---
 
-## 8. Conversation Investigation Extensions (Release 1.3)
+## 9. Conversation Investigation Extensions (Release 1.3)
 
 The existing Conversation Investigation (`Get-GenesysConversationInvestigation`) covers 8 steps.
 These additional datasets complete the deep-dive picture.
@@ -416,7 +510,7 @@ returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
 
 ---
 
-## 9. Queue Investigation Extensions (Release 1.3)
+## 10. Queue Investigation Extensions (Release 1.3)
 
 The existing Queue Investigation (`Get-GenesysQueueInvestigation`) covers 6 steps. These additions
 complete the picture.
@@ -431,59 +525,62 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Group Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.surveys` | ● | | | | ● | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | | ○ |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | | ● | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | | ● | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | | ● | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | | ● | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | | ● | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | | ● |
+| `directory.list.groups` | | | | ○ | | | |
+| `directory.get.group` | | | | ● | | | ○ |
+| `directory.get.group.members` | | | | ● | | | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | ● | | ● |
+| `analytics.query.user.aggregates.login.activity` | | | ● | | ● | | ● |
+| `analytics.query.user.details.activity.report` | | | ● | | | | ● |
+| `quality.get.agents.activity` | | | ● | ● | ● | | ○ |
+| `coaching.get.appointments` | | | ● | ● | | | ○ |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | | ● | | |
+| `analytics.post.transcripts.aggregates.query` | | | | | ● | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | | ● | |
+| `analytics.query.conversation.activity.real.time` | | | | | | ● | |
+| `analytics.query.user.observations.real.time.status` | | | | | | ● | |
+| `analytics.get.agent.active.status` | | | | | | ○ | ○ |
+| `users.get.agent.active.conversations` | | | | | | ○ | ○ |
+| `users.get.agent.current.routing.status` | | | | | | ○ | ○ |
+| `analytics.query.flow.observations` | | | | | | ● | |
+| `telephony.get.trunk.metrics.summary` | | | | | ○ | ● | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | | ● | |
+| `alerting.get.alerts` | | | | | ○ | ● | |
+| `users.get.user.details.with.full.expansion` | | | | | | | ● |
+| `users.get.user.routing.skills` | | | | | | | ● |
+| `users.get.user.queue.memberships` | | | | ● | | | ● |
+| `users.get.bulk.user.presences` | | | | | | | ● |
+| `routing.get.user.utilization` | | | | | | | ○ |
+| `audit-logs` | | | | | | | ● |
 
 ---
 

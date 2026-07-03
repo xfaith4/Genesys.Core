@@ -789,7 +789,7 @@
       "redactionProfile": "conversation-investigation-evaluations"
     },
     "quality.get.surveys": {
-      "description": "Post-call customer survey results (CSAT / NPS).",
+      "description": "DEPRECATED — 'GET /api/v2/quality/surveys' does not exist in the Genesys Cloud public API; there is no bare list-all-surveys resource. Use quality.get.conversation.surveys for a single conversation's survey result, or analytics.query.survey.aggregates for CSAT/NPS rollups across a queue/agent/window.",
       "endpoint": "quality.get.surveys",
       "itemsPath": "$.entities",
       "paging": {
@@ -797,29 +797,50 @@
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "deprecated": true,
+      "replacedBy": [
+        "quality.get.conversation.surveys",
+        "analytics.query.survey.aggregates"
+      ],
+      "validationStatus": "invalid-corrected-2026-07-03"
+    },
+    "analytics.query.survey.aggregates": {
+      "description": "Aggregate CSAT/NPS survey rollup — grouped survey scores across a queue, agent, or the organisation for an interval window. The real endpoint for executive survey reporting; there is no bare list-all-surveys resource.",
+      "endpoint": "postAnalyticsSurveysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "validated-2026-07-03"
     },
     "alerting.get.rules": {
-      "description": "All configured alerting rules and their threshold definitions.",
-      "endpoint": "alerting.get.rules",
+      "description": "All configured alerting rules and their threshold definitions. Corrected 2026-07-03: 'GET /api/v2/alerting/rules' does not exist (that path only accepts POST for rule creation) — rules are listed via the query endpoint.",
+      "endpoint": "postAlertingRulesQuery",
       "itemsPath": "$.entities",
       "paging": {
-        "profile": "pageNumber_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "validationStatus": "validated-2026-07-03"
     },
     "alerting.get.alerts": {
-      "description": "Currently firing platform alerts.",
-      "endpoint": "alerting.get.alerts",
+      "description": "Currently firing platform alerts. Corrected 2026-07-03: 'GET /api/v2/alerting/alerts' does not exist as a bare collection GET — alerts are listed via the query endpoint (POST body can filter by status, e.g. active-only).",
+      "endpoint": "postAlertingAlertsQuery",
       "itemsPath": "$.entities",
       "paging": {
-        "profile": "pageNumber_default"
+        "profile": "none"
       },
       "retry": {
         "profile": "rateLimitAware"
-      }
+      },
+      "validationStatus": "validated-2026-07-03"
     },
     "workforce.get.management.units": {
       "description": "WFM management units (team groupings for scheduling and adherence).",
@@ -1059,7 +1080,7 @@
       "validationStatus": "unvalidated"
     },
     "conversations.get.conversation.customattributes": {
-      "description": "Custom attributes for a single conversation \u2014 per-conversation enrichment path.",
+      "description": "Schema-based custom attributes set on a conversation (account numbers, intent, escalation flags) \u2014 a structured, versioned key/value resource distinct from secureattributes. See also conversations.get.conversation.secureattributes for the older masked/PCI-style attribute blob set by Architect 'Secure Attributes' actions; both can be present on the same conversation and answer different questions.",
       "endpoint": "getConversationCustomattributes",
       "itemsPath": "$.results",
       "paging": {
@@ -1068,7 +1089,19 @@
       "retry": {
         "profile": "rateLimitAware"
       },
-      "validationStatus": "unvalidated"
+      "validationStatus": "validated-2026-07-03"
+    },
+    "conversations.get.conversation.secureattributes": {
+      "description": "Secure/masked key-value attributes set on a conversation by Architect flows (PCI-style secure data capture). Single opaque blob per conversation, distinct from the schema-based conversations.get.conversation.customattributes resource.",
+      "endpoint": "getConversationSecureattributes",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "validated-2026-07-03"
     },
     "conversations.search.customattributes": {
       "description": "Bulk custom attribute search across conversations \u2014 use for multi-conversation enrichment.",
@@ -1080,7 +1113,7 @@
       "retry": {
         "profile": "rateLimitAware"
       },
-      "validationStatus": "unvalidated"
+      "validationStatus": "validated-2026-07-03"
     },
     "conversations.search.participant.attributes": {
       "description": "Historical participant attribute search \u2014 IVR/Architect flow variables, data action outcomes.",
@@ -1185,9 +1218,9 @@
       "validationStatus": "unvalidated"
     },
     "speech.and.text.analytics.get.sentiment.for.conversation": {
-      "description": "Sentiment score timeline for a single conversation \u2014 overall, agent, and customer sentiment categories and scores, plus detected topics.",
-      "endpoint": "speech.and.text.analytics.get.sentiment.data.for.conversation",
-      "itemsPath": "$.entities",
+      "description": "Sentiment for a single conversation \u2014 overall sentimentScore/sentimentTrend, empathyScores, and per-participant sentiment breakdown. Corrected 2026-07-03: there is no standalone 'sentiments' sub-resource \u2014 the Genesys Cloud ConversationMetrics response returns sentimentScore/sentimentTrend/sentimentTrendClass/empathyScores/participantMetrics directly from the main speech-and-text-analytics conversation object.",
+      "endpoint": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+      "itemsPath": "$",
       "paging": {
         "profile": "nextUri_default"
       },
@@ -1195,7 +1228,7 @@
         "profile": "rateLimitAware"
       },
       "redactionProfile": "conversation-sentiment",
-      "validationStatus": "unvalidated"
+      "validationStatus": "validated-2026-07-03"
     },
     "analytics.query.conversation.activity.real.time": {
       "description": "Real-time in-flight conversation metrics \u2014 oInteracting, oWaiting, oAlerting, oLongestWaiting grouped by queue and media type. Used for live supervisor wall-board and operations monitoring.",
@@ -1249,8 +1282,8 @@
       "validationStatus": "unvalidated"
     },
     "authorization.list.division.queues": {
-      "description": "All routing queue objects assigned to a specific division \u2014 returns queue IDs and names for the division scope. Drives the fan-out step in division investigations.",
-      "endpoint": "authorization.search.division.objects",
+      "description": "All routing queue objects assigned to a specific division \u2014 returns queue IDs and names for the division scope. Drives the fan-out step in division investigations. Corrected 2026-07-03: there is no 'search division objects' GET in the public API (GET /api/v2/authorization/divisions/{divisionId}/objects does not exist; the only operation at that path family is POST .../objects/{objectType} which *assigns* objects to a division, not lists them). The real pattern is to filter the object's own list endpoint by the divisionId query parameter it natively supports \u2014 routing.get.all.queues.with.details (GET /api/v2/routing/queues) accepts divisionId directly.",
+      "endpoint": "routing.get.all.queues.with.details",
       "itemsPath": "$.entities",
       "paging": {
         "profile": "nextUri_default"
@@ -1258,7 +1291,8 @@
       "retry": {
         "profile": "default"
       },
-      "validationStatus": "unvalidated"
+      "filterBy": "divisionId (repeatable query parameter)",
+      "validationStatus": "validated-2026-07-03"
     },
     "telephony.get.edge.performance.metrics": {
       "description": "Real-time performance metrics for a single Edge appliance \u2014 CPU, memory, active call count, and SIP error counters. Use in voice engineer investigation when call quality is degraded on a specific edge.",
@@ -1286,7 +1320,7 @@
       "validationStatus": "unvalidated"
     },
     "users.get.agent.active.conversations": {
-      "description": "Currently active conversations for a single agent \u2014 all in-progress interactions across all media types. Use for real-time agent state investigation when an agent appears unavailable.",
+      "description": "DEPRECATED \u2014 'GET /api/v2/users/{userId}/conversations' does not exist in the public API; there is no dedicated per-user active-conversations resource. Use analytics.get.agent.active.status instead, which returns activeChannels and currentConversationIds for the agent from GET /api/v2/analytics/agents/{userId}/status.",
       "endpoint": "users.get.user.s.active.conversations",
       "itemsPath": "$.entities",
       "paging": {
@@ -1296,7 +1330,11 @@
         "profile": "rateLimitAware"
       },
       "redactionProfile": "agent-investigation-conversations",
-      "validationStatus": "unvalidated"
+      "deprecated": true,
+      "replacedBy": [
+        "analytics.get.agent.active.status"
+      ],
+      "validationStatus": "invalid-corrected-2026-07-03"
     }
   },
   "profiles": {
@@ -1610,14 +1648,15 @@
       ]
     },
     "alerting.get.alerts": {
-      "method": "GET",
-      "path": "/api/v2/alerting/alerts",
-      "pagingProfile": "pageNumber_default",
+      "method": "POST",
+      "path": "/api/v2/alerting/alerts/query",
+      "pagingProfile": "none",
       "retryProfile": "default",
       "itemsPath": "$.entities",
       "notes": [
         "List currently firing (active) platform alerts.",
-        "group: Alerting"
+        "group: Alerting",
+        "Corrected 2026-07-03: 'GET /api/v2/alerting/alerts' is not a real resource; alerts are listed via a POST query body (see postAlertingAlertsQuery)."
       ]
     },
     "organization.get.organization.limits": {
@@ -1811,9 +1850,11 @@
       "defaultQueryParams": {
         "conversationId": "conversation-id-goes-here"
       },
+      "deprecated": true,
       "notes": [
         "Get Sentiment Data for Conversation",
-        "group: Speech and Text Analytics"
+        "group: Speech and Text Analytics",
+        "INVALID 2026-07-03: no standalone 'sentiments' sub-resource exists on this path. Sentiment fields (sentimentScore, sentimentTrend, sentimentTrendClass, empathyScores, participantMetrics) are returned by the main conversation object at GET /api/v2/speechandtextanalytics/conversations/{conversationId} — see speech.and.text.analytics.get.speech.and.text.analytics.for.conversation."
       ]
     },
     "telephony.get.edge.metrics": {
@@ -1929,9 +1970,11 @@
       "pagingProfile": "pageNumber_default",
       "retryProfile": "default",
       "itemsPath": "$.entities",
+      "deprecated": true,
       "notes": [
         "List post-call customer survey results (CSAT/NPS).",
-        "group: Quality"
+        "group: Quality",
+        "INVALID 2026-07-03: 'GET /api/v2/quality/surveys' does not exist — there is no bare list-all-surveys resource. Use GET /api/v2/quality/conversations/{conversationId}/surveys (quality.get.conversation.surveys) for one conversation, or POST /api/v2/analytics/surveys/aggregates/query (analytics.query.survey.aggregates) for rollups."
       ]
     },
     "users.get.user.presence.genesys.cloud": {
@@ -2360,9 +2403,11 @@
         "objectType": "QUEUE",
         "pageSize": "100"
       },
+      "deprecated": true,
       "notes": [
         "Search Division Objects",
-        "group: Authorization"
+        "group: Authorization",
+        "INVALID 2026-07-03: no GET exists at this path or at /api/v2/authorization/divisions/{divisionId}/objects/{objectType} — that path only accepts POST, which *assigns* objects to a division rather than listing them. To find which objects of a given type belong to a division, filter that object type's own list endpoint by its divisionId query parameter (routing.get.all.queues.with.details, flows, outbound campaigns, WFM management units, and data tables all support divisionId natively)."
       ]
     },
     "users.get.user.routing.skills": {
@@ -2441,14 +2486,15 @@
       ]
     },
     "alerting.get.rules": {
-      "method": "GET",
-      "path": "/api/v2/alerting/rules",
-      "pagingProfile": "pageNumber_default",
+      "method": "POST",
+      "path": "/api/v2/alerting/rules/query",
+      "pagingProfile": "none",
       "retryProfile": "default",
       "itemsPath": "$.entities",
       "notes": [
         "List all configured alerting rules (thresholds for queues, agents, etc.).",
-        "group: Alerting"
+        "group: Alerting",
+        "Corrected 2026-07-03: 'GET /api/v2/alerting/rules' is not a real resource (that path only accepts POST for rule creation); rules are listed via a POST query body (see postAlertingRulesQuery)."
       ]
     },
     "users.get.user.s.active.conversations": {
@@ -2460,9 +2506,11 @@
       "defaultQueryParams": {
         "userId": "user-id-goes-here"
       },
+      "deprecated": true,
       "notes": [
         "Get User's Active Conversations",
-        "group: Users"
+        "group: Users",
+        "INVALID 2026-07-03: no dedicated per-user active-conversations resource exists in the public API. Use GET /api/v2/analytics/agents/{userId}/status (analytics.get.agent.active.status), which returns activeChannels and currentConversationIds."
       ]
     },
     "analytics.query.conversation.aggregates.wrapup.distribution": {
@@ -39861,7 +39909,7 @@
           }
         ],
         "joinSequence": "seed (identity) \u2192 division (id) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
-        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.search.division.objects with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
+        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.list.division.queues (GET /api/v2/routing/queues filtered by divisionId) to enumerate all queues in a division before computing queue-scoped aggregates.",
         "executiveMetrics": [
           "nConnected",
           "tHandle (avg)",
@@ -40106,12 +40154,12 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
-            "queryParam": "objectType=QUEUE",
+            "queryParam": "divisionId=<divisionId> (repeatable for multi-division fan-out)",
             "joinKey": "divisionId",
             "provides": "queueId list within this division",
-            "description": "All queues assigned to this division \u2014 drives all queue-scoped aggregates below"
+            "description": "All queues assigned to this division \u2014 drives all queue-scoped aggregates below. There is no dedicated 'search division objects' endpoint; this filters the native routing queue list (GET /api/v2/routing/queues) by its divisionId query parameter, which is the same pattern used to scope flows, outbound campaigns, WFM management units, and data tables to a division."
           },
           {
             "step": "division-agents",
@@ -40162,7 +40210,7 @@
             "description": "Quality scores for all agents in the division"
           }
         ],
-        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.list.division.queues (GET /api/v2/routing/queues filtered by divisionId) to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
         "executiveMetrics": [
           "nOffered (division total)",
           "nConnected",
@@ -40172,6 +40220,176 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "real-time-operations-monitoring": {
+        "description": "Point-in-time operations wall-board — no historical window. Live queue congestion, agent presence/routing status, in-flight flow executions, and telephony infrastructure health, all polled rather than queried for a date range. Used by real-time analysts, supervisors, and NOC teams who need 'what is happening right now', not a retrospective report.",
+        "subjectParam": "none — organisation-wide by default; optionally scope to a queueId list",
+        "windowRequired": false,
+        "pollingNote": "Real-time observation datasets reflect current state as of the call and do not accept an interval — poll at 10-30s for a wall-board, or on-demand for a targeted drilldown.",
+        "steps": [
+          {
+            "step": "queue-observations",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers per queue",
+            "description": "Live per-queue counters — the primary wall-board tile source"
+          },
+          {
+            "step": "conversation-activity",
+            "dataset": "analytics.query.conversation.activity.real.time",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oAlerting, oLongestWaiting per queue x mediaType",
+            "description": "In-flight interaction counts including longest-waiting caller — the number that drives an immediate staffing call"
+          },
+          {
+            "step": "estimated-wait-time",
+            "dataset": "routing.get.queue.estimated.wait.time",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "estimatedWaitTimeSeconds by mediaType",
+            "description": "Forward-looking caller wait forecast; compare to SLA target for an immediate action trigger"
+          },
+          {
+            "step": "agent-real-time-status",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "joinKey": "userId",
+            "provides": "oUserPresence (system presence), oUserRoutingStatus per agent",
+            "description": "Live agent presence and routing status across the organisation or a queue scope"
+          },
+          {
+            "step": "agent-active-status",
+            "dataset": "analytics.get.agent.active.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "audience": [
+              "supervisor-drilldown"
+            ],
+            "provides": "activeChannels, currentConversationIds",
+            "description": "Targeted drilldown for a single agent clicked on the wall-board — what is this agent doing right now"
+          },
+          {
+            "step": "flow-observations",
+            "dataset": "analytics.query.flow.observations",
+            "joinKey": "flowId",
+            "provides": "oFlow (active Architect/bot flow executions)",
+            "description": "Calls or digital interactions currently executing inside an Architect flow — a spike with no corresponding queue activity indicates a stuck flow"
+          },
+          {
+            "step": "trunk-health",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "trunk currentCalls, maxConcurrentCalls, inService, error counters",
+            "description": "SIP trunk utilisation and capacity headroom — check before assuming a queue problem is a staffing problem"
+          },
+          {
+            "step": "edge-health",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "filterBy": "edgeId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "CPU, memory, active call count on a specific Edge appliance",
+            "description": "Targeted Edge drilldown when call quality complaints correlate with one site"
+          },
+          {
+            "step": "active-alerts",
+            "dataset": "alerting.get.alerts",
+            "provides": "currently firing threshold alerts (queue, agent, or infrastructure)",
+            "description": "Confirms whether the condition being observed has already crossed a configured alert threshold"
+          }
+        ],
+        "joinSequence": "queue-observations (queueId) → conversation-activity (queueId) → estimated-wait-time (queueId) → agent-real-time-status (userId) → flow-observations (flowId) → [voice-engineer: trunk-health → edge-health] → active-alerts",
+        "diagnosticSignals": [
+          "oWaiting > 0 and oOnQueueUsers = 0 → no agents staffed; escalate immediately",
+          "oLongestWaiting growing faster than agents are freeing up → queue will breach SLA within minutes",
+          "presence = 'On Queue' but routingStatus = 'NOT_RESPONDING' across many agents on one site → station/network issue, not a staffing issue",
+          "oFlow elevated with zero corresponding queue activity → calls stuck in flow, not reaching routing",
+          "trunk currentCalls approaching maxConcurrentCalls while queue is under-offered → capacity ceiling about to reject new calls"
+        ],
+        "executiveMetrics": [
+          "oWaiting (current)",
+          "oInteracting (current)",
+          "oOnQueueUsers (current)",
+          "estimatedWaitTimeSecs (current)",
+          "oLongestWaiting (current)",
+          "activeAlertCount"
+        ]
+      },
+      "byoi-conversation-enrichment": {
+        "description": "Identification and enrichment path for a conversation that originated outside Genesys Cloud and was ingested via a Bring Your Own Interactions (BYOI) integration — external SIP/CRM telephony, a third-party contact platform, or a custom digital channel bridged through the BYOI/Open Messaging integration surface. The conversation flows through native Architect routing, analytics, quality, and WFM pipelines identically to a native interaction once ingested; this recipe answers 'did this come from an external provider, and what context did that provider attach?'",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, participants[].purpose, participants[].externalContactId, participants[].externalOrganizationId",
+            "description": "A non-null externalTag on the Conversation object is the definitive, verified BYOI indicator (Conversation.externalTag / AnalyticsConversation.externalTag). There is no externalConversationId field on the Conversation object — do not rely on one."
+          },
+          {
+            "step": "call-provider",
+            "dataset": "conversations.get.call.detail",
+            "joinKey": "conversationId",
+            "provides": "call.provider, call.direction, call.disconnectType",
+            "description": "The Call.provider field distinguishes a native Edge/PSTN leg from an externally injected SIP-to-SIP handoff — corroborates the externalTag signal at the call-leg level"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-defined structured attributes (CRM case ID, intent label, external reference)",
+            "description": "Schema-based custom attributes are the primary place a BYOI/CRM integration attaches its own case or ticket context"
+          },
+          {
+            "step": "secure-attributes",
+            "dataset": "conversations.get.conversation.secureattributes",
+            "joinKey": "conversationId",
+            "provides": "masked/PCI-style values the provider or an Architect flow attached",
+            "description": "Optional — only present if the provider or the receiving flow set secure attributes"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables recorded once the injected conversation entered native routing",
+            "description": "BYOI conversations run through the same Architect flows as native ones once ingested, so flow-set participant attributes apply identically"
+          },
+          {
+            "step": "analytics-overlay",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing identical in shape to a native conversation",
+            "description": "Confirms BYOI conversations are timed and segmented the same as native ones — no special handling needed for AHT/SLA rollups"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP signalling for the provider-to-Genesys handoff leg",
+            "description": "For voice BYOI, reflects the provider's SIP-to-SIP handoff rather than an inbound PSTN leg from the carrier — expect different From/Contact headers than a native call"
+          }
+        ],
+        "joinSequence": "conversation-base (externalTag check) → call-provider (corroborate) → custom-attributes → secure-attributes (optional) → participant-attributes → analytics-overlay → sip-trace (voice only)",
+        "identificationNote": "Genesys Cloud does not expose a single documented public REST call that performs BYOI conversation injection itself (it is provisioned per-integration through the BYOI / Open Messaging onboarding process, not a generic '/conversations/providers/{providerId}/calls' endpoint) — treat any such path as unverified. What IS verified on the Conversation/AnalyticsConversation object is the externalTag field; use it, not an assumed injection endpoint shape, as the detection signal.",
+        "diagnosticSignals": [
+          "externalTag present → confirmed BYOI/externally-injected conversation",
+          "externalTag present but customattributes empty → provider integration is not attaching case context; check the integration's attribute-mapping configuration",
+          "call.provider differs from the org's configured native Edge/trunk providers → corroborates external SIP origination",
+          "sip-trace shows a handoff pattern (no carrier-side INVITE) → confirms the leg arrived from the BYOI provider, not the PSTN"
+        ],
+        "enrichWith": [
+          "conversations.get.conversation.recording.metadata (recording policy applies identically to BYOI conversations if enabled)",
+          "quality.get.evaluations.query (evaluations proceed normally on BYOI conversations)",
+          "quality.get.conversation.surveys (post-interaction survey, if triggered)"
         ]
       }
     },
@@ -40256,7 +40474,7 @@
         "datasetsInOrder": [
           "quality.get.evaluations.query",
           "quality.get.agents.activity",
-          "quality.get.surveys"
+          "analytics.query.survey.aggregates"
         ],
         "joinOn": "agentUserId or conversationId",
         "groupBy": [

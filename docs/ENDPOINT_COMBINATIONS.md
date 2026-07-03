@@ -1,8 +1,41 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-03  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+
+## 2026-07-03 Validation Pass
+
+This document and `catalog/genesys.catalog.json` were cross-checked against the cached Genesys
+Cloud Swagger spec (`GenesysCloudAPIEndpoints.json`, the API Explorer's own cached copy of
+`https://api.mypurecloud.com/api/v2/docs/swagger`). That cache is a point-in-time snapshot, not a
+live source of truth — roughly 1 in 9 already-verified (`operationId`-tagged) catalog endpoints
+did not appear in it, which is normal Swagger drift, not evidence of fabrication on its own. The
+corrections below were made only where the mismatch was structural (a path that exists but only
+supports a different HTTP method, or a full sibling resource family with no bare list/GET variant
+among its members) and a working, positively-confirmed replacement endpoint was found. Six dataset
+references were corrected on that basis:
+
+| Old (incorrect) reference | Corrected to | Why |
+|---|---|---|
+| `GET /api/v2/alerting/alerts` | `POST /api/v2/alerting/alerts/query` (`alerting.get.alerts`) | The bare collection path only supports single-alert GET/PUT/PATCH/DELETE by ID, bulk PATCH, and `all`; the list operation is the `/query` POST. |
+| `GET /api/v2/alerting/rules` | `POST /api/v2/alerting/rules/query` (`alerting.get.rules`) | Same pattern as alerts — the bare path only accepts POST (create); listing is via `/query`. |
+| `GET /api/v2/quality/surveys` | `quality.get.conversation.surveys` (per-conversation) or new `analytics.query.survey.aggregates` (`POST /api/v2/analytics/surveys/aggregates/query`, rollups) | There is no bare list-all-surveys resource; survey results are per-conversation or via the aggregates query. |
+| `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/sentiments` | `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` (`GET /api/v2/speechandtextanalytics/conversations/{conversationId}`) | Confirmed via the `ConversationMetrics` response schema — `sentimentScore`, `sentimentTrend`, `sentimentTrendClass`, `empathyScores`, and `participantMetrics` are returned directly on the main object; there is no separate `sentiments` sub-resource. |
+| `GET /api/v2/authorization/divisions/{divisionId}/objects` ("Search Division Objects") | `authorization.list.division.queues` → filter `routing.get.all.queues.with.details` (`GET /api/v2/routing/queues`) by its `divisionId` query parameter | The only real operation in that path family, `/objects/{objectType}`, is POST-only and *assigns* objects to a division rather than listing them. Queues, flows, outbound campaigns, WFM management units, and data tables all natively support a `divisionId` filter on their own list endpoints — that is the real "objects in this division" pattern. |
+| `GET /api/v2/users/{userId}/conversations` ("Get User's Active Conversations") | `analytics.get.agent.active.status` (`GET /api/v2/analytics/agents/{userId}/status`) | No per-user active-conversations resource exists; `activeChannels`/`currentConversationIds` are returned by the agent status endpoint instead. |
+
+One near-miss is worth recording so it isn't repeated: `conversations.get.conversation.customattributes`
+(`GET /api/v2/conversations/{conversationId}/customattributes`) initially looked fabricated because
+it was entirely absent from the cached Swagger. It is real — the cache simply predates it. The
+full CRUD + schema + bulk + search family (`getConversationCustomattributes`,
+`putConversationCustomattributes`, `postConversationsCustomattributesSearch`,
+`getConversationsCustomattributesSchemas`, etc.) is internally consistent and is now catalogued
+as a resource **distinct from** `conversations.get.conversation.secureattributes`
+(`GET /api/v2/conversations/{conversationId}/secureattributes`, the older masked/PCI-style
+attribute blob). Both exist; they answer different questions and can both be present on the same
+conversation. This is also why the six corrections above were scoped to structural (method/family)
+evidence rather than mere absence from one cached snapshot.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,
@@ -43,10 +76,11 @@ when the API is exhausted.
 | 1 | `conversations.get.conversation.object` | seed → `conversationId` | Participants, sessions, DNIS/ANI, start/end times, queue assignment, externalTag (BYOI indicator) |
 | 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Per-segment timing: IVR duration, ACD wait, talk time, hold time, ACW, conference, recording start/stop |
 | 3 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording IDs, media type, duration, deletion schedule |
-| 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
+| 4 | `conversations.get.conversation.customattributes` | `conversationId` | Schema-based custom attributes set by IVR/Architect flows or a BYOI provider (account numbers, intent, escalation flags) |
+| 4b *(if secure attributes were used)* | `conversations.get.conversation.secureattributes` | `conversationId` | Masked/PCI-style secure attribute blob — a distinct resource from custom attributes; optional |
 | 5 | `conversations.search.participant.attributes` | `conversationId` | Participant-level attributes (IVR variables, data action outcomes, flow-set values) |
 | 6 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores, form used, evaluator, calibration status |
-| 7 | `quality.get.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
+| 7 | `quality.get.conversation.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
 | 8 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace: INVITE, 200 OK, BYE, re-INVITE, codec negotiation |
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
@@ -244,7 +278,7 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
-| `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
+| `analytics.query.survey.aggregates` | `queueId`/`userId` (aggregate) | CSAT/NPS: response rate, average score |
 | `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
 
 #### Layer 5 — Infrastructure Health (optional, voice-focused)
@@ -268,7 +302,7 @@ Headline metrics (computed, not raw):
   - Transfer rate: SUM(nTransferred) / SUM(nConnected) × 100
   - QM coverage: evaluations / nConnected × 100
   - Average QM score: from quality.get.agents.activity
-  - Avg CSAT: from quality.get.surveys
+  - Avg CSAT: from analytics.query.survey.aggregates
 
 Trend views (daily granularity):
   - Volume by day with channel mix
@@ -293,6 +327,9 @@ analytics.query.conversation.aggregates.wrapup.distribution[].group.wrapUpCode
 
 ## 5. Real-Time Operations Monitoring
 
+> Also catalogued as `combinations.investigationRecipes.real-time-operations-monitoring` in
+> `catalog/genesys.catalog.json`, with diagnostic signals and executive metrics as structured data.
+
 **Subject:** Organisation or specific queues (no fixed window — point-in-time)  
 **Use case:** A real-time analyst, supervisor, or NOC team needs a live view of queue health and
 agent availability right now, without waiting for a historical analytics job.
@@ -307,7 +344,7 @@ agent availability right now, without waiting for a historical analytics job.
 | 2 | `analytics.query.conversation.activity.real.time` | All queues | oInteracting, oWaiting, oAlerting, oLongestWaiting per queue × mediaType |
 | 3 | `analytics.query.user.observations.real.time.status` | All agents | oUserPresence (system presence), oUserRoutingStatus per agent |
 | 4 | `analytics.get.agent.active.status` | One agent | Full real-time channel assignment for a specific agent — active conversation IDs |
-| 5 | `users.get.agent.active.conversations` | One agent | All in-progress conversations for a specific agent |
+| 5 | `analytics.get.agent.active.status` | One agent | All in-progress conversations for a specific agent (activeChannels, currentConversationIds) — there is no dedicated per-user active-conversations endpoint |
 | 6 | `users.get.agent.current.routing.status` | One agent | Current routing state (IDLE / INTERACTING / NOT_RESPONDING / OFF_QUEUE) |
 | 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
 | 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
@@ -327,35 +364,50 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+> Also catalogued as `combinations.investigationRecipes.byoi-conversation-enrichment` in
+> `catalog/genesys.catalog.json`, with diagnostic signals and an `identificationNote` covering the
+> injection-endpoint caveat below as structured data.
+
+**Subject:** One `conversationId` that was injected via BYOI (Bring Your Own Interactions)  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was injected into Genesys Cloud via a BYOI integration. The
+conversation appears in Genesys analytics and recordings, but context lives in the external system.
+
+> **Note on the injection endpoint:** BYOI is provisioned per-integration through the BYOI /
+> Open Messaging onboarding process rather than a single generic public REST call — there is no
+> verified `POST /api/v2/conversations/providers/{providerId}/calls` endpoint in the current
+> public API surface, and any reference to that exact path should be treated as unconfirmed. What
+> **is** confirmed is the detection signal below (`externalTag`) and the fact that once ingested,
+> a BYOI conversation flows through the same routing/analytics/quality/WFM pipeline as a native one.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
 ### How to Identify a BYOI Conversation
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns
+(fields confirmed against the `Conversation` schema — there is **no** `externalConversationId`
+field; do not rely on one):
 
 ```json
 {
   "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    { "purpose": "external", "externalContactId": "...", "externalOrganizationId": "..." }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` is the definitive BYOI indicator (present on both the `Conversation` and
+`AnalyticsConversation` objects). The `Call.provider` field on a voice leg corroborates it at the
+call-leg level — see the `byoi-conversation-enrichment` recipe in
+`catalog/genesys.catalog.json` → `combinations.investigationRecipes` for the full step sequence.
 
 ### Additional Steps for BYOI Conversations
 
 | Step | Dataset Key | What It Adds |
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
+| + | `conversations.get.conversation.secureattributes` | Masked/PCI-style attributes, if the provider or an Architect flow set any (optional, distinct resource from custom attributes) |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
 
 ### BYOI Conversation in Analytics
@@ -369,11 +421,18 @@ as native Genesys conversations. The following datasets apply identically:
 
 ### Embeddable Framework Conversations
 
-Conversations visible to agents via the Embeddable Framework return the same object shape as
-`conversations.get.conversation.object`. The condensed view used by the embedded client includes:
-`participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+Conversations visible to agents via the Embeddable Framework return a condensed shape derived from
+the same underlying conversation object as `conversations.get.conversation.object`. Confirmed
+fields on the full object (used identically for condensed-view consumers): `participants[].purpose`,
+`participants[].queueId`, `participants[].externalContactId`, `participants[].calls[].state`,
+`participants[].calls[].muted`, `participants[].calls[].held`, `participants[].calls[].direction`,
+`participants[].calls[].provider`. Note: `state` and `isInternal` live on the call/interaction
+media object (`participants[].calls[].state`), not directly on `Participant` — there is no bare
+`participants[].state` field on the Conversation schema; the Embeddable Framework's condensed view
+surfaces `isInternal` (internal vs. external call) and the queue ID as first-class interaction
+attributes precisely so integrations don't have to walk the full participant/call tree for that
+distinction. These fields are present in the full object returned by the dataset and need no
+special handling.
 
 ---
 
@@ -386,7 +445,7 @@ datasets enrich the investigation without replacing any existing step.
 |----------------|-------------|--------|--------------|
 | utilization | `routing.get.user.utilization` | `userId` | Max channel capacities — why can the agent only handle N simultaneous chats? |
 | currentStatus | `users.get.agent.current.routing.status` | `userId` | Routing state at investigation time (IDLE / INTERACTING / OFF_QUEUE) |
-| activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
+| activeConversations | `analytics.get.agent.active.status` | `userId` | In-progress conversations if `currentStatus = INTERACTING` (activeChannels, currentConversationIds) |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
 
@@ -444,7 +503,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
+| `quality.get.conversation.surveys` / `analytics.query.survey.aggregates` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
@@ -472,7 +531,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.conversation.activity.real.time` | | | | | ● | |
 | `analytics.query.user.observations.real.time.status` | | | | | ● | |
 | `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ |
 | `users.get.agent.current.routing.status` | | | | | ○ | ○ |
 | `analytics.query.flow.observations` | | | | | ● | |
 | `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |

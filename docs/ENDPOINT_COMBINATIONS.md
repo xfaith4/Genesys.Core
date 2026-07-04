@@ -1,8 +1,20 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-04  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+
+**2026-07-04 pass:** Added six catalog datasets closing gaps this document already
+called for — conversation-scoped evaluation/survey precision lookups
+(`quality.get.conversation.evaluation`, `quality.get.conversation.surveys`),
+aggregate-only CSAT and quality-score rollups for executive reporting
+(`analytics.query.survey.aggregates`, `analytics.query.evaluation.aggregates`),
+and division membership/governance datasets
+(`authorization.list.division.users`, `authorization.get.division.grants`).
+Corrected the BYOI conversation-injection endpoint reference in §6 (see note
+there). Promoted the Division Investigation design in §3 to a formal flagship
+entry in [INVESTIGATIONS.md §4.5](INVESTIGATIONS.md#45-division-investigation-design-proposal)
+and reflected it on the [ROADMAP](ROADMAP.md).
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,
@@ -46,7 +58,9 @@ when the API is exhausted.
 | 4 | `conversations.get.conversation.customattributes` | `conversationId` | Custom attributes set by IVR/Architect flows (account numbers, intent, escalation flags) |
 | 5 | `conversations.search.participant.attributes` | `conversationId` | Participant-level attributes (IVR variables, data action outcomes, flow-set values) |
 | 6 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores, form used, evaluator, calibration status |
+| 6b | `quality.get.conversation.evaluation` | `conversationId` + `evaluationId` | Full per-question answers and evaluator comments once step 6 has surfaced an `evaluationId` — precision drill-down instead of pulling the org-wide query again |
 | 7 | `quality.get.surveys` | `conversationId` | Post-call CSAT/NPS survey result if survey was triggered |
+| 7b | `quality.get.conversation.surveys` | `conversationId` | Same CSAT/NPS result via the conversation-scoped endpoint — prefer this over step 7 when `conversationId` is already known, since it skips the org-wide list-and-filter |
 | 8 *(voice only)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | SIP signaling trace: INVITE, 200 OK, BYE, re-INVITE, codec negotiation |
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
@@ -91,7 +105,16 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
+the call was injected via a BYOI (Bring Your Own Interactions) integration. The catalog's swagger
+snapshot confirms the write-side endpoint as `postConversationsCalls` (`POST /api/v2/conversations/calls`,
+"Create a call conversation") — this is a write-path action outside the read-oriented `Invoke-Dataset`
+catalog, so it is not itself a dataset entry; it is referenced here only so an investigator recognizes
+where an injected conversation came from. **Verify the exact provider-scoped injection path against the
+live [BYOI integration guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/)
+and [conversation injection guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection)
+before relying on it operationally** — this document's authors could not reach developer.genesys.cloud
+directly in every research pass (vendor bot-protection returns HTTP 403 to automated fetches) and cross-checked
+field names against the bundled swagger snapshot (`GenesysCloudAPIEndpoints.json`) instead.
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
 
@@ -170,19 +193,23 @@ quality scores, and coaching coverage.
 | 1 | `authorization.get.single.division` | seed → `divisionId` | Division name, description, home-division flag |
 | 2 | `authorization.list.division.queues` | `divisionId` | All queue IDs assigned to this division |
 | 3 | `users.division.analysis.get.users.with.division.info` | `divisionId` | All agents assigned to the division with user IDs |
+| 3b | `authorization.list.division.users` | `divisionId` | Division-object roster of user IDs (same `authorization/divisions/{id}/objects` endpoint as step 2, `objectType=USER`) — cross-check against step 3 when a user's profile division and their division-object assignment can drift (e.g. mid-transfer) |
 | 4 | `analytics.query.conversation.aggregates.agent.performance` (divisionId filter) | `userId` | Per-agent: nConnected, tHandle, tTalk, tAcw, tAnswered |
 | 5 | `analytics.query.user.aggregates.login.activity` (divisionId filter) | `userId` | Per-agent time-in-state: tAgentRoutingStatus, tSystemPresence, tOrganizationPresence |
 | 6 | `analytics.query.user.details.activity.report` (userId list) | `userId` | Login/logout/on-queue presence event timeline per agent |
 | 7 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
 | 8 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
 | 9 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
+| 10 *(governance)* | `authorization.get.division.grants` | `divisionId` | Which subjects (users/roles) hold permissions on this division — who is authorized to see or act on this group's agents and conversations; supports access-review questions alongside performance questions |
 
 ### Key Joins
 
 ```
 authorization.get.single.division.id
   → authorization.list.division.queues.divisionId (queue enumeration)
-  → users.division.analysis.get.users.with.division.info.divisionId (agent enumeration)
+  → authorization.list.division.users.divisionId (agent enumeration, object-grant view)
+  → authorization.get.division.grants.divisionId (access-control review)
+  → users.division.analysis.get.users.with.division.info.divisionId (agent enumeration, profile view)
 
 users.division.analysis.get.users.with.division.info[].id
   → analytics.query.conversation.aggregates.agent.performance[].userId
@@ -190,6 +217,18 @@ users.division.analysis.get.users.with.division.info[].id
   → quality.get.agents.activity[].user.id
   → coaching.get.appointments[].attendees[].id
 ```
+
+### Division Is Not a WFM Business Unit
+
+A Genesys Cloud **division** (`authorization/divisions`) is an access-control grouping — it scopes
+what a role can see or act on. A **business unit** / **management unit**
+(`workforce.get.business.units`, `workforce.get.management.units`,
+`workforce.get.management.unit.users`, `workforce.get.management.unit.adherence`) is a separate,
+WFM-specific grouping used for forecasting, scheduling, and adherence — an org can have divisions
+and management units drawn along completely different lines (e.g. divisions by legal entity,
+management units by shift). Do not assume a 1:1 mapping. If a division investigation needs WFM
+adherence context, resolve the division's member `userId`s first (steps 3/3b above), then look up
+each user's management-unit membership independently rather than joining on a shared `divisionId`.
 
 ### Analytical Questions Answered
 
@@ -244,7 +283,9 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
+| `analytics.query.evaluation.aggregates` | `divisionId`, `queueId`, or `userId`, daily | Aggregate-native quality-score rollup — prefer this over hand-averaging `quality.get.agents.activity` rows when the report spans a division or queue rather than one agent |
 | `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
+| `analytics.query.survey.aggregates` | `divisionId`, `queueId`, or `userId`, daily | Aggregate-native CSAT/NPS rollup — same rationale: aggregate-only, no respondent identity, safe to hand an executive without a redaction review |
 | `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
 
 #### Layer 5 — Infrastructure Health (optional, voice-focused)
@@ -267,8 +308,8 @@ Headline metrics (computed, not raw):
   - SLA achievement: queues meeting target / total queues × 100
   - Transfer rate: SUM(nTransferred) / SUM(nConnected) × 100
   - QM coverage: evaluations / nConnected × 100
-  - Average QM score: from quality.get.agents.activity
-  - Avg CSAT: from quality.get.surveys
+  - Average QM score: from analytics.query.evaluation.aggregates (or quality.get.agents.activity for a single agent)
+  - Avg CSAT: from analytics.query.survey.aggregates (or quality.get.surveys for a single conversation)
 
 Trend views (daily granularity):
   - Volume by day with channel mix
@@ -444,7 +485,9 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
+| `quality.get.conversation.evaluation` | ○ | | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
+| `quality.get.conversation.surveys` | ○ | | | | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
@@ -460,11 +503,15 @@ The matrix below shows which datasets are used across which investigations and r
 | `routing-queue-members` | | ● | | | | |
 | `authorization.get.single.division` | | | ● | | | |
 | `authorization.list.division.queues` | | | ● | | | |
+| `authorization.list.division.users` | | | ● | | | |
+| `authorization.get.division.grants` | | | ○ | | | |
 | `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
 | `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
 | `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
 | `analytics.query.user.details.activity.report` | | | ● | | | ● |
 | `quality.get.agents.activity` | | | ● | ● | | ○ |
+| `analytics.query.evaluation.aggregates` | | | ○ | ● | | |
+| `analytics.query.survey.aggregates` | | | ○ | ● | | |
 | `coaching.get.appointments` | | | ● | | | ○ |
 | `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
 | `analytics.post.transcripts.aggregates.query` | | | | ● | | |

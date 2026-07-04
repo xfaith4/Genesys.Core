@@ -799,6 +799,55 @@
         "profile": "rateLimitAware"
       }
     },
+    "quality.get.conversation.evaluation": {
+      "description": "Full evaluation record for a specific conversationId + evaluationId — scores, per-question answers, calibration status, and evaluator identity. Conversation Investigation / voice engineer precision alternative to quality.get.evaluations.query once the evaluationId is already known from that query's results.",
+      "endpoint": "quality.get.conversation.evaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-investigation-evaluations",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results scoped directly to one conversationId — precision alternative to the org-wide quality.get.surveys query when a Conversation Investigation already knows the conversationId.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.survey.aggregates": {
+      "description": "CSAT/NPS survey score aggregate rollup — group by division, queue, or agent — for executive scorecards. Aggregate-only: no raw survey comments or respondent identity, so it is safe for exec-facing rollups without conversation-level redaction review.",
+      "endpoint": "postAnalyticsSurveysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.evaluation.aggregates": {
+      "description": "Quality evaluation score aggregate rollup — group by division, queue, agent, or evaluation form — for executive quality scorecards. Aggregate-only: no per-question answers or evaluator free-text comments.",
+      "endpoint": "postAnalyticsEvaluationsAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
     "alerting.get.rules": {
       "description": "All configured alerting rules and their threshold definitions.",
       "endpoint": "alerting.get.rules",
@@ -1257,6 +1306,30 @@
       },
       "retry": {
         "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.list.division.users": {
+      "description": "All user (agent) objects assigned to a specific division \u2014 the membership roster used to answer 'which agents belong to this division, regardless of which queues they sit in'. Shares the authorization.search.division.objects endpoint with authorization.list.division.queues; pass objectType=USER as a query override to select this projection instead of QUEUE.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access-control grants (subjects and their permitted roles) assigned to a division \u2014 governance/security context for Division Investigation and executive access reviews (who can see or act on this division's agents and conversations).",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
       },
       "validationStatus": "unvalidated"
     },

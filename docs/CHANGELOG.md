@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-07-04
+
+### Added
+
+- Six catalog datasets in `catalog/genesys.catalog.json` closing gaps flagged
+  in `docs/ENDPOINT_COMBINATIONS.md`: conversation-scoped evaluation/survey
+  precision lookups (`quality.get.conversation.evaluation`,
+  `quality.get.conversation.surveys`), aggregate-only executive rollup metrics
+  for CSAT/NPS and quality score (`analytics.query.survey.aggregates`,
+  `analytics.query.evaluation.aggregates`), and division membership/governance
+  datasets (`authorization.list.division.users`, `authorization.get.division.grants`).
+- Division Investigation flagship design (`docs/INVESTIGATIONS.md` § 4.5) —
+  the concrete stakeholder use case the roadmap was waiting for: divisions
+  group agents across queues for access control, so executive rollups and
+  voice-engineer/supervisor investigations need a division-scoped join that
+  Queue Investigation alone cannot answer. Design-only in this pass; the
+  `Get-GenesysDivisionInvestigation` cmdlet, redaction profile, and
+  integration test suite are the tracked next step in `docs/ROADMAP.md`.
+
+### Changed
+
+- Reconciled `docs/ENDPOINT_COMBINATIONS.md` with the current catalog: added
+  the six new dataset keys to the relevant combination sections and the
+  reference matrix, corrected the BYOI conversation-injection endpoint
+  reference in § 6 to the swagger-verified `postConversationsCalls`
+  (`POST /api/v2/conversations/calls`) with a caveat to confirm the exact
+  provider-scoped path against the live BYOI integration guide, and added a
+  note distinguishing a division (access-control grouping) from a WFM
+  business/management unit (forecasting/scheduling grouping) — the two must
+  not be joined on a shared `divisionId`.
+- Updated `docs/ROADMAP.md` to reflect the Division Investigation as scoped
+  (not just a candidate) and added an explicit "implement the cmdlet" tracked
+  item.
+
 ## 2026-06-08
 
 ### Changed

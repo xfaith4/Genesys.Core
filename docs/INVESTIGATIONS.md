@@ -7,7 +7,19 @@
 > model). Conversation Investigation shipped in 1.1 with redaction hardening.
 > Queue Investigation shipped in 1.2 with reporting-contract cleanup.
 > Campaign Investigation extends the same contract for outbound operations.
+> Division Investigation (§4.5) is a design proposal added 2026-07-04 — the
+> stakeholder use case the roadmap was waiting for (executive rollup metrics
+> grouped by division, and cross-queue agent grouping for voice-engineer /
+> supervisor investigations) is documented alongside it and in
+> [ENDPOINT_COMBINATIONS.md](ENDPOINT_COMBINATIONS.md). It has not shipped a
+> cmdlet yet — see §4.5 status note.
 > Their designs are documented here in full so the contract stays explicit.
+>
+> See [ENDPOINT_COMBINATIONS.md](ENDPOINT_COMBINATIONS.md) for the endpoint-level
+> view of these same investigations — which catalog datasets combine to answer
+> "all conversations in this queue", "all conversations this agent handled",
+> "this division's agents across every queue they sit in", executive rollup
+> metrics, and voice-engineer single-conversation deep dives.
 
 ## 1. Purpose
 
@@ -233,6 +245,56 @@ fields carried over by user records embedded under each membership entry.
 | conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
 | outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
 
+### 4.5 Division investigation _(Design proposal)_
+
+**Cmdlet:** `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>` (not yet
+implemented — this section specifies the contract so implementation can proceed
+directly from it, matching the composer pattern already shipped for Agent/
+Conversation/Queue/Campaign)
+**InvestigationKey:** `division-investigation`
+
+**Stakeholder use case:** Divisions are Genesys Cloud's access-control grouping —
+they scope which agents a supervisor or role can see, independent of which
+queue(s) those agents sit in. An agent can belong to one division while taking
+calls from several queues; a director reviewing "my group's" performance needs
+the roll-up across all of those queues, not a single queue's SLA. This is the
+concrete use case the roadmap flagged as a precondition for scoping this
+flagship (see [ROADMAP.md § Next](ROADMAP.md)).
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| division | `authorization.get.single.division` | seed | Division name, description, home-division flag |
+| queues | `authorization.list.division.queues` | `divisionId` | Every queue assigned to the division — the cross-queue fan-out set |
+| members | `users.division.analysis.get.users.with.division.info` | `divisionId` | Agents whose user profile is assigned to this division |
+| memberObjects | `authorization.list.division.users` | `divisionId` | Agents via the division's object-grant listing — cross-check against `members` when profile assignment and object assignment can drift (e.g. mid-transfer) |
+| agentPerformance | `analytics.query.conversation.aggregates.agent.performance` (member `userId` list, `or` filter) | `userId` | Per-agent handle/talk/ACW volume across every queue they touched in the window |
+| qualityRollup | `analytics.query.evaluation.aggregates` (member `userId` list) | `userId` | Aggregate quality score for the division's agents — no per-question answers or comments |
+| surveyRollup | `analytics.query.survey.aggregates` (division's queue list) | `queueId` | Aggregate CSAT/NPS for conversations handled by the division's queues |
+| coaching | `coaching.get.appointments` (member `userId` list) | `userId` | Coaching sessions scheduled/completed for the division's agents in the window |
+| accessGrants | `authorization.get.division.grants` | `divisionId` | Governance context — who can see or act on this division, for access-review alongside performance review |
+| auditChanges | `audit-logs` (EntityType=`Division`, EntityId=`divisionId`) | `divisionId` | Recent changes to division membership/grants |
+
+**Important:** a division is not a WFM business unit or management unit —
+see [ENDPOINT_COMBINATIONS.md § Division Is Not a WFM Business Unit](ENDPOINT_COMBINATIONS.md#division-is-not-a-wfm-business-unit).
+Do not join on a shared `divisionId` against `workforce.get.business.units` /
+`workforce.get.management.units`; resolve member `userId`s first and look up
+their management-unit membership independently if WFM adherence context is
+needed.
+
+**Status note:** the catalog datasets this design depends on
+(`authorization.list.division.queues`, `authorization.list.division.users`,
+`authorization.get.division.grants`, `analytics.query.evaluation.aggregates`,
+`analytics.query.survey.aggregates`) are present in
+`catalog/genesys.catalog.json` with `validationStatus: unvalidated`. Per the
+project's release convention (one flagship investigation lands per release,
+gated on live `Invoke-Dataset` acceptance for its datasets — see §6 and §8),
+implementing `Get-GenesysDivisionInvestigationStepDefinition` /
+`Get-GenesysDivisionInvestigation` in `Genesys.Ops.psm1`, wiring the
+`division-investigation` redaction profile, and adding the fixture-driven
+integration test suite are the next concrete steps, sized to mirror
+`Get-GenesysQueueInvestigation` (§4.3) closely enough that it can reuse the
+same `Invoke-Investigation` join helper and test harness pattern.
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:
@@ -254,6 +316,7 @@ under Track A.
 | Agent | `users.get.user.details.with.full.expansion`, `users.get.user.routing.skills`, `users.get.user.queue.memberships`, bulk presences with one-user query parameters, user activity report with a user/window body, `analytics-conversation-details-query` with a user/window body, `audit-logs` with EntityType/EntityId filters |
 | Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
+| Division _(design proposal, §4.5)_ | `authorization.get.single.division`, `authorization.list.division.queues`, `authorization.list.division.users`, `authorization.get.division.grants`, `users.division.analysis.get.users.with.division.info`, `analytics.query.conversation.aggregates.agent.performance` with a member-userId list, `analytics.query.evaluation.aggregates`, `analytics.query.survey.aggregates`, `audit-logs` with EntityType=Division |
 
 The mirror-catalog cutover should also land before any investigation references
 catalog keys, to avoid a double rename when the deprecated stub is removed.

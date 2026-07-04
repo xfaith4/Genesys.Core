@@ -107,8 +107,23 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [x] Scope one additional flagship investigation candidate — **Division**,
+      scoped 2026-07-04 with a concrete stakeholder use case: divisions are
+      Genesys Cloud's access-control grouping and can span multiple queues per
+      agent, so executive rollup reporting and voice-engineer/supervisor
+      investigations both need a division-scoped join that Queue Investigation
+      alone cannot answer. Full step contract in
+      [docs/INVESTIGATIONS.md § 4.5](INVESTIGATIONS.md#45-division-investigation-design-proposal)
+      and endpoint-level detail in
+      [docs/ENDPOINT_COMBINATIONS.md § 3](ENDPOINT_COMBINATIONS.md#3-division--agent-group-investigation).
+      Six supporting catalog datasets added (`quality.get.conversation.evaluation`,
+      `quality.get.conversation.surveys`, `analytics.query.survey.aggregates`,
+      `analytics.query.evaluation.aggregates`, `authorization.list.division.users`,
+      `authorization.get.division.grants`).
+- [ ] Implement `Get-GenesysDivisionInvestigation` per the §4.5 contract —
+      step-definition function, redaction profile, and fixture-driven
+      integration test suite mirroring the Queue Investigation pattern. Gated
+      on the same Track A live-validation discipline as the other flagships.
 
 ### Maintenance
 
@@ -419,9 +434,12 @@ established and proven across all three flagships.
 - [x] Flagship investigation visibility extensions: Agent routing/utilization,
       Conversation survey enrichment, Queue transfer/wrap-up context, and
       committed deterministic demo outputs.
-- [ ] Additional flagship investigations identified during 1.0–1.2
-      (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
-      names a concrete use case.
+- [x] Additional flagship investigations identified during 1.0–1.2
+      (candidates: Division, Flow, Outbound Campaign) — Outbound Campaign
+      shipped (§4.4). Division scoped 2026-07-04 with a concrete stakeholder
+      use case (executive rollup + cross-queue agent grouping); design in
+      `docs/INVESTIGATIONS.md` §4.5, implementation tracked under "Next" above.
+      Flow remains an unscoped candidate — no stakeholder use case named yet.
 
 ---
 

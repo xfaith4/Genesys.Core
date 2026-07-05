@@ -1059,7 +1059,7 @@
       "validationStatus": "unvalidated"
     },
     "conversations.get.conversation.customattributes": {
-      "description": "Custom attributes for a single conversation \u2014 per-conversation enrichment path.",
+      "description": "Custom attributes for a single conversation \u2014 per-conversation enrichment path. Primary landing spot for BYOI/conversation-injection business context (external case ID, source system, campaign tag).",
       "endpoint": "getConversationCustomattributes",
       "itemsPath": "$.results",
       "paging": {
@@ -1068,10 +1068,11 @@
       "retry": {
         "profile": "rateLimitAware"
       },
+      "redactionProfile": "conversation-custom-and-participant-attributes",
       "validationStatus": "unvalidated"
     },
     "conversations.search.customattributes": {
-      "description": "Bulk custom attribute search across conversations \u2014 use for multi-conversation enrichment.",
+      "description": "Bulk custom attribute search across conversations \u2014 use for multi-conversation enrichment, e.g. finding all conversations tagged with a given external case ID or BYOI source-system value.",
       "endpoint": "postConversationsCustomattributesSearch",
       "itemsPath": "$",
       "paging": {
@@ -1080,10 +1081,11 @@
       "retry": {
         "profile": "rateLimitAware"
       },
+      "redactionProfile": "conversation-custom-and-participant-attributes",
       "validationStatus": "unvalidated"
     },
     "conversations.search.participant.attributes": {
-      "description": "Historical participant attribute search \u2014 IVR/Architect flow variables, data action outcomes.",
+      "description": "Historical participant attribute search \u2014 IVR/Architect flow variables, data action outcomes, and the queueId/isInternal-style routing attributes surfaced client-side as Condensed Conversation Info in the Embeddable Framework.",
       "endpoint": "postConversationsParticipantsAttributesSearch",
       "itemsPath": "$",
       "paging": {
@@ -1092,6 +1094,7 @@
       "retry": {
         "profile": "rateLimitAware"
       },
+      "redactionProfile": "conversation-custom-and-participant-attributes",
       "validationStatus": "unvalidated"
     },
     "conversations.get.conversation.suggestions": {
@@ -1564,6 +1567,17 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "conversation-custom-and-participant-attributes": {
+        "mode": "pii-restrictive",
+        "description": "Applied to conversations.get.conversation.customattributes and conversations.search.participant.attributes in single-conversation-investigation. External systems and Architect flows can write arbitrary key/value pairs here — strip common PII-shaped keys (raw account/SSN/DOB-style values) collected via IVR/BYOI payloads while preserving routing and business-context keys (case ID, campaign tag, queueId, isInternal).",
+        "removeFields": [
+          "ssn",
+          "dateOfBirth",
+          "accountNumber",
+          "cardNumber",
+          "customerFullName"
         ]
       }
     }
@@ -39704,15 +39718,38 @@
             ],
             "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
             "description": "Raw SIP signalling log \u2014 critical for trunk routing diagnosis and call failure forensics"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "business/context tags attached to the conversation (external case ID, campaign tag, BYOI source system reference)",
+            "description": "Custom attributes set on the conversation \u2014 the primary place BYOI/conversation-injection payloads and external CRM/CTI integrations attach business context. Absence of expected attributes on a conversation known to originate from an external system is itself a diagnostic signal (injection payload dropped a field)."
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables, data action outcomes, queueId/isInternal-style routing attributes set during self-service",
+            "description": "Historical participant attribute values \u2014 the server-side equivalent of the Condensed Conversation Info exposed to the Embeddable Framework widget (queueId, isInternal, and other interaction attributes). Use to confirm what the flow captured/decided before handing off to a queue or agent."
+          },
+          {
+            "step": "agent-assist-suggestions",
+            "dataset": "conversations.get.conversation.suggestions",
+            "joinKey": "conversationId",
+            "provides": "suggestionId, confidence, source, whether the agent accepted/dismissed the suggestion",
+            "description": "Agent Assist/Copilot suggestion audit for the conversation \u2014 drill into an individual suggestion with conversations.get.conversation.suggestion.detail (joinKey conversationId+suggestionId) when investigating whether AI guidance was shown and followed."
           }
         ],
-        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
+        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey \u2192 custom-attributes \u2192 participant-attributes \u2192 agent-assist-suggestions",
+        "externalChannelNote": "Conversations created via BYOI conversation injection (developer.genesys.cloud/platform/integrations/byoi-integration-guide) flow through the exact same analytics/conversations endpoints as native-channel conversations once accepted \u2014 no separate investigation path is needed. The custom-attributes and participant-attributes steps above are the join points that carry the external system's business context (case IDs, source system name) into this recipe.",
         "voiceEngineerHighlights": [
           "sip-trace: SIP 486/503/487 responses reveal trunk capacity or routing-rule failure",
           "call-detail: DNIS value vs. expected queue DNIS confirms correct routing table entry",
           "recording-metadata: absent recording (empty result) indicates edge policy or consent gap",
           "sta-overview: extreme sentiment + silence > 30% flags CX issue for QM escalation",
-          "analytics-detail: tTalkComplete=0 with tAbandon>0 confirms abandoned before agent answer"
+          "analytics-detail: tTalkComplete=0 with tAbandon>0 confirms abandoned before agent answer",
+          "participant-attributes: missing expected IVR/flow variable on a BYOI-injected conversation points to a dropped field in the external injection payload rather than an Architect flow defect"
         ],
         "executiveMetrics": [
           "tTalk",
@@ -40066,6 +40103,14 @@
             "description": "Full conversation list for the queue in the window \u2014 seed for per-conversation drilldown"
           },
           {
+            "step": "active-conversations",
+            "dataset": "conversations.get.active.conversations",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "conversationId, participants, mediaType for every conversation currently in progress on this queue",
+            "description": "Live conversation list backing the real-time-observations counters \u2014 turns oInteracting/oWaiting from a number into the actual conversationIds a supervisor can drill into right now. Use when a queue is hot and the investigation needs to name specific calls, not just counts."
+          },
+          {
             "step": "evaluations",
             "dataset": "quality.get.evaluations.query",
             "filterBy": "queueId",
@@ -40074,7 +40119,7 @@
             "description": "Quality evaluations for conversations that touched this queue"
           }
         ],
-        "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution",
+        "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution \u2192 active-conversations",
         "executiveMetrics": [
           "nOffered",
           "nConnected",
@@ -40345,6 +40390,7 @@
         "description": "Outbound dialer campaign reach rates, contact dispositions, and messaging engagement. Feeds campaign ROI reporting and list penetration tracking.",
         "datasetsInOrder": [
           "outbound.get.campaigns",
+          "outbound.get.campaign.diagnostics.summary",
           "outbound.get.contact.lists",
           "outbound.get.events",
           "outbound.get.messaging.campaigns"
@@ -40358,7 +40404,8 @@
           "rightPartyContactRate%",
           "dispositionCounts (by outcome)",
           "messagingDeliveryRate%",
-          "campaignCompletionPct%"
+          "campaignCompletionPct%",
+          "campaignHealthStatus (from diagnostics summary — healthy/degraded/error)"
         ],
         "executivePresentation": "Campaign funnel chart + disposition breakdown pie"
       },
@@ -40418,6 +40465,7 @@
         "description": "SIP infrastructure health snapshot \u2014 edge appliance status, trunk utilisation, active call load, and station registration. Used for proactive monitoring and incident response.",
         "datasetsInOrder": [
           "telephony.get.edges",
+          "telephony.get.edge.performance.metrics",
           "telephony.get.trunks",
           "telephony.get.trunk.metrics.summary",
           "stations.get.stations",
@@ -40425,6 +40473,7 @@
         ],
         "diagnosticSignals": [
           "Edge statusCode != 'ACTIVE' \u2192 failover condition; check edge firmware and network path",
+          "Edge CPU/memory from telephony.get.edge.performance.metrics trending toward saturation while statusCode is still ACTIVE \u2192 early warning before the edge actually fails over",
           "Trunk inService=false \u2192 provider circuit down or PSTN gateway misconfiguration",
           "trunk.currentCalls / trunk.maxConcurrentCalls > 0.85 \u2192 capacity saturation risk",
           "Stations with registered=false spike \u2192 network or DNS issue affecting softphone registration",

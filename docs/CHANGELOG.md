@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-07-06
+
+### Added
+
+- **Endpoint combination evaluation (Release 1.4):** cross-referenced
+  `catalog/genesys.catalog.json` combinations against the Genesys Cloud API
+  Explorer, the Embeddable Framework condensed-conversation-info reference,
+  the BYOI/ex-integration-guide conversation-injection guide, and the
+  Genesys Cloud Blueprints library (Conversation MOS Score Dashboard).
+  - Added 11 first-class datasets that combinations already referenced but
+    that had not been wired into `catalog.datasets`: `conversations.get.call.detail`,
+    `conversations.get.conversation.participant.wrapup`,
+    `conversations.get.conversation.summaries`, `quality.get.conversation.surveys`,
+    `routing.get.queue.estimated.wait.time`,
+    `speechandtextanalytics.get.conversation.categories`,
+    `speechandtextanalytics.get.conversation.summaries.detail`,
+    `workforce.get.adherence.bulk`, `workforce.get.agent.management.unit`,
+    `authorization.get.division.grants`, and the new clean
+    `analytics.query.conversation.aggregates.by.division` (plus its backing
+    `endpoints` entry, replacing a one-off saved-request key with a stale
+    hardcoded date range).
+  - Added redaction profile `conversation-investigation-ai-summaries` for the
+    two new AI-summary datasets.
+  - Corrected 9 combination steps that referenced an `endpoints`-only key or
+    raw operationId instead of the registered `datasets` key backed by the
+    same endpoint (e.g. `conversations.get.specific.conversation.details` →
+    `conversations.get.conversation.object`).
+  - Added `combinations.investigationRecipes.byoi-external-conversation-investigation`
+    (structured BYOI/external-conversation enrichment recipe) and
+    `combinations.voiceEngineerPlaybooks.conversation-audio-quality-mos-analysis`
+    (MOS/R-factor audio-quality forensics, modelled on the Genesys Cloud
+    Conversation MOS Score Dashboard blueprint).
+  - Added `combinations.sourceDocumentation` recording the Genesys doc URLs
+    evaluated and how each informed the additions above.
+  - Updated `docs/ENDPOINT_COMBINATIONS.md` with new sections 11–13
+    (Audio Quality / MOS, Newly Catalogued Endpoints, Source Documentation)
+    and cross-references from section 6 to the new BYOI recipe.
+
 ## 2026-06-08
 
 ### Changed

@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-06  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,9 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Conversation Audio Quality / MOS Analysis (Voice Engineer)](#11-conversation-audio-quality--mos-analysis-voice-engineer)
+12. [Newly Catalogued Endpoints (Release 1.4)](#12-newly-catalogued-endpoints-release-14)
+13. [Source Documentation](#13-source-documentation)
 
 ---
 
@@ -372,8 +375,22 @@ as native Genesys conversations. The following datasets apply identically:
 Conversations visible to agents via the Embeddable Framework return the same object shape as
 `conversations.get.conversation.object`. The condensed view used by the embedded client includes:
 `participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+`participants[].calls[].muted`, `participants[].calls[].held`, `queueId`, and
+`startTime`/`connectedTime`/`endTime`. These fields are present in the full object returned by the
+dataset and need no special handling.
+
+### Structured Recipe
+
+This section is now also expressed as a formal, machine-readable recipe in the catalog —
+`catalog/genesys.catalog.json` → `combinations.investigationRecipes.byoi-external-conversation-investigation`.
+It is a thin layer on top of `single-conversation-investigation`: a `detectionStep` (the
+`externalTag`/`externalConversationId` check above), two `additionalSteps` (provider custom
+attributes and provider participant attributes), and an `unchangedSteps` list documenting which
+parts of the standard conversation investigation apply unmodified to a BYOI conversation. Genesys
+now documents this integration path as the **ex-integration-guide** (External Interactions /
+BYOI); the endpoint that performs the injection itself
+(`POST .../conv-injection`, called by the external system) is out of scope for Genesys.Core, which
+only reads and enriches the conversation after ingestion.
 
 ---
 
@@ -484,6 +501,17 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `conversations.get.call.detail` | ● | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | |
+| `quality.get.conversation.surveys` | ○ | | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | |
+| `workforce.get.adherence.bulk` | | | ● | ● | | ● |
+| `workforce.get.agent.management.unit` | | | | | | ○ |
+| `authorization.get.division.grants` | | | ● | | | |
+| `analytics.query.conversation.aggregates.by.division` | | | ● | ● | | |
 
 ---
 
@@ -508,6 +536,116 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `mediaStatsMinConversationMos` | Lowest estimated MOS (1–5) across all audio streams in a conversation | Audio-quality triage |
+| `mediaStatsMinConversationRFactor` | Lowest R-factor (0–100) across all audio streams in a conversation | Audio-quality triage |
+
+---
+
+## 11. Conversation Audio Quality / MOS Analysis (Voice Engineer)
+
+**Subject:** One `conversationId`, or a `queueId` + time window for a trend view
+**Use case:** A customer or agent reports choppy audio, a robotic-sounding voice, or one-way audio,
+and the SIP trace (section 1, step 8) shows normal call setup and teardown — no 4xx/5xx, a clean
+`BYE`. The problem is in the RTP media path, not call control, and needs its own forensics pass.
+This playbook is modelled directly on the Genesys Cloud **Conversation MOS Score Dashboard**
+blueprint (see [Source Documentation](#13-source-documentation)).
+
+**Core question:** *Was the audio itself degraded, and on which leg?*
+
+### Key Fields (already returned by `analytics.get.single.conversation.analytics` — no new endpoint needed)
+
+| Field | Scope | Meaning |
+|-------|-------|---------|
+| `mediaStatsMinConversationMos` | Whole conversation | Lowest estimated average MOS across every audio stream in the conversation |
+| `mediaStatsMinConversationRFactor` | Whole conversation | Lowest R-factor across every audio stream in the conversation |
+| `participants[].sessions[].mediaEndpointStats[].minMos` / `.minRFactor` | Per leg | Same metrics scoped to one participant's media endpoint — use to isolate *which* leg (customer, agent, trunk) degraded |
+| `participants[].sessions[].mediaEndpointStats[].maxLatencyMs` | Per leg | Worst observed one-way latency for that leg |
+| `participants[].sessions[].mediaEndpointStats[].discardedPackets` / `.duplicatePackets` / `.invalidPackets` / `.overrunPackets` / `.underrunPackets` | Per leg | Jitter-buffer and packet-loss counters — the mechanism behind a low MOS/R-factor |
+| `participants[].sessions[].mediaEndpointStats[].codecs` | Per leg | Negotiated codec(s) for that leg |
+
+This confirms the fields discovered in the vendored Genesys Cloud OpenAPI spec
+(`AnalyticsConversation` and `AnalyticsMediaEndpointStat` definitions in `GenesysCloudAPIEndpoints.json`)
+are already reachable through the existing `analytics.get.single.conversation.analytics` dataset — the
+gap this section closes is documentation, not a missing endpoint.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | What It Adds |
+|------|-------------|--------------|
+| 1 | `analytics.get.single.conversation.analytics` | MOS/R-factor summary + per-leg `mediaEndpointStats` |
+| 2 *(voice only)* | `telephony.get.sip.messages.for.conversation` | Confirms signalling was clean, isolating the issue to media |
+| 3 *(if infra-wide pattern suspected)* | `telephony.get.trunk.metrics.summary` | Trunk-wide utilisation/error context |
+| 4 *(if infra-wide pattern suspected)* | `telephony.get.edge.performance.metrics` | Edge-appliance CPU/memory/error context for the specific Edge that handled the call |
+
+### Diagnostic Signals
+
+- `mediaStatsMinConversationMos < 3.5` → noticeably degraded audio; user-perceptible.
+- `mediaStatsMinConversationMos < 2.5` → severe degradation; expect explicit complaints.
+- Low R-factor with high `discardedPackets`/`underrunPackets` on one leg → network jitter/packet
+  loss on that leg specifically — isolate the worst `mediaEndpointStats` entry before escalating.
+- Elevated `maxLatencyMs` on the Edge-side leg only → WAN/last-mile issue, not the carrier trunk.
+- Low-bitrate codec (e.g. G.729) negotiated where G.711/Opus was expected → codec fallback; check
+  trunk/Edge codec preference order.
+- Many conversations on the same trunk/Edge dropping below MOS 3.5 in the same window →
+  infrastructure-wide, not caller-specific — escalate via the trunk-and-edge-health-check playbook.
+
+### Structured Recipe
+
+`catalog/genesys.catalog.json` → `combinations.voiceEngineerPlaybooks.conversation-audio-quality-mos-analysis`.
+
+---
+
+## 12. Newly Catalogued Endpoints (Release 1.4)
+
+The catalog combinations added in Release 1.3 referenced several dataset keys that did not yet
+exist as first-class catalog datasets (they were only present as raw `endpoints` entries). Release
+1.4 closes that gap: the underlying Genesys Cloud API operations already existed and are already
+present in `GenesysCloudAPIEndpoints.json` — nothing here is a newly-discovered API, only a
+newly-wired `Invoke-Dataset` entry point.
+
+| New Dataset Key | Endpoint | Fills a Step In |
+|------------------|----------|-----------------|
+| `conversations.get.call.detail` | `GET /api/v2/conversations/calls/{conversationId}` | Single Conversation Deep Dive — voice call-leg detail (hold/mute/transfer events, DNIS routing path) |
+| `conversations.get.conversation.participant.wrapup` | `GET /api/v2/conversations/{conversationId}/participants/{participantId}/wrapup` | Single Conversation Deep Dive — per-agent wrapup attribution when a conversation has more than one agent participant |
+| `conversations.get.conversation.summaries` | `GET /api/v2/conversations/{conversationId}/summaries` | Single Conversation Deep Dive — Copilot/Agent Assist AI summary (reason for contact, resolution) |
+| `quality.get.conversation.surveys` | `GET /api/v2/quality/conversations/{conversationId}/surveys` | Single Conversation Deep Dive — CSAT/NPS scoped directly to one conversationId, no search filter required |
+| `routing.get.queue.estimated.wait.time` | `GET /api/v2/routing/queues/{queueId}/estimatedwaittime` | Real-Time Operations Monitoring / queue-saturation-and-staffing-analysis — EWT vs. SLA target |
+| `speechandtextanalytics.get.conversation.categories` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/categories` | Single Conversation Deep Dive — detected topic/category matches |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `GET /api/v2/speechandtextanalytics/conversations/{conversationId}/summaries` | Single Conversation Deep Dive — S&TA engine's own per-leg summary text |
+| `workforce.get.adherence.bulk` | `GET /api/v2/workforcemanagement/adherence` | Division / Agent Group Investigation — bulk adherence for up to 100 agents in one call |
+| `workforce.get.agent.management.unit` | `GET /api/v2/workforcemanagement/agents/{agentId}/managementunit` | Agent Investigation — resolves the WFM management unit before requesting adherence |
+| `authorization.get.division.grants` | `GET /api/v2/authorization/divisions/{divisionId}/grants` | Division / Agent Group Investigation — who can administer this division |
+| `analytics.query.conversation.aggregates.by.division` | `POST /api/v2/analytics/conversations/aggregates/query` | Executive Reporting Rollup — clean, reusable division-level KPI rollup (replaces a one-off saved-request endpoint that hardcoded a stale Oct–Dec 2024 date range) |
+
+Nine pre-existing combination steps also referenced dataset keys that were slightly wrong (an
+`endpoints` key or a raw operationId instead of the registered `datasets` key with the same
+underlying endpoint — e.g. `conversations.get.specific.conversation.details` instead of
+`conversations.get.conversation.object`, or `routing.get.queue.wrapup.codes` instead of
+`routing.get.queue.wrapup.codes.by.queue`). These references were corrected in place; no new
+endpoint was required for any of them.
+
+---
+
+## 13. Source Documentation
+
+The endpoint combinations in this document and in `catalog/genesys.catalog.json` →
+`combinations.sourceDocumentation` were evaluated against:
+
+| Source | Used For |
+|--------|----------|
+| [Genesys Cloud API Explorer](https://developer.genesys.cloud/devapps/api-explorer) | Cross-referencing dataset/endpoint pairs against the live operationId, method, path, and response schema |
+| [Condensed conversation information](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info) | Confirming the Embeddable Framework's condensed shape is a subset of `conversations.get.conversation.object` (see section 6) |
+| [BYOI / External Interactions integration guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/) | Understanding conversation ingestion from external systems (see section 6 and `byoi-external-conversation-investigation`) |
+| [Conversation injection (BYOI)](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection) | Confirming injected conversations carry `externalTag`/`externalConversationId` and flow through the normal pipeline |
+| [Genesys Cloud Blueprints](https://developer.genesys.cloud/blueprints/) | The *Conversation MOS Score Dashboard* blueprint informed section 11 |
+
+**Note on access:** `developer.genesys.cloud` returns HTTP 403 to automated fetches from this
+environment (bot protection on the docs SPA). The above pages were evaluated via public
+search-indexed summaries and cross-checked against the Genesys Cloud OpenAPI/Platform API
+definitions already vendored in this repository at `GenesysCloudAPIEndpoints.json` — every field
+and endpoint named in sections 11 and 12 (e.g. `mediaStatsMinConversationMos`,
+`AnalyticsMediaEndpointStat`, the ten endpoints in section 12) was verified directly against that
+spec, not asserted from the page summaries alone.
 
 ---
 

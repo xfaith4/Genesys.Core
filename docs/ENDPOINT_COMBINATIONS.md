@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-07  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,8 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Digital Channel BYOI (Open Messaging) Conversation Injection](#10-digital-channel-byoi-open-messaging-conversation-injection)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -431,7 +432,57 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Digital Channel BYOI (Open Messaging) Conversation Injection
+
+**Subject:** A `conversationId` (post-injection trace) or `integrationId` (pre-flight config check)  
+**Use case:** A digital channel partner or custom messaging front-end injects conversations into
+Genesys Cloud via the [BYOI integration guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/)
+Open Messaging APIs (`POST /api/v2/conversations/messages/inbound/open`,
+`POST /api/v2/conversations/messages/agentless`, and the newer
+`/conversations/messages/{integrationId}/inbound/open/{event|message|receipt}` family — see the
+[conversation injection guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection)).
+This is a distinct integration surface from the telephony provider BYOI in §6 above — Open Messaging
+BYOI carries chat-style messages, not SIP calls, and its failure modes are config-driven rather than
+signaling-driven.
+
+**Core question:** *Did the injected message reach a conversation, was the customer correctly
+identified, and did the agent see complete context?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.messaging.get.open.integration.detail` | seed → `integrationId` | Integration status (Active/Inactive), outbound notification URL, assigned supported-content profile |
+| 2 | `conversations.messaging.get.identity.resolution.for.open.integration` | `integrationId` | Rules mapping the injected sender/recipient to an external contact — root cause for duplicate or unmatched customers |
+| 3 | `conversations.messaging.get.supported.content.default` | `supportedContentId` | Allowed attachment/content types — explains dropped media |
+| 4 | `conversations.messaging.get.threading.timeline` | `mediaType` | Threading window that decides whether a follow-up message joins the existing conversation or starts a new one |
+| 5 | `conversations.get.specific.conversation.details` | `conversationId` | The resulting conversation record — confirms the injection actually landed |
+| 6 | `getExternalcontactsContact` | `externalContactId` | The customer identity the message was resolved to |
+| 7 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Prior interaction history — the same data the Embeddable Framework's [condensed-conversation-info](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info) panel shows the agent |
+| 8 | `routing.get.message.recipients` | inbound address | Route from the inbound messaging address/integration to a destination queue or flow — check first on "no route found" errors |
+
+Once step 5 confirms the conversation exists, chain into [§1 Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer)
+for wrapup, S&TA, and evaluation enrichment — an injected Open Messaging conversation flows through
+the same routing, quality, and analytics pipeline as any other conversation.
+
+### Diagnostic Signals
+
+| Signal | Likely Cause |
+|--------|--------------|
+| Integration status = Inactive | Injected messages are rejected outright; not a code-side bug |
+| Identity resolution rule missing/misconfigured | Returning customers create a new external contact each time; condensed-conversation-info shows no history |
+| `supportedContentId` unset, org default too restrictive | Attachment silently dropped or agent sees "unsupported media" |
+| Threading window shorter than the partner's retry cadence | One customer conversation fragments into several; inflates `nOffered` for the digital channel |
+| `400`/`404` from the inbound-open or agentless endpoint | No entry in `routing.get.message.recipients` for the inbound address — a routing config gap |
+| Integration still calling `POST /conversations/messages/inbound/open` | On the deprecated single-endpoint injection path; migrate to the `{integrationId}/inbound/open/{event|message|receipt}` endpoints described in the conv-injection guide |
+
+**Executive rollup tie-in:** `activeOpenMessagingIntegrations` (from `conversations.messaging.get.open.integrations`)
+is folded into the Executive Rollup's digital-channel volume KPI so a drop in digital volume can be
+told apart from an integration outage.
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.

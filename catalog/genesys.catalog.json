@@ -39593,6 +39593,125 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "conversations.messaging.get.open.integrations": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "List configured Open Messaging (BYOI) integrations \u2014 confirms which external channels are wired to inject conversations",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.get.open.integration.detail": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      },
+      "notes": [
+        "Get one Open Messaging integration \u2014 outbound notification URL, webhook secret status, supportedContentId, and integration status (Active/Inactive)",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.get.identity.resolution.for.open.integration": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/identityresolution/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      },
+      "notes": [
+        "Identity resolution rules for an Open Messaging integration \u2014 how the injected recipient/sender ids are matched to an external contact; misconfiguration here causes duplicate contacts and empty condensed-conversation-info history",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.post.inbound.open.message": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messages/inbound/open",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "BYOI conversation-injection endpoint \u2014 injects an inbound Open Message and either starts a new conversation or joins an existing one per the threading window. Deprecated in favor of /conversations/messages/{integrationId}/inbound/open/{event|message|receipt}, but still the canonical example in the BYOI integration guide",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.post.agentless.outbound.message": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messages/agentless",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Send an agentless (API participant) outbound message via client-credentials grant \u2014 the injection path for proactive/notification messages into a new or existing conversation",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.get.supported.content.default": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/supportedcontent/default",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Organization default supported-content profile \u2014 governs which attachment/media types injected BYOI messages are allowed to carry when an integration has no explicit profile assigned",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.get.supported.content.profiles": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/supportedcontent",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "All configured supported-content profiles \u2014 cross-reference an integration's supportedContentId to explain dropped attachments or unsupported-media errors",
+        "group: Conversations"
+      ]
+    },
+    "conversations.messaging.get.threading.timeline": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/threadingtimeline",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Conversation threading window per messaging type \u2014 the setting that decides whether a follow-up inbound message joins the existing conversation or starts a new one; too-short a window fragments the condensed-conversation-info history shown to agents",
+        "group: Conversations"
+      ]
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      },
+      "notes": [
+        "Prior journey sessions for the resolved external contact \u2014 the data behind the embeddable framework's condensed-conversation-info panel showing an agent the customer's recent interaction history",
+        "group: External Contacts"
+      ]
+    },
+    "routing.get.message.recipients": {
+      "method": "GET",
+      "path": "/api/v2/routing/message/recipients",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Message routing recipients \u2014 maps an inbound messaging address/integration to the destination queue or flow; check when injected BYOI messages fail with no route found",
+        "group: Routing"
+      ]
     }
   },
   "combinations": {
@@ -40173,6 +40292,80 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "byoi-open-messaging-conversation-investigation": {
+        "description": "Traces a Bring-Your-Own-Integration (Open Messaging) conversation from the injection call through to the resulting conversation record. Confirms the injecting integration is active, the sender/recipient identity resolved to the correct external contact, the threading window attached the message to the right conversation, and supported content rules did not silently drop attachments. Once the conversation exists, chains into single-conversation-investigation for the standard S&TA/wrapup/evaluation drilldown. This is also the dataset chain that powers the embeddable framework's condensed-conversation-info panel (per-customer prior-interaction summary shown to agents).",
+        "subjectParam": "conversationId (or integrationId for a pre-flight config check before any message is injected)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "integration-config",
+            "dataset": "conversations.messaging.get.open.integration.detail",
+            "role": "seed",
+            "joinKey": "integrationId",
+            "provides": "integration status (Active/Inactive), outboundNotificationWebhookUrl, supportedContentId",
+            "description": "Confirms the BYOI integration used to inject the message is active and correctly wired before trusting anything downstream"
+          },
+          {
+            "step": "identity-resolution-config",
+            "dataset": "conversations.messaging.get.identity.resolution.for.open.integration",
+            "joinKey": "integrationId",
+            "provides": "identity resolution rule set (which inbound fields map to an external contact)",
+            "description": "Explains whether the injected sender was matched to an existing external contact or created a new one \u2014 root cause for a customer with fragmented history"
+          },
+          {
+            "step": "supported-content",
+            "dataset": "conversations.messaging.get.supported.content.default",
+            "joinKey": "supportedContentId",
+            "provides": "allowed content/attachment types",
+            "description": "Cross-reference with conversations.messaging.get.supported.content.profiles when the integration has an explicit (non-default) profile assigned; explains dropped media in the injected message"
+          },
+          {
+            "step": "threading-window",
+            "dataset": "conversations.messaging.get.threading.timeline",
+            "joinKey": "mediaType",
+            "provides": "per-messaging-type threading window duration",
+            "description": "Determines whether a follow-up inbound message should have joined the existing conversation or legitimately started a new one"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "resulting conversation record, participants, state",
+            "description": "The conversation created (or joined) by the injection call \u2014 confirms the injection actually landed"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "getExternalcontactsContact",
+            "joinKey": "externalContactId",
+            "provides": "resolved customer identity and profile fields",
+            "description": "The contact record the identity-resolution step matched the message to"
+          },
+          {
+            "step": "condensed-history",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "contactId",
+            "provides": "prior session/interaction summary",
+            "description": "Same data set the embeddable framework's condensed-conversation-info widget surfaces to the agent \u2014 verifies the customer's history is visible and complete"
+          },
+          {
+            "step": "downstream-detail",
+            "dataset": "single-conversation-investigation",
+            "role": "chain",
+            "description": "Once the conversation record is confirmed, hand off to the single-conversation-investigation recipe for wrapup, S&TA, evaluation, and CSAT enrichment"
+          }
+        ],
+        "diagnosticSignals": [
+          "integration status = Inactive \u2192 injected messages are rejected outright; check with the integration owner before assuming a code-side bug",
+          "identity-resolution rule missing/misconfigured \u2192 every injected message creates a new external contact instead of matching the returning customer; condensed-conversation-info shows no history",
+          "supportedContentId not set on the integration \u2192 falls back to the org default profile, which may not allow the attachment type the sender sent",
+          "threading window too short for the messaging type \u2192 rapid follow-up messages fragment into separate conversations, inflating nOffered and breaking agent context",
+          "postConversationsMessagesInboundOpen / postConversationsMessagesAgentless returns 400/404 \u2192 check routing.get.message.recipients for a missing queue/flow route before escalating to the integration"
+        ],
+        "enrichWith": [
+          "routing.get.message.recipients (route the inbound address/integration is expected to reach)",
+          "alerting.get.alerts (check for active messaging/integration alerts around the injection timestamp)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40298,10 +40491,11 @@
         "executivePresentation": "Sentiment trend chart + topic frequency heat map; flag topics with negative sentiment correlation"
       },
       "digital-channel-volume-and-sla": {
-        "description": "Omni-channel volume breakdown \u2014 compare voice, chat, email, and messaging workloads for capacity planning and SLA compliance reporting across all media types.",
+        "description": "Omni-channel volume breakdown \u2014 compare voice, chat, email, and messaging workloads for capacity planning and SLA compliance reporting across all media types. Includes BYOI/Open Messaging integration health so a spike in dropped or misrouted digital volume can be traced to a specific integration rather than misread as a demand change.",
         "datasetsInOrder": [
           "analytics.query.conversation.aggregates.digital.channels",
-          "analytics.query.conversation.aggregates.queue.performance"
+          "analytics.query.conversation.aggregates.queue.performance",
+          "conversations.messaging.get.open.integrations"
         ],
         "joinOn": "queueId",
         "groupBy": [
@@ -40313,9 +40507,10 @@
           "nConnected by mediaType",
           "nAbandoned by mediaType",
           "tHandle by mediaType",
-          "mediaTypeMix% (voice vs. digital)"
+          "mediaTypeMix% (voice vs. digital)",
+          "activeOpenMessagingIntegrations (count, cross-check against expected channel roster)"
         ],
-        "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+        "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType; integration health chip (active/inactive count) alongside the digital total"
       },
       "wfm-adherence-and-occupancy": {
         "description": "Workforce adherence and occupancy \u2014 scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",
@@ -40502,6 +40697,31 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "byoi-open-messaging-diagnostics": {
+        "description": "Digital-channel counterpart to single-call-forensics — diagnoses BYOI/Open Messaging conversation-injection failures, fragmented conversation history, or dropped attachments. The go-to playbook when a digital channel partner reports 'messages aren't reaching agents' or an agent reports missing customer history in the condensed-conversation-info panel.",
+        "subjectParam": "integrationId (config-level) or conversationId (single-message trace)",
+        "datasetsInOrder": [
+          "conversations.messaging.get.open.integrations",
+          "conversations.messaging.get.open.integration.detail",
+          "conversations.messaging.get.identity.resolution.for.open.integration",
+          "conversations.messaging.get.supported.content.default",
+          "conversations.messaging.get.threading.timeline",
+          "routing.get.message.recipients",
+          "conversations.get.specific.conversation.details"
+        ],
+        "diagnosticSignals": [
+          "integration status != Active → injected messages are rejected before a conversation is ever created; confirm with the integration/channel owner",
+          "identity resolution rule absent or matching the wrong field → repeat customers appear as new external contacts every time, so condensed-conversation-info shows no prior history",
+          "supportedContentId missing on the integration and org default profile too restrictive → attachments silently dropped, agent sees an empty or 'unsupported media' message",
+          "threading window shorter than the partner's expected retry/follow-up cadence → one customer conversation fragments into many, inflating nOffered for the digital channel",
+          "postConversationsMessagesInboundOpen / postConversationsMessagesAgentless returns 400 'no route found' → routing.get.message.recipients has no entry for the inbound address; routing config gap, not an integration bug",
+          "postConversationsMessagesInboundOpen used in production → integration is on the deprecated single-endpoint injection path; recommend migrating to /conversations/messages/{integrationId}/inbound/open/{event|message|receipt}"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (check for active messaging/integration alerts around the reported time window)",
+          "externalcontacts.get.contact.journey.sessions (confirm whether history is actually missing or just not surfaced in the widget)"
         ]
       }
     }

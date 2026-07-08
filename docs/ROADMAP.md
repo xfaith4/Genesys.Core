@@ -27,6 +27,21 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Release 1.5 — Division Investigation flagship (2026-07-08):
+      `Get-GenesysDivisionInvestigation` implemented over eight steps (division,
+      queues, agents, grants, agentPerformance, conversationAggregates,
+      queuePerformance, quality), closing the cross-queue organisational
+      grouping gap this section previously listed as a "Next" candidate.
+      Queues and agents are each enumerated independently (a division is a
+      queue/agent grouping, not a queue list) and OR-combined into the
+      downstream analytics filters. Added `division` to the
+      `Invoke-Investigation` `SubjectType` set and the investigation manifest
+      schema enum; fixed the stale `authorization.get.single.division` /
+      `authorization.list.division.queues` dataset-key references in
+      `docs/ENDPOINT_COMBINATIONS.md` to match the catalog's
+      `combinations.investigationRecipes.division-investigation` recipe. Full
+      fixture-driven integration test suite under
+      `tests/integration/DivisionInvestigation.Tests.ps1`.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`
@@ -107,8 +122,12 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Scope one additional flagship investigation candidate (Flow or a deeper
+      Outbound Campaign extension) with a concrete operator use case and
+      fixture contract. Division shipped in Release 1.5 (see Completed).
+- [ ] Live validation + `samples/demo-division-investigation/` for the new
+      Division Investigation flagship, per the Track A gate in
+      `docs/INVESTIGATIONS.md` § 6.
 
 ### Maintenance
 

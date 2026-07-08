@@ -7,6 +7,8 @@
 > model). Conversation Investigation shipped in 1.1 with redaction hardening.
 > Queue Investigation shipped in 1.2 with reporting-contract cleanup.
 > Campaign Investigation extends the same contract for outbound operations.
+> Division Investigation shipped in 1.5, closing the cross-queue organisational
+> grouping gap called out in ROADMAP.md § Next.
 > Their designs are documented here in full so the contract stays explicit.
 
 ## 1. Purpose
@@ -233,6 +235,30 @@ fields carried over by user records embedded under each membership entry.
 | conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
 | outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
 
+### 4.5 Division investigation _(Release 1.5)_
+
+**Cmdlet:** `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>`
+**InvestigationKey:** `division-investigation`
+
+A division is a cross-queue organisational boundary, not a queue list — agents assigned to a
+division serve queues in that division even when those queues span different functional areas.
+The `queues` and `agents` steps each discover their own membership independently; the discovered
+id lists then drive the three aggregate steps below as OR-combined analytics filters.
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| division | `authorization.get.all.divisions` (filtered to `id == divisionId`) | seed | Division name, description, home-division flag |
+| queues | `authorization.search.division.objects` (`objectType=QUEUE`) | `divisionId` | Definitive queue list for the division — independent of any agent's primary-division tag |
+| agents | `users.division.analysis.get.users.with.division.info` (filtered to `division.id == divisionId`) | `divisionId` | Agents whose primary division is this one |
+| grants | `authorization.get.division.grants` | `divisionId` | Access-control grants scoped to this division |
+| agentPerformance | `analytics.query.user.aggregates.performance.metrics` (userId OR-filter from `agents`) | `userId` | Per-agent nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered |
+| conversationAggregates | `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` (divisionId filter) | `divisionId` | Division-wide headline KPI rollup |
+| queuePerformance | `analytics.query.conversation.aggregates.queue.performance` (queueId OR-filter from `queues`) | `queueId` | Per-queue SLA/handle metrics for every queue in the division |
+| quality | `quality.get.evaluations.query` (client-side filtered to `agents` roster) | `userId` | QM evaluation scores for agents in the division |
+
+See [ENDPOINT_COMBINATIONS.md § 3](ENDPOINT_COMBINATIONS.md#3-division--agent-group-investigation)
+for the full analytical-question breakdown and extension ideas not yet in scope.
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:
@@ -242,6 +268,10 @@ Deterministic sample outputs are committed for review and demos:
 - `samples/demo-conversation-investigation-run/` — standard run artifacts for the Conversation Investigation.
 - `samples/demo-conversation-investigation/` — packaged conversation-investigation deliverable (HTML/XLSX/CSV/PCAP-oriented example).
 - `samples/demo-queue-investigation/` — standard run artifacts for the enriched Queue Investigation.
+
+Division Investigation has fixture-driven integration coverage
+(`tests/integration/DivisionInvestigation.Tests.ps1`) but no committed `samples/demo-division-investigation/`
+directory yet — add one alongside the first live validation run.
 
 ## 6. Dependencies
 
@@ -254,6 +284,7 @@ under Track A.
 | Agent | `users.get.user.details.with.full.expansion`, `users.get.user.routing.skills`, `users.get.user.queue.memberships`, bulk presences with one-user query parameters, user activity report with a user/window body, `analytics-conversation-details-query` with a user/window body, `audit-logs` with EntityType/EntityId filters |
 | Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
+| Division | `authorization.get.all.divisions`, `authorization.search.division.objects`, `users.division.analysis.get.users.with.division.info`, `authorization.get.division.grants`, agent performance aggregates, division conversation aggregates, queue performance aggregates, `quality.get.evaluations.query` |
 
 The mirror-catalog cutover should also land before any investigation references
 catalog keys, to avoid a double rename when the deprecated stub is removed.

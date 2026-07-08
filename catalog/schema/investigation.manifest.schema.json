@@ -23,7 +23,7 @@
     "investigationKey": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
-      "description": "Stable key, matches the output directory name (agent-investigation, conversation-investigation, queue-investigation)."
+      "description": "Stable key, matches the output directory name (agent-investigation, campaign-investigation, conversation-investigation, division-investigation, queue-investigation)."
     },
     "runId": {
       "type": "string",
@@ -32,7 +32,7 @@
     },
     "subjectType": {
       "type": "string",
-      "enum": ["agent", "campaign", "conversation", "queue"]
+      "enum": ["agent", "campaign", "conversation", "division", "queue"]
     },
     "subjectId": {
       "type": "string",

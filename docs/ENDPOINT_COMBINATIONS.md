@@ -158,55 +158,73 @@ a group of queues and agents. To investigate an entire division:
 
 **Subject:** One `divisionId` + time window  
 **Use case:** A contact centre director or workforce analyst needs to understand how a specific
-business unit (division) performed — which agents are in it, what volume each handled, time-in-state,
-quality scores, and coaching coverage.
+business unit (division) performed — which agents are in it, what queues it owns even when those
+queues span different functional areas, what volume each agent/queue handled, and quality coverage.
 
-**Core question:** *How did this division's agents perform as a group?*
+**Core question:** *How did this division's agents and queues perform as a group?*
 
-### Dataset Steps (ordered)
+**Status:** Implemented as the Division Investigation flagship —
+`Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>` (Release 1.5). Emits the
+standard `out/division-investigation/<runId>/{manifest,events,summary,data}` artifact set defined
+in [INVESTIGATIONS.md](INVESTIGATIONS.md#41-agent-investigation-release-10--first-flagship).
+
+### Dataset Steps (ordered, as shipped)
 
 | Step | Dataset Key | Join Key | What It Adds |
 |------|-------------|----------|--------------|
-| 1 | `authorization.get.single.division` | seed → `divisionId` | Division name, description, home-division flag |
-| 2 | `authorization.list.division.queues` | `divisionId` | All queue IDs assigned to this division |
-| 3 | `users.division.analysis.get.users.with.division.info` | `divisionId` | All agents assigned to the division with user IDs |
-| 4 | `analytics.query.conversation.aggregates.agent.performance` (divisionId filter) | `userId` | Per-agent: nConnected, tHandle, tTalk, tAcw, tAnswered |
-| 5 | `analytics.query.user.aggregates.login.activity` (divisionId filter) | `userId` | Per-agent time-in-state: tAgentRoutingStatus, tSystemPresence, tOrganizationPresence |
-| 6 | `analytics.query.user.details.activity.report` (userId list) | `userId` | Login/logout/on-queue presence event timeline per agent |
-| 7 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
-| 8 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
-| 9 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
+| 1 | `authorization.get.all.divisions` (filtered to `id == divisionId`) | seed → `divisionId` | Division name, description, home-division flag |
+| 2 | `authorization.search.division.objects` (`objectType=QUEUE`) | `divisionId` | All queue IDs assigned to this division — the definitive queue list, independent of any agent's primary division |
+| 3 | `users.division.analysis.get.users.with.division.info` (filtered to `division.id == divisionId`) | `divisionId` | All agents whose primary division is this one, with user IDs |
+| 4 | `authorization.get.division.grants` | `divisionId` | Access-control grants scoped to this division — who has what permissions here |
+| 5 | `analytics.query.user.aggregates.performance.metrics` (userId OR-filter from step 3) | `userId` | Per-agent: nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered |
+| 6 | `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` (divisionId filter) | `divisionId` | Division-level conversation volume and handle-time rollup — the headline KPI row |
+| 7 | `analytics.query.conversation.aggregates.queue.performance` (queueId OR-filter from step 2) | `queueId` | Per-queue SLA/handle metrics for every queue in the division |
+| 8 | `quality.get.evaluations.query` (filtered to agents from step 3) | `userId` | QM evaluation scores for agents in the division |
 
 ### Key Joins
 
 ```
-authorization.get.single.division.id
-  → authorization.list.division.queues.divisionId (queue enumeration)
-  → users.division.analysis.get.users.with.division.info.divisionId (agent enumeration)
+authorization.get.all.divisions[id == divisionId]
+  → authorization.search.division.objects (queue enumeration, server-filtered by divisionId+objectType=QUEUE)
+  → users.division.analysis.get.users.with.division.info[division.id == divisionId] (agent enumeration)
 
 users.division.analysis.get.users.with.division.info[].id
-  → analytics.query.conversation.aggregates.agent.performance[].userId
-  → analytics.query.user.aggregates.login.activity[].userId
-  → quality.get.agents.activity[].user.id
-  → coaching.get.appointments[].attendees[].id
+  → analytics.query.user.aggregates.performance.metrics[].userId (OR-combined filter)
+  → quality.get.evaluations.query[].agent.id (client-side filter — agent must be in the division roster)
+
+authorization.search.division.objects[].id
+  → analytics.query.conversation.aggregates.queue.performance[].queueId (OR-combined filter)
 ```
 
 ### Analytical Questions Answered
 
 - How many agents are in this division and who are they?
-- What queues does this division own?
+- What queues does this division own — including queues that span functional areas the agents'
+  primary-division tag doesn't imply?
 - Which agents handled the most volume? Which had the highest AHT?
-- Which agents spent the most time off-queue or in non-productive states?
+- Which queues in the division are trending toward an SLA miss?
 - Which agents have been evaluated? Who has the highest/lowest scores?
-- Which agents have received recent coaching? Is coaching correlated with score improvement?
+- Who has access-control grants scoped to this division?
 
 ### Division vs Queue as Investigation Entry Point
 
 | Start with | When you know | You get |
 |------------|---------------|---------|
 | `queueId` | Specific queue complaints | All conversations + SLA + wrapup + member roster |
-| `divisionId` | Business unit or team scope | All queues + all agents + group performance |
+| `divisionId` | Business unit or team scope | All queues + all agents + division/queue/agent performance + grants + quality |
 | `userId` (Agent Investigation) | Specific agent complaint | That agent's conversations + skills + presence |
+
+### Extension ideas (not yet shipped)
+
+The following datasets would deepen the Division Investigation but are not part of the flagship's
+eight shipped steps — scope them as a follow-up if a concrete operator need names them:
+
+| Candidate Dataset | JoinOn | Would Add |
+|---|---|---|
+| `analytics.query.user.aggregates.login.activity` (divisionId filter) | `userId` | Per-agent time-in-state: on-queue vs off-queue time |
+| `analytics.query.user.details.activity.report` (userId list) | `userId` | Login/logout/on-queue presence event timeline per agent |
+| `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
+| `analytics.query.conversation.aggregates.wrapup.distribution` (queueId list from step 2) | `queueId` | Wrapup code distribution across all queues in the division |
 
 ---
 
@@ -443,7 +461,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.conversation.recording.metadata` | ● | | | | | |
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
+| `quality.get.evaluations.query` | ● | ○ | ● | | | |
 | `quality.get.surveys` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
@@ -452,20 +470,22 @@ The matrix below shows which datasets are used across which investigations and r
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | ● | ● | | |
 | `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
 | `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
 | `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ○ | ● | | |
 | `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
+| `authorization.get.all.divisions` | | | ● | | | |
+| `authorization.search.division.objects` | | | ● | | | |
+| `authorization.get.division.grants` | | | ● | | | |
 | `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
+| `analytics.query.user.aggregates.performance.metrics` | | | ● | ● | | ● |
+| `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` | | | ● | ● | | |
+| `analytics.query.user.aggregates.login.activity` | | | ○ | ● | | ● |
+| `analytics.query.user.details.activity.report` | | | ○ | | | ● |
+| `quality.get.agents.activity` | | | | ● | | ○ |
+| `coaching.get.appointments` | | | ○ | | | ○ |
 | `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
 | `analytics.post.transcripts.aggregates.query` | | | | ● | | |
 | `analytics.query.queue.observations.real.time.stats` | | | | | ● | |

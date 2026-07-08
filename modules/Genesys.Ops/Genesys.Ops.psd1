@@ -170,6 +170,9 @@
         'Export-GenesysConversationInvestigationPackage'
         'Get-GenesysQueueInvestigation'
 
+        # Investigations (Release 1.5)
+        'Get-GenesysDivisionInvestigation'
+
         # Dataset coverage audit
         'Test-GenesysOpsDatasetCoverage'
     )

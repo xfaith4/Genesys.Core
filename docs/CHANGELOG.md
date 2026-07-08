@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-07-08
+
+### Added
+
+- Release 1.5 — Division Investigation flagship. `Get-GenesysDivisionInvestigation`
+  (`modules/Genesys.Ops/Genesys.Ops.psm1`) composes eight catalog datasets —
+  `authorization.get.all.divisions`, `authorization.search.division.objects`,
+  `users.division.analysis.get.users.with.division.info`,
+  `authorization.get.division.grants`,
+  `analytics.query.user.aggregates.performance.metrics`,
+  `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`,
+  `analytics.query.conversation.aggregates.queue.performance`, and
+  `quality.get.evaluations.query` — into the standard
+  `out/division-investigation/<runId>/{manifest,events,summary,data}` artifact
+  set via `Invoke-Investigation`. A division is treated as a cross-queue
+  organisational boundary: the queues and agents assigned to a division are
+  each discovered independently (queues via `authorization.search.division.objects`,
+  agents via primary-division membership) and OR-combined into the downstream
+  agent-performance, queue-performance, and quality analytics filters. Closes
+  the "Division" flagship candidate called out in `docs/ROADMAP.md` § Next.
+- Added `division` to the `Invoke-Investigation` `-SubjectType` `ValidateSet`
+  and to the `subjectType` enum in
+  `catalog/schema/investigation.manifest.schema.json`.
+- Added `tests/integration/DivisionInvestigation.Tests.ps1` — fixture-driven
+  coverage mirroring the Queue Investigation acceptance pattern (happy path,
+  determinism, missing-optional-step, required-step-failure abort, redaction,
+  manifest schema validity, empty-aggregates).
+
+### Fixed
+
+- `docs/ENDPOINT_COMBINATIONS.md` § 3 (Division / Agent Group Investigation)
+  referenced two dataset keys — `authorization.get.single.division` and
+  `authorization.list.division.queues` — that do not exist in
+  `catalog/genesys.catalog.json`. Replaced with the real keys already used by
+  `combinations.investigationRecipes.division-investigation` in the catalog
+  (`authorization.get.all.divisions` filtered to the subject id, and
+  `authorization.search.division.objects` with `objectType=QUEUE`), and
+  reconciled the step table with what the new flagship actually ships vs.
+  documented as future extension ideas.
+
 ## 2026-06-08
 
 ### Changed

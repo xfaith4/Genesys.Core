@@ -27,7 +27,7 @@ The Ops layer builds on that contract with **investigations**: subject-centred c
 - **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
 - **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs
 - **Structured run output contract** — every run writes `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl` under `out/<datasetKey>/<runId>/`
-- **Investigation composition** — `Get-GenesysAgentInvestigation`, `Get-GenesysConversationInvestigation`, and `Get-GenesysQueueInvestigation` emit the same artifact set for joined, subject-centred investigations under `out/<investigationKey>/<runId>/`
+- **Investigation composition** — `Get-GenesysAgentInvestigation`, `Get-GenesysConversationInvestigation`, `Get-GenesysQueueInvestigation`, `Get-GenesysCampaignInvestigation`, and `Get-GenesysDivisionInvestigation` emit the same artifact set for joined, subject-centred investigations under `out/<investigationKey>/<runId>/`
 - **Operator-ready packaging** — `Export-GenesysInvestigationPackage` writes generic Markdown, CSV, and XLSX handoff packages for any investigation run
 - **Support diagnostics handoff** — `Export-GenesysInvestigationDiagnosticsBundle` emits redacted JSON bundles for support, incident review, and demos
 - **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
@@ -177,6 +177,9 @@ pwsh -NoProfile -File ./scripts/New-DemoConversationInvestigationPackage.ps1 -Fo
 
 # Queue — subject + window for the SLA / abandons / observations steps.
 Get-GenesysQueueInvestigation -QueueId '<queue-guid>' -Since (Get-Date).AddDays(-1) -OutputRoot './out'
+
+# Division — cross-queue org boundary: queues + agents + grants + performance + quality.
+Get-GenesysDivisionInvestigation -DivisionId '<division-guid>' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
 
 # Redacted diagnostics bundle for support handoff.
 pwsh -NoProfile -File ./scripts/Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder @('./samples/demo-agent-investigation','./samples/demo-queue-investigation') -OutputPath './out/investigation-diagnostics.json'

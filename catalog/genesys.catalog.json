@@ -40173,6 +40173,52 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "embeddable-conversation-context-enrichment": {
+        "description": "Correlates the Genesys Cloud Embeddable Framework's client-side conversation context (\u201cCondensed Conversation Information\u201d: queueId, participant purpose/state, call.UUIData) and the Conversation Injection action (developer.genesys.cloud/platform/integrations/ex-integration-guide/conv-injection) with the server-side catalog datasets that carry the same facts. Used to confirm what an embedded desktop app saw at interaction time and to identify/enrich conversations that arrived with externally-injected context (CRM screen-pop, third-party dialer, custom widget). NOTE: conversation injection is a browser-side SDK action, not a server REST endpoint \u2014 there is no catalog endpoint that performs the injection; this recipe only reads back the resulting server-side state.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].purpose, participants[].state, originatingDirection, queueId",
+            "description": "Base conversation object \u2014 the server-side equivalent of the fields the embeddable client receives as Condensed Conversation Information"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "attribute payload set by the injecting page/flow (e.g. CRM case ID, call.UUIData-equivalent context)",
+            "description": "Custom attributes attached to the conversation \u2014 where externally-injected context (Conversation Injection payload) is persisted server-side"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables and data-action outcomes per participant",
+            "description": "Historical participant attribute search \u2014 captures flow-set variables that may echo values the embedded client injected or subscribed to"
+          },
+          {
+            "step": "queue-context",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "queueId (from conversation-base)",
+            "provides": "queue name, division, routing method",
+            "description": "Resolves the raw queueId surfaced in Condensed Conversation Information to a human-readable queue name and division"
+          }
+        ],
+        "joinSequence": "seed (conversation-base) \u2192 custom-attributes (conversationId) \u2192 participant-attributes (conversationId) \u2192 queue-context (queueId)",
+        "identificationSignals": [
+          "conversation-base.participants[].purpose includes 'external' or lacks a PSTN 'customer' leg \u2192 conversation likely originated outside standard ACD/PSTN routing",
+          "custom-attributes contains keys not set by any known Architect flow \u2192 likely injected by an external widget/CRM page",
+          "conversation-base.originatingDirection is inconsistent with the DNIS/queue normally used for that direction \u2192 confirm with participant-attributes for flow-set routing context",
+          "There is no dedicated REST 'injection' endpoint to look up \u2014 injected context always resolves back through customattributes or participant attributes, never a separate object type"
+        ],
+        "executiveMetrics": [
+          "customAttributeCoverage% (conversations with non-empty customattributes)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

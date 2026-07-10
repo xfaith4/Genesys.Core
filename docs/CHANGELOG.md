@@ -1,6 +1,29 @@
 # Changelog
 
-## 2026-06-08
+## 2026-07-10
+
+### Added
+
+- Added `embeddable-conversation-context-enrichment` to `catalog/genesys.catalog.json` →
+  `combinations.investigationRecipes` — a recipe correlating Genesys Cloud Embeddable Framework
+  Condensed Conversation Information (queueId, participant purpose/state, `call.UUIData`) with
+  server-side catalog datasets (`conversations.get.conversation.object`,
+  `conversations.get.conversation.customattributes`, `conversations.search.participant.attributes`,
+  `routing.get.single.queue.config`), for reconstructing what an embedded-client integration saw
+  for a given conversation.
+
+### Fixed
+
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` §6, previously titled "BYOI External Conversation
+  Enrichment", which described a `POST /api/v2/conversations/providers/{providerId}/calls`
+  REST endpoint that does not exist in this catalog's swagger-derived endpoint set. Genesys's
+  own documentation for "BYOI" (Bring Your Own Integration) describes Conversation Injection as
+  a browser-side Embeddable Framework SDK action, not a server-callable endpoint. The section is
+  rewritten to describe reading back injected/condensed-conversation context server-side, and
+  distinguishes this from genuine BYOC/Open Media provider conversations (which do have a
+  server-side `externalContactId` signal).
+- Added a `#10` reference-matrix column ("Embeddable/Injection Enrichment") in
+  `docs/ENDPOINT_COMBINATIONS.md` marking the four datasets the new recipe reuses.
 
 ### Changed
 

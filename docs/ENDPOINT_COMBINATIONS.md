@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-10  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -21,7 +21,7 @@ when the API is exhausted.
 3. [Division / Agent Group Investigation](#3-division--agent-group-investigation)
 4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
 5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
-6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
+6. [Embeddable Framework Conversation Injection Enrichment](#6-embeddable-framework-conversation-injection-enrichment-corrected--see-note)
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
@@ -88,12 +88,19 @@ The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/pro
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
 
-### BYOI Indicator
+### External Integration / Conversation Injection Indicator
 
-If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+If `conversations.get.conversation.object` returns a `participants[]` entry with
+`purpose = "external"` and a populated `externalContactId`, the call arrived through a genuine
+server-side BYOC/Open Media provider integration. Custom attributes in step 4 will contain the
+provider's context (CRM case ID, external call ID), and the SIP trace (step 8) will reflect the
+provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+
+Separately, if the conversation was only *surfaced to the agent* via the Embeddable Framework's
+client-side Conversation Injection action (not a server-side provider integration — see
+[§6](#6-embeddable-framework-conversation-injection-enrichment-corrected--see-note) for the
+distinction), there is no equivalent `externalTag` flag; corroborate instead from
+`participants[].purpose`/`state` and custom attributes as described there.
 
 ---
 
@@ -325,55 +332,79 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ---
 
-## 6. BYOI External Conversation Enrichment
+## 6. Embeddable Framework Conversation Injection Enrichment (corrected — see note)
 
-**Subject:** One `conversationId` that was injected via BYOI  
-**Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+> **Correction (2026-07-10):** the original version of this section described a
+> `POST /api/v2/conversations/providers/{providerId}/calls` "BYOI provider API" as the
+> injection mechanism. That endpoint does not appear in this catalog's swagger-derived
+> endpoint set, and Genesys's own documentation for this feature —
+> [`platform/integrations/ex-integration-guide/conv-injection`](https://developer.genesys.cloud/platform/integrations/ex-integration-guide/conv-injection)
+> ("BYOI" = *Bring Your Own Integration*) and
+> [`platform/embeddable-framework/condensed-conversation-info`](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info) —
+> describes **Conversation Injection as a browser-side Embeddable Framework SDK action**, not
+> a server-callable REST endpoint. A partner's web page calls the framework's client-side
+> `conversationInjection` action to place context into the agent's embedded desktop UI; the
+> framework separately exposes a `subscribe` action that emits **Condensed Conversation
+> Information** (queueId, `participants[].purpose`/`state`, `call.UUIData`) to the embedded app.
+> There is no dataset in this catalog for the injection call itself because it never touches the
+> Genesys Cloud REST API — it is entirely client-side. What follows is corrected to reflect that:
+> this section is about **reading back**, server-side, whatever context an injection or the
+> condensed-conversation event carried, not about performing the injection.
+>
+> Machine-readable form of this pattern: `embeddable-conversation-context-enrichment` in
+> `catalog/genesys.catalog.json` → `combinations.investigationRecipes`.
 
-**Core question:** *Where did this conversation come from, and what external context does it carry?*
+**Subject:** One `conversationId` whose embedded-client context you need to reconstruct
+server-side  
+**Use case:** A conversation was surfaced to an agent through a partner's Embeddable Framework
+integration (CRM screen-pop, third-party dialer, custom widget) using Conversation Injection
+and/or the Condensed Conversation Information subscription. You need to confirm, after the fact,
+what context the agent's embedded app saw and where that context is persisted on the
+Genesys Cloud side.
 
-### How to Identify a BYOI Conversation
+**Core question:** *What external/injected context does this conversation carry, and can I
+confirm it from the server side?*
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+### How to Identify an Externally-Enriched Conversation
 
-```json
-{
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
-  "participants": [
-    { "purpose": "external", "externalContactId": "..." }
-  ]
-}
-```
+There is no dedicated flag equivalent to a literal `externalTag`/`externalConversationId` field
+for this mechanism (unlike genuine BYOC/Open Media integrations, which do use a distinct
+provider object). Instead, corroborate from step 1 of the Conversation Investigation,
+`conversations.get.conversation.object`:
 
-A non-null `externalTag` is the definitive BYOI indicator.
+- `participants[].purpose` and `participants[].state` — compare against what Condensed
+  Conversation Information would have shown the embedded client at interaction time.
+- `originatingDirection` inconsistent with the DNIS/queue normally used for that direction can
+  indicate the conversation was routed for/by an external integration.
+- Absence of a standard PSTN "customer" leg where one is expected.
 
-### Additional Steps for BYOI Conversations
+### Additional Steps for Externally-Enriched Conversations
 
 | Step | Dataset Key | What It Adds |
 |------|-------------|--------------|
-| + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
-| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `conversations.get.conversation.customattributes` | Where injected/partner context (CRM case ID, intent label, `call.UUIData`-equivalent payload) is actually persisted server-side |
+| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the conversation flow, which may echo values the embedded client injected or subscribed to |
+| + | `routing.get.single.queue.config` | Resolves the raw `queueId` surfaced in Condensed Conversation Information to a human-readable queue name and division |
 
-### BYOI Conversation in Analytics
+### Conversation in Analytics
 
-BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
-as native Genesys conversations. The following datasets apply identically:
+Conversations enriched via the Embeddable Framework flow through the same Architect flows, queue
+routing, and analytics pipeline as any other Genesys conversation. The following datasets apply
+identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
 - `conversations.get.conversation.recording.metadata` — recordings exist if enabled
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — reflects the actual PSTN/SIP-to-SIP path; the
+  embedded-client injection has no bearing on the signaling path itself
 
-### Embeddable Framework Conversations
+### Genuine BYOC / Open Media Provider Conversations
 
-Conversations visible to agents via the Embeddable Framework return the same object shape as
-`conversations.get.conversation.object`. The condensed view used by the embedded client includes:
-`participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+If a conversation truly originated through a server-side third-party provider integration
+(BYOC voice trunk, Open Messaging, a custom SIP provider) rather than client-side Conversation
+Injection, look for `participants[].purpose = "external"` combined with a populated
+`externalContactId` on the participant, and correlate via
+`conversations.get.conversation.customattributes`. That is a distinct integration surface from
+Conversation Injection and is not covered by the recipe above.
 
 ---
 
@@ -436,54 +467,54 @@ complete the picture.
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Embeddable/Injection Enrichment |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | ● |
+| `analytics.get.single.conversation.analytics` | ● | | | | | |  |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | |  |
+| `conversations.get.conversation.customattributes` | ● | | | | | | ● |
+| `conversations.search.participant.attributes` | ● | | | | | | ● |
+| `quality.get.evaluations.query` | ● | ○ | | | | |  |
+| `quality.get.surveys` | ● | | | ● | | |  |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |  |
+| `conversations.get.speech.text.analytics` | ○ | | | | | |  |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |  |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |  |
+| `routing.get.single.queue.config` | | ● | | | | | ● |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |  |
+| `analytics-conversation-details-query` | | ● | | | | ○ |  |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |  |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |  |
+| `routing-queue-members` | | ● | | | | |  |
+| `authorization.get.single.division` | | | ● | | | |  |
+| `authorization.list.division.queues` | | | ● | | | |  |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |  |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |  |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |  |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● |  |
+| `quality.get.agents.activity` | | | ● | ● | | ○ |  |
+| `coaching.get.appointments` | | | ● | | | ○ |  |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |  |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | |  |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |  |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | |  |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | |  |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ |  |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ |  |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ |  |
+| `analytics.query.flow.observations` | | | | | ● | |  |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |  |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |  |
+| `alerting.get.alerts` | | | | ○ | ● | |  |
+| `users.get.user.details.with.full.expansion` | | | | | | ● |  |
+| `users.get.user.routing.skills` | | | | | | ● |  |
+| `users.get.user.queue.memberships` | | | | | | ● |  |
+| `users.get.bulk.user.presences` | | | | | | ● |  |
+| `routing.get.user.utilization` | | | | | | ○ |  |
+| `audit-logs` | | | | | | ● |  |
 
 ---
 
@@ -512,5 +543,11 @@ The matrix below shows which datasets are used across which investigations and r
 ---
 
 *All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*  
-*All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*  
-*Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
+*All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`), except where a section explicitly*
+*notes a client-side (browser SDK) mechanism, such as Embeddable Framework Conversation Injection*
+*in §6, which has no server REST endpoint.*  
+*Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*  
+*Six named recipes now exist in `catalog/genesys.catalog.json` → `combinations.investigationRecipes`:*
+*`single-conversation-investigation`, `agent-investigation`, `agent-not-responding-autoanswer`,*
+*`queue-investigation`, `division-investigation`, and `embeddable-conversation-context-enrichment`*
+*(added 2026-07-10, see §6).*

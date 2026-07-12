@@ -40503,6 +40503,26 @@
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
+      },
+      "byoi-external-conversation-discovery": {
+        "description": "Locate the Genesys Cloud conversationId for an interaction that originated in an external system (CRM case, third-party contact centre, custom SIP/BYOI provider) when only the external system's identifier is known. The entry point for any BYOI or Embeddable-Framework escalation that arrives without a native conversationId.",
+        "subjectParam": "externalCaseId or externalTag or crmReferenceId",
+        "datasetsInOrder": [
+          "conversations.search.customattributes",
+          "conversations.search.participant.attributes",
+          "conversations.get.conversation.object",
+          "analytics.get.single.conversation.analytics"
+        ],
+        "diagnosticSignals": [
+          "no results from conversations.search.customattributes → the external identifier was never written as a conversation-level custom attribute; try conversations.search.participant.attributes next, or check the injecting flow's attribute-mapping configuration",
+          "multiple conversationId matches → the external identifier is reused across contacts (e.g. a recurring CRM case); narrow with a time-window predicate or disambiguate using conversations.get.conversation.object.externalTag, which is unique per interaction",
+          "conversations.get.conversation.object.externalTag present → confirms the conversation was BYOI-injected; externalConversationId ties back to the source system's own record",
+          "conversations.get.conversation.object.externalTag absent despite a known external case ID → the correlation was carried only in customattributes/participant attributes, not the tag field — rely on the search step results, not the object alone"
+        ],
+        "enrichWith": [
+          "Once conversationId is resolved, continue with the single-conversation-investigation recipe for the full forensic timeline",
+          "conversations.get.conversation.recording.metadata and quality.get.evaluations.query for post-injection QM/compliance review"
+        ]
       }
     }
   }

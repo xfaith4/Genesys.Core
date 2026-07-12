@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-07-12
+
+### Fixed
+
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` §1 and §6, which had asserted a
+  specific BYOI injection endpoint (`POST /api/v2/conversations/providers/{providerId}/calls`)
+  that does not exist in this repo's own 3,100+ entry endpoint catalog or in
+  Genesys Cloud's public Platform API v2. Replaced with an accurate
+  description: BYOI ingests externally handled interactions via a dedicated
+  ingestion API outside this catalog's scope, and the resulting conversation
+  is investigated identically to a native one via `externalTag`.
+
+### Added
+
+- Added the `byoi-external-conversation-discovery` combination
+  (`catalog/genesys.catalog.json` → `combinations.voiceEngineerPlaybooks`,
+  mirrored in `docs/ENDPOINT_COMBINATIONS.md` §6): the reverse-lookup path
+  from an external system's case/reference ID to a Genesys `conversationId`
+  using the previously-undocumented pairing of
+  `conversations.search.customattributes` and
+  `conversations.search.participant.attributes`, handing off into the
+  existing Single Conversation Deep Dive once resolved.
+- Documented the Embeddable Framework condensed-conversation-info `queueId`
+  attribute in `docs/ENDPOINT_COMBINATIONS.md` §6 and its join back to
+  `routing.get.single.queue.config` for full queue context.
+- Added a `conversations.search.customattributes` row to the Dataset
+  Combination Reference Matrix in `docs/ENDPOINT_COMBINATIONS.md` §10.
+
 ## 2026-06-08
 
 ### Changed

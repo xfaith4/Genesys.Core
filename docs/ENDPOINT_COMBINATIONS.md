@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-12  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -91,9 +91,15 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
+the call was injected via a Bring-Your-Own-Interactions (BYOI) integration. BYOI ingests externally
+handled interactions and agent-state events through a dedicated secure ingestion API that sits outside
+the public Platform API v2 surface this catalog indexes — do not assume a `conversations/providers/...`
+REST path exists in this catalog; none does. Once ingested, the interaction is a normal Genesys Cloud
+conversation object and every dataset in this document applies to it unchanged.
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+If you only have the *external* system's identifier (no `conversationId` yet), start with the reverse
+lookup in [§6](#finding-a-byoi-conversation-from-an-external-system-id) before running this recipe.
 
 ---
 
@@ -329,9 +335,13 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was injected into Genesys Cloud via a Bring-Your-Own-Interactions
+(BYOI) integration. BYOI ingests externally handled interactions and agent-state events through a
+dedicated secure ingestion API; that ingestion API is not part of the public Platform API v2 surface
+catalogued here, so it is out of scope for this document. What matters for an investigation is what
+happens *after* ingestion: the conversation appears in Genesys analytics, recordings, and quality
+pipelines exactly like a native conversation, but its business context still lives in the external
+system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
@@ -350,6 +360,30 @@ In step 1 of the Conversation Investigation, `conversations.get.conversation.obj
 ```
 
 A non-null `externalTag` is the definitive BYOI indicator.
+
+### Finding a BYOI Conversation From an External System ID
+
+The common real-world entry point is the reverse of the above: a support ticket, CRM case, or escalation
+names an *external* case/reference ID and no Genesys `conversationId` at all. Two catalog datasets exist
+for exactly this lookup but were previously undocumented as a combination:
+
+| Step | Dataset Key | Input | What It Returns |
+|------|-------------|-------|------------------|
+| 1a | `conversations.search.customattributes` | External case ID / provider reference (as the custom attribute value) | Matching `conversationId`(s) whose custom attributes contain the value |
+| 1b | `conversations.search.participant.attributes` | External case ID / provider reference (as a participant attribute value) | Matching `conversationId`(s) via participant-level (IVR/Architect) attributes |
+
+Either search may be needed depending on where the injecting flow wrote the correlation value — some
+BYOI/Architect flows set it as a conversation-level custom attribute, others as a participant attribute.
+Once a `conversationId` is resolved, hand it off to the [Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer)
+for the full forensic timeline.
+
+**Diagnostic notes:**
+- No results from either search → the external identifier was never written into Genesys Cloud; check
+  the injecting flow's attribute-mapping configuration, not the search call itself.
+- Multiple `conversationId` matches → the external identifier is reused across contacts (e.g. a
+  recurring CRM case with several calls); narrow with a time-window predicate or disambiguate using
+  `conversations.get.conversation.object.externalTag`, which should be unique per interaction even when
+  the CRM case ID is not.
 
 ### Additional Steps for BYOI Conversations
 
@@ -372,8 +406,13 @@ as native Genesys conversations. The following datasets apply identically:
 Conversations visible to agents via the Embeddable Framework return the same object shape as
 `conversations.get.conversation.object`. The condensed view used by the embedded client includes:
 `participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+`participants[].calls[].muted`, `participants[].calls[].held`, and `queueId` (added to the condensed
+conversation info payload so embedded integrations can branch custom logic per queue without a
+round trip). All of these are present in the full object returned by
+`conversations.get.conversation.object` and need no special handling — the condensed view is a
+client-side subset, not a distinct backend representation. To resolve `queueId` to full queue
+context (name, division, SLA target), join it into `routing.get.single.queue.config` as in the
+[Queue Investigation](#2-all-conversations-in-a-queue).
 
 ---
 
@@ -443,6 +482,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.conversation.recording.metadata` | ● | | | | | |
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
+| `conversations.search.customattributes` | ○ | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |

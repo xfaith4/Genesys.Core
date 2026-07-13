@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-07-13
 
 ## 1. Product Intent
 
@@ -27,6 +27,25 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Conversation Investigation live-mode dataset key fix + rollup/audit
+      combination docs (2026-07-13): the `conversationLookup` step of
+      `Get-GenesysConversationInvestigation` referenced `DatasetKey =
+      'conversations.get.specific.conversation.details'`, an **endpoint** key
+      that was never registered as a **dataset** in
+      `catalog/genesys.catalog.json`. Fixture-driven tests never caught this
+      because they mock at the dataset-key string level and matched it
+      verbatim; a live (non-mocked) run would have failed on the first step
+      with `Unsupported dataset`. Corrected the composer, both integration
+      test fixtures, both demo scripts, and the two committed sample run
+      artifacts (`manifest.json`/`events.jsonl`) to use the canonical
+      registered dataset key `conversations.get.conversation.object`, which
+      already wraps the same endpoint. Also added two new combination
+      patterns to `docs/ENDPOINT_COMBINATIONS.md`: a Division-Scoped
+      Executive Rollup (owned-queue vs. home-agent dual rollup, since a
+      division's agents can handle volume in queues owned by other
+      divisions) and an Audit-Trail Root-Cause Correlation pattern (overlay
+      `audit-logs` on a queue's SLA/abandon timeline to find the config
+      change behind a performance anomaly).
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`
@@ -359,7 +378,7 @@ content it surfaces.
       failure, redaction (no auth headers), manifest validity, and no-participant
       edge case. All tests under `tests/integration/ConversationInvestigation.Tests.ps1`.
 - [ ] Live validation of any Conversation-only datasets not covered in 1.0
-      (`conversations.get.specific.conversation.details`,
+      (`conversations.get.conversation.object`,
       `analytics-conversation-details-query`, recordings, evaluations,
       surveys).
 

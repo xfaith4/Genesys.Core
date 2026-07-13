@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-13  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,8 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Division-Scoped Executive Rollup (Cross-Queue Agent Groups)](#11-division-scoped-executive-rollup-cross-queue-agent-groups)
+12. [Audit-Trail Root-Cause Correlation](#12-audit-trail-root-cause-correlation)
 
 ---
 
@@ -484,6 +486,141 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Division-Scoped Executive Rollup (Cross-Queue Agent Groups)
+
+**Subject:** One `divisionId` (or a small set of divisions) + reporting window
+**Use case:** A division is not a queue and not a single team — it is a permissions/ownership
+boundary that can span many queues and many agents who may also sit in other divisions' queues.
+Executives think in divisions ("How is the EMEA Support division doing?"), not in raw queue IDs.
+This combination composes the [Division Investigation](#3-division--agent-group-investigation)
+enumeration step with the [Executive Reporting Rollup](#4-executive-reporting-rollup) aggregate
+layer so a division becomes a first-class rollup dimension instead of something an analyst has
+to reconstruct by hand from a queue list.
+
+**Core question:** *How is this division performing, rolled up across every queue it owns —
+and is that different from how its member agents perform when they work outside the division?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `authorization.get.single.division` | seed → `divisionId` | Division identity, home-division flag |
+| 2 | `authorization.list.division.queues` | `divisionId` | Every queue the division owns — the rollup fan-out set |
+| 3 | `users.division.analysis.get.users.with.division.info` | `divisionId` | Every agent whose home division is this one |
+| 4 | `analytics.query.conversation.aggregates.queue.performance` (queueId **IN** step-2 set) | `queueId` | Volume/handle-time rolled up per queue, then summed for the division |
+| 5 | `analytics.query.conversation.aggregates.abandon.metrics` (queueId **IN** step-2 set) | `queueId` | Division-wide abandon rate = Σ nAbandoned / Σ nOffered across owned queues |
+| 6 | `analytics.query.queue.aggregates.service.level` (queueId **IN** step-2 set) | `queueId` | Division SLA achievement = queues-meeting-target / queues-owned |
+| 7 | `analytics.query.conversation.aggregates.agent.performance` (userId **IN** step-3 set) | `userId` | Per-agent productivity for every agent whose home is this division — **including volume they handled in queues owned by other divisions**, which is the cross-queue signal a pure queue rollup would miss |
+| 8 | `quality.get.agents.activity` (userId **IN** step-3 set) | `userId` | Division-wide QM coverage and average score |
+
+### Key Joins
+
+```
+authorization.get.single.division.id
+  → authorization.list.division.queues.divisionId (queue fan-out set, "owned queues")
+  → users.division.analysis.get.users.with.division.info.divisionId (agent fan-out set, "home agents")
+
+For each queueId in the owned-queue set:
+  analytics.query.conversation.aggregates.queue.performance[].group.queueId
+  analytics.query.conversation.aggregates.abandon.metrics[].group.queueId
+  analytics.query.queue.aggregates.service.level[].group.queueId
+    → SUM/WAVG into one division-level row (computed client-side, not an API aggregate)
+
+For each userId in the home-agent set:
+  analytics.query.conversation.aggregates.agent.performance[].group.userId
+    → may reference queueId values OUTSIDE the owned-queue set — this is expected and is the
+      point of joining on userId rather than filtering by queueId alone
+```
+
+### Why Queue-Only and Division-Only Rollups Both Under-Report
+
+- Filtering by **owned queues alone** (steps 4–6) misses volume that a division's agents handle
+  while covering a queue that belongs to a *different* division — common when divisions share a
+  cross-skilled overflow pool.
+- Filtering by **agent home-division alone** (step 7) misses queue-level SLA/abandon context,
+  because those metrics are computed per-queue, not per-agent.
+- The combination above computes **two rollups side by side** (owned-queue performance and
+  home-agent performance) and reports both. A meaningful gap between them — e.g. home agents show
+  higher volume than owned queues report — is itself a finding worth surfacing to the executive
+  reader: it usually means the division is absorbing overflow work its own SLA metrics don't
+  reflect.
+
+### Executive Presentation Pattern
+
+```
+Division: EMEA Support
+Owned queues: 6        Home agents: 42
+
+Owned-queue rollup (this division's own SLA exposure):
+  nOffered: 18,420   nConnected: 17,003   Abandon rate: 3.1%   SLA achievement: 92% (5.5/6 queues)
+
+Home-agent rollup (what this division's people actually handled, any queue):
+  nConnected: 19,880   →  2,877 more than owned-queue nConnected
+  Interpretation: agents are net exporters of ~15% capacity to other divisions' queues.
+```
+
+This two-number pattern (owned vs. home) is deliberately small — two headline rollups, not a
+queue-by-queue or agent-by-agent dump — consistent with the "informative, not a data dump" goal.
+Drill-down to the underlying queue or agent rows belongs in the [Division Investigation](#3-division--agent-group-investigation)
+or [Agent Investigation](#7-agent-investigation-extensions-release-13), not in the executive view.
+
+---
+
+## 12. Audit-Trail Root-Cause Correlation
+
+**Subject:** One `queueId` or `divisionId` + an anomaly window (e.g. the hour an SLA miss or
+abandon spike was observed)
+**Use case:** A voice engineer or operations analyst sees a metric move — SLA drops, abandon rate
+spikes, a queue stops routing calls — and needs to know **whether a configuration change caused
+it**, not just that it happened. `audit-logs` records every config mutation (queue edit, skill
+requirement change, membership change, routing rule change) with an actor and timestamp; overlaying
+it on the performance timeline turns "SLA dropped at 14:00" into "SLA dropped at 14:00, three
+minutes after `jane@x.com` removed the overflow routing rule from this queue at 13:57."
+
+**Core question:** *Did a configuration change cause this performance anomaly, and who made it?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.single.queue.config` | seed → `queueId` | Current queue configuration as a baseline |
+| 2 | `analytics.query.queue.aggregates.service.level` (queue/window body filter, hourly granularity) | `queueId` | SLA timeline — pinpoints the interval(s) where the metric moved |
+| 3 | `analytics.query.conversation.aggregates.abandon.metrics` (queue/window body filter, hourly) | `queueId` | Abandon timeline — cross-check against SLA to rule out volume spikes vs. config causes |
+| 4 | `audit-logs` (`EntityType=Queue`, `EntityId=queueId`, window = anomaly window ± 30 min) | `queueId` | Every config mutation to this queue in the surrounding window, with `actor`, `changeType`, `oldValue`/`newValue` |
+| 5 *(if step 4 shows a membership or skill change)* | `authorization.list.division.queues` or `users.get.user.routing.skills` | `queueId` / `userId` | Confirms whether the change is still in effect or was reverted |
+| 6 *(if the anomaly tracks to a specific division)* | `audit-logs` (`EntityType=Division`, `EntityId=divisionId`) | `divisionId` | Division-level permission or ownership changes (queue reassignment between divisions) |
+
+### Key Joins
+
+```
+routing.get.single.queue.config.id
+  → analytics.query.queue.aggregates.service.level[].group.queueId (anomaly timeline)
+  → audit-logs[].entityId (EntityType=Queue) (candidate cause events, same queueId)
+
+Correlate by time, not by a shared foreign key:
+  audit-logs[].timestamp within [anomaly_start - 30min, anomaly_end]
+    AND audit-logs[].entityId == queueId
+  → ranked candidate causes, most recent change first
+```
+
+### Analytical Questions Answered
+
+- Was this queue's configuration changed in the window before the anomaly?
+- Who made the change, and was it authorized (compare against a change-ticket reference if the
+  audit entry carries one)?
+- Did a skill requirement or membership change reduce the effective agent pool for this queue?
+- Is the anomaly still active, or did a subsequent audit entry revert the change?
+
+### Scope Discipline
+
+This combination is intentionally **triggered by an anomaly**, not run continuously — `audit-logs`
+is a wide, low-signal dataset on its own. Pulling it only for a bounded `EntityId` + narrow time
+window (step 4) keeps the investigation targeted; pulling all audit logs for a division or org
+without a specific `queueId`/`userId`/time anchor turns this into exactly the kind of data dump
+the catalog's design goal warns against.
 
 ---
 

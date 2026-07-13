@@ -12,7 +12,7 @@ Import-Module -Name $opsManifest -Force
 
 $conversationId = 'conv-demo-001'
 $fixture = @{
-    'conversations.get.specific.conversation.details' = @(
+    'conversations.get.conversation.object' = @(
         [pscustomobject]@{
             conversationId = $conversationId
             conversationStart = '2026-04-05T13:10:00Z'

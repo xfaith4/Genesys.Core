@@ -18,7 +18,7 @@ Describe 'Conversation Investigation package export' {
         New-Item -Path $script:OutputRoot -ItemType Directory -Force | Out-Null
 
         $script:Fixture = @{
-            'conversations.get.specific.conversation.details' = @(
+            'conversations.get.conversation.object' = @(
                 [pscustomobject]@{
                     id        = $script:ConversationId
                     startTime = '2026-05-01T14:00:00.000Z'

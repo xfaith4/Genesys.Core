@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-05-10T13:24:11.0000000Z",
+  "generatedAt": "2026-07-14T00:00:00.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -1139,6 +1139,54 @@
       },
       "retry": {
         "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.message.conversation.object": {
+      "description": "Digital/messaging conversation object for a single conversation — covers native messaging, social, and Open Messaging/BYOI (Bring Your Own Interaction) conversations alike, since BYOI-injected conversations are represented identically once ingested.",
+      "endpoint": "getConversationsMessage",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.message.details": {
+      "description": "Individual message detail (content, direction, timestamp) within a digital/messaging conversation — confirms exactly what content was injected or received, used for BYOI dispute resolution and transcript audits.",
+      "endpoint": "getConversationsMessageDetails",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.open.integrations": {
+      "description": "List all configured Open Messaging / BYOI integrations — maps integrationId to channel name and webhook/outbound-notification configuration. Seed step for tracing which external system originated an injected conversation.",
+      "endpoint": "getConversationsMessagingIntegrationsOpen",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.open.integration.detail": {
+      "description": "Configuration detail for a single Open Messaging / BYOI integration — status (active/inactive), outbound notification webhook URL, and supported content types. Confirms whether a channel was enabled at the time a conversation should have been ingested.",
+      "endpoint": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
       },
       "validationStatus": "unvalidated"
     },
@@ -40173,6 +40221,54 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "byoi-open-messaging-conversation-audit": {
+        "description": "Traces a conversation that arrived via Open Messaging or BYOI (Bring Your Own Interaction) — confirms the source integration's configuration, the ingested conversation object, the actual message content, per-conversation custom attributes set at injection time, and that downstream Analytics/WFM/QM processed the conversation identically to a native one. Use when a digital/BYOI conversation is missing from reporting, mis-routed to the wrong queue/division, or a customer disputes transcript content. Note: the Embeddable Framework's 'condensed conversation info' (queueId, isInternal) is a client-side widget concept, not a server API — its queueId corresponds to routing-queues here and is not a separate investigation step.",
+        "subjectParam": "conversationId",
+        "subjectOptional": "integrationId (narrows integration-config to the specific BYOI channel; omit to investigate via conversationId alone)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "integration-config",
+            "dataset": "conversations.messaging.get.open.integrations",
+            "role": "seed-context",
+            "joinKey": "integrationId",
+            "provides": "integration name, active/inactive status, outbound notification webhook, supported content types",
+            "description": "Confirms which BYOI/Open Messaging integration originated the conversation and whether it was active. Use conversations.messaging.get.open.integration.detail when the specific integrationId is already known."
+          },
+          {
+            "step": "message-conversation-object",
+            "dataset": "conversations.get.message.conversation.object",
+            "joinKey": "conversationId",
+            "provides": "participants, communications, state, queueId, divisionId",
+            "description": "The injected conversation as Genesys Cloud represents it post-ingestion — a 404 here means the injection call never succeeded upstream."
+          },
+          {
+            "step": "message-detail",
+            "dataset": "conversations.get.message.details",
+            "joinKey": "messageId (from message-conversation-object communications)",
+            "provides": "message content, direction, timestamp",
+            "description": "Confirms the exact text/content that was injected or received, for transcript dispute resolution."
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timeline, tHandle, queue/agent assignment",
+            "description": "Confirms the BYOI conversation flowed into Analytics identically to a native conversation — BYOI events are processed by the same downstream Analytics/WFM/QM pipeline as native interactions."
+          },
+          {
+            "step": "conversation-customattributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "custom attributes set during injection, e.g. external system case/ticket ID",
+            "description": "Verifies the source system passed the expected correlation attributes at injection time."
+          }
+        ],
+        "enrichWith": [
+          "users (for agent identity given userId from analytics-detail participants)",
+          "routing-queues (to resolve queueId to queue name/division for routing verification)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40315,7 +40411,8 @@
           "tHandle by mediaType",
           "mediaTypeMix% (voice vs. digital)"
         ],
-        "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+        "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType",
+        "attributionNote": "Volume totals include BYOI/Open Messaging-sourced conversations — they are processed by the same Analytics pipeline as native conversations once ingested, so no separate BYOI adjustment is needed in the rollup. Use conversations.messaging.get.open.integrations to break out BYOI-channel volume specifically if a partner-channel line item is required."
       },
       "wfm-adherence-and-occupancy": {
         "description": "Workforce adherence and occupancy \u2014 scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",
@@ -40502,6 +40599,29 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "byoi-ingestion-troubleshooting": {
+        "description": "Diagnoses failed or delayed BYOI/Open Messaging conversation ingestion — an external-channel interaction never appears in Genesys Cloud, appears in the wrong queue/division, or never reaches Analytics/WFM. The go-to playbook when a partner system reports 'we sent it but Genesys doesn't have it.'",
+        "datasetsInOrder": [
+          "conversations.messaging.get.open.integrations",
+          "conversations.messaging.get.open.integration.detail",
+          "conversations.get.message.conversation.object",
+          "conversations.get.message.details",
+          "analytics.get.single.conversation.analytics",
+          "conversations.get.conversation.customattributes"
+        ],
+        "diagnosticSignals": [
+          "integration status != active in conversations.messaging.get.open.integration.detail → BYOI channel disabled; injected events will 400/404 at the source system",
+          "conversations.get.message.conversation.object returns 404 for a conversationId the external system logged as injected → injection call failed upstream; check messaging-scoped OAuth client credentials and the integrationId used in the request path",
+          "conversation object exists but analytics.get.single.conversation.analytics returns no segments → conversation was created but never routed/queued; check the Inbound Message flow (Architect) attached to the integration",
+          "queueId on the conversation object doesn't match the expected division → Inbound Message flow routing rule misconfigured, or the target queue isn't assigned to the expected division",
+          "postConversationsMessagesInboundOpen used instead of the {integrationId}/inbound/open/message|event|receipt endpoints → deprecated inbound-open endpoint; source system should migrate to the integration-scoped endpoints",
+          "conversations.get.conversation.customattributes missing an expected external-system correlation ID → source system omitted attributes in the injection payload; confirm against the BYOI conv-injection payload schema"
+        ],
+        "enrichWith": [
+          "routing-queues (resolve queueId to queue name and division)",
+          "flows.get.all.flows (identify the Inbound Message flow bound to the integration)"
         ]
       }
     }

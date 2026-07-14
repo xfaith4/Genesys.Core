@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-07-14
+
+### Added
+
+- Evaluated the Genesys Cloud BYOI (Bring Your Own Interaction) integration
+  guide, conversation-injection reference, and Embeddable Framework
+  "condensed conversation info" docs against `catalog/genesys.catalog.json`
+  and found no investigation coverage for Open Messaging/BYOI-sourced
+  conversations, even though the raw endpoints were already catalogued.
+  Added four datasets (`conversations.get.message.conversation.object`,
+  `conversations.get.message.details`,
+  `conversations.messaging.get.open.integrations`,
+  `conversations.messaging.get.open.integration.detail`), a new
+  `byoi-open-messaging-conversation-audit` investigation recipe, a new
+  `byoi-ingestion-troubleshooting` voice-engineer playbook (deprecated
+  inbound-open endpoint call-out included), and an `attributionNote` on the
+  `digital-channel-volume-and-sla` executive playbook clarifying that BYOI
+  volume flows through the same Analytics pipeline as native conversations.
+
 ## 2026-06-08
 
 ### Changed

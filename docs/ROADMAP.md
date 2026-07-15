@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-07-15
 
 ## 1. Product Intent
 
@@ -27,6 +27,20 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Digital/BYOI investigation combinations (2026-07-15): reviewed the
+      catalog against the Genesys BYOI integration guide, conv-injection
+      reference, and embeddable-framework condensed-conversation-info doc and
+      found the existing investigation recipes were voice-only. Added
+      `digital-conversation-investigation` (per-conversation forensics for
+      Open Messaging/BYOI, WhatsApp, Facebook, Instagram, Twitter, and Apple
+      Business Chat conversations — message thread, integration config,
+      identity resolution, S&TA, evaluation, survey), the
+      `digital-integration-and-webhook-forensics` voice/digital-engineer
+      playbook (integration health, webhook delivery, identity-resolution
+      diagnostics), and the `digital-integration-reliability-scorecard`
+      executive playbook (integration volume/health rollup by division) to
+      `catalog/genesys.catalog.json`'s `combinations` section. All referenced
+      dataset/endpoint keys were confirmed to already exist in the catalog.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

@@ -40173,6 +40173,107 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "digital-conversation-investigation": {
+        "description": "Complete forensic investigation of one digital/messaging conversation (webchat, Open Messaging/BYOI, WhatsApp, Facebook, Instagram, Twitter, Apple Business Chat, or email) — base conversation, message thread, integration configuration, identity resolution, S&TA sentiment, evaluation, and CSAT survey. Mirrors single-conversation-investigation but substitutes voice-only steps (SIP trace, recordings) with the BYOI/Open Messaging equivalents so digital-channel issues (missed webhook deliveries, mis-mapped identity, malformed structured content) are diagnosable with the same rigor as a voice call.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType, participants, integrationId (from participant attributes), segment timeline",
+            "description": "Full participant and segment timeline; mediaType confirms this is a digital conversation and surfaces the originating integrationId"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "state, direction, participantRoster, messageMediaType (open/whatsapp/facebook/instagram/twitter/apple)",
+            "description": "Base conversation object; the participant's messageMediaType field identifies which BYOI/social channel carried the conversation"
+          },
+          {
+            "step": "message-thread",
+            "dataset": "getConversationsMessage",
+            "joinKey": "conversationId",
+            "provides": "full message participant view, communicationId list, recipientId",
+            "description": "Digital-conversation-specific view (equivalent of call-detail for voice) — the object the agent desktop and embeddable-framework widget render"
+          },
+          {
+            "step": "message-content",
+            "dataset": "getConversationsMessageMessage",
+            "joinKey": "conversationId+messageId",
+            "provides": "message text/content, direction, fromAddress, toAddress, timestamp",
+            "description": "Individual message bodies — requires iterating messageId values surfaced by message-thread; the digital equivalent of a transcript"
+          },
+          {
+            "step": "integration-config",
+            "dataset": "getConversationsMessagingIntegrationsOpenIntegrationId",
+            "joinKey": "integrationId",
+            "provides": "outboundNotificationWebhookUrl, webhookSignatureSecretKey presence, supportedContent profile",
+            "description": "BYOI/Open Messaging integration configuration that carried this conversation — confirms webhook target and signature setup referenced in the BYOI integration guide; swap for the channel-specific integration dataset (facebook/instagram/twitter/whatsapp/apple) when messageMediaType is not 'open'"
+          },
+          {
+            "step": "identity-resolution",
+            "dataset": "getConversationsMessagingIdentityresolutionIntegrationsOpenIntegrationId",
+            "joinKey": "integrationId",
+            "provides": "identity resolution rule set, external-identifier mapping config",
+            "description": "Confirms how the customer's external message-platform identity was mapped to a Genesys Cloud external contact — root cause for 'conversation history not showing' complaints described in the embeddable-framework condensed-conversation-info doc"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "getConversationsMessageParticipantWrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant",
+            "description": "Wrapup code selected by the agent for this digital interaction"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore",
+            "description": "Text sentiment score for the message thread — S&TA scores digital transcripts the same as voice"
+          },
+          {
+            "step": "sta-categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "categoryName, score, matched topics",
+            "description": "Topic/category classification applied to the message content"
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution",
+            "description": "Copilot/Agent Assist summary — the same condensed view the embeddable framework surfaces to agents mid-conversation"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId",
+            "description": "Quality evaluation scores if this digital interaction was evaluated"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction CSAT/NPS survey results"
+          }
+        ],
+        "joinSequence": "seed → conversation-base (conversationId) → message-thread → message-content (per messageId) → integration-config (integrationId) → identity-resolution (integrationId) → sta-overview → evaluation (filter) → survey",
+        "voiceEngineerHighlights": [
+          "integration-config.outboundNotificationWebhookUrl unreachable/expired → agent replies never leave Genesys Cloud; check with a manual test send from the BYOI guide's conv-injection sample payload",
+          "webhookSignatureSecretKey rotated without updating the BYOI partner → inbound messages rejected with signature-mismatch (visible as a gap in message-thread continuity)",
+          "identity-resolution rule mismatch → returning customer opens a NEW conversation thread instead of resuming — the 'condensed conversation info' the embeddable widget shows will be empty or wrong",
+          "message-content missing structured/response entries → BYOI partner is not honoring Genesys structured-message content types; compare against the /inbound/open/structured/response contract",
+          "messageMediaType mismatch between conversation-base and integration-config → conversation was routed to the wrong channel-specific integration handler"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40484,27 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "digital-integration-reliability-scorecard": {
+        "description": "Per-integration and per-division rollup of digital/BYOI channel volume and reliability — how much traffic each Open Messaging/social integration is carrying and whether it is healthy. Complements digital-channel-volume-and-sla with an integration-health lens for platform/voice-engineering leadership rather than just workload leadership.",
+        "datasetsInOrder": [
+          "getConversationsMessagingIntegrationsOpen",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "authorization.search.division.objects"
+        ],
+        "joinOn": "integrationId",
+        "groupBy": [
+          "integrationId",
+          "mediaType",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "nOffered by integrationId",
+          "nConnected by integrationId",
+          "integrationActiveCount vs integrationTotalCount",
+          "mediaTypeMix% within digital channels (open vs whatsapp vs facebook vs instagram vs twitter vs apple)"
+        ],
+        "executivePresentation": "Integration health table (status + volume) grouped by division; flag any integration with status != Active carrying nonzero historical volume"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40502,6 +40624,30 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "digital-integration-and-webhook-forensics": {
+        "description": "Deep-dive into a BYOI/Open Messaging (or social: Facebook, Instagram, Twitter, WhatsApp, Apple) integration to diagnose missed inbound messages, failed outbound webhook deliveries, or identity-resolution mismatches. The digital-channel counterpart to single-call-forensics/trunk-and-edge-health-check, built for the integration patterns in the BYOI integration guide and conv-injection reference.",
+        "subjectParam": "integrationId",
+        "datasetsInOrder": [
+          "getConversationsMessagingIntegrationsOpen",
+          "getConversationsMessagingIntegrationsOpenIntegrationId",
+          "getConversationsMessagingIdentityresolutionIntegrationsOpenIntegrationId",
+          "getConversationsMessage",
+          "getConversationsMessageMessage",
+          "analytics.query.conversation.aggregates.digital.channels"
+        ],
+        "diagnosticSignals": [
+          "integration status != 'Active' → partner-side outage or config was disabled after a credential rotation",
+          "outboundNotificationWebhookUrl returns non-2xx on a conv-injection test POST → outbound agent replies silently fail to reach the BYOI partner",
+          "webhookSignatureSecretKey mismatch → inbound POSTs from partner are rejected before reaching /inbound/open/message; conversations never get created",
+          "message-content gaps (missing sequential messageId) → partner retried delivery outside the accepted time window or hit a rate limit",
+          "identity-resolution config absent for the integration → every inbound message creates a new external contact instead of resolving to the returning customer",
+          "structured/response payload rejected → partner is sending a content type not declared in the integration's supportedContent profile"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (webhook delivery failure alerts if configured)",
+          "quality.get.evaluations.query (confirm evaluated conversations from this integration aren't silently excluded from QM sampling)"
         ]
       }
     }

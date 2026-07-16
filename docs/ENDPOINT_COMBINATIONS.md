@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-16  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Open Messaging Conversation Lookup & Identity-Resolution Audit](#11-open-messaging-conversation-lookup--identity-resolution-audit)
 
 ---
 
@@ -484,6 +485,52 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Open Messaging Conversation Lookup & Identity-Resolution Audit
+
+**Subject:** A known external identifier (CRM case ID, order number, embeddable-framework custom
+attribute) — `conversationId` optional and usually unknown up front
+**Use case:** A support engineer has a CRM ticket or order number but no Genesys `conversationId`,
+or a digital-channel owner needs to explain why a returning customer wasn't recognized as a repeat
+contact on a custom channel built with Open Messaging. This is distinct from the voice **BYOI**
+provider-call injection in [section 6](#6-byoi-external-conversation-enrichment): Open Messaging is
+the digital-channel integration mechanism (`/api/v2/conversations/messaging/integrations/open`),
+used to build custom messaging channels, and it carries its own identity-resolution configuration
+independent of the voice `externalTag`/`externalConversationId` mechanism.
+
+**Core question:** *Which conversation does this external record correspond to, and is the
+integration correctly recognizing this customer as a repeat contact?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.search.customattributes` | seed → known external key | Resolves `conversationId` from a conversation-level custom attribute (CRM case ID, order number) |
+| 2 | `conversations.search.participant.attributes` | known external key or `conversationId` | Alternate lookup when the identifying value was set as a participant/flow variable instead |
+| 3 | `conversations.get.specific.conversation.details` | `conversationId` | Base conversation object once resolved — chain into the Single Conversation Deep Dive from here |
+| 4 | `conversations.get.conversation.customattributes` | `conversationId` | Full custom-attribute payload — the server-side counterpart to the embeddable framework's "condensed conversation info" |
+| 5 | `conversations.messaging.integrations.open` | `integrationId` | Confirms the Open Messaging integration that originated the conversation is active and correctly configured |
+| 6 | `conversations.messaging.identityresolution.open` | `integrationId` | The attribute(s) the integration matches on to recognize a returning customer |
+
+### Diagnostic Signals
+
+- Custom-attribute search returns **more than one** `conversationId` for a supposedly unique
+  external key → duplicate injection, most likely a retried inbound POST without idempotency on
+  the integrator side.
+- The identity-resolution match attribute is **absent** from the resolved conversation's custom
+  attributes → root cause for repeat customers never being linked across conversations.
+- `conversations.messaging.integrations.open` status is inactive while conversations keep
+  resolving against it → stale `integrationId` reference; confirm the correct integration is wired up.
+- `isInternal` set unexpectedly on a customer-facing conversation → the embeddable-framework/Open
+  Messaging client mis-set the flag, skewing digital-channel volume reporting.
+
+### Executive Rollup
+
+`open-messaging-identity-resolution-health` (in `catalog/genesys.catalog.json`) aggregates this
+pattern across every Open Messaging integration: conversation volume, custom-attribute coverage %,
+identity-resolution match rate %, and duplicate-contact rate %, for an integration-health scorecard.
 
 ---
 

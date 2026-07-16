@@ -1094,6 +1094,32 @@
       },
       "validationStatus": "unvalidated"
     },
+    "conversations.messaging.integrations.open": {
+      "description": "Open Messaging integration configuration \u2014 webhook/outbound notification URL, supported content, and integration status for a single custom-channel integration.",
+      "endpoint": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.identityresolution.open": {
+      "description": "Identity resolution rules for an Open Messaging integration \u2014 the matching attribute(s) Genesys Cloud uses to recognize a returning customer on this custom channel.",
+      "endpoint": "getConversationsMessagingIdentityresolutionIntegrationsOpenIntegrationId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
     "conversations.get.conversation.suggestions": {
       "description": "Agent assist / suggestion listing for a single conversation.",
       "endpoint": "getConversationSuggestions",
@@ -40173,6 +40199,73 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "open-messaging-conversation-investigation": {
+        "description": "Locate and forensically investigate a conversation that arrived through an Open Messaging custom channel (the digital-channel integration mechanism used to build BYOI-style custom channels — distinct from the voice BYOI provider-call injection covered by 'BYOI External Conversation Enrichment' in docs/ENDPOINT_COMBINATIONS.md), where the conversationId is often unknown up front and the customer's identity travels as custom/participant attributes (e.g. CRM case ID, embeddable-framework addCustomAttributes payload, telephony UUI data surfaced as 'condensed conversation info') rather than a phone ANI. Extends single-conversation-investigation with an attribute-based lookup stage and an identity-resolution config audit. Used by digital-channel and voice engineers bridging a support ticket to a conversation, and by integration owners diagnosing why a repeat customer wasn't recognized.",
+        "subjectParam": "customAttributeKey/value (e.g. crmCaseId, externalContactId) — conversationId optional if already known",
+        "subjectOptional": true,
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "custom-attribute-lookup",
+            "dataset": "conversations.search.customattributes",
+            "role": "seed",
+            "filterBy": "known external key (customAttributeKey=value)",
+            "joinKey": "conversationId",
+            "provides": "conversationId (and communicationId) matching the external identifier",
+            "description": "Resolves an unknown conversationId from a known external attribute — the standard pattern for bridging a CRM ticket, order number, or embeddable-framework custom attribute to a Genesys conversation. Skip this step if conversationId is already known."
+          },
+          {
+            "step": "participant-attribute-lookup",
+            "dataset": "conversations.search.participant.attributes",
+            "filterBy": "known external key, or conversationId from seed",
+            "joinKey": "conversationId+participantId",
+            "provides": "IVR/Architect flow variables and data-action outcomes attached at the participant level",
+            "description": "Alternate/complementary lookup when the identifying value was captured as a participant attribute (flow variable) rather than a conversation-level custom attribute — common for IVR-collected account numbers."
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "mediaType, state, participantRoster, queueId, originatingDirection",
+            "description": "Base conversation object once conversationId is resolved — same seed used by single-conversation-investigation; chain into that recipe for full forensic detail."
+          },
+          {
+            "step": "custom-attributes-detail",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "full custom-attribute payload — isInternal, queueId override, UUIData, embeddable-framework addCustomAttributes fields",
+            "description": "Full attribute payload for the resolved conversation — the server-side counterpart to the embeddable framework's 'condensed conversation info' the widget/Open Messaging client attached at interaction time."
+          },
+          {
+            "step": "integration-config",
+            "dataset": "conversations.messaging.integrations.open",
+            "filterBy": "integrationId (from the conversation's messaging integration)",
+            "joinKey": "integrationId",
+            "provides": "webhook/outbound notification URL, supported content, integration status",
+            "description": "Confirms the Open Messaging integration that originated the conversation is active and correctly configured."
+          },
+          {
+            "step": "identity-resolution-config",
+            "dataset": "conversations.messaging.identityresolution.open",
+            "filterBy": "integrationId",
+            "joinKey": "integrationId",
+            "provides": "the attribute(s) used to match a returning customer on this channel",
+            "description": "Audits which custom attribute the integration matches on for identity resolution — explains why a repeat contact was or wasn't recognized as the same customer across conversations."
+          }
+        ],
+        "joinSequence": "custom-attribute-lookup or participant-attribute-lookup (external key) → conversation-base (conversationId) → custom-attributes-detail → integration-config (integrationId) → identity-resolution-config",
+        "diagnosticSignals": [
+          "custom-attribute search returns more than one conversationId for a supposedly unique external key → duplicate injection, likely a retried inbound Open Messaging POST without idempotency on the integrator side",
+          "custom-attributes-detail.isInternal unexpectedly true/false → misclassified internal/external interaction skews digital-channel volume reporting",
+          "queueId in custom-attributes-detail differs from conversation-base.queueId → a transfer or routing override changed the queue after the attribute was set at interaction start",
+          "identity-resolution-config's matching attribute is absent from the custom-attributes-detail payload → the integrator never sends the field Genesys matches on, so repeat customers are never linked",
+          "integration-config status is inactive/disabled while conversations keep resolving → stale integration reference; confirm the correct integrationId is being used"
+        ],
+        "enrichWith": [
+          "analytics.query.conversation.aggregates.digital.channels (to size Open Messaging volume against other digital channels)",
+          "single-conversation-investigation (chain from conversation-base for the full forensic timeline, evaluations, and sentiment)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40316,6 +40409,28 @@
           "mediaTypeMix% (voice vs. digital)"
         ],
         "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+      },
+      "open-messaging-identity-resolution-health": {
+        "description": "Open Messaging custom-channel scorecard — volume alongside identity-resolution match health. Surfaces integrations where repeat customers aren't being recognized (poor attribute coverage) or where duplicate conversations are being created (retry/idempotency gaps on the integrator side). Feeds digital-strategy and integration-health executive reviews.",
+        "datasetsInOrder": [
+          "conversations.messaging.integrations.open",
+          "conversations.messaging.identityresolution.open",
+          "conversations.search.customattributes",
+          "analytics.query.conversation.aggregates.digital.channels"
+        ],
+        "joinOn": "integrationId",
+        "groupBy": [
+          "integrationId",
+          "mediaType"
+        ],
+        "outputMetrics": [
+          "openMessagingConversationVolume (by integrationId)",
+          "customAttributeCoveragePct = conversations with the identity-match attribute set / total conversations on that integration",
+          "identityResolutionMatchRate% = conversations matched to an existing customer / total repeat-eligible conversations",
+          "duplicateContactRate% = duplicate conversationIds returned for the same external key / total lookups",
+          "integrationActiveStatus (active/disabled)"
+        ],
+        "executivePresentation": "Per-integration scorecard table; flag integrations with match rate below target or non-active status"
       },
       "wfm-adherence-and-occupancy": {
         "description": "Workforce adherence and occupancy \u2014 scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",
@@ -40502,6 +40617,31 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      }
+    },
+    "digitalChannelPlaybooks": {
+      "open-messaging-conversation-lookup-and-identity-audit": {
+        "description": "Find an Open Messaging conversation by a known external identifier when conversationId isn't already known, then audit the integration's identity-resolution configuration. The recurring support-desk pattern: a customer's CRM case or order number is known, the Genesys conversationId is not, and someone needs to explain why a returning customer wasn't recognized as a repeat contact.",
+        "subjectParam": "customAttributeKey/value (e.g. crmCaseId, orderId, externalContactId)",
+        "datasetsInOrder": [
+          "conversations.search.customattributes",
+          "conversations.search.participant.attributes",
+          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.customattributes",
+          "conversations.messaging.integrations.open",
+          "conversations.messaging.identityresolution.open"
+        ],
+        "diagnosticSignals": [
+          "search returns zero conversationIds for a key the integrator confirms it sent → attribute key/value mismatch or the attribute was set after Genesys captured the interaction snapshot",
+          "search returns multiple conversationIds for one external key → duplicate injection; check the integrator's retry/idempotency handling on the conv-injection POST",
+          "identity-resolution-config's match attribute isn't present in custom-attributes-detail → root cause of repeat customers never being linked across conversations",
+          "conversations.messaging.integrations.open status is inactive → conversations are resolving against a stale or disabled integration reference",
+          "custom-attributes-detail.isInternal true on a customer-facing conversation → embeddable-framework/Open Messaging client mis-set the internal flag, skewing digital-channel volume reporting"
+        ],
+        "enrichWith": [
+          "single-conversation-investigation (chain from conversation-base for the full forensic timeline once conversationId is resolved)",
+          "open-messaging-identity-resolution-health (executive rollup of match-rate and duplicate-rate across all Open Messaging integrations)"
         ]
       }
     }

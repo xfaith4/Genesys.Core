@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-17  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,8 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Customer Journey & CRM Enrichment (Release 1.4)](#11-customer-journey--crm-enrichment-release-14)
+12. [Agent Group Cross-Queue Investigation (Release 1.4)](#12-agent-group-cross-queue-investigation-release-14)
 
 ---
 
@@ -484,6 +486,128 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `externalcontacts.get.contact` | ○ | | | | | ○ |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
+| `externalcontacts.get.organization` | ○ | | | | | |
+| `externalcontacts.get.organization.contacts` | ○ | | | | | |
+| `journey.get.session` | ○ | | | | | |
+| `journey.get.session.events` | ○ | | | | | |
+| `journey.get.session.outcome.scores` | ○ | | | | | |
+| `groups.get.group` | | | | | | |
+| `groups.get.group.members` | | | | | | |
+| `groups.search.groups` | | | | | | |
+
+---
+
+## 11. Customer Journey & CRM Enrichment (Release 1.4)
+
+**Subject:** One `conversationId` whose seed object carries a non-null `externalContactId`
+**Use case:** A QA analyst or CX leader wants a conversation understood in the context of *who the
+customer is* and *what they were doing before they called* — not just the call's own timeline. This
+extends the Single Conversation Deep Dive (§1) and the Executive Reporting Rollup (§4) with External
+Contacts (CRM) and Predictive Engagement (Journey) data.
+
+**Core question:** *What account does this customer belong to, and what led them to contact us?*
+
+**Trigger condition:** Runs only when `conversations.get.conversation.object.participants[].externalContactId`
+is present. Most internal/agent-to-agent conversations will not have this field populated — treat the
+whole extension as conditional, not a mandatory step.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts.get.contact` | `externalContactId` (from conversation participant) | CRM identity: contact name, schema fields, cross-system identifiers |
+| 2 | `externalcontacts.get.organization` | `externalOrganizationId` (from step 1) | Company/account name, industry — B2B account context |
+| 3 *(optional)* | `externalcontacts.get.organization.contacts` | `externalOrganizationId` | Every other known contact at the same account — for account-health rollups spanning multiple conversations |
+| 4 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Digital sessions (web/app visits, channel switches) around the conversation window |
+| 5 | `journey.get.session.events` | `sessionId` (from step 4) | Page views, custom events, Architect action-map triggers — the customer's path leading to contact |
+| 6 | `journey.get.session.outcome.scores` | `sessionId` | Predicted outcome propensity scores — compare against the conversation's actual wrapup code |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id (CRM identity)
+  → externalcontacts.get.organization.id (account context, via contact.externalOrganizationId)
+  → externalcontacts.get.contact.journey.sessions[] (filter to session overlapping conversationLookup window)
+      → journey.get.session.events[] (chronological path)
+      → journey.get.session.outcome.scores (predicted vs actual)
+```
+
+### Analytical Questions Answered
+
+- Who is this customer in our CRM, and what account/company do they belong to?
+- What did the customer do on our site or app immediately before they called or chatted?
+- Did the customer abandon a cart, view a pricing page, or trigger an Architect action map before contact?
+- Did the conversation's actual wrapup/disposition match what Predictive Engagement predicted?
+- Is this contact part of a wider pattern of activity — do other contacts at the same account show similar journeys?
+
+### Executive Relevance
+
+For **executive reporting**, this extension is best consumed in aggregate, not per-conversation: pair
+`externalcontacts.get.organization.contacts` fan-out with `analytics-conversation-details-query` to build
+an account-level "contacts per week" or "at-risk account" rollup, rather than surfacing individual
+journey timelines on a dashboard. Per-conversation journey detail belongs in the voice-engineer/QA
+drilldown view, not the executive summary — this keeps the rollup informative without becoming a data dump.
+
+---
+
+## 12. Agent Group Cross-Queue Investigation (Release 1.4)
+
+**Subject:** One `groupId` + time window
+**Use case:** Genesys Cloud has **two distinct grouping primitives** that are easy to conflate:
+Divisions (§3) are the access-control/reporting boundary — typically one per region or business unit,
+and a queue belongs to exactly one division. **Groups** are a separate, freeform primitive: an ad-hoc
+team label (e.g. "Tier 2 Escalation", "Spanish Language", "New Hire Cohort — March") that can contain
+agents from *multiple* divisions and *multiple* queues at once. An operations lead investigating "how is
+the Tier 2 Escalation team doing" needs the Group entry point, not Division or Queue.
+
+**Core question:** *How is this cross-cutting team performing, and how far does it actually span?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 0 *(if name known, not ID)* | `groups.search.groups` | group name | Resolves a display name to a `groupId` |
+| 1 | `groups.get.group` | seed → `groupId` | Group name, type, visibility |
+| 2 | `groups.get.group.members` | `groupId` | Membership roster — every agent `userId` in the group |
+| 3 | `users.division.analysis.get.users.with.division.info` | `userId` list from step 2 | Each member's home division — reveals how many divisions the group spans |
+| 4 | `users.get.user.queue.memberships` | `userId` list from step 2 | Each member's queue memberships — reveals how many queues the group spans |
+| 5 | `analytics.query.user.aggregates.performance.metrics` | `userId` list | Aggregate volume/handle-time for the group as a unit, independent of which queue each conversation landed in |
+| 6 | `quality.get.agents.activity` | `userId` list | Quality coverage and average score for the group as a unit |
+
+### Key Joins
+
+```
+groups.get.group.id
+  → groups.get.group.members[].userId (membership roster)
+      → users.division.analysis.get.users.with.division.info[].divisionId (span across divisions)
+      → users.get.user.queue.memberships[].queueId (span across queues)
+      → analytics.query.user.aggregates.performance.metrics[].userId (group performance)
+      → quality.get.agents.activity[].user.id (group quality)
+```
+
+### Analytical Questions Answered
+
+- Who is actually in this team, right now?
+- How many distinct divisions and queues does this team's membership actually span?
+- How did the team perform as a unit this period, regardless of which queue each interaction came through?
+- Is quality coverage/scoring consistent across the team, or concentrated in a subset of members?
+
+### Division vs Group vs Queue — Choosing the Entry Point
+
+| Start with | When you know | You get |
+|------------|---------------|---------|
+| `queueId` | Specific queue complaints | All conversations + SLA + wrapup + member roster (§2) |
+| `divisionId` | Business unit, region, or access-control scope | All queues + all agents whose *home* division matches + group performance (§3) |
+| `groupId` | A named cross-cutting team, independent of division/queue structure | Membership roster + how far that team actually spans + team-level performance (§12) |
+
+Divisions and Groups are **not substitutes for each other**: a Division investigation answers "how is
+this business unit doing," while a Group investigation answers "how is this specific team doing," even
+when that team is deliberately assembled from agents in several different divisions and queues. Run
+both and join on `userId` when an investigation needs both lenses (e.g. "how does the Tier 2 Escalation
+team's performance compare against their home-division baseline").
 
 ---
 
@@ -508,6 +632,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `externalContactId` | Conversation participant's linked CRM contact identifier | Seeds §11 CRM/journey enrichment |
+| `externalOrganizationId` | CRM contact's linked account/company identifier | Account-level rollups (§11) |
+| Journey outcome propensity score | Predictive Engagement's predicted likelihood a session pursues a given outcome | Predicted-vs-actual comparison against wrapup code (§11) |
+| `distinctDivisionCount` / `distinctQueueCount` | Count of unique divisions/queues among a Group's members | Measures how far a cross-cutting team actually spans (§12) |
 
 ---
 

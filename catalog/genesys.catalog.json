@@ -1297,6 +1297,130 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External (CRM) contact identity linked to a conversation participant \u2014 name, contact schema fields, and cross-system identifiers. Enriches Conversation and Agent investigations with the customer's CRM record when a participant carries an externalContactId.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Predictive Engagement journey sessions (web/app visits, channel switches) associated with an external contact \u2014 shows the customer's digital activity immediately before and after a conversation. Key input for \"what led to this contact\" investigations.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization": {
+      "description": "External (CRM) organization/account record linked to a contact \u2014 company name, industry, and identifiers. Provides account-level context for B2B investigations and executive account-health reporting.",
+      "endpoint": "getExternalcontactsOrganization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization.contacts": {
+      "description": "All external contacts linked to the same organization/account \u2014 use to find every other conversation participant tied to the same company, for account-level rollups spanning many conversations.",
+      "endpoint": "getExternalcontactsOrganizationContacts",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session": {
+      "description": "A single Predictive Engagement journey session \u2014 device, channel, referrer, and duration for the customer's digital session around this conversation.",
+      "endpoint": "getJourneySession",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.events": {
+      "description": "Page views, custom events, and action-map triggers within a journey session \u2014 the customer's path (pages viewed, cart events, search terms) leading up to contact.",
+      "endpoint": "getJourneySessionEvents",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.outcome.scores": {
+      "description": "Predictive Engagement outcome scores (propensity/likelihood) computed for a journey session \u2014 shows which outcome the customer was predicted to pursue before the conversation started. Useful for correlating predicted intent against actual wrapup/disposition.",
+      "endpoint": "getJourneySessionOutcomescores",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.group": {
+      "description": "Ad-hoc group identity \u2014 name, type, and visibility. Groups are a distinct grouping mechanism from Divisions: a Group can span multiple divisions and queues (e.g. a cross-functional \"Tier 2 Escalation\" team), and agents can belong to several groups simultaneously.",
+      "endpoint": "getGroup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.group.members": {
+      "description": "Membership roster for an ad-hoc group \u2014 the userIds of every agent in the group, regardless of which queue or division they primarily serve. Drives cross-queue agent-group investigations.",
+      "endpoint": "getGroupMembers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.search.groups": {
+      "description": "Search for groups by name or type \u2014 seed step for a named agent-group investigation when only the group's display name is known (e.g. \"Tier 2 Escalation\").",
+      "endpoint": "postGroupsSearch",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -40172,6 +40296,126 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "conversation-crm-journey-enrichment": {
+        "description": "Extension pack for the single-conversation investigation — links a conversation's external-facing participant to its CRM (External Contacts) record and Predictive Engagement journey, so a conversation is understood in the context of the customer's account and pre-contact digital activity, not just its own timeline. Optional: runs only when the seed conversation carries an externalContactId.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "trigger": "conversations.get.conversation.object.participants[].externalContactId is non-null",
+        "steps": [
+          {
+            "step": "crm-contact",
+            "dataset": "externalcontacts.get.contact",
+            "role": "seed",
+            "joinKey": "externalContactId",
+            "provides": "contact name, CRM schema fields, cross-system identifiers",
+            "description": "Resolves the customer's CRM identity from the conversation participant's externalContactId"
+          },
+          {
+            "step": "crm-organization",
+            "dataset": "externalcontacts.get.organization",
+            "joinKey": "externalOrganizationId (from crm-contact)",
+            "provides": "company name, industry, account identifiers",
+            "description": "Account-level context when the contact belongs to a B2B organization"
+          },
+          {
+            "step": "crm-organization-contacts",
+            "dataset": "externalcontacts.get.organization.contacts",
+            "joinKey": "externalOrganizationId",
+            "provides": "every other known contact at the same account",
+            "description": "Optional — use for account-health rollups spanning multiple conversations/contacts at the same company"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "contactId",
+            "provides": "session list with channel, device, referrer, start/end time",
+            "description": "Digital sessions around the conversation window — filter to the session overlapping or immediately preceding conversationLookup.conversationStart"
+          },
+          {
+            "step": "journey-session-events",
+            "dataset": "journey.get.session.events",
+            "joinKey": "sessionId (from journey-sessions)",
+            "provides": "page views, custom events, action-map triggers in chronological order",
+            "description": "The customer's path leading to contact — e.g. viewed pricing page, abandoned cart, triggered an Architect action map"
+          },
+          {
+            "step": "journey-outcome-scores",
+            "dataset": "journey.get.session.outcome.scores",
+            "joinKey": "sessionId",
+            "provides": "predicted outcome propensity scores",
+            "description": "Compare the predicted outcome against the conversation's actual wrapup code/disposition to gauge Predictive Engagement model accuracy"
+          }
+        ],
+        "analyticalQuestions": [
+          "Who is this customer in our CRM, and what account do they belong to?",
+          "What did the customer do on our site/app before they called or chatted?",
+          "Did the conversation match what Predictive Engagement predicted they would do?",
+          "Is this contact part of a wider pattern of activity from the same account?"
+        ]
+      },
+      "agent-group-cross-queue-investigation": {
+        "description": "Ad-hoc Group investigation — Groups are a separate grouping primitive from Divisions in Genesys Cloud: a Group can contain agents from multiple divisions and multiple queues simultaneously (e.g. a floating \"Tier 2 Escalation\" or \"Spanish Language\" team). Use this recipe when the unit of analysis is a named team, not a division or a single queue.",
+        "subjectParam": "groupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "group-detail",
+            "dataset": "groups.get.group",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, type, visibility",
+            "description": "Group identity — resolve by groups.search.groups first if only the display name is known"
+          },
+          {
+            "step": "group-members",
+            "dataset": "groups.get.group.members",
+            "joinKey": "groupId",
+            "provides": "userId list for every agent in the group",
+            "description": "Membership roster, independent of each member's home division or queue assignments"
+          },
+          {
+            "step": "member-divisions",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "each member's home divisionId",
+            "description": "Shows how many distinct divisions this group actually spans"
+          },
+          {
+            "step": "member-queues",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "each member's queue memberships",
+            "description": "Shows how many distinct queues this group actually spans"
+          },
+          {
+            "step": "member-performance",
+            "dataset": "analytics.query.user.aggregates.performance.metrics",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk per member",
+            "description": "Aggregate performance for the group as a unit, regardless of which queue each conversation was in"
+          },
+          {
+            "step": "member-quality",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore per member",
+            "description": "Quality coverage for the group as a unit"
+          }
+        ],
+        "divisionNote": "A Group is not a Division. Divisions gate data access and are usually one-per-region/business-unit; Groups are freeform team labels that can and often do cross division and queue boundaries. When both are relevant to an investigation, run division-investigation for the access/reporting boundary and agent-group-cross-queue-investigation for the working-team boundary, then join on userId.",
+        "executiveMetrics": [
+          "memberCount",
+          "distinctDivisionCount",
+          "distinctQueueCount",
+          "nConnected (group total)",
+          "tHandle (group avg)",
+          "evalAvgScore (group avg)"
         ]
       }
     },

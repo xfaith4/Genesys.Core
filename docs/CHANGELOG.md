@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-07-18
+
+### Added
+
+- **External Contact / BYOI cross-reference and outbound campaign investigations:**
+  - Added 8 curated catalog datasets (119 total, up from 111): `externalcontacts.get.contact`,
+    `externalcontacts.get.contact.notes`, `externalcontacts.get.contact.journey.segments` for
+    conversation-to-CRM enrichment, and `outbound.get.campaign`, `outbound.get.campaign.interactions`,
+    `outbound.get.campaign.progress`, `outbound.get.campaign.stats`, `outbound.get.dnc.lists` for
+    single-campaign drilldown — all mapped to existing verified endpoints already present in the raw
+    3,102-endpoint catalog.
+  - Added `combinations.investigationRecipes.conversation-external-contact-enrichment` — formalizes
+    the previously prose-only BYOI identification pattern (§6 of `docs/ENDPOINT_COMBINATIONS.md`)
+    into a structured, machine-consumable recipe and extends it with External Contact profile, notes,
+    and journey-segment cross-reference.
+  - Added `combinations.investigationRecipes.outbound-campaign-investigation` — single-campaign
+    drilldown (config, pacing, DNC suppression, per-attempt interactions, connected-conversation
+    detail) that was previously only covered at the aggregate executive-rollup level.
+  - Added `combinations.voiceEngineerPlaybooks.outbound-dialer-pacing-diagnostics` — real-time
+    pacing/compliance snapshot for a live campaign, the outbound analogue of the existing
+    queue-saturation-and-staffing-analysis playbook.
+  - Documented all three combinations in `docs/ENDPOINT_COMBINATIONS.md` (new §10-§12), including
+    join keys, diagnostic signals, and executive metrics, consistent with the existing sections.
+  - All additions validated against `catalog/schema/genesys.catalog.schema.json` and confirmed each
+    new dataset's `endpoint` reference resolves to a real, pre-existing endpoint key with a matching
+    verified path.
+
 ## 2026-06-08
 
 ### Changed

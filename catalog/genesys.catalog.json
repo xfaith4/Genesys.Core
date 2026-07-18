@@ -1297,6 +1297,102 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Fetch a single External Contact by ID - CRM-style profile (name, title, employer, phones, social handles) for the customer linked to a conversation participant. Primary join target for conversation-to-CRM enrichment and for identifying the customer behind a BYOI-injected conversation.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Notes logged against an External Contact - free-text case history entered by agents or synced from an external CRM. Contains PII; apply redaction before persisting outside an investigation run.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "description": "Journey segment assignments for an External Contact - which CX/marketing segments the customer was in, useful for correlating a conversation to a broader customer journey context.",
+      "endpoint": "getExternalcontactsContactJourneySegments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.campaign": {
+      "description": "Single Outbound Campaign configuration - dialing mode, contact list reference, DNC list references, call analysis response set, and current status. Seed step for a single-campaign investigation.",
+      "endpoint": "getOutboundCampaign",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.campaign.interactions": {
+      "description": "Per-attempt dial interactions for a single campaign - contactId, conversationId, call analysis result (live voice / answering machine / fax / busy), and disposition. Seed for per-conversation drilldown from a campaign.",
+      "endpoint": "getOutboundCampaignInteractions",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.campaign.progress": {
+      "description": "Real-time progress of a single campaign through its contact list - contacts remaining, current cycle. Used for live pacing triage.",
+      "endpoint": "getOutboundCampaignProgress",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.campaign.stats": {
+      "description": "Live dialer statistics for a single campaign - dialed/connected/abandoned counts for the current session. Used with campaign.progress for real-time abandon-rate and pacing diagnostics.",
+      "endpoint": "getOutboundCampaignStats",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "outbound.get.dnc.lists": {
+      "description": "Do-Not-Call suppression lists - name, entry count, last import date. Cross-referenced against a campaign's dncListIds to verify compliance suppression is actually attached and current.",
+      "endpoint": "getOutboundDnclists",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -40173,6 +40269,167 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "conversation-external-contact-enrichment": {
+        "description": "Cross-reference a conversation's linked External Contact (CRM-style record) for full customer context, and positively identify conversations that entered Genesys Cloud via a BYOI (Bring Your Own Integration) provider rather than native ACD/telephony. Used whenever a conversation touches a known customer/case in an external system, or when a voice engineer needs to confirm a call was injected rather than routed natively before applying PSTN-specific diagnostics.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId (BYOI indicator), participants[].purpose, participants[].externalContactId",
+            "description": "Base conversation object. A non-null externalTag or externalConversationId confirms the conversation was injected via the BYOI provider API rather than originating from native Genesys telephony or digital channels."
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set context: CRM case ID, intent label, external call ID captured at injection or IVR time",
+            "description": "For BYOI conversations this is the primary carrier of the external system's own case/ticket identifiers; for native conversations it carries Architect-flow-set attributes."
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables captured during the conversation",
+            "description": "Historical participant attribute search, filtered to this conversationId."
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "externalContactId",
+            "description": "Resolve the CRM-style profile for the participant whose purpose=external carries an externalContactId in the seed step. Skip this step when no participant has an externalContactId."
+          },
+          {
+            "step": "external-contact-notes",
+            "dataset": "externalcontacts.get.contact.notes",
+            "joinKey": "externalContactId",
+            "provides": "free-text case notes logged by agents or synced from the external CRM",
+            "description": "Prior interaction history for this customer, independent of this single conversation."
+          },
+          {
+            "step": "external-contact-journey",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "joinKey": "externalContactId",
+            "provides": "journey/CX segment membership at investigation time",
+            "description": "Correlates this conversation to the customer's broader journey context, e.g. an active 'at-risk' or 'VIP' segment."
+          }
+        ],
+        "joinSequence": "seed (conversation-base) → custom-attributes (conversationId) → participant-attributes (conversationId) → external-contact (participants[].externalContactId) → external-contact-notes (externalContactId) → external-contact-journey (externalContactId)",
+        "byoiNotes": [
+          "Identification: a non-null externalTag or externalConversationId on conversation-base is the definitive BYOI indicator; treat custom-attributes and participant-attributes as required (not optional) steps once it is present.",
+          "telephony.get.sip.messages.for.conversation reflects the BYOI provider's SIP-to-SIP handoff on these conversations, not an inbound PSTN leg — do not use it to diagnose PSTN trunk capacity for BYOI-tagged conversations.",
+          "analytics.get.single.conversation.analytics, quality.get.evaluations.query, conversations.get.conversation.recording.metadata, and conversations.get.recordings behave identically to native conversations — BYOI conversations flow through the same routing, analytics, and QM pipeline once injected.",
+          "Embeddable Framework clients render the same conversation object (condensed to participants[].purpose, participants[].state, participants[].calls[].state/muted/held) — no separate API call is needed to reconcile embedded-client state with this investigation."
+        ],
+        "diagnosticSignals": [
+          "externalTag present but external-contact step returns no match — CRM identity resolution gap; the provider sent an unmapped or new external contact identifier",
+          "external-contact-notes empty on a repeat caller — note-taking process gap, not necessarily a data error",
+          "external-contact-journey shows an active escalation/at-risk segment — route the conversation to priority QM review regardless of its own sentiment score"
+        ],
+        "executiveMetrics": [
+          "byoiConversationRate% = conversations with non-null externalTag / total conversations",
+          "externalContactMatchRate% = conversations with a resolvable externalContactId / total conversations with an external participant",
+          "contactNoteCount (per customer)",
+          "activeJourneySegmentCount (per customer at contact time)"
+        ]
+      },
+      "outbound-campaign-investigation": {
+        "description": "End-to-end investigation of a single outbound dialer campaign — configuration, contact list and DNC suppression, real-time pacing/progress, individual dial interactions, and the conversations/agents produced. Used by dialer administrators and voice engineers when a campaign under-delivers, over-dials, trips abandon-rate compliance limits, or is suspected of a DNC suppression gap.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign-config",
+            "dataset": "outbound.get.campaign",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, contactList.id, dncLists[].id, dialingMode, callAnalysisResponseSet, campaignStatus",
+            "description": "Campaign configuration — dialing mode (preview/progressive/predictive), contact list and DNC list references, current status"
+          },
+          {
+            "step": "campaign-progress",
+            "dataset": "outbound.get.campaign.progress",
+            "joinKey": "campaignId",
+            "provides": "contacts remaining, current cycle",
+            "description": "Real-time progress through the contact list"
+          },
+          {
+            "step": "campaign-stats",
+            "dataset": "outbound.get.campaign.stats",
+            "joinKey": "campaignId",
+            "provides": "live dialed/connected/abandoned counts for the current session",
+            "description": "Real-time dialer statistics for pacing and abandon-rate triage"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "joinKey": "campaignId",
+            "provides": "health flags and current error indicators",
+            "description": "Existing diagnostics summary reused from the executive rollup playbook"
+          },
+          {
+            "step": "interactions",
+            "dataset": "outbound.get.campaign.interactions",
+            "joinKey": "campaignId",
+            "provides": "per-attempt contactId, conversationId, callAnalysisResult (live voice / answering machine / fax / busy), disposition",
+            "description": "Individual dial attempts — seed for per-conversation drilldown and for reviewing call-analysis accuracy"
+          },
+          {
+            "step": "contact-list",
+            "dataset": "outbound.get.contact.lists",
+            "filterBy": "campaign-config.contactList.id",
+            "joinKey": "contactListId",
+            "provides": "contact list name, column mappings, size",
+            "description": "Source contact list metadata for the campaign"
+          },
+          {
+            "step": "dnc-suppression",
+            "dataset": "outbound.get.dnc.lists",
+            "filterBy": "campaign-config.dncLists[].id",
+            "joinKey": "dncListId",
+            "provides": "DNC list name, entry count, last import date",
+            "description": "Do-Not-Call suppression lists applied to this campaign — compliance verification"
+          },
+          {
+            "step": "conversation-detail",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "conversationId list from interactions",
+            "joinKey": "conversationId",
+            "provides": "tTalk, tHandle, wrapUpCode, agentId per connected attempt",
+            "description": "Full analytics detail for connected dial attempts; join to interactions on conversationId"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId list from interactions",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore for agent-handled outbound conversations from this campaign",
+            "description": "Quality coverage for connected campaign conversations, if reviewed"
+          }
+        ],
+        "joinSequence": "seed (campaign-config) → campaign-progress + campaign-stats (campaignId) → diagnostics (campaignId) → interactions (campaignId → conversationId per attempt) → contact-list (contactList.id) → dnc-suppression (dncLists[].id) → conversation-detail (conversationId from interactions) → evaluations (conversationId)",
+        "diagnosticSignals": [
+          "campaignStatus=stopping/complete with contacts remaining > 0 in campaign-progress → campaign stalled; check diagnostics for the blocking condition",
+          "interactions[].callAnalysisResult heavily skewed to 'answering machine' with little 'live voice' → call analysis (CPA) miscalibration or a stale/bad contact list",
+          "campaign-stats abandon count relative to connected count above the regulatory threshold on a predictive/progressive campaign → pacing too aggressive for current agent availability",
+          "dnc-suppression returns an empty entry count, or campaign-config.dncLists is empty, on a live campaign → compliance risk; verify a current DNC list is actually attached before the next dial cycle",
+          "interactions[].disposition shows DNC-skipped attempts → confirms suppression is active and working, not a fault signal",
+          "diagnostics summary flags contactList.id or a dncLists entry as missing/inaccessible → permission or list-deletion issue silently stalling the campaign"
+        ],
+        "executiveMetrics": [
+          "contactsDialed",
+          "rightPartyContactRate%",
+          "abandonRate%",
+          "answeringMachineRate%",
+          "campaignCompletionPct%",
+          "dncSuppressionEntryCount",
+          "avgHandleTime (connected attempts)",
+          "evalAvgScore (connected attempts)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40502,6 +40759,28 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "outbound-dialer-pacing-diagnostics": {
+        "description": "Real-time pacing and compliance snapshot for a single outbound campaign — is it dialing too fast (abandon-rate risk), too slow (stalled), or dialing without current DNC suppression. Used when a campaign is live and a dialer administrator or voice engineer needs to act within minutes.",
+        "subjectParam": "campaignId",
+        "datasetsInOrder": [
+          "outbound.get.campaign",
+          "outbound.get.campaign.progress",
+          "outbound.get.campaign.stats",
+          "outbound.get.campaign.diagnostics.summary",
+          "outbound.get.dnc.lists"
+        ],
+        "diagnosticSignals": [
+          "campaign-stats abandoned count rising relative to connected count while dialingMode is predictive/progressive → pacing algorithm outrunning agent availability; consider lowering the pacing ratio or switching to a less aggressive dialing mode",
+          "campaign-progress shows near-zero movement over successive polls with campaignStatus=on → stalled campaign; check diagnostics.summary for a blocking condition (e.g. exhausted contact list, filter excluding all remaining contacts)",
+          "campaign-config.dncLists is empty or outbound.get.dnc.lists returns a stale/zero-entry list → compliance exposure; halt dialing until a current DNC list is attached",
+          "diagnostics.summary flags contact list or DNC list as inaccessible → permission or list-deletion issue, not a pacing problem",
+          "campaign-stats connected count high with corresponding queue real-time stats (oWaiting/oOnQueueUsers) showing queue saturation → dial rate is outstripping agent capacity even without a raw abandon-rate breach yet"
+        ],
+        "enrichWith": [
+          "analytics.query.queue.observations.real.time.stats (the campaign's target queue — confirm agent availability matches the current pacing)",
+          "routing.get.queue.members.with.status (are enough agents actually on-queue for this campaign right now)"
         ]
       }
     }

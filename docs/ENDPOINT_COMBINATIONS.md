@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-18  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,10 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Conversation / External Contact Cross-Reference](#10-conversation--external-contact-cross-reference)
+11. [Outbound Campaign Investigation](#11-outbound-campaign-investigation)
+12. [Outbound Dialer Pacing Diagnostics (Voice Engineer)](#12-outbound-dialer-pacing-diagnostics-voice-engineer)
+13. [Dataset Combination Reference Matrix](#13-dataset-combination-reference-matrix)
 
 ---
 
@@ -431,10 +434,154 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Conversation / External Contact Cross-Reference
+
+**Subject:** One `conversationId` (or a customer's `externalContactId` directly)
+**Use case:** A conversation involves a known customer or case in an external CRM — either because
+it was injected via BYOI (see §6) or because a native conversation's participant carries an
+`externalContactId`. The investigator needs the customer's identity, prior case notes, and journey
+context alongside the conversation itself, without pulling the entire External Contacts database.
+
+**Core question:** *Who is this customer, what do we already know about them, and does this
+conversation confirm BYOI injection?*
+
+Formalized in `catalog/genesys.catalog.json` → `combinations.investigationRecipes.conversation-external-contact-enrichment`.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | `externalTag` / `externalConversationId` (BYOI indicator), `participants[].externalContactId` |
+| 2 | `conversations.get.conversation.customattributes` | `conversationId` | Provider-set context: CRM case ID, intent label, external call ID |
+| 3 | `conversations.search.participant.attributes` | `conversationId` | IVR/Architect flow variables captured during the conversation |
+| 4 | `externalcontacts.get.contact` | `externalContactId` (from step 1 participant) | CRM-style profile: name, title, employer, phones, social handles |
+| 5 | `externalcontacts.get.contact.notes` | `externalContactId` | Free-text case history logged by agents or synced from the external CRM |
+| 6 | `externalcontacts.get.contact.journey.segments` | `externalContactId` | CX/marketing journey segment membership at investigation time |
+
+### Key Joins
+
+```
+conversations.get.specific.conversation.details.participants[].externalContactId
+  → externalcontacts.get.contact.contactId
+  → externalcontacts.get.contact.notes.contactId
+  → externalcontacts.get.contact.journey.segments.contactId
+```
+
+### Analytical Questions Answered
+
+- Was this conversation injected via a BYOI provider, or did it originate natively?
+- Which customer (by CRM identity) does this conversation belong to?
+- What prior notes exist for this customer, independent of this one conversation?
+- Is this customer currently in an at-risk, VIP, or escalation journey segment?
+
+### Notes
+
+- `externalContactId` is only present on participants with `purpose = "external"`; skip steps 4-6
+  when no such participant exists on the conversation.
+- This recipe composes with §1 (Single Conversation Deep Dive) — run it as an extension once
+  `externalTag` or a participant `externalContactId` is observed on the seed step, rather than as
+  a standalone investigation.
+- External Contact notes contain agent- and CRM-entered free text; treat as PII and redact before
+  persisting outside the investigation run (see `redaction` profiles in the catalog).
+
+---
+
+## 11. Outbound Campaign Investigation
+
+**Subject:** One `campaignId` + time window
+**Use case:** A dialer administrator or voice engineer needs to understand why a specific outbound
+campaign is under-delivering, over-dialing, tripping an abandon-rate compliance threshold, or is
+suspected of a Do-Not-Call suppression gap.
+
+**Core question:** *Is this campaign configured, pacing, and suppressing correctly — and what
+happened to the contacts it dialed?*
+
+Formalized in `catalog/genesys.catalog.json` → `combinations.investigationRecipes.outbound-campaign-investigation`.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `outbound.get.campaign` | seed → `campaignId` | Dialing mode, `contactList.id`, `dncLists[].id`, call analysis response set, status |
+| 2 | `outbound.get.campaign.progress` | `campaignId` | Contacts remaining, current cycle |
+| 3 | `outbound.get.campaign.stats` | `campaignId` | Live dialed/connected/abandoned counts |
+| 4 | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Health flags and current error indicators |
+| 5 | `outbound.get.campaign.interactions` | `campaignId` | Per-attempt `contactId`, `conversationId`, call analysis result, disposition |
+| 6 | `outbound.get.contact.lists` | `contactList.id` (from step 1) | Contact list name, column mappings, size |
+| 7 | `outbound.get.dnc.lists` | `dncLists[].id` (from step 1) | DNC list name, entry count, last import date |
+| 8 | `analytics-conversation-details-query` | `conversationId` (from step 5) | tTalk, tHandle, wrapUpCode, agentId per connected attempt |
+| 9 | `quality.get.evaluations.query` | `conversationId` (from step 5) | Evaluation scores for agent-handled outbound conversations |
+
+### Key Joins
+
+```
+outbound.get.campaign.id
+  → outbound.get.campaign.interactions.campaignId (per-attempt list)
+  → analytics-conversation-details-query[].conversationId (connected attempts only)
+  → quality.get.evaluations.query[].conversationId (left join — not all attempts are evaluated)
+
+outbound.get.campaign.contactList.id → outbound.get.contact.lists.id
+outbound.get.campaign.dncLists[].id → outbound.get.dnc.lists.id
+```
+
+### Analytical Questions Answered
+
+- Is the campaign actively dialing, stalled, or complete?
+- What proportion of attempts reached a live voice vs. an answering machine?
+- Is the current abandon rate within compliance thresholds for this dialing mode?
+- Is a current DNC list actually attached and suppressing contacts?
+- What was the outcome (handle time, wrapup, QM score) for connected attempts?
+
+### Compliance Note
+
+A campaign with `dncLists` empty or an attached DNC list with zero/stale entries is a compliance
+exposure, not just an operational one — treat `dnc-suppression` as a required step, not optional,
+whenever this recipe runs against a live (non-test) campaign.
+
+---
+
+## 12. Outbound Dialer Pacing Diagnostics (Voice Engineer)
+
+**Subject:** One `campaignId` (no fixed window — point-in-time, polling pattern)
+**Use case:** A live campaign needs a fast pacing/compliance snapshot — the voice-engineer
+equivalent of §5 Real-Time Operations Monitoring, scoped to a single dialer campaign.
+
+Formalized in `catalog/genesys.catalog.json` → `combinations.voiceEngineerPlaybooks.outbound-dialer-pacing-diagnostics`.
+
+### Dataset Steps (ordered, polling pattern)
+
+| Step | Dataset Key | What It Shows |
+|------|-------------|---------------|
+| 1 | `outbound.get.campaign` | Dialing mode and status — context for interpreting the live numbers below |
+| 2 | `outbound.get.campaign.progress` | Contacts remaining, current cycle |
+| 3 | `outbound.get.campaign.stats` | Live dialed/connected/abandoned counts |
+| 4 | `outbound.get.campaign.diagnostics.summary` | Current error/health flags |
+| 5 | `outbound.get.dnc.lists` | Confirms suppression is current, not stale |
+
+### Diagnostic Signals
+
+- Abandoned count rising relative to connected count on a predictive/progressive campaign →
+  pacing is outrunning agent availability; lower the pacing ratio or switch dialing mode.
+- `campaign.progress` shows near-zero movement across polls while `campaignStatus=on` → stalled;
+  check `diagnostics.summary` for a blocking condition (exhausted list, over-restrictive filter).
+- `dncLists` empty or the referenced DNC list has zero/stale entries → halt dialing until a current
+  list is attached.
+
+### Enrich With
+
+- `analytics.query.queue.observations.real.time.stats` for the campaign's target queue — confirm
+  agent availability actually matches the current pacing.
+- `routing.get.queue.members.with.status` — are enough agents genuinely on-queue right now.
+
+---
+
+## 13. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
-`●` = used, `○` = optional/conditional, blank = not applicable.
+`●` = used, `○` = optional/conditional, blank = not applicable. This matrix covers the six original
+combinations (§1-§5, §7); §10-§12 (External Contact cross-reference and the two outbound-campaign
+combinations) have their own dataset-step tables in their sections rather than extra matrix columns,
+since none of their datasets overlap with this set.
 
 | Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|

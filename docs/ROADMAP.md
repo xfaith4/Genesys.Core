@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-07-19
 
 ## 1. Product Intent
 
@@ -27,6 +27,22 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Catalog combinations reconciliation (2026-07-19): closed the gap between
+      `catalog.combinations` (investigation recipes, executive reporting
+      playbooks, voice-engineer playbooks) and the executable `catalog.datasets`
+      layer. Promoted 11 endpoints already present in the reference endpoint
+      catalog (`quality.get.conversation.surveys`, `conversations.get.call.detail`,
+      `conversations.get.conversation.participant.wrapup`,
+      `conversations.get.conversation.summaries`,
+      `routing.get.queue.estimated.wait.time`,
+      `speechandtextanalytics.get.conversation.categories`,
+      `speechandtextanalytics.get.conversation.summaries.detail`,
+      `authorization.get.division.grants`, `workforce.get.agent.management.unit`,
+      `workforce.get.adherence.bulk`, and a cleaned-up
+      `analytics.query.conversation.aggregates.by.division`) into curated
+      datasets, and corrected 9 dangling/duplicate combo references to their
+      equivalent curated dataset key. All 70 dataset references inside
+      `catalog.combinations` now resolve; schema validation passes.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

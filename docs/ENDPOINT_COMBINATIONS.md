@@ -1,8 +1,21 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-19  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+
+> **Machine-readable counterpart:** `catalog/genesys.catalog.json` also carries a
+> `combinations` block (`investigationRecipes`, `executiveReportingPlaybooks`,
+> `voiceEngineerPlaybooks`) with the same intent in a structured, tool-consumable
+> form — join keys, diagnostic signals, and derived/executive metrics per recipe.
+> It covers everything below plus two additions not yet prose-documented here:
+> an **`agent-not-responding-autoanswer`** root-cause recipe (auto-answer firing
+> without the media ever landing, correlated to station registration and
+> config-audit history) and a **`wfm-adherence-and-occupancy`** executive
+> playbook. Every dataset key referenced by that block resolves to a real,
+> executable entry in `catalog.datasets` — 11 endpoints were promoted from the
+> reference endpoint catalog into curated datasets to close prior gaps, and 9
+> dangling/duplicate references were corrected to their equivalent curated key.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-19
+
+### Added
+
+- Promoted 11 endpoints already present in the reference endpoint catalog into curated `datasets` entries so every step referenced by `catalog.combinations` (investigation recipes, executive reporting playbooks, and voice-engineer playbooks) is backed by an executable dataset: `quality.get.conversation.surveys`, `conversations.get.call.detail`, `conversations.get.conversation.participant.wrapup`, `conversations.get.conversation.summaries`, `routing.get.queue.estimated.wait.time`, `speechandtextanalytics.get.conversation.categories`, `speechandtextanalytics.get.conversation.summaries.detail`, `authorization.get.division.grants`, `workforce.get.agent.management.unit`, `workforce.get.adherence.bulk`, and a cleaned-up `analytics.query.conversation.aggregates.by.division` (renamed from a mis-scraped, mis-shaped endpoint key and corrected to the `$.results` response shape shared by its sibling aggregate queries).
+
+### Fixed
+
+- Corrected 9 dangling/duplicate dataset references inside `catalog.combinations` (investigation recipes and playbooks) that pointed at raw endpoint-catalog keys or near-duplicate names instead of the equivalent curated dataset key — e.g. `conversations.get.specific.conversation.details` → `conversations.get.conversation.object`, `telephony.get.sip.message.for.conversation` → `telephony.get.sip.messages.for.conversation`, `routing.get.queue.members.with.status` → `routing-queue-members`, `authorization.search.division.objects` → `authorization.list.division.queues`. All 70 dataset references inside `catalog.combinations` now resolve to a real, executable `datasets` entry (verified by a resolution script against `catalog/genesys.catalog.json`).
+- Updated the `README.md` catalog stat line, which had been stale since an earlier session (`31 dataset keys, 74 endpoint definitions`) even as the curated dataset count grew; it now reads 122 curated datasets / 3,000+ reference endpoints.
+
 ## 2026-06-08
 
 ### Changed

@@ -1070,6 +1070,17 @@
       },
       "validationStatus": "unvalidated"
     },
+    "conversations.post.messages.inbound.open": {
+      "description": "Creates an inbound Open Messaging conversation — the verified Genesys Cloud mechanism for injecting a conversation that originated in an external system (CRM, custom digital channel, BYOI-style third-party client) into Genesys Cloud routing, queues, and analytics. Requires a configured Open Messaging integration (integrationId). Write-only; catalogued as the injection surface referenced by the external-origin-conversation-enrichment recipe.",
+      "endpoint": "postConversationsMessagesInboundOpen",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
     "conversations.search.customattributes": {
       "description": "Bulk custom attribute search across conversations \u2014 use for multi-conversation enrichment.",
       "endpoint": "postConversationsCustomattributesSearch",
@@ -1297,6 +1308,28 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "employeeperformance.get.externalmetrics.definitions": {
+      "description": "Lists organization-defined External Metric definitions — custom KPIs (e.g. CRM containment rate, IVR self-service rate, third-party/BYOI vendor SLA) that can be blended with native Genesys metrics on Performance Dashboards for executive reporting.",
+      "endpoint": "getEmployeeperformanceExternalmetricsDefinitions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
+    },
+    "employeeperformance.post.externalmetrics.data": {
+      "description": "Writes External Metric data points (up to 100 per call) so an upstream system — CRM, IVR platform, or third-party voice provider — can contribute custom KPI values that appear alongside native Genesys metrics on Performance Dashboards. Write-path, not a rollup read; catalogued so integration engineers can locate the ingestion endpoint feeding executive-reporting blends.",
+      "endpoint": "postEmployeeperformanceExternalmetricsData",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      }
     }
   },
   "profiles": {
@@ -40173,6 +40206,70 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "external-origin-conversation-enrichment": {
+        "description": "Investigation for a conversation that originated outside native Genesys Cloud PSTN/ACD routing — an Open Messaging integration or any other integration that sets a non-null Conversation.externalTag. This recipe replaces an earlier, unverifiable assumption that a dedicated 'BYOI provider calls' REST endpoint exists (a path such as 'POST /api/v2/conversations/providers/{providerId}/calls' returning an 'externalConversationId' field). Neither was found in this catalog's own 3,100+ operation endpoint set or in an independently reviewed Genesys Cloud v2 OpenAPI snapshot; direct fetch of developer.genesys.cloud was blocked by outbound network policy at verification time (2026-07-20), so absence was cross-checked against two independent sources rather than a single one. The verified external-origin signal is Conversation.externalTag (confirmed on both the Conversation and AnalyticsConversation schemas), and the verified injection surface for third-party/BYOI-style channels is the Open Messaging inbound API (conversations.post.messages.inbound.open).",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "external-tag-check",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag (non-null = external origin), participants[].purpose=external, participants[].externalContactId",
+            "description": "Definitive check for external origin — a non-null externalTag confirms the conversation entered Genesys Cloud through an external integration rather than native PSTN/ACD."
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "per-segment timing: IVR, ACD wait, talk, hold, ACW",
+            "description": "Segment timing is accurate for externally-originated conversations — they flow through the same Architect/queue/analytics pipeline as native conversations once connected."
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus",
+            "description": "Recording metadata if a recording policy applied to the conversation."
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "provider/integration-set custom attributes",
+            "description": "Provider/integration-set custom attributes — CRM case ID, external call ID, intent label — if the originating integration wrote them."
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables",
+            "description": "IVR/Architect flow variables captured during the conversation, regardless of origin."
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores",
+            "description": "QM evaluation coverage — externally-originated conversations are evaluated identically to native ones."
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.surveys",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "CSAT/NPS result",
+            "description": "Post-contact CSAT/NPS survey result if triggered."
+          }
+        ],
+        "injectionEndpointReference": "conversations.post.messages.inbound.open — write-only; documents how an Open Messaging integration created this conversation. Not a read step in this recipe, catalogued so engineers can trace how the conversation entered Genesys Cloud."
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40480,23 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "blended-external-kpi-dashboard": {
+        "description": "For organisations that ingest CRM, IVR-platform, or third-party/BYOI vendor KPIs via the Genesys External Metrics API, blend those custom values alongside native Genesys metrics on Performance Dashboards for a single-pane executive view. This playbook is read-side discovery of what external KPIs are configured; the values themselves are populated by the contributing upstream system via employeeperformance.post.externalmetrics.data and are not re-read through this catalog — Performance Dashboards render the last-written value directly.",
+        "datasetsInOrder": [
+          "employeeperformance.get.externalmetrics.definitions",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "no native join key — External Metrics are org-level custom values surfaced by name/unit on dashboards, not joined to a conversation, queue, or user id",
+        "groupBy": [
+          "metricId"
+        ],
+        "outputMetrics": [
+          "externalMetric.name",
+          "externalMetric.unit",
+          "externalMetric.enabled"
+        ],
+        "executivePresentation": "One KPI tile per configured external metric, placed alongside native queue-performance tiles and clearly labelled as externally-sourced so executive readers know it is not a native Genesys calculation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40502,6 +40616,30 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "real-time-operations-monitoring": {
+        "description": "Live, point-in-time view of queue health and agent availability for a real-time analyst, supervisor, or NOC wallboard — no fixed historical window. These datasets reflect current state as of the API call and are intended to be polled (typically every 10–30 seconds for a wallboard display); they do not accept interval parameters. Complements queue-saturation-and-staffing-analysis (single-queueId drilldown) by covering the organisation-wide or multi-queue view a wallboard needs before a supervisor picks one queue to drill into.",
+        "datasetsInOrder": [
+          "analytics.query.queue.observations.real.time.stats",
+          "analytics.query.conversation.activity.real.time",
+          "analytics.query.user.observations.real.time.status",
+          "analytics.query.flow.observations",
+          "analytics.get.agent.active.status",
+          "users.get.agent.active.conversations",
+          "users.get.agent.current.routing.status"
+        ],
+        "diagnosticSignals": [
+          "oWaiting rising while oOnQueueUsers is flat → queue understaffed for current offered volume",
+          "oLongestWaiting approaching or exceeding the queue's SLA target seconds → imminent SLA breach; page a supervisor",
+          "agent oUserRoutingStatus stuck at NOT_RESPONDING → possible ghost agent; escalate to agent-not-responding-autoanswer for root cause",
+          "oInteracting near oActiveUsers with oWaiting > 0 → queue saturated; no headroom to absorb the next offered interaction",
+          "analytics.query.flow.observations shows a flow with a growing active-execution count and no matching queue offer growth → possible stuck IVR/bot flow"
+        ],
+        "enrichWith": [
+          "telephony.get.trunk.metrics.summary (voice/telephony NOC view)",
+          "telephony.get.edge.performance.metrics (scoped to one Edge, for CPU/memory/active-call drilldown)",
+          "alerting.get.alerts (currently firing platform threshold alerts)"
         ]
       }
     }

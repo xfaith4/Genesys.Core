@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-07-20
+
+### Added
+
+- Added three verified endpoints to `catalog/genesys.catalog.json` `datasets`:
+  `conversations.post.messages.inbound.open` (Open Messaging inbound conversation creation),
+  `employeeperformance.get.externalmetrics.definitions`, and
+  `employeeperformance.post.externalmetrics.data` (External Metrics API for blending
+  CRM/IVR/third-party KPIs onto Performance Dashboards).
+- Added `combinations.investigationRecipes.external-origin-conversation-enrichment`,
+  `combinations.executiveReportingPlaybooks.blended-external-kpi-dashboard`, and
+  `combinations.voiceEngineerPlaybooks.real-time-operations-monitoring` to
+  `catalog/genesys.catalog.json`, formalizing the patterns already described narratively in
+  `docs/ENDPOINT_COMBINATIONS.md` §5–6 as machine-readable catalog recipes.
+
+### Fixed
+
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` §6, which had described an unverifiable "BYOI
+  provider" injection endpoint (`POST /api/v2/conversations/providers/{providerId}/calls`) and an
+  `externalConversationId` response field. Neither exists in this repo's own generated endpoint
+  catalog (3,102 operations) or in an independently reviewed Genesys Cloud v2 OpenAPI snapshot.
+  The section now documents only verified mechanisms: `Conversation.externalTag` and the Open
+  Messaging inbound API. See the new "Appendix: Catalog Verification Notes (2026-07-20)" in that
+  document for sourcing method and scope.
+
 ## 2026-06-08
 
 ### Changed

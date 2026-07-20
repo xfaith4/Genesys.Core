@@ -1,8 +1,16 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-20  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+>
+> As of 2026-07-20, the combinations described narratively in this document are also formalized
+> as structured, machine-readable recipes in `catalog/genesys.catalog.json` → `combinations`, under
+> three collections: `investigationRecipes` (single-subject deep dives), `executiveReportingPlaybooks`
+> (org-wide KPI rollups), and `voiceEngineerPlaybooks` (diagnostic/NOC-style investigations). This
+> document remains the narrative explanation of *why* each combination exists; the catalog JSON is
+> the machine-consumable step list. See the [Catalog Verification Notes](#appendix-catalog-verification-notes-2026-07-20)
+> appendix for how endpoint claims in this document were checked during the 2026-07-20 review.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,
@@ -21,11 +29,12 @@ when the API is exhausted.
 3. [Division / Agent Group Investigation](#3-division--agent-group-investigation)
 4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
 5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
-6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
+6. [External-Origin Conversation Enrichment](#6-external-origin-conversation-enrichment-corrected-2026-07-20)
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Appendix: Catalog Verification Notes (2026-07-20)](#appendix-catalog-verification-notes-2026-07-20)
 
 ---
 
@@ -289,6 +298,17 @@ analytics.query.conversation.aggregates.wrapup.distribution[].group.wrapUpCode
   → routing.get.all.wrapup.codes[].id (global wrapup code labels)
 ```
 
+### Formalized in the Catalog
+
+The layers above correspond to the nine focused recipes under
+`combinations.executiveReportingPlaybooks` in `catalog/genesys.catalog.json` — kept as separate
+small recipes rather than one monolithic rollup, consistent with this document's stated goal of
+being informative without being a data dump. A tenth recipe, `blended-external-kpi-dashboard`,
+was added 2026-07-20 to cover blending externally-sourced KPIs (CRM, IVR platform, third-party
+vendor) via the verified `employeeperformance.get.externalmetrics.definitions` /
+`employeeperformance.post.externalmetrics.data` endpoints — see
+[§6](#6-external-origin-conversation-enrichment-corrected-2026-07-20).
+
 ---
 
 ## 5. Real-Time Operations Monitoring
@@ -323,57 +343,107 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
 
+### Formalized in the Catalog
+
+This pattern is codified as `real-time-operations-monitoring` under
+`combinations.voiceEngineerPlaybooks` in `catalog/genesys.catalog.json` (added 2026-07-20), with
+diagnostic signals (understaffing, imminent SLA breach, ghost agents, saturated queues, stuck
+flows) and cross-references to `telephony.get.trunk.metrics.summary`,
+`telephony.get.edge.performance.metrics`, and `alerting.get.alerts` for the telephony NOC view.
+It complements `queue-saturation-and-staffing-analysis`, which is the single-`queueId` drilldown a
+supervisor reaches after this organisation-wide view flags a problem queue.
+
 ---
 
-## 6. BYOI External Conversation Enrichment
+## 6. External-Origin Conversation Enrichment (corrected 2026-07-20)
 
-**Subject:** One `conversationId` that was injected via BYOI  
-**Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+> **Correction:** The version of this section prior to 2026-07-20 described a "BYOI provider API"
+> — `POST /api/v2/conversations/providers/{providerId}/calls` returning an `externalConversationId`
+> field — as the injection mechanism. Neither the endpoint nor the field could be verified during
+> the 2026-07-20 review: both are absent from this repo's own generated endpoint catalog
+> (`catalog/genesys.catalog.json` → `endpoints`, 3,100+ operations) and from an independently
+> captured Genesys Cloud v2 OpenAPI/Swagger snapshot. Direct fetch of `developer.genesys.cloud`
+> was blocked by outbound network policy in the environment that performed this review, so the
+> correction rests on cross-referencing two independent, already-available sources rather than the
+> live docs site — see the [verification appendix](#appendix-catalog-verification-notes-2026-07-20).
+> This section now documents only what was verified. The corresponding catalog recipe is
+> `combinations.investigationRecipes["external-origin-conversation-enrichment"]`.
+
+**Subject:** One `conversationId` whose `externalTag` is non-null  
+**Use case:** A conversation originated in an external system (CRM, custom digital channel, a
+third-party contact-centre or SIP provider) and was connected into Genesys Cloud through an
+integration rather than native PSTN/ACD signaling. The conversation appears in Genesys analytics
+and recordings like any other, but its originating context lives in the external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
-### How to Identify a BYOI Conversation
+### Verified External-Origin Signal
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+`Conversation.externalTag` and `AnalyticsConversation.externalTag` are confirmed fields in the
+Genesys Cloud v2 schema. In step 1 of the Conversation Investigation,
+`conversations.get.specific.conversation.details` returns:
 
 ```json
 {
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
+  "externalTag": "<integration-set-tag>",
   "participants": [
     { "purpose": "external", "externalContactId": "..." }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` is the verified external-origin indicator. (`externalConversationId` is
+**not** a documented field on the Conversation object — do not rely on it.)
 
-### Additional Steps for BYOI Conversations
+### Verified Injection Surface: Open Messaging
+
+The verified Genesys Cloud mechanism for injecting a third-party/BYOI-style conversation is the
+**Open Messaging** API, specifically `POST /api/v2/conversations/messages/inbound/open`
+(catalog key `conversations.post.messages.inbound.open`), plus the related
+`/api/v2/conversations/messages/{integrationId}/inbound/open/*` endpoints for subsequent messages,
+delivery receipts, and structured responses. This requires a configured Open Messaging integration
+(`integrationId`). It is a write-only endpoint from the investigation's point of view — it explains
+how the conversation entered Genesys Cloud, not something you query during enrichment.
+
+### Additional Steps for External-Origin Conversations
 
 | Step | Dataset Key | What It Adds |
 |------|-------------|--------------|
-| + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
-| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `conversations.get.conversation.customattributes` | Integration-set custom attributes: CRM case ID, intent label, external call ID |
+| + | `conversations.search.participant.attributes` | IVR/Architect variables set during the conversation flow |
 
-### BYOI Conversation in Analytics
+### External-Origin Conversations in Analytics
 
-BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
-as native Genesys conversations. The following datasets apply identically:
+External-origin conversations flow through the same Architect flows, queue routing, and analytics
+pipeline as native Genesys conversations. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
 - `conversations.get.conversation.recording.metadata` — recordings exist if enabled
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — meaningful only if the integration hands off to a
+  SIP leg inside Genesys Cloud; a pure digital/messaging integration will have no SIP trace at all
 
 ### Embeddable Framework Conversations
 
-Conversations visible to agents via the Embeddable Framework return the same object shape as
-`conversations.get.conversation.object`. The condensed view used by the embedded client includes:
-`participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+Conversations visible to agents via the Embeddable Framework use a condensed representation of the
+conversation object. `participants[].purpose`, `participants[].state`,
+`participants[].calls[].state`, `participants[].calls[].muted`, and `participants[].calls[].held`
+are the fields most commonly consumed by embedded client apps; these are present on the same
+object returned by `conversations.get.specific.conversation.details` and need no special handling.
+This document was not able to independently verify the complete condensed-conversation-info field
+list against the live Genesys documentation page during this review (network policy blocked the
+fetch); treat the field list above as a confirmed subset, not an exhaustive one.
+
+### Blended External KPIs for Executive Reporting
+
+Separately from conversation injection, Genesys Cloud has a verified **External Metrics** API
+(`/api/v2/employeeperformance/externalmetrics/*`, catalog keys
+`employeeperformance.get.externalmetrics.definitions` and
+`employeeperformance.post.externalmetrics.data`) that lets an upstream system — a CRM, IVR
+platform, or third-party/BYOI vendor — write custom KPI values that render alongside native
+Genesys metrics on Performance Dashboards. This is the relevant mechanism when the goal is
+executive-reporting blending rather than conversation-level enrichment; see the
+`blended-external-kpi-dashboard` entry under `executiveReportingPlaybooks` in the catalog, and
+[§4](#4-executive-reporting-rollup) below.
 
 ---
 
@@ -484,6 +554,11 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `conversations.post.messages.inbound.open` | ○ | | | | | |
+| `employeeperformance.get.externalmetrics.definitions` | | | | ○ | | |
+
+`employeeperformance.post.externalmetrics.data` is omitted from the matrix — it is a write-only
+endpoint used by the upstream contributing system, not a read step in any investigation above.
 
 ---
 
@@ -508,6 +583,54 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+
+---
+
+## Appendix: Catalog Verification Notes (2026-07-20)
+
+A 2026-07-20 review evaluated this document and `catalog/genesys.catalog.json` against Genesys
+Cloud developer documentation to identify additional high-value endpoint combinations for
+executive rollups and voice-engineer investigations. Direct fetch of `developer.genesys.cloud`
+pages (including the API Explorer, embeddable-framework, and BYOI/integration-guide URLs supplied
+for the review) returned HTTP 403 — outbound network policy in the reviewing environment blocks
+that host. Findings below were established instead by cross-referencing two independent sources
+that were already available: this repository's own generated endpoint catalog
+(`catalog/genesys.catalog.json` → `endpoints`, 3,102 operations, produced by
+`scripts/Update-CatalogFromSwagger.ps1`) and a separately captured Genesys Cloud v2 OpenAPI/Swagger
+snapshot (`GenesysCloudAPIEndpoints.json`, a cached browser export of
+`api.mypurecloud.com/api/v2/docs/swagger`). WebSearch snippets were used as a tertiary check where
+neither source was conclusive.
+
+**Correction made:** §6 previously described a "BYOI provider" injection endpoint
+(`POST /api/v2/conversations/providers/{providerId}/calls`) and an `externalConversationId`
+response field. Neither appears in either independent source. §6 was rewritten to describe only
+verified mechanisms: the `Conversation.externalTag` field (confirmed present in both sources) and
+the Open Messaging inbound API (`POST /api/v2/conversations/messages/inbound/open`, confirmed
+present in both sources) as the actual injection surface for third-party/BYOI-style conversations.
+
+**Endpoints newly added to the catalog** (verified present in both sources, previously uncatalogued
+as named datasets):
+- `conversations.post.messages.inbound.open` — `POST /api/v2/conversations/messages/inbound/open`
+- `employeeperformance.get.externalmetrics.definitions` — `GET /api/v2/employeeperformance/externalmetrics/definitions`
+- `employeeperformance.post.externalmetrics.data` — `POST /api/v2/employeeperformance/externalmetrics/data`
+
+**Recipes newly added to `catalog/genesys.catalog.json` → `combinations`:**
+- `investigationRecipes.external-origin-conversation-enrichment` — corrected, verified successor to
+  the original §6 content, scoped to one `conversationId`.
+- `executiveReportingPlaybooks.blended-external-kpi-dashboard` — discovery of configured External
+  Metric definitions for blending third-party KPIs onto Performance Dashboards.
+- `voiceEngineerPlaybooks.real-time-operations-monitoring` — organisation-wide real-time wallboard
+  view, formalizing §5 of this document; complements the existing single-queue
+  `queue-saturation-and-staffing-analysis` playbook.
+
+**Not independently re-verified:** the remaining dataset keys and endpoint paths already present in
+this document and in `catalog/genesys.catalog.json` prior to 2026-07-20 (e.g. the nine pre-existing
+`executiveReportingPlaybooks`, the five pre-existing `voiceEngineerPlaybooks`, and the five
+pre-existing `investigationRecipes`) were spot-checked but not exhaustively cross-referenced against
+the OpenAPI snapshot during this review. The embeddable-framework "condensed conversation info"
+field list in §6 is likewise a confirmed subset, not a page-verified exhaustive list — the
+`developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info` page could not
+be fetched directly.
 
 ---
 

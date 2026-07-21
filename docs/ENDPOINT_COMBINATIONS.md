@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-21  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,8 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [BYOI Provider Inventory & Digital Conversation Injection](#11-byoi-provider-inventory--digital-conversation-injection)
+12. [Catalog Additions — Conversation, Queue, Division Enrichment](#12-catalog-additions--conversation-queue-division-enrichment)
 
 ---
 
@@ -484,6 +486,141 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. BYOI Provider Inventory & Digital Conversation Injection
+
+**Subject:** Organisation-wide provider inventory, or one `integrationId`
+**Use case:** Genesys Cloud's "Bring Your Own Interactions" (BYOI) capability lets an external
+system inject conversations, or ingest agent presence/routing status, into Genesys Cloud via
+public REST endpoints so that Analytics, WFM, and QM process them the same way they process native
+conversations. The digital-channel implementation of BYOI is the **Open Messaging** integration
+type. This section catalogs the real, verified endpoints — confirmed against the in-repo
+swagger-derived endpoint catalog, not narrative documentation that could not be fetched live.
+
+**Core question:** *What external systems are authorized to create conversations in this org, and
+how do their conversations enter the pipeline?*
+
+### Provider Inventory (read-only — wrapped as datasets)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.messaging.integrations.open` | org-wide | Every configured Open Messaging integration (BYOI provider) — id, name, status |
+| 2 | `conversations.get.messaging.integration.open.detail` | `integrationId` | Webhook/outbound notification URL, supported content types for one provider |
+
+**Use for a BYOI attack-surface / integration-inventory audit:** run step 1 first to enumerate
+every external system with standing authorization to create conversations in this org, then drill
+into step 2 for any provider that needs review (e.g. before an access recertification, or when
+investigating an unexpected `externalConversationId` on a conversation object).
+
+### Conversation Injection (write actions — not wrapped as investigation datasets)
+
+These are the actual injection endpoints an external provider calls. They are **actions**, not
+investigation-read datasets, so they are intentionally not wrapped in the `datasets` catalog layer
+(which models what an investigator reads, not what a provider writes). They are listed here so an
+investigator recognizes them when diagnosing a BYOI conversation:
+
+| Endpoint Key | Method + Path | Purpose |
+|--------------|----------------|---------|
+| `postConversationsMessageInboundOpenMessage` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message` | Inject an inbound message — creates a new conversation or continues an existing one |
+| `postConversationsMessageInboundOpenEvent` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/event` | Inject an inbound event message (e.g. typing indicator, presence change) |
+| `postConversationsMessageInboundOpenReceipt` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/receipt` | Inject a delivery/read receipt for a previously sent outbound message |
+| `postConversationsMessageInboundOpenStructuredResponse` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/structured/response` | Inject a structured-message response (button/quick-reply selection) |
+| `postConversationsMessagesAgentless` | `POST /api/v2/conversations/messages/agentless` | Send an agentless outbound message using a client-credentials grant (no interacting agent) |
+| `postConversationsEmailsAgentless` | `POST /api/v2/conversations/emails/agentless` | Agentless outbound email, same pattern as agentless messages |
+
+`postConversationsMessagesInboundOpen` (`POST /api/v2/conversations/messages/inbound/open`) still
+exists in the catalog but is marked deprecated by Genesys in favor of the three
+`{integrationId}/inbound/open/*` endpoints above — do not use it for new integrations.
+
+### Agent Presence & Routing-Status Ingestion (voice/back-office BYOI)
+
+For externally-handled interactions that never touch native ACD routing, Genesys Cloud still needs
+a way to know the handling agent's state so WFM adherence and reporting stay accurate. Two write
+endpoints exist for this and should be recognized as BYOI signals when auditing why an agent's
+routing-status history contains entries with no corresponding native conversation:
+
+| Endpoint Key | Method + Path | Purpose |
+|--------------|----------------|---------|
+| `postEventsUsersRoutingstatus` | `POST /api/v2/events/users/routingstatus` | Publish a batch of agent routing-status events from an external system |
+| `putUsersPresencesBulk` | `PUT /api/v2/users/presences/bulk` | Bulk-update presence for a list of users from an external system |
+
+### How an Injected Conversation Surfaces to an Investigator
+
+Once injected, a BYOI/Open-Messaging conversation flows through the same analytics, recording, and
+QM pipeline as a native conversation (see [§6 BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
+above for the `externalTag`/`externalConversationId` identification pattern). The addition in this
+section is the **provider side** of that picture — knowing which integration owns the conversation,
+not just that it was externally sourced.
+
+### Executive Framing
+
+For a security/compliance rollup, `conversations.get.messaging.integrations.open` doubles as a
+lightweight "third-party conversation surface" inventory metric: count of active BYOI providers,
+grouped by channel type (`apple`, `facebook`, `instagram`, `twitter`, `whatsapp`, `open`) using the
+sibling per-channel list endpoints already in the raw catalog
+(`getConversationsMessagingIntegrationsApple`, `...Facebook`, `...Instagram`, `...Twitter`,
+`...Whatsapp`) alongside the generic `open` type documented above.
+
+---
+
+## 12. Catalog Additions — Conversation, Queue, Division Enrichment
+
+This pass closed a gap between the `combinations` investigation recipes/playbooks already embedded
+in `catalog/genesys.catalog.json` and the `datasets` layer they reference: several recipe steps
+named a dataset key that had a real, working REST endpoint in the raw `endpoints` catalog but no
+`datasets` wrapper, so `Invoke-Dataset` would have failed with an unknown-key error had those steps
+actually been run. Fifteen new dataset wrappers were added; five recipe/playbook steps that
+duplicated an endpoint already wrapped under a different dataset key were repointed to the existing
+key instead of creating a second wrapper for the same endpoint.
+
+### New datasets and where they slot in
+
+| Dataset Key | Slots Into | What It Adds |
+|-------------|-----------|---------------|
+| `conversations.get.call.detail` | Single Conversation Deep Dive | Voice-specific call detail — hold/mute/transfer events, DNIS routing path |
+| `conversations.get.conversation.participant.wrapup` | Single Conversation Deep Dive | Wrapup code selected by one participant (needs `participantId` from the conversation object) |
+| `conversations.get.conversation.summaries` | Single Conversation Deep Dive, Executive Rollup | AI-generated (Copilot) conversation summary per communication leg — fast executive recap without a full transcript read |
+| `conversations.get.specific.conversation.details` | Single Conversation Deep Dive | Canonical conversationLookup step (start/end times, media type) used to derive the analytics interval before requesting segment detail |
+| `quality.get.conversation.surveys` | Single Conversation Deep Dive | CSAT/NPS survey scoped to one `conversationId` (use `quality.get.surveys` instead for a bulk/windowed query) |
+| `routing.get.queue.estimated.wait.time` | Queue Investigation, Real-Time Monitoring | Live EWT forecast — pairs with real-time observations for a wallboard drilldown |
+| `speechandtextanalytics.get.conversation.categories` | Single Conversation Deep Dive | Topic/category classifications from the S&TA engine, beyond the raw sentiment score |
+| `speechandtextanalytics.get.conversation.summaries.detail` | Single Conversation Deep Dive | S&TA's own per-leg summary (distinct from the Copilot summary above) |
+| `workforce.get.adherence.bulk` | Division / Agent Group Investigation | WFM schedule adherence for a list of agents — scheduled vs. actual routing status |
+| `workforce.get.agent.management.unit` | Division / Agent Group Investigation | The WFM management unit an agent belongs to — join key for adherence and schedule data |
+| `authorization.get.division.grants` | Division / Agent Group Investigation | Who has access-control grants over this division — answers "who can manage this business unit" |
+| `authorization.search.division.objects` | Division / Agent Group Investigation | Full object inventory (queues, users, other securable entities) assigned to a division — broader than the queue-only enumeration |
+| `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` | Division / Agent Group Investigation, Executive Rollup | Conversation volume/handle-time aggregates grouped by `divisionId` — **override the `interval` body field with the investigation's actual window**; the key name is inherited from the API Explorer session that produced it |
+| `conversations.get.messaging.integrations.open` | BYOI Provider Inventory (§11) | List of configured Open Messaging (BYOI) providers |
+| `conversations.get.messaging.integration.open.detail` | BYOI Provider Inventory (§11) | Config detail for one BYOI provider |
+
+### Division as a cross-queue agent group
+
+The task that motivated this pass called out explicitly that a division is a grouping of agents
+that holds **regardless of which queues those agents take calls in** — an agent's division
+assignment is orthogonal to their queue memberships. `authorization.search.division.objects` makes
+this concrete: it returns the full object inventory (queues *and* users) a division owns in one
+call, which is the fastest way to answer "who is in this business unit and what do they touch"
+without fanning out per-queue membership calls first. Combine it with
+`users.division.analysis.get.users.with.division.info` (agent roster) and
+`workforce.get.agent.management.unit` (WFM team) to build a division roster that is independent of
+any single queue's membership list.
+
+### Recipe/playbook corrections (no new datasets — repointed to existing keys)
+
+| Recipe Step Referenced | Repointed To |
+|-------------------------|--------------|
+| `routing.get.queue.wrapup.codes` | `routing.get.queue.wrapup.codes.by.queue` |
+| `routing.get.queue.members.with.status` | `routing-queue-members` |
+| `telephony.get.sip.message.for.conversation` | `telephony.get.sip.messages.for.conversation` |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | `conversations.get.speech.text.analytics` |
+| `analytics.query.conversation.details.by.queue` | `analytics-conversation-details-query` |
+| `analytics.query.conversation.transcripts` | `analytics.post.transcripts.aggregates.query` |
+
+Each pair wraps the identical underlying REST endpoint; the recipe/playbook JSON now uses the
+dataset key that was already established elsewhere in the catalog, instead of duplicating a second
+wrapper for the same endpoint.
 
 ---
 

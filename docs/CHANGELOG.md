@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-07-21
+
+### Added
+
+- **BYOI / Open Messaging provider inventory:** added `conversations.get.messaging.integrations.open`
+  and `conversations.get.messaging.integration.open.detail` catalog datasets, plus
+  `docs/ENDPOINT_COMBINATIONS.md` §11 documenting the verified Open Messaging (BYOI) conversation
+  injection endpoints, agentless outbound endpoints, and the agent presence/routing-status ingestion
+  endpoints (`postEventsUsersRoutingstatus`, `putUsersPresencesBulk`) used by externally-handled
+  interactions.
+- Thirteen new catalog datasets closing gaps between the `combinations` investigation
+  recipes/playbooks and the `datasets` wrapper layer: `conversations.get.call.detail`,
+  `conversations.get.conversation.participant.wrapup`, `conversations.get.conversation.summaries`,
+  `conversations.get.specific.conversation.details`, `quality.get.conversation.surveys`,
+  `routing.get.queue.estimated.wait.time`, `speechandtextanalytics.get.conversation.categories`,
+  `speechandtextanalytics.get.conversation.summaries.detail`, `workforce.get.adherence.bulk`,
+  `workforce.get.agent.management.unit`, `authorization.get.division.grants`,
+  `authorization.search.division.objects`, and the division-aggregates dataset documented in
+  `docs/ENDPOINT_COMBINATIONS.md` §12. Each closes a recipe step that previously referenced a
+  dataset key with no wrapper — those steps would have failed at run time with an unknown-dataset
+  error.
+- `docs/ENDPOINT_COMBINATIONS.md` §12 documents the new datasets and where each slots into the
+  existing flagship investigations, plus five recipe/playbook steps repointed from a duplicate
+  endpoint reference to the dataset key already established for that endpoint elsewhere in the
+  catalog (no functional change, removes a second wrapper for the same REST call).
+
+### Fixed
+
+- Catalog schema validation (`catalog/schema/genesys.catalog.schema.json`) re-run after the above
+  changes — passes with 3102 endpoints (unchanged) and 126 datasets (+15).
+
 ## 2026-06-08
 
 ### Changed

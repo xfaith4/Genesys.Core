@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-07-22
+
+### Fixed
+
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` Section 6 (BYOI External Conversation Enrichment): the
+  previously documented injection endpoint (`POST /api/v2/conversations/providers/{providerId}/calls`)
+  and the `externalConversationId` field do not exist in the Genesys Cloud OpenAPI spec cached in
+  this repo (`GenesysCloudAPIEndpoints.json`, 1,768 paths checked). Replaced with the verified Open
+  Messaging integration APIs and corrected the participant field shape (`participants[].provider`,
+  `participants[].externalContact.id`) against the real `Conversation`/`CallMediaParticipant`
+  schema definitions.
+- Renamed two catalog endpoint keys that carried a stale hardcoded sample date range baked into
+  their operationId (`analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`
+  → `analytics.query.conversation.aggregates.by.division`; `analytics.division.analysis.conversation.quality.report.oct.15.dec.8`
+  → `analytics.query.conversation.details.division.quality.report`). Functionally unchanged (same
+  path/method); the division-investigation recipe reference was updated to match.
+
+### Added
+
+- Added `conversations.get.messaging.integrations.open` and
+  `conversations.get.messaging.integrations.open.by.id` datasets to `catalog/genesys.catalog.json`,
+  backing the corrected BYOI enrichment guidance — resolves the external provider/integration name
+  behind a conversation whose `participants[].provider` is not a native Genesys channel.
+- Verified (against the union of `catalog/genesys.catalog.json` `datasets` and `endpoints`) that
+  every dataset reference inside `combinations.investigationRecipes`,
+  `combinations.executiveReportingPlaybooks`, and `combinations.voiceEngineerPlaybooks` resolves to
+  a real catalog entry — no other broken references found.
+
 ## 2026-06-08
 
 ### Changed

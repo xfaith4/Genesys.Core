@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-22  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -327,29 +327,60 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that originated outside Genesys Cloud (a BYOI/Open Messaging channel)  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom bot/CRM channel) and was injected into Genesys Cloud. The conversation appears in
+Genesys analytics and recordings, but context lives in the external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
-### How to Identify a BYOI Conversation
+> **Endpoint verification note:** An earlier revision of this section cited
+> `POST /api/v2/conversations/providers/{providerId}/calls` and an `externalConversationId` field as
+> the BYOI injection mechanism. Neither exists in the Genesys Cloud OpenAPI spec cached in this repo
+> (`GenesysCloudAPIEndpoints.json` — 1,768 paths, checked for any `{providerId}` conversation path or
+> `externalConversationId` property; both came back empty). That claim has been removed. The verified
+> mechanism for digital BYOI is the **Open Messaging** integration API, confirmed below. Voice-side
+> BYOI (ingesting interaction records from a legacy/third-party telephony platform for reporting
+> parity) is a real Genesys Cloud use case, but no corresponding "inject a call" REST path is present
+> in the public v2 spec available here — treat that path as unconfirmed until validated against a
+> live Genesys org/current developer docs, rather than building automation against it.
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+### The Verified Open Messaging Injection Path (Digital BYOI)
+
+| Step | Dataset / Endpoint Key | Method + Path | Purpose |
+|------|------------------------|---------------|---------|
+| 1 | `conversations.get.messaging.integrations.open` | `GET /api/v2/conversations/messaging/integrations/open` | List configured Open Messaging integrations (the "providers") — resolve `integrationId` and provider name |
+| 2 | `conversations.get.messaging.integrations.open.by.id` | `GET /api/v2/conversations/messaging/integrations/open/{integrationId}` | Look up one integration's config (webhook URL, outbound notification settings) |
+| 3 *(write, not an investigation read)* | `postConversationsMessagesInboundOpen` | `POST /api/v2/conversations/messages/inbound/open` | The external system injects an inbound message, creating the conversation |
+| 4 *(write, not an investigation read)* | `postConversationsMessageInboundOpenMessage` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message` | Inject a message against a specific integration |
+| 5 *(write, not an investigation read)* | `postConversationsMessageInboundOpenEvent` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/event` | Inject typing/presence-style events for the external conversation |
+
+Steps 3–5 are provider-side write actions (how the external system pushes data in), not
+investigation reads — they are documented here for completeness but are not part of the read-only
+catalog `datasets` used by investigation cmdlets. Steps 1–2 are read-only lookups and are added to
+the catalog as datasets.
+
+### How to Identify a BYOI/Open-Messaging-Origin Conversation
+
+In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns
+(fields verified against the `Conversation` and `CallMediaParticipant` schema definitions):
 
 ```json
 {
-  "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
+  "externalTag": "<provider-set-tag>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    {
+      "purpose": "external",
+      "provider": "<source-provider-name>",
+      "externalContact": { "id": "<externalContactId>" }
+    }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` on the conversation, or a non-Genesys `participants[].provider` value, is
+the practical BYOI indicator. Note `externalContact` is a nested reference object (`{ id, name,
+selfUri }`), not a flat `externalContactId` field on the participant.
 
 ### Additional Steps for BYOI Conversations
 
@@ -357,15 +388,16 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `conversations.get.messaging.integrations.open.by.id` | Resolves the integration/provider name and config behind an Open-Messaging-origin conversation |
 
 ### BYOI Conversation in Analytics
 
 BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
 as native Genesys conversations. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
-- `conversations.get.conversation.recording.metadata` — recordings exist if enabled
+- `conversations.get.conversation.recording.metadata` — recordings exist if enabled (voice only)
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — voice-only; not applicable to Open Messaging (text/digital) conversations
 
 ### Embeddable Framework Conversations
 
@@ -446,6 +478,8 @@ The matrix below shows which datasets are used across which investigations and r
 | `quality.get.evaluations.query` | ● | ○ | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
+| `conversations.get.messaging.integrations.open.by.id` | ○ | | | | | |
+| `conversations.get.messaging.integrations.open` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |

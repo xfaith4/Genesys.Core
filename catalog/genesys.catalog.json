@@ -1130,6 +1130,32 @@
       },
       "validationStatus": "unvalidated"
     },
+    "conversations.get.messaging.integrations.open": {
+      "description": "List configured Open Messaging integrations \u2014 the BYOI digital-channel providers. Use to resolve integrationId/name for a conversation whose participants[].provider is not a native Genesys channel.",
+      "endpoint": "getConversationsMessagingIntegrationsOpen",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.integrations.open.by.id": {
+      "description": "Config detail for a single Open Messaging integration \u2014 name, webhook/outbound notification settings. Resolves the external provider behind a BYOI/Open-Messaging-origin conversation found during investigation.",
+      "endpoint": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
     "conversations.get.speech.text.analytics": {
       "description": "Speech and text analytics summary for a single conversation \u2014 sentiment, topics, phrases.",
       "endpoint": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
@@ -2654,14 +2680,14 @@
         "group: Conversations"
       ]
     },
-    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
+    "analytics.query.conversation.aggregates.by.division": {
       "method": "POST",
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
       "itemsPath": "$.conversations",
       "notes": [
-        "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
+        "Conversation Aggregates Query grouped by divisionId \u2014 the division-level KPI rollup endpoint.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
@@ -2862,14 +2888,14 @@
         "group: Flows"
       ]
     },
-    "analytics.division.analysis.conversation.quality.report.oct.15.dec.8": {
+    "analytics.query.conversation.details.division.quality.report": {
       "method": "POST",
       "path": "/api/v2/analytics/conversations/details/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
       "itemsPath": "$.conversations",
       "notes": [
-        "Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)",
+        "Analytics Conversation Details Query, filtered to agent-purpose voice segments \u2014 used for division-scoped quality/case-level review.",
         "group: Analytics",
         "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
       ]
@@ -40139,7 +40165,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.by.division",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",

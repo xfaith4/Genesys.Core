@@ -40173,6 +40173,158 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "flow-investigation": {
+        "description": "Subject-centred deep dive on a single Architect flow (IVR or bot flow) — config, version/publish history, execution health, milestone/outcome performance, and (for bot flows) NLU intent and utterance health scored down to the individual bot session and turn. Complements the aggregate `flow-and-ivr-performance` / `flow-and-ivr-diagnostics` playbooks, which report across all flows; this recipe drills into one `flowId` to explain *why* it is underperforming and which live conversations prove it. Closes the Flow flagship candidate named in the roadmap alongside Division and Outbound Campaign.",
+        "subjectParam": "flowId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "flow-config",
+            "dataset": "getFlow",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, type (inboundcall/inboundchat/inboundemail/bot/workflow/etc.), division, publishedVersion, deleted",
+            "description": "Base flow object — confirms flow type, current published version, and owning division"
+          },
+          {
+            "step": "flow-latest-configuration",
+            "dataset": "getFlowLatestconfiguration",
+            "joinKey": "flowId",
+            "provides": "full Architect configuration — menus, prompts, data actions, decision branches",
+            "description": "Design-time configuration for the currently published version — used to trace a failing branch back to its Architect definition"
+          },
+          {
+            "step": "flow-versions",
+            "dataset": "getFlowVersions",
+            "joinKey": "flowId",
+            "provides": "versionId list with createdDate, configurationVersion",
+            "description": "Version history — required to identify the versionId used by the bot-health steps below; a recent version bump is a common trigger for a regression"
+          },
+          {
+            "step": "milestones",
+            "dataset": "flows.get.flow.milestones",
+            "joinKey": "id",
+            "provides": "milestone name/description catalog",
+            "description": "Org-wide milestone definitions — used to label nFlowMilestone counts from the execution-aggregates step"
+          },
+          {
+            "step": "outcomes",
+            "dataset": "flows.get.flow.outcomes",
+            "joinKey": "id",
+            "provides": "outcome name/description catalog",
+            "description": "Org-wide outcome definitions — used to label success/failure exits from the execution-aggregates step"
+          },
+          {
+            "step": "execution-aggregates",
+            "dataset": "analytics.query.flow.aggregates.execution.metrics",
+            "filterBy": "flowId + investigation window",
+            "joinKey": "flowId",
+            "provides": "nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone",
+            "description": "Historical execution volume and outcome success/failure counts for this flow, groupBy flowId+flowType"
+          },
+          {
+            "step": "real-time-observations",
+            "dataset": "analytics.query.flow.observations",
+            "filterBy": "flowId",
+            "joinKey": "flowId",
+            "provides": "oFlow — executions in progress right now",
+            "description": "Live execution count — a high oFlow with a flat/declining queue offer count indicates callers are stuck in the flow rather than reaching an agent"
+          },
+          {
+            "step": "activity",
+            "dataset": "postAnalyticsFlowsActivityQuery",
+            "filterBy": "flowId + investigation window",
+            "joinKey": "flowId",
+            "provides": "per-interval entry/exit activity counts",
+            "description": "Time-series entry/exit activity — pinpoints the hour a regression started, for correlation against a deploy or publish event"
+          },
+          {
+            "step": "bot-version-health",
+            "dataset": "getFlowVersionHealth",
+            "filterBy": "flowId + versionId (from flow-versions)",
+            "joinKey": "flowId+versionId",
+            "provides": "overall health scores for every intent in the NLU domain version",
+            "description": "Bot-flow only (conditional on flow-config.type = bot). Overall intent health for the published version — seed for drilling into a single low-scoring intent",
+            "audience": ["voice-engineer", "bot-developer"]
+          },
+          {
+            "step": "bot-intent-health",
+            "dataset": "getFlowVersionIntentHealth",
+            "filterBy": "flowId + versionId + intentId (lowest-scoring intent from bot-version-health)",
+            "joinKey": "intentId",
+            "provides": "per-intent health score and the utterance list backing it",
+            "description": "Bot-flow only, conditional on a flagged intent. Explains which training utterances are dragging down an intent's health score",
+            "audience": ["voice-engineer", "bot-developer"]
+          },
+          {
+            "step": "bot-utterance-health",
+            "dataset": "getFlowVersionIntentUtteranceHealth",
+            "filterBy": "flowId + versionId + intentId + utteranceId (flagged in bot-intent-health)",
+            "joinKey": "utteranceId",
+            "provides": "utterance-level confidence and health metrics",
+            "description": "Bot-flow only, conditional on a flagged utterance. The finest-grained NLU diagnostic — confirms whether a specific phrasing is mis-scoring",
+            "audience": ["voice-engineer", "bot-developer"]
+          },
+          {
+            "step": "bot-sessions",
+            "dataset": "getAnalyticsBotflowSessions",
+            "filterBy": "botFlowId + investigation window",
+            "joinKey": "flowId",
+            "provides": "individual bot session list, reverse-chronological",
+            "description": "Bot-flow only. Seed for turn-level drilldown into a specific failed session; note sessions are retained ~10 days only",
+            "audience": ["voice-engineer", "bot-developer"]
+          },
+          {
+            "step": "bot-turns",
+            "dataset": "getAnalyticsBotflowDivisionsReportingturns",
+            "filterBy": "botFlowId + sessionId (from bot-sessions)",
+            "joinKey": "sessionId",
+            "provides": "per-turn utterance, matched intent, confidence score, and prompt played",
+            "description": "Bot-flow only. Turn-by-turn transcript of one bot session — the direct evidence for a misfired or unmatched intent; supersedes the deprecated getAnalyticsBotflowReportingturns",
+            "audience": ["voice-engineer", "bot-developer"]
+          },
+          {
+            "step": "touching-conversations",
+            "dataset": "analytics.query.conversation.details.by.queue",
+            "filterBy": "segment dimension flowId + investigation window",
+            "queryParam": "conversationFilters[].predicates[].dimension=flowId (generic conversation-details-query endpoint; the queue-named dataset key accepts any segment dimension)",
+            "joinKey": "flowId",
+            "provides": "conversationId, participants, segments for every conversation that passed through this flow in the window",
+            "description": "The individual conversations behind the aggregate counts — seed conversationId values here into the single-conversation-investigation recipe for full forensic drilldown on one failing call"
+          },
+          {
+            "step": "sip-correlation",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "filterBy": "conversationId (one selected from touching-conversations)",
+            "joinKey": "conversationId",
+            "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
+            "description": "Voice only, conditional. Confirms whether an IVR-reported failure was actually a trunk/SIP failure surfacing as a flow error, versus a genuine Architect logic defect",
+            "audience": ["voice-engineer"]
+          }
+        ],
+        "joinSequence": "seed (flow-config) → flow-latest-configuration → flow-versions (flowId) → execution-aggregates (flowId+window) → real-time-observations (flowId) → activity (flowId+window) → [bot-only] bot-version-health (flowId+versionId) → bot-intent-health (intentId) → bot-utterance-health (utteranceId) → bot-sessions (flowId) → bot-turns (sessionId) → touching-conversations (flowId) → [voice-only] sip-correlation (conversationId)",
+        "crossLinks": [
+          "Rolls up from: executiveReportingPlaybooks.flow-and-ivr-performance and voiceEngineerPlaybooks.flow-and-ivr-diagnostics (org-wide flow scan) — use those to identify which flowId to investigate here.",
+          "Feeds into: investigationRecipes.single-conversation-investigation via the touching-conversations step's conversationId output.",
+          "Feeds into: investigationRecipes.queue-investigation — a flow's queue-transfer destination is visible in touching-conversations segments and can be cross-checked against that queue's abandon/SLA numbers for the same window."
+        ],
+        "diagnosticSignals": [
+          "nFlowOutcomeFailed rising while nFlow is flat → a logic or backend-integration regression, not a volume-driven issue; check flow-latest-configuration for a recent data-action change",
+          "oFlow (real-time) stays elevated with no matching queue offer growth → callers are stuck in a loop or dead-end branch right now",
+          "bot-version-health shows one or two intents scoring well below the rest → root-cause is narrow; drill directly into bot-intent-health for those intents only",
+          "bot-turns shows repeated 'no match' or low-confidence matches on the same phrasing → confirmed NLU training gap; add the utterance to intent training data",
+          "touching-conversations segments show flowId exit reason 'Disconnect' clustered at the same menu step → that specific prompt/branch is the abandonment point",
+          "sip-correlation shows SIP 5xx on conversations flagged as flow failures → the flow itself is healthy; the outage is telephony/trunk-level, redirect to trunk-and-edge-health-check"
+        ],
+        "executiveMetrics": [
+          "nFlow (executions)",
+          "containmentRate% = nFlowOutcome / nFlow",
+          "nFlowOutcomeFailed",
+          "nFlowMilestone",
+          "botIntentHealthAvg (bot flows only)",
+          "oFlow (current in-progress executions)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

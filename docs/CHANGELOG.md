@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-07-23
+
+### Added
+
+- Added `combinations.investigationRecipes.flow-investigation` to
+  `catalog/genesys.catalog.json` — a subject-centred (`flowId`) drilldown that
+  joins flow config/versioning, execution and real-time observation
+  aggregates, bot-flow NLU intent/utterance health, individual bot
+  sessions/turns, and the specific conversations that passed through the
+  flow, with an optional SIP-trace correlation for voice flows. Closes the
+  "Flow" flagship candidate gap in `docs/ROADMAP.md` at the catalog/recipe
+  level (a full `Get-GenesysFlowInvestigation` Ops cmdlet remains open).
+- Documented the new recipe in `docs/ENDPOINT_COMBINATIONS.md` as a new
+  §10 "Flow / IVR Investigation" section, cross-linked to the existing
+  `flow-and-ivr-performance` / `flow-and-ivr-diagnostics` aggregate
+  playbooks and to the Single Conversation / Queue investigations, and
+  extended the Dataset Combination Reference Matrix with a `Flow
+  Investigation` column and rows for the newly-referenced bot/NLU health
+  endpoints (`getFlowVersionHealth`, `getFlowVersionIntentHealth`,
+  `getFlowVersionIntentUtteranceHealth`, `getAnalyticsBotflowSessions`,
+  `getAnalyticsBotflowDivisionsReportingturns`, `getFlow`,
+  `getFlowLatestconfiguration`, `getFlowVersions`,
+  `postAnalyticsFlowsActivityQuery`), which existed in the catalog's
+  `endpoints` map but were not yet referenced by any investigation or
+  playbook.
+- Updated `docs/ROADMAP.md`'s "Next" item to reflect Division and Outbound
+  Campaign shipping as full flagships, and Flow now being scoped as a
+  catalog recipe pending Ops-cmdlet promotion.
+
 ## 2026-06-08
 
 ### Changed

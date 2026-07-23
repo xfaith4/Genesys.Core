@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-23  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,8 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Flow / IVR Investigation](#10-flow--ivr-investigation)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -431,59 +432,164 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Flow / IVR Investigation
+
+**Subject:** One `flowId` (IVR, bot flow, or workflow) + time window
+**Use case:** An org-wide flow scan (`flow-and-ivr-performance` / `flow-and-ivr-diagnostics`, §7 of the
+`combinations.executiveReportingPlaybooks` / `voiceEngineerPlaybooks` catalog entries) flags one flow as an
+outlier — rising failed-outcome rate, callers stuck mid-flow, or a bot intent with a collapsing health score.
+This recipe is the subject-centred drilldown: it explains *why* that one flow is underperforming and produces
+the specific conversations and bot turns that prove it. It is the Flow flagship candidate named in
+`docs/ROADMAP.md` alongside Division (shipped) and Outbound Campaign (shipped).
+
+**Core question:** *Why is this specific flow failing, and which conversations/bot sessions show it?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `getFlow` | seed → `flowId` | Flow name, type (inboundcall/inboundchat/bot/workflow/etc.), division, published version |
+| 2 | `getFlowLatestconfiguration` | `flowId` | Full Architect configuration — menus, prompts, data actions, decision branches |
+| 3 | `getFlowVersions` | `flowId` | Version history — supplies the `versionId` used by the bot-health steps |
+| 4 | `flows.get.flow.milestones` | (catalog) | Milestone label catalog — decodes `nFlowMilestone` counts |
+| 5 | `flows.get.flow.outcomes` | (catalog) | Outcome label catalog — decodes success/failure exits |
+| 6 | `analytics.query.flow.aggregates.execution.metrics` | `flowId` | `nFlow`, `nFlowOutcome`, `nFlowOutcomeFailed`, `nFlowMilestone` for the window |
+| 7 | `analytics.query.flow.observations` | `flowId` | `oFlow` — executions in progress right now |
+| 8 | `postAnalyticsFlowsActivityQuery` | `flowId` | Per-interval entry/exit activity — pinpoints when a regression started |
+| 9 *(bot flows)* | `getFlowVersionHealth` | `flowId` + `versionId` | Overall health score for every intent in the NLU domain version |
+| 10 *(bot flows)* | `getFlowVersionIntentHealth` | `intentId` from step 9 | Per-intent health score and its backing utterance list |
+| 11 *(bot flows)* | `getFlowVersionIntentUtteranceHealth` | `utteranceId` from step 10 | Utterance-level confidence/health — the finest-grained NLU diagnostic |
+| 12 *(bot flows)* | `getAnalyticsBotflowSessions` | `flowId` | Individual bot session list, reverse-chronological (retained ~10 days) |
+| 13 *(bot flows)* | `getAnalyticsBotflowDivisionsReportingturns` | `sessionId` from step 12 | Turn-by-turn transcript: utterance, matched intent, confidence, prompt played |
+| 14 | `analytics.query.conversation.details.by.queue` (flowId segment filter) | `flowId` | The actual conversations that passed through this flow in the window |
+| 15 *(voice, conditional)* | `telephony.get.sip.message.for.conversation` | `conversationId` from step 14 | Confirms whether a flow-reported failure was really a trunk/SIP failure |
+
+Steps 9–13 apply only when `getFlow` (step 1) returns a bot flow type; step 15 applies only to voice
+conversations surfaced in step 14.
+
+### Key Joins
+
+```
+getFlow.id
+  → getFlowVersions.flowId (supplies versionId)
+  → analytics.query.flow.aggregates.execution.metrics.flowId (aggregate overlay)
+  → analytics.query.conversation.details.by.queue[].segments[].flowId (individual conversations)
+
+getFlowVersionHealth.intents[] (lowest score)
+  → getFlowVersionIntentHealth.intentId
+  → getFlowVersionIntentUtteranceHealth.utteranceId (flagged utterance)
+
+getAnalyticsBotflowSessions[].sessionId
+  → getAnalyticsBotflowDivisionsReportingturns.sessionId (turn-level transcript)
+
+analytics.query.conversation.details.by.queue[].conversationId
+  → telephony.get.sip.message.for.conversation.conversationId (voice only)
+```
+
+### Analytical Questions Answered
+
+- Is this flow's failure rate actually rising, or is total volume just up?
+- Are callers reaching an agent, stuck in a loop, or hanging up mid-flow — and at which step?
+- For a bot flow, which specific intent (and which specific training utterance) is degrading match confidence?
+- Which real conversations/bot sessions demonstrate the failure, for replay or QA review?
+- Is a reported "flow failure" actually a telephony/trunk failure surfacing through the flow layer?
+
+### Cross-Links
+
+- **Rolls up from:** `flow-and-ivr-performance` (executive) and `flow-and-ivr-diagnostics` (voice engineer) —
+  those org-wide scans across all flows identify *which* `flowId` to hand to this recipe.
+- **Feeds into:** [Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer) — step 14's
+  `conversationId` values seed that investigation for full per-call forensics.
+- **Feeds into:** [All Conversations in a Queue](#2-all-conversations-in-a-queue) — a flow's queue-transfer
+  destination is visible in step 14's segments and can be cross-checked against that queue's abandon/SLA
+  numbers for the same window.
+
+### Diagnostic Signals
+
+- `nFlowOutcomeFailed` rising while `nFlow` is flat → a logic/backend-integration regression, not volume —
+  check step 2's configuration for a recent data-action change.
+- `oFlow` (real-time) stays elevated with no matching queue-offer growth → callers stuck in a loop or dead-end
+  branch right now.
+- One or two intents scoring well below the rest in step 9 → root cause is narrow; drill only into those
+  intents (steps 10–11).
+- Repeated "no match" or low-confidence turns on the same phrasing in step 13 → confirmed NLU training gap.
+- Step 14 segments show the same flow exit reason/menu step across many conversations → that prompt/branch is
+  the abandonment point.
+- SIP 5xx on conversations flagged as flow failures (step 15) → the flow is healthy; redirect to
+  [Real-Time Operations Monitoring](#5-real-time-operations-monitoring) / trunk health, not Architect design.
+
+### Executive Metrics
+
+`nFlow`, `containmentRate% = nFlowOutcome / nFlow`, `nFlowOutcomeFailed`, `nFlowMilestone`,
+`botIntentHealthAvg` (bot flows only), `oFlow` (current in-progress executions).
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Flow Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | ○ |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | ● |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `getFlow` | | | | | | | ● |
+| `getFlowLatestconfiguration` | | | | | | | ● |
+| `getFlowVersions` | | | | | | | ● |
+| `flows.get.flow.milestones` | | | | | | | ● |
+| `flows.get.flow.outcomes` | | | | | | | ● |
+| `analytics.query.flow.aggregates.execution.metrics` | | | | ● | | | ● |
+| `postAnalyticsFlowsActivityQuery` | | | | | | | ● |
+| `getFlowVersionHealth` | | | | | | | ○ |
+| `getFlowVersionIntentHealth` | | | | | | | ○ |
+| `getFlowVersionIntentUtteranceHealth` | | | | | | | ○ |
+| `getAnalyticsBotflowSessions` | | | | | | | ○ |
+| `getAnalyticsBotflowDivisionsReportingturns` | | | | | | | ○ |
 
 ---
 

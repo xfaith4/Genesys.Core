@@ -109,6 +109,14 @@ the engineering teams that automate against them.
 
 - [ ] Scope one additional flagship investigation candidate (Division, Flow, or
       Outbound Campaign) with a concrete operator use case and fixture contract.
+      Division and Outbound Campaign are implemented as full `Get-Genesys*Investigation`
+      cmdlets. Flow is now scoped as a catalog combination recipe
+      (`combinations.investigationRecipes.flow-investigation` in
+      `catalog/genesys.catalog.json`; documented in
+      [ENDPOINT_COMBINATIONS.md §10](ENDPOINT_COMBINATIONS.md#10-flow--ivr-investigation))
+      but does not yet have a `Get-GenesysFlowInvestigation` Ops cmdlet or fixture-driven
+      integration tests — promoting it to a full flagship (mirroring the Agent/Conversation/
+      Queue pattern in `Invoke-Investigation`) remains open.
 
 ### Maintenance
 

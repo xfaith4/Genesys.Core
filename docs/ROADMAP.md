@@ -109,6 +109,17 @@ the engineering teams that automate against them.
 
 - [ ] Scope one additional flagship investigation candidate (Division, Flow, or
       Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Live-validate the five `externalcontacts.*` catalog datasets added 2026-07-24
+      (`externalcontacts.get.contact`, `.get.organization`,
+      `.get.organization.contacts`, `.get.contact.notes`,
+      `.get.contact.journey.sessions`) and the `customer-contact-history-investigation`
+      recipe against a live org; promote `validationStatus` once passed. See
+      `docs/ENDPOINT_COMBINATIONS.md` §11 for the recipe and its documented
+      resolution/limitation notes (no direct `externalContactId`-to-conversations
+      query endpoint exists).
+- [ ] Add `externalcontacts.identifierlookup` / `identifierlookup/contacts` as a
+      catalog dataset so a customer investigation can be seeded from a phone number
+      or email instead of requiring a known `conversationId` first.
 
 ### Maintenance
 

@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-24  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Customer / External Contact Investigation (Cross-Queue, Cross-Division)](#11-customer--external-contact-investigation-cross-queue-cross-division)
 
 ---
 
@@ -349,7 +350,17 @@ In step 1 of the Conversation Investigation, `conversations.get.conversation.obj
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` is the definitive BYOI indicator (verified against the `Conversation` swagger
+definition: `id`, `name`, `externalTag`, `startTime`, `endTime`, `address`, `participants`, ...).
+
+**Field-level correction (verified 2026-07-24 against the cached Genesys Cloud OpenAPI spec
+in `GenesysCloudAPIEndpoints.json`):** the participant-level customer identity fields are
+`participants[].externalContactId` and `participants[].externalOrganizationId` (present on the
+`Participant` / `AnalyticsParticipant` schemas). There is no standard `externalConversationId`
+field on the public `Conversation` or `AnalyticsConversation` schemas — if a specific BYOI provider
+integration surfaces one, it will be carried as a custom attribute (step below), not a top-level
+conversation field. Treat any `externalConversationId` reference elsewhere in this document as the
+provider's own correlation ID living inside custom attributes, not a first-class API field.
 
 ### Additional Steps for BYOI Conversations
 
@@ -357,6 +368,12 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `externalcontacts.get.contact` (Release 1.4 candidate) | Full customer identity behind `participants[].externalContactId` — see §11 |
+
+BYOI providers are expected to associate the injected conversation to an External Contact via
+`PUT /api/v2/externalcontacts/conversations/{conversationId}` at (or shortly after) ingestion. That
+association — not a bespoke conversation field — is the supported way to carry CRM customer identity
+through the BYOI pipeline into Genesys Cloud analytics, quality, and the External Contacts UI.
 
 ### BYOI Conversation in Analytics
 
@@ -436,54 +453,150 @@ complete the picture.
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Customer Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | ○ |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `externalcontacts.get.contact` | | | | | | | ● |
+| `externalcontacts.get.organization` | | | | | | | ● |
+| `externalcontacts.get.organization.contacts` | | | | | | | ○ |
+| `externalcontacts.get.contact.notes` | | | | | | | ● |
+| `externalcontacts.get.contact.journey.sessions` | | | | | | | ● |
+
+---
+
+## 11. Customer / External Contact Investigation (Cross-Queue, Cross-Division)
+
+**Subject:** One `contactId` (External Contacts)
+**Use case:** An escalation, complaint, or VIP-account review is about a *customer's overall
+relationship* with the business — not a single call. The customer may have contacted several
+different queues, spoken to several different agents, across several divisions, over weeks or
+months. Queue Investigation and Agent Investigation both stop at their own boundary; this recipe
+crosses all of them by keying off the customer instead of the org structure that handled them.
+
+**Core question:** *What do we know about this customer, and what has their history with us
+looked like, regardless of which queue or agent was involved?*
+
+This recipe was added after auditing the Genesys Cloud OpenAPI spec (`GenesysCloudAPIEndpoints.json`
+in this repo — a captured API Explorer swagger cache) for endpoints that enrich a conversation
+beyond what `conversations.get.conversation.object` and analytics already provide. It fills a real
+gap: none of the existing investigations resolve `participants[].externalContactId` into an
+actual customer record.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts.get.contact` | seed → `contactId` | Name, phones, emails, external system IDs, org affiliation, custom schema fields |
+| 2 | `externalcontacts.get.organization` | `externalOrganizationId` (left join) | B2B account context — company, industry, tags |
+| 3 | `externalcontacts.get.organization.contacts` | `externalOrganizationId` (optional) | Other known contacts at the same account — useful when an escalation names multiple callers from one company |
+| 4 | `externalcontacts.get.contact.notes` | `contactId` | Free-text CRM-style notes left by agents/supervisors on prior interactions |
+| 5 | `externalcontacts.get.contact.journey.sessions` | `contactId` | Cross-channel digital engagement sessions (web/app), independent of ACD conversations |
+
+### Resolving the seed `contactId`
+
+There is no supported query that lists conversations by `externalContactId` directly — it is a
+participant attribute, not a queryable dimension on `analytics-conversation-details-query` or
+`analytics.get.single.conversation.analytics` (confirmed against the `ConversationDetailQueryPredicate`
+schema's `dimension` enum, which does not include it). Reach this recipe one of two ways:
+
+1. **From a known conversation** — run the Single Conversation Deep Dive (§1) first, read
+   `participants[].externalContactId` off the result, then seed this recipe with that ID. This is
+   the normal path: an engineer already has a `conversationId` from a complaint ticket.
+2. **From a known customer identifier** — a case system or CRM hands you a phone number, email, or
+   external CRM ID. External Contacts exposes an identifier-lookup surface for this
+   (`identifierlookup`/`identifierlookup/contacts` in the swagger) that is not yet a catalog
+   dataset; add it as a Track A candidate before building a "search by phone/email" entry point.
+
+### Key Joins
+
+```
+externalcontacts.get.contact.id
+  → externalcontacts.get.organization.id (via contact.externalOrganization.id, left join)
+  → externalcontacts.get.organization.contacts (via externalOrganizationId, optional fan-out)
+  → externalcontacts.get.contact.notes.contactId
+  → externalcontacts.get.contact.journey.sessions.contactId
+
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id (entry point from a known conversation)
+```
+
+### Analytical Questions Answered
+
+- Who is this customer, and what account/organization are they associated with?
+- Has anyone left notes about prior interactions with this customer?
+- Is this a repeat contact, and what has their digital engagement looked like around each contact?
+- For a B2B escalation: who else at this company has contacted us, and about what?
+
+### Known Limitation — No Direct Conversation-History Endpoint
+
+The public Genesys Cloud API does not expose a single "list every conversation for this
+`externalContactId`" endpoint. To build a true cross-queue conversation timeline for a customer,
+combine this recipe with one of:
+
+- **Case-linked conversationIds.** If the organization's CRM/case system already records
+  `conversationId` per interaction (common for BYOI and co-browse-driven support flows), run the
+  Single Conversation Deep Dive (§1) once per known ID and merge the results client-side.
+- **ANI/address correlation.** Match `externalcontacts.get.contact` phone/email fields against
+  participant address fields returned by `analytics-conversation-details-query` for a bounded time
+  window. This is a heuristic join (phone numbers are reused across households/extensions), not a
+  key-based one — surface it as "likely matches," not a definitive history.
+- **BYOI association at ingestion.** BYOI providers are expected to call
+  `PUT /api/v2/externalcontacts/conversations/{conversationId}` when injecting a call, which is the
+  supported way new conversations get tied to a contact going forward. This does not retroactively
+  link conversations injected before the association existed.
+
+### Executive Rollup Use
+
+For account-level (not single-customer) executive reporting, prefer §4 (Executive Reporting Rollup)
+grouped by `divisionId`/`queueId` — this recipe is a drill-down tool for a *named* customer or
+account, not a volume metric source. The one exception: `externalcontacts.get.organization.contacts`
+count and `externalcontacts.get.contact.notes` density are useful as a lightweight "engagement
+depth" indicator on a VIP-account dashboard (`contactCount`, `noteCount` per organization).
 
 ---
 

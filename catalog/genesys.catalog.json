@@ -1297,6 +1297,68 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Full external-contact profile for a customer identified on a conversation participant — identity, external system IDs (CRM/case references), org affiliation, and custom schema fields. Turns a conversation's participant.externalContactId into a resolvable customer record for cross-queue, cross-division customer-journey enrichment.",
+      "endpoint": "externalcontacts.get.contact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "CRM-style notes attached to an external contact — free-text context added by agents/supervisors across prior interactions. Enrichment step for customer-history investigations.",
+      "endpoint": "externalcontacts.get.contact.notes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Cross-channel digital journey sessions for an external contact (web/app engagement, not limited to ACD conversations). Used to see customer activity around the time of a contact-centre interaction.",
+      "endpoint": "externalcontacts.get.contact.journey.sessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization": {
+      "description": "External organization profile (company/account) that an external contact belongs to — name, industry, tags, and custom schema fields. Groups contacts by employer/account for B2B investigations.",
+      "endpoint": "externalcontacts.get.organization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization.contacts": {
+      "description": "All external contacts belonging to an external organization — used to scope an investigation to every known contact at one company/account.",
+      "endpoint": "externalcontacts.get.organization.contacts",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -39593,6 +39655,87 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContact",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "Fetch an external contact \u2014 identity, external IDs, org affiliation, and custom schema fields.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact.notes": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/notes",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactNotes",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "List notes for an external contact.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here",
+        "pageSize": "25",
+        "pageNumber": "1"
+      }
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactJourneySessions",
+      "tags": [
+        "External Contacts",
+        "Journey"
+      ],
+      "summary": "Retrieve all cross-channel journey sessions for a given external contact.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here",
+        "pageSize": "25"
+      }
+    },
+    "externalcontacts.get.organization": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/organizations/{externalOrganizationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsOrganization",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "Fetch an external organization \u2014 company/account profile that groups external contacts.",
+      "defaultQueryParams": {
+        "externalOrganizationId": "external-organization-id-goes-here"
+      }
+    },
+    "externalcontacts.get.organization.contacts": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/organizations/{externalOrganizationId}/contacts",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsOrganizationContacts",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "Search for external contacts belonging to an external organization.",
+      "defaultQueryParams": {
+        "externalOrganizationId": "external-organization-id-goes-here",
+        "pageSize": "25",
+        "pageNumber": "1"
+      }
     }
   },
   "combinations": {
@@ -40172,6 +40315,60 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "customer-contact-history-investigation": {
+        "description": "Customer-centric view of everything on file for one external contact — identity, organization affiliation, CRM-style notes, and cross-channel digital journey — independent of which queue, agent, or division handled any single interaction. Used when a complaint or escalation is about the customer's overall relationship with the business, not one call. Seeds from the externalContactId carried on a conversation participant (see single-conversation-investigation and BYOI conversations) or from an External Contacts identifier lookup by phone/email done outside this recipe.",
+        "subjectParam": "contactId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "contact-identity",
+            "dataset": "externalcontacts.get.contact",
+            "role": "seed",
+            "joinKey": "contactId",
+            "provides": "name, phones, emails, externalIds, externalOrganization.id, customFields",
+            "description": "Resolvable customer identity behind the conversation participant's externalContactId"
+          },
+          {
+            "step": "contact-organization",
+            "dataset": "externalcontacts.get.organization",
+            "filterBy": "externalOrganization.id from contact-identity",
+            "joinKey": "externalOrganizationId",
+            "provides": "company/account name, industry, tags, custom schema fields",
+            "description": "B2B account context — which company/account this contact belongs to (left join; not every contact has an organization)"
+          },
+          {
+            "step": "sibling-contacts",
+            "dataset": "externalcontacts.get.organization.contacts",
+            "filterBy": "externalOrganizationId from contact-organization",
+            "joinKey": "externalOrganizationId",
+            "provides": "other known contacts at the same company/account",
+            "description": "Optional — scopes the investigation to every known contact at one account, useful for B2B escalations touching multiple named callers"
+          },
+          {
+            "step": "contact-notes",
+            "dataset": "externalcontacts.get.contact.notes",
+            "joinKey": "contactId",
+            "provides": "free-text CRM-style notes left by agents/supervisors on prior interactions",
+            "description": "Prior-interaction context that predates the current investigation window"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "contactId",
+            "provides": "cross-channel digital engagement sessions (web/app), session start/end, event counts",
+            "description": "Digital-journey context around the interaction — what the customer was doing on owned digital properties before/after contacting the centre"
+          }
+        ],
+        "joinSequence": "contact-identity (contactId) → contact-organization (externalOrganizationId, left join) → sibling-contacts (externalOrganizationId, optional) → contact-notes (contactId) → journey-sessions (contactId)",
+        "resolutionNote": "There is no public GET endpoint that lists ACD conversations by externalContactId directly — externalTag/externalContactId are conversation/participant attributes, not a supported analytics query dimension. To assemble the customer's full conversation history, pair this recipe with single-conversation-investigation for each known conversationId (e.g. from a case system, from contact-notes, or from PUT /api/v2/externalcontacts/conversations/{conversationId} associations made at contact time), or correlate analytics-conversation-details-query participant address/ANI against this contact's phone/email fields.",
+        "byoiNote": "For BYOI/externally-injected conversations, the injecting provider is expected to associate the conversation to an External Contact at ingestion time (or shortly after) via PUT /api/v2/externalcontacts/conversations/{conversationId}. That association is what makes this recipe reachable from a BYOI conversationId — resolve conversation → externalContactId via the participant object (conversations.get.conversation.object), then seed this recipe.",
+        "executiveMetrics": [
+          "contactCount (per organization)",
+          "noteCount (interaction-history depth)",
+          "journeySessionCount (digital engagement volume)",
+          "daysSinceLastContact (from contact-notes / journey-sessions timestamps)"
         ]
       }
     },

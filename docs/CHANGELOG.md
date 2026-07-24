@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-07-24
+
+### Added
+
+- Added five External Contacts catalog datasets — `externalcontacts.get.contact`,
+  `externalcontacts.get.contact.notes`, `externalcontacts.get.contact.journey.sessions`,
+  `externalcontacts.get.organization`, and `externalcontacts.get.organization.contacts` —
+  to `catalog/genesys.catalog.json`, verified field-for-field against the cached
+  Genesys Cloud OpenAPI spec in `GenesysCloudAPIEndpoints.json` (paths, operationIds,
+  and response shapes for paging/itemsPath resolution).
+- Added the `customer-contact-history-investigation` recipe to
+  `combinations.investigationRecipes` in the catalog — a customer-centric
+  investigation that resolves a conversation participant's `externalContactId` into
+  full customer identity, organization affiliation, notes, and cross-channel journey
+  history, independent of which queue, agent, or division handled any single contact.
+- Added `docs/ENDPOINT_COMBINATIONS.md` §11 documenting the new recipe, its join
+  keys, and an explicit "known limitation" note: the public API has no endpoint that
+  lists conversations by `externalContactId` directly, so a full cross-queue
+  conversation timeline for a customer requires case-linked conversationIds, ANI/
+  address correlation, or BYOI ingestion-time association — documented rather than
+  glossed over.
+- Corrected the BYOI section of `docs/ENDPOINT_COMBINATIONS.md` (§6): the verified
+  participant-level customer identity fields are `externalContactId` and
+  `externalOrganizationId` (confirmed against the `Participant`/`AnalyticsParticipant`
+  swagger schemas); the previously-documented `externalConversationId` field does not
+  exist on the public `Conversation`/`AnalyticsConversation` schemas and is flagged as
+  provider-specific custom-attribute content instead.
+- Logged live-validation and an `identifierlookup`-by-phone/email seeding dataset as
+  `docs/ROADMAP.md` Next items for the new External Contacts dataset pack.
+
 ## 2026-06-08
 
 ### Changed

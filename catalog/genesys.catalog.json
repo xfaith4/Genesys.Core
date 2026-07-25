@@ -1297,6 +1297,104 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.message.details": {
+      "description": "Per-message delivery/read receipt status for a single message on a BYOI/Open Messaging conversation.",
+      "endpoint": "conversations.get.message.details",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.integrations.open": {
+      "description": "BYOI Open Messaging integration catalog \u2014 the set of external-channel integrations configured in the org.",
+      "endpoint": "conversations.messaging.get.integrations.open",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.integration.open.detail": {
+      "description": "Single BYOI Open Messaging integration configuration \u2014 webhook URLs and supported content profile.",
+      "endpoint": "conversations.messaging.get.integration.open.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.identityresolution.integration.open": {
+      "description": "Identity-resolution field mapping for a BYOI Open Messaging integration \u2014 diagnoses unresolved/duplicate external contacts.",
+      "endpoint": "conversations.messaging.get.identityresolution.integration.open",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.threadingtimeline": {
+      "description": "Org-wide per-messenger-type conversation threading window \u2014 explains unexpected conversation splits/merges on digital channels.",
+      "endpoint": "conversations.messaging.get.threadingtimeline",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.messaging.get.supportedcontent": {
+      "description": "Supported-content profiles (cards, quick replies, attachments) bound to messaging integrations.",
+      "endpoint": "conversations.messaging.get.supportedcontent",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "Customer identity record behind a digital/BYOI conversation participant.",
+      "endpoint": "externalcontacts.get.contact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "conversation-investigation-external-contact",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.identifiers": {
+      "description": "All channel identifiers resolved to an external contact \u2014 confirms identity-resolution correctness for a digital conversation's sender.",
+      "endpoint": "externalcontacts.get.contact.identifiers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "conversation-investigation-external-contact",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1564,6 +1662,18 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "conversation-investigation-external-contact": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts.get.contact and externalcontacts.get.contact.identifiers when used in digital-messaging-conversation-investigation. Keeps the fields needed for identity correlation (id, name, resolved identifiers) and removes granular PII not needed for that purpose.",
+        "removeFields": [
+          "address",
+          "additionalAddresses",
+          "dateOfBirth",
+          "taxIdentifiers",
+          "surveyOptOut",
+          "attributes"
         ]
       }
     }
@@ -39593,6 +39703,141 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "conversations.get.message.details": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messages/{messageId}/details",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "messageId": "message-id-goes-here"
+      },
+      "notes": [
+        "Get Message",
+        "group: Conversations",
+        "Per-message delivery/read receipt detail for a BYOI/Open Messaging conversation; requires messageId from the conversation's message list."
+      ]
+    },
+    "conversations.messaging.get.integrations": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Get a list of Integrations",
+        "group: Conversations",
+        "All messaging integrations across every provider (Open, WhatsApp, Facebook, Instagram, Apple, Twitter)."
+      ]
+    },
+    "conversations.messaging.get.integrations.open": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Get a list of Open messaging integrations",
+        "group: Conversations",
+        "BYOI (Bring Your Own Integration) Open Messaging integration catalog \u2014 outboundNotificationWebhookUrl, status, and supportedContentId per integration."
+      ]
+    },
+    "conversations.messaging.get.integration.open.detail": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      },
+      "notes": [
+        "Get an Open messaging integration",
+        "group: Conversations",
+        "Single BYOI integration configuration \u2014 webhook URLs, outbound notification credentials, supported content profile."
+      ]
+    },
+    "conversations.messaging.get.identityresolution.integration.open": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/identityresolution/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      },
+      "notes": [
+        "Get an open messaging integration Identity Resolution settings",
+        "group: Conversations",
+        "Field mapping used to resolve an inbound Open Message to an existing external contact; misconfiguration here is a common root cause of duplicate/unresolved contacts."
+      ]
+    },
+    "conversations.messaging.get.threadingtimeline": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/threadingtimeline",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Get conversation threading window timeline for each messaging type",
+        "group: Conversations",
+        "Org-wide per-messenger-type window that decides whether a new inbound message re-opens the most recent disconnected conversation or starts a new one \u2014 key for explaining unexpected conversation splits/merges."
+      ]
+    },
+    "conversations.messaging.get.supportedcontent": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/supportedcontent",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Get a list of Supported Content profiles",
+        "group: Conversations",
+        "Content-type allow-list (cards, quick replies, attachments) bound to an integration; a message rejected client-side often traces back to a supportedContent mismatch."
+      ]
+    },
+    "conversations.messaging.get.settings": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/settings",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Get a list of messaging settings",
+        "group: Conversations",
+        "Named messaging setting bundles (content/event flags) referenced by integrations."
+      ]
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      },
+      "notes": [
+        "Fetch an external contact",
+        "group: External Contacts",
+        "Customer identity behind a digital/BYOI conversation; join key is the conversation participant's externalContactId."
+      ]
+    },
+    "externalcontacts.get.contact.identifiers": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/identifiers",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      },
+      "notes": [
+        "List the identifiers for a contact",
+        "group: External Contacts",
+        "All channel identifiers (WhatsApp number, Messenger PSID, Open Messaging recipientId, etc.) resolved to this contact \u2014 confirms whether identity resolution correctly merged this conversation's sender."
+      ]
     }
   },
   "combinations": {
@@ -40173,6 +40418,127 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "digital-messaging-conversation-investigation": {
+        "description": "Complete forensic investigation of one BYOI/Open Messaging (or other digital-channel) conversation \u2014 integration config, identity resolution, message delivery receipts, threading behaviour, customer identity, sentiment, evaluation, and CSAT. Companion to single-conversation-investigation for conversations that did not originate as voice calls. Use when a customer reports 'my message never arrived', a conversation's history looks fragmented, or when auditing a specific BYOI integration.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "clientSideContextNote": "The Embeddable Framework / Web Messenger widget exposes a 'condensed conversation info' object client-side (queueId, isInternal, totalAcdDurationSeconds, interaction attributes) while the chat is live. There is no server-side REST endpoint for that object \u2014 once the interaction lands in Genesys Cloud, the same facts are available server-side via the conversation-base and analytics-detail steps below (queueId, participant purpose, and ACD duration via tHandle/tAcw).",
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType, state, participantRoster, messageMedium, externalContactId, queueId",
+            "description": "Base conversation object \u2014 confirms mediaType is a digital channel and provides the externalContactId and participant list used by every step below."
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "full segment timeline, tHandle, tAcw, wrapUpCode, agent participants",
+            "description": "Full participant and segment timeline \u2014 same duration metrics used for voice, applied to a digital conversation."
+          },
+          {
+            "step": "message-details",
+            "dataset": "conversations.get.message.details",
+            "joinKey": "conversationId+messageId",
+            "provides": "per-message delivery/read receipt status",
+            "description": "Delivery/read status for individual messages; requires iterating messageIds surfaced by the conversation-base communications list. Confirms whether a specific message was actually delivered to the customer's channel."
+          },
+          {
+            "step": "integration-config",
+            "dataset": "conversations.messaging.get.integration.open.detail",
+            "filterBy": "integrationId (from conversation-base participant's messaging profile)",
+            "joinKey": "integrationId",
+            "provides": "webhook URLs, supportedContentId, integration status",
+            "description": "The BYOI integration that carried this conversation \u2014 confirms the integration was active and correctly configured at the time of the interaction."
+          },
+          {
+            "step": "identity-resolution",
+            "dataset": "conversations.messaging.get.identityresolution.integration.open",
+            "filterBy": "integrationId",
+            "joinKey": "integrationId",
+            "provides": "field mapping used to resolve inbound sender to an external contact",
+            "description": "Explains how the sender was matched to a contact record; misconfiguration here is the most common cause of a customer's history appearing fragmented across multiple contacts."
+          },
+          {
+            "step": "threading-timeline",
+            "dataset": "conversations.messaging.get.threadingtimeline",
+            "joinKey": "messengerType",
+            "provides": "per-messenger-type conversation re-open window",
+            "description": "Org-wide setting that decides whether a message re-opens a disconnected conversation or starts a new one \u2014 explains unexpected conversation splits when a customer replies late."
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "filterBy": "externalContactId (from conversation-base)",
+            "joinKey": "contactId",
+            "provides": "customer name, division, contact type",
+            "description": "Customer identity record behind this conversation."
+          },
+          {
+            "step": "external-contact-identifiers",
+            "dataset": "externalcontacts.get.contact.identifiers",
+            "filterBy": "contactId",
+            "joinKey": "contactId",
+            "provides": "all resolved channel identifiers for this contact",
+            "description": "Confirms whether this conversation's sender identifier was correctly merged into the contact's identifier set, versus creating a duplicate contact."
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant",
+            "description": "Wrapup code selected by the handling agent."
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore",
+            "description": "Text sentiment scores for the message transcript \u2014 S&TA covers digital/text channels as well as voice."
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution",
+            "description": "Copilot/Agent Assist AI summary \u2014 fast content review without reading the full transcript."
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed",
+            "description": "Quality evaluation scores for this conversation, if evaluated."
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction CSAT/NPS survey results."
+          }
+        ],
+        "joinSequence": "seed (conversation-base) \u2192 analytics-detail \u2192 message-details (per messageId) \u2192 integration-config (integrationId) \u2192 identity-resolution (integrationId) \u2192 external-contact (externalContactId) \u2192 external-contact-identifiers (contactId) \u2192 sta-overview \u2192 evaluation \u2192 survey",
+        "diagnosticSignals": [
+          "message-details shows no delivery receipt after a long window \u2192 outbound webhook failing or provider-side rejection; check integration-config webhook URL and credentials",
+          "external-contact-identifiers missing this conversation's sender identifier \u2192 identity-resolution mapping is misconfigured; expect a duplicate contact to exist",
+          "conversation unexpectedly split into two conversationIds for the same customer thread \u2192 compare the gap between messages to threading-timeline's window for that messenger type",
+          "integration-config status != Active during the conversation window \u2192 integration was disabled/misconfigured; corroborate with audit-logs on the integration entity",
+          "analytics-detail shows tHandle=0 with a customer message present \u2192 message queued but never routed to an agent; check queue configuration and routing rules, not the BYOI layer"
+        ],
+        "executiveMetrics": [
+          "tHandle",
+          "tAcw",
+          "customerSentimentScore",
+          "evaluationScore",
+          "csatScore",
+          "messageDeliveryRate% (delivered receipts / total outbound messages)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40502,6 +40868,27 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "open-messaging-integration-health-check": {
+        "description": "BYOI/Open Messaging equivalent of trunk-and-edge-health-check — integration status, supported-content configuration, and threading behaviour across all Open Messaging integrations. Used when a digital channel goes dark org-wide or a specific customer reports missing replies.",
+        "datasetsInOrder": [
+          "conversations.messaging.get.integrations.open",
+          "conversations.messaging.get.integration.open.detail",
+          "conversations.messaging.get.identityresolution.integration.open",
+          "conversations.messaging.get.supportedcontent",
+          "conversations.messaging.get.threadingtimeline"
+        ],
+        "diagnosticSignals": [
+          "Integration status != Active → BYOI integration disabled; every inbound/outbound message on this channel will fail until re-enabled",
+          "outboundNotificationWebhookUrl unreachable or credentials expired → outbound messages accepted by Genesys Cloud but never delivered to the provider",
+          "identity-resolution field mapping references a field the provider stopped sending → new conversations create duplicate/unresolved contacts instead of matching existing ones",
+          "supportedContent profile missing a content type the integration is actively sending (e.g. cards) → those messages are silently dropped or rejected client-side",
+          "threading timeline window shorter than the provider's typical reply latency → customers replying after the window get a fresh conversation, breaking continuity in transcripts and reporting"
+        ],
+        "enrichWith": [
+          "audit-logs (filter by EntityType=Integration to see who last changed the integration config and when)",
+          "conversations.get.message.details (confirm whether a specific message actually reached delivered/read status after a config fix)"
         ]
       }
     }

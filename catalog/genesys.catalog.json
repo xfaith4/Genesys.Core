@@ -1297,6 +1297,153 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates grouped by divisionId — per-division nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError. Use for cross-queue division/business-unit rollups in Division Investigation and Executive Reporting; a division spans multiple queues, so this is the aggregate entry point when the investigation subject is divisionId rather than queueId.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — subjects (users/roles) and their granted permissions within this division. Use in a Division Investigation to confirm which supervisors/roles have visibility into the division being reviewed.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.search.division.objects": {
+      "description": "Objects (queues, groups, and other object types) explicitly assigned to a division, filterable by objectType. Complements authorization.list.division.queues with a generic object search across all division-scoped object types.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full call-specific conversation detail — participants, recordings, ANI/DNIS, call legs, and hold events. Use alongside conversations.get.conversation.object in a Single Conversation Deep Dive when the media type is voice and hold/mute/transfer event detail is needed.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific participant in a conversation. Iterate over agent participants returned by conversations.get.conversation.object to resolve the wrapup code each agent selected — required for per-agent wrapup review in a Single Conversation Deep Dive.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated (Copilot/Agent Assist) summaries for a conversation — reason for contact and resolution notes per communication leg. Use for rapid conversation triage without listening to the recording or reading the full transcript.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a single conversation — narrower and faster than quality.get.surveys, which lists survey results across the organisation.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue — real-time caller wait forecast in seconds. Use in Real-Time Operations Monitoring alongside queue observation stats to answer how long the next caller will wait right now.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the Speech and Text Analytics engine — useful for rapid triage of complaint themes without listening to the recording.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated Speech and Text Analytics summaries for each communication leg of a conversation.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs — scheduled vs. actual routing status with adherence percentage. Use in a Division Investigation to surface adherence outliers alongside coaching and quality data for the agents in scope.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit an agent belongs to — used to locate the agent schedule, adherence, and WFM team for Agent Investigation extensions.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -2659,7 +2806,7 @@
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
         "group: Analytics",
@@ -39612,7 +39759,7 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
             "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
             "description": "Base conversation object with media type, state, and full participant roster"
@@ -39647,7 +39794,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39844,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39979,7 +40126,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40134,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40059,7 +40206,7 @@
           },
           {
             "step": "conversations",
-            "dataset": "analytics.query.conversation.details.by.queue",
+            "dataset": "analytics-conversation-details-query",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "conversationId, agentId, wrapUpCode, tTalk, tHandle",
@@ -40139,7 +40286,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",

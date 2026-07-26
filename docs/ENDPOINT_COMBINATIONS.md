@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-26  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Newly Cataloged Datasets (2026-07-26)](#11-newly-cataloged-datasets-2026-07-26)
 
 ---
 
@@ -176,6 +177,9 @@ quality scores, and coaching coverage.
 | 7 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
 | 8 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
 | 9 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
+| 10 | `analytics.query.conversation.aggregates.division.performance` | `divisionId` | Division-level KPI rollup: nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError grouped directly by `divisionId` — the fastest single-call answer to "how is this division doing" without summing per-queue aggregates |
+| 11 *(governance)* | `authorization.get.division.grants` | `divisionId` | Confirms which supervisors/roles can see this division — useful when access, not performance, is the question |
+| 12 *(optional)* | `workforce.get.adherence.bulk` (userId list) | `userId` | Schedule adherence per agent — flags agents drifting from their WFM schedule alongside coaching/quality signals |
 
 ### Key Joins
 
@@ -484,6 +488,59 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `analytics.query.conversation.aggregates.division.performance` | | | ● | ● | | |
+| `authorization.get.division.grants` | | | ○ | | | |
+| `authorization.search.division.objects` | | | ○ | | | |
+| `workforce.get.adherence.bulk` | | | ○ | | | ○ |
+| `workforce.get.agent.management.unit` | | | | | | ○ |
+| `routing.get.queue.estimated.wait.time` | | ○ | | | ● | |
+| `conversations.get.call.detail` | ○ | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ● | | | | | |
+| `conversations.get.conversation.summaries` | ● | | | | | |
+| `quality.get.conversation.surveys` | ● | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ● | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ● | | | | | |
+
+---
+
+## 11. Newly Cataloged Datasets (2026-07-26)
+
+A catalog audit found that several steps in the `combinations.investigationRecipes` block
+(`catalog/genesys.catalog.json`) referenced dataset keys that existed only as raw `endpoints`
+entries — meaning `Invoke-Dataset` could not run them directly, since a runnable dataset requires
+a `datasets` entry with `paging`/`retry` profiles. Two classes of fix were applied:
+
+**A. Corrected references to datasets that already existed under a different key** (no new
+catalog entries needed — the recipe step now points at the existing, already-invokable dataset):
+
+| Recipe step referenced (broken) | Corrected to (existing dataset) |
+|---|---|
+| `conversations.get.specific.conversation.details` | `conversations.get.conversation.object` |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | `conversations.get.speech.text.analytics` |
+| `telephony.get.sip.message.for.conversation` (singular) | `telephony.get.sip.messages.for.conversation` (plural — same endpoint) |
+| `routing.get.queue.wrapup.codes` | `routing.get.queue.wrapup.codes.by.queue` (same underlying endpoint) |
+| `routing.get.queue.members.with.status` | `routing-queue-members` (same underlying endpoint) |
+| `analytics.query.conversation.details.by.queue` | `analytics-conversation-details-query` (same `/analytics/conversations/details/query` endpoint; pass `queueId` via `DatasetParameters`) |
+
+**B. New dataset entries added** — these endpoints had no dataset wrapper at all and are now
+invokable via `Invoke-Dataset -Dataset '<key>'`:
+
+| Dataset Key | Wraps Endpoint | Used By |
+|---|---|---|
+| `analytics.query.conversation.aggregates.division.performance` | `/analytics/conversations/aggregates/query` grouped by `divisionId` | Division Investigation (§3) — the KPI rollup step; a division spans multiple queues, so this is the aggregate entry point when the investigation subject is `divisionId` rather than `queueId` |
+| `authorization.get.division.grants` | `/authorization/divisions/{divisionId}/grants` | Division Investigation governance check — which subjects/roles have visibility into the division |
+| `authorization.search.division.objects` | `/authorization/divisions/{divisionId}/objects` | Division Investigation — generic object search complementing `authorization.list.division.queues` |
+| `conversations.get.call.detail` | `/conversations/calls/{conversationId}` | Single Conversation Deep Dive — hold/mute/transfer event detail for voice |
+| `conversations.get.conversation.participant.wrapup` | `/conversations/{conversationId}/participants/{participantId}/wrapup` | Single Conversation Deep Dive — per-agent wrapup code (iterate agent participants from `conversations.get.conversation.object`) |
+| `conversations.get.conversation.summaries` | `/conversations/{conversationId}/summaries` | Single Conversation Deep Dive — Copilot/Agent Assist reason-for-contact and resolution notes |
+| `quality.get.conversation.surveys` | `/quality/conversations/{conversationId}/surveys` | Single Conversation Deep Dive — CSAT/NPS scoped to one conversation (narrower than the org-wide `quality.get.surveys`) |
+| `routing.get.queue.estimated.wait.time` | `/routing/queues/{queueId}/estimatedwaittime` | Real-Time Operations Monitoring — live caller wait forecast |
+| `speechandtextanalytics.get.conversation.categories` | `/speechandtextanalytics/conversations/{conversationId}/categories` | Single Conversation Deep Dive — topic/category triage without listening to the recording |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `/speechandtextanalytics/conversations/{conversationId}/summaries` | Single Conversation Deep Dive — S&TA AI summary per communication leg |
+| `workforce.get.adherence.bulk` | `/workforcemanagement/adherence` | Division Investigation — schedule adherence outliers across the agent group |
+| `workforce.get.agent.management.unit` | `/workforcemanagement/agents/{agentId}/managementunit` | Agent Investigation extension — locates the agent's WFM schedule/adherence team |
+
+A related latent bug was fixed on the underlying endpoint definition: `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` (an aggregates-query endpoint) declared `itemsPath: "$.conversations"`, which does not match the Genesys Cloud aggregates response shape (`{"results": [...]}`); it is now `"$.results"`, consistent with every other `/analytics/conversations/aggregates/query` dataset in the catalog.
 
 ---
 

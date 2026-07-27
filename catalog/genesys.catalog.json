@@ -1297,6 +1297,201 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Voice-specific call detail for a single conversation \u2014 call legs, hold/mute events, and DNIS routing path. Complements the generic conversation object with telephony-specific fields.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a single participant in a conversation. Requires conversationId and participantId (from the conversation-object participant roster).",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated (Copilot/Agent Assist) summary for a conversation \u2014 reason for contact and resolution notes per communication leg.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for one specific conversation. Distinct from quality.get.surveys, which lists surveys org-wide.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Real-time estimated wait time (EWT) for a queue, in seconds. Point-in-time only \u2014 use for live queue-saturation triage, not historical trending.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine \u2014 matched topic names and scores.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summary text for each communication leg of a conversation \u2014 useful for rapid content review without listening to the recording.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk real-time schedule adherence for a list of userIds \u2014 scheduled vs. actual routing status with adherence percentage. Pass userId as a comma-separated query parameter (max ~100 ids per call per Genesys documented limits).",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit a single agent belongs to \u2014 required to resolve which business unit/team schedule and adherence data applies to that agent.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access-control grants (subjects, roles, permissions) assigned within a single division \u2014 who can act on objects in this division. Used for division-scoped access audits.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates grouped by divisionId (+ mediaType) \u2014 the primary division-level KPI rollup: nConnected, tHandle, tTalk, tAcw, nOffered, nError. Feeds division and executive scorecards.",
+      "endpoint": "analytics.query.conversation.aggregates.division.performance",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.division": {
+      "description": "Analytics conversation details query pre-filtered to a divisionId (or queueId) \u2014 seed for per-conversation drilldown across a whole division or queue in the investigation window.",
+      "endpoint": "analytics.query.conversation.details.by.division",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.integrations.open": {
+      "description": "List of configured Open Messaging (BYOI \u2014 Bring Your Own Integration) integrations in the org \u2014 id, name, status, and outbound notification webhook URL for each. Seed for BYOI health checks.",
+      "endpoint": "getConversationsMessagingIntegrationsOpen",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.integrations.open.detail": {
+      "description": "Full configuration of a single Open Messaging (BYOI) integration \u2014 webhook URL, supported content types, and current status. Used to confirm the receiving integration is active when diagnosing a stuck/failed conversation injection.",
+      "endpoint": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.integrations": {
+      "description": "List of all messaging integrations in the org across every supported type (Open/BYOI, WhatsApp, Facebook, Instagram, Apple, LINE, etc.) \u2014 high-level inventory for digital-channel capacity planning.",
+      "endpoint": "getConversationsMessagingIntegrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External contact profile by contactId \u2014 name, ids from source systems, and known conversation history linkage. Resolve contactId from the externalContactId field on a conversation participant to identify the customer behind a digital or BYOI conversation.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -2654,18 +2849,6 @@
         "group: Conversations"
       ]
     },
-    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
-      "method": "POST",
-      "path": "/api/v2/analytics/conversations/aggregates/query",
-      "pagingProfile": "analytics_details_query",
-      "retryProfile": "default",
-      "itemsPath": "$.conversations",
-      "notes": [
-        "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
-        "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
-      ]
-    },
     "analytics.get.conversation.details.job.results": {
       "method": "GET",
       "path": "/api/v2/analytics/conversations/details/jobs/{jobId}/results",
@@ -2860,18 +3043,6 @@
       "notes": [
         "Get Flow Outcome Definitions",
         "group: Flows"
-      ]
-    },
-    "analytics.division.analysis.conversation.quality.report.oct.15.dec.8": {
-      "method": "POST",
-      "path": "/api/v2/analytics/conversations/details/query",
-      "pagingProfile": "analytics_details_query",
-      "retryProfile": "default",
-      "itemsPath": "$.conversations",
-      "notes": [
-        "Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)",
-        "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"mediaType\",\n          \"value\": \"voice\"\n        }\n      ]\n    }\n  ]\n}"
       ]
     },
     "outbound.get.campaigns": {
@@ -39593,6 +39764,30 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/aggregates/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.results",
+      "notes": [
+        "Query Conversation Aggregates - Division Performance (grouped by divisionId + mediaType)",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-07-20T00:00:00.000Z/2026-07-27T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\",\n    \"mediaType\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"divisionId\",\n        \"value\": \"division-id-goes-here\"\n      }\n    ]\n  }\n}"
+      ]
+    },
+    "analytics.query.conversation.details.by.division": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/details/query",
+      "pagingProfile": "analytics_details_query",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Analytics Conversation Details - filtered/grouped query for a division or queue rollup",
+        "group: Analytics",
+        "defaultBody:\n{\n  \"interval\": \"2026-07-20T00:00:00.000Z/2026-07-27T23:59:59.999Z\",\n  \"order\": \"desc\",\n  \"orderBy\": \"conversationStart\",\n  \"paging\": {\n    \"pageSize\": 100,\n    \"pageNumber\": 1\n  },\n  \"segmentFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"purpose\",\n          \"value\": \"agent\"\n        }\n      ]\n    }\n  ],\n  \"conversationFilters\": [\n    {\n      \"type\": \"and\",\n      \"predicates\": [\n        {\n          \"dimension\": \"divisionId\",\n          \"value\": \"division-id-goes-here\"\n        }\n      ]\n    }\n  ]\n}"
+      ]
     }
   },
   "combinations": {
@@ -39612,7 +39807,7 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
             "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
             "description": "Base conversation object with media type, state, and full participant roster"
@@ -39647,7 +39842,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39892,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39861,7 +40056,7 @@
           }
         ],
         "joinSequence": "seed (identity) \u2192 division (id) \u2192 skills (userId) \u2192 queue-memberships (userId) \u2192 presence-activity \u2192 performance-aggregates \u2192 conversations \u2192 evaluations (agentUserId) \u2192 qa-activity-summary \u2192 wfm-management-unit \u2192 adherence",
-        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.search.division.objects with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
+        "divisionNote": "Divisions span queues \u2014 group agents by division.id for cross-queue performance comparison. Use authorization.list.division.queues with objectType=QUEUE to enumerate all queues in a division before computing queue-scoped aggregates.",
         "executiveMetrics": [
           "nConnected",
           "tHandle (avg)",
@@ -39875,7 +40070,7 @@
         ]
       },
       "agent-not-responding-autoanswer": {
-        "description": "Focused root-cause investigation of agents repeatedly entering NOT_RESPONDING while ACD auto-answer is enabled — the classic 'auto-answer fires but the call never connects, so the agent is flipped off-queue' failure. Seeds on the auto-answer-enabled cohort, quantifies NOT_RESPONDING frequency/duration per agent, drills into the individual episodes, then correlates each episode to the specific interaction that failed to connect and to the agent's station registration state. Used by contact-centre supervisors and voice engineers when agents report 'I never got the call' or queues show ghost agents.",
+        "description": "Focused root-cause investigation of agents repeatedly entering NOT_RESPONDING while ACD auto-answer is enabled \u2014 the classic 'auto-answer fires but the call never connects, so the agent is flipped off-queue' failure. Seeds on the auto-answer-enabled cohort, quantifies NOT_RESPONDING frequency/duration per agent, drills into the individual episodes, then correlates each episode to the specific interaction that failed to connect and to the agent's station registration state. Used by contact-centre supervisors and voice engineers when agents report 'I never got the call' or queues show ghost agents.",
         "subjectParam": "userId",
         "subjectOptional": true,
         "subjectNote": "Omit userId to scan the entire auto-answer-enabled cohort; supply a userId to scope the same join to one agent.",
@@ -39888,7 +40083,7 @@
             "filter": "acdAutoAnswer = true",
             "joinKey": "id",
             "provides": "id, name, email, state, presence, routingStatus, acdAutoAnswer",
-            "description": "All users with ACD auto-answer enabled — the population at risk for auto-answer-induced NOT_RESPONDING. acdAutoAnswer is surfaced by the users dataset normalizer; filter the seed to acdAutoAnswer=true."
+            "description": "All users with ACD auto-answer enabled \u2014 the population at risk for auto-answer-induced NOT_RESPONDING. acdAutoAnswer is surfaced by the users dataset normalizer; filter the seed to acdAutoAnswer=true."
           },
           {
             "step": "not-responding-rollup",
@@ -39897,7 +40092,7 @@
             "joinKey": "userId",
             "filter": "routingStatus = NOT_RESPONDING",
             "provides": "tAgentRoutingStatus (NOT_RESPONDING time), occurrence count, tOnQueue, tOffQueue per userId",
-            "description": "Efficient per-agent roll-up — one aggregates query (metric tAgentRoutingStatus, groupBy userId) gives total NOT_RESPONDING time and episode count across the window. Rank the cohort by occurrence count to find the worst offenders before drilling in."
+            "description": "Efficient per-agent roll-up \u2014 one aggregates query (metric tAgentRoutingStatus, groupBy userId) gives total NOT_RESPONDING time and episode count across the window. Rank the cohort by occurrence count to find the worst offenders before drilling in."
           },
           {
             "step": "not-responding-segments",
@@ -39906,7 +40101,7 @@
             "joinKey": "userId",
             "filter": "routingStatus segments where status = NOT_RESPONDING",
             "provides": "per-episode startTime/endTime, systemPresence at time of episode, routingStatusSegments",
-            "description": "Per-episode timeline — the exact start/end of each NOT_RESPONDING segment per agent. Provides the timestamps used to correlate episodes to the interaction that triggered them. NOT_RESPONDING is not server-side filterable on the details query; select the segments client-side."
+            "description": "Per-episode timeline \u2014 the exact start/end of each NOT_RESPONDING segment per agent. Provides the timestamps used to correlate episodes to the interaction that triggered them. NOT_RESPONDING is not server-side filterable on the details query; select the segments client-side."
           },
           {
             "step": "failed-interactions",
@@ -39915,7 +40110,7 @@
             "joinKey": "userId",
             "filter": "agent session segmentType = ALERT with no subsequent CONNECTED segment, time-aligned to a NOT_RESPONDING episode",
             "provides": "conversationId, queueId, mediaType, segmentType, segmentStart, disconnectType",
-            "description": "The interaction behind each episode — an auto-answer that alerts the agent but never reaches CONNECTED is the confirmed missed call. Join on userId, then time-align each ALERT-without-CONNECT segment to a not-responding-segments episode to attribute cause."
+            "description": "The interaction behind each episode \u2014 an auto-answer that alerts the agent but never reaches CONNECTED is the confirmed missed call. Join on userId, then time-align each ALERT-without-CONNECT segment to a not-responding-segments episode to attribute cause."
           },
           {
             "step": "station-registration",
@@ -39923,7 +40118,7 @@
             "filterBy": "userId (associated station)",
             "joinKey": "userId",
             "provides": "stationId, status, registered, webRtcUserId, lineAppearanceId",
-            "description": "Station / WebRTC registration state — the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
+            "description": "Station / WebRTC registration state \u2014 the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
           },
           {
             "step": "real-time-status",
@@ -39931,7 +40126,7 @@
             "filterBy": "userId",
             "joinKey": "userId",
             "provides": "oUserPresence, oUserRoutingStatus, oActiveQueues",
-            "description": "Point-in-time current state — confirms whether affected agents are NOT_RESPONDING right now versus historically. Optional; only meaningful for live triage."
+            "description": "Point-in-time current state \u2014 confirms whether affected agents are NOT_RESPONDING right now versus historically. Optional; only meaningful for live triage."
           },
           {
             "step": "config-audit",
@@ -39939,10 +40134,10 @@
             "filterBy": "EntityType=User + EntityId=userId + investigation window",
             "joinKey": "userId",
             "provides": "timestamp, action, serviceName, actor, changed property",
-            "description": "Account-change audit — surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
+            "description": "Account-change audit \u2014 surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
           }
         ],
-        "joinSequence": "autoanswer-cohort (id) → not-responding-rollup (userId) → not-responding-segments (userId) → failed-interactions (participantUserId → conversationId, time-aligned to episodes) → station-registration (userId) → real-time-status (userId) → config-audit (userId)",
+        "joinSequence": "autoanswer-cohort (id) \u2192 not-responding-rollup (userId) \u2192 not-responding-segments (userId) \u2192 failed-interactions (participantUserId \u2192 conversationId, time-aligned to episodes) \u2192 station-registration (userId) \u2192 real-time-status (userId) \u2192 config-audit (userId)",
         "derivedMetrics": [
           "notRespondingCount = count of NOT_RESPONDING segments per agent in window",
           "notRespondingTime = sum tAgentRoutingStatus[NOT_RESPONDING] per agent",
@@ -39950,18 +40145,18 @@
           "episodesWithUnregisteredStation = NOT_RESPONDING episodes overlapping a registered=false station window"
         ],
         "diagnosticSignals": [
-          "acdAutoAnswer=true + high notRespondingCount → auto-answer firing but media not landing; prime suspect for this investigation",
-          "NOT_RESPONDING episode start aligns with an ALERT segment that never reaches CONNECTED → confirmed missed auto-answered call",
-          "presence = 'On Queue' but routingStatus = NOT_RESPONDING → ghost agent; cross-check station-registration",
-          "station registered=false (or no associated station) during episode → softphone/WebRTC registration is the root cause; check network/DNS",
-          "missedAutoAnswerRate% elevated across many agents on one edge/site → environmental (edge, network, or DNS), not per-agent",
-          "config-audit shows acdAutoAnswer toggled on shortly before episodes began → recent enablement exposed an unready station/headset setup",
-          "notRespondingCount high but no ALERT-without-CONNECT segments → cause is presence/manual off-queue, not auto-answer; exit this playbook"
+          "acdAutoAnswer=true + high notRespondingCount \u2192 auto-answer firing but media not landing; prime suspect for this investigation",
+          "NOT_RESPONDING episode start aligns with an ALERT segment that never reaches CONNECTED \u2192 confirmed missed auto-answered call",
+          "presence = 'On Queue' but routingStatus = NOT_RESPONDING \u2192 ghost agent; cross-check station-registration",
+          "station registered=false (or no associated station) during episode \u2192 softphone/WebRTC registration is the root cause; check network/DNS",
+          "missedAutoAnswerRate% elevated across many agents on one edge/site \u2192 environmental (edge, network, or DNS), not per-agent",
+          "config-audit shows acdAutoAnswer toggled on shortly before episodes began \u2192 recent enablement exposed an unready station/headset setup",
+          "notRespondingCount high but no ALERT-without-CONNECT segments \u2192 cause is presence/manual off-queue, not auto-answer; exit this playbook"
         ],
         "enrichWith": [
           "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
-          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
-          "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
+          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings \u2014 endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
+          "telephony.get.sip.messages.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
         ]
       },
       "queue-investigation": {
@@ -39979,7 +40174,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40182,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40059,7 +40254,7 @@
           },
           {
             "step": "conversations",
-            "dataset": "analytics.query.conversation.details.by.queue",
+            "dataset": "analytics-conversation-details-query",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "conversationId, agentId, wrapUpCode, tTalk, tHandle",
@@ -40106,7 +40301,7 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
             "queryParam": "objectType=QUEUE",
             "joinKey": "divisionId",
@@ -40139,7 +40334,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40162,7 +40357,7 @@
             "description": "Quality scores for all agents in the division"
           }
         ],
-        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.list.division.queues with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
         "executiveMetrics": [
           "nOffered (division total)",
           "nConnected",
@@ -40172,6 +40367,120 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "digital-conversation-investigation": {
+        "description": "Complete forensic investigation of one digital/messaging conversation \u2014 chat, SMS, social, or BYOI (Bring Your Own Integration / Open Messaging). Mirrors single-conversation-investigation but substitutes voice-only steps (call detail, SIP trace) with BYOI integration health, injected custom attributes, and external-contact identity resolution. See https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/ and .../byoi-integration-guide/conv-injection.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "description": "Full participant and segment timeline with all duration metrics (tHandle, tAcw)"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "joinKey": "conversationId",
+            "provides": "mediaType, state, participantRoster, participant.externalContactId, messaging provider/integration linkage",
+            "description": "Base conversation object \u2014 for a BYOI/Open Messaging conversation, the participant record carries the integrationId and externalContactId used by the steps below"
+          },
+          {
+            "step": "customer-identity",
+            "dataset": "externalcontacts.get.contact",
+            "filterBy": "externalContactId (from conversation-base participant)",
+            "joinKey": "externalContactId",
+            "provides": "contact name, source-system ids, cross-channel identity",
+            "description": "Resolves the customer identity behind the conversation \u2014 digital/BYOI conversations rarely carry ANI/caller name, so identity comes from the linked external contact instead"
+          },
+          {
+            "step": "integration-config",
+            "dataset": "conversations.get.messaging.integrations.open.detail",
+            "filterBy": "integrationId (from conversation-base participant, BYOI/Open conversations only)",
+            "joinKey": "integrationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "webhook URL, supported content types, integration status",
+            "description": "Confirms the receiving BYOI integration was active and correctly configured \u2014 the first check when a customer reports a message was sent but never arrived, or a reply never landed"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "custom key/value metadata attached at conversation creation",
+            "description": "For BYOI conversations this is the metadata payload the external system attached on injection \u2014 inspect it to confirm the injecting system sent the expected schema"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "conversations.get.speech.text.analytics",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore",
+            "description": "Text-channel sentiment scoring \u2014 applies to chat/email/messaging the same way it applies to voice"
+          },
+          {
+            "step": "sta-categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "categoryName, score, matched topics",
+            "description": "Topic and category classifications applied to the conversation by the S&TA engine"
+          },
+          {
+            "step": "sta-summaries",
+            "dataset": "speechandtextanalytics.get.conversation.summaries.detail",
+            "joinKey": "conversationId",
+            "provides": "AI summary text per communication leg",
+            "description": "AI-generated summaries for each leg \u2014 useful for rapid content review of a chat/message transcript"
+          },
+          {
+            "step": "ai-summaries",
+            "dataset": "conversations.get.conversation.summaries",
+            "joinKey": "conversationId",
+            "provides": "copilotSummary, reasonForContact, resolution",
+            "description": "Copilot/Agent Assist AI summary \u2014 reason for contact and resolution notes"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant",
+            "description": "Wrapup code selected by the agent; requires iterating over agent participants from the seed"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId, calibrated",
+            "description": "Quality evaluation scores; filter by conversationId in the query parameters"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction customer satisfaction survey results, if one was sent for this conversation"
+          }
+        ],
+        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 customer-identity (externalContactId) \u2192 integration-config (integrationId, BYOI only) \u2192 custom-attributes \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
+        "digitalEngineerHighlights": [
+          "integration-config: status != Active \u2192 BYOI integration disabled; any inbound POST to /inbound/open/message will be rejected until reactivated",
+          "conversation-base: participant present but no corresponding customer message content \u2192 injection created the conversation shell but the message payload was malformed; check custom-attributes for schema drift",
+          "custom-attributes: missing or unexpected keys vs. the integration's documented payload contract \u2192 the external system's injection schema has drifted",
+          "sta-overview: extreme negative sentiment with no evaluation on record \u2192 escalate to QM for evaluation priority, same as voice",
+          "customer-identity: externalContactId absent on the seed conversation \u2192 identity resolution never ran; check the BYOI integration's identity-resolution configuration"
+        ],
+        "executiveMetrics": [
+          "tHandle",
+          "tAcw",
+          "agentSentimentScore",
+          "customerSentimentScore",
+          "evaluationScore",
+          "csatScore",
+          "wrapUpCode"
         ]
       }
     },
@@ -40276,7 +40585,7 @@
       "speech-text-analytics-sentiment-trends": {
         "description": "Org-wide sentiment and topic trends for voice channels. Identifies rising negativity, compliance-risk conversations, and topic spikes that require targeted coaching or process changes.",
         "datasetsInOrder": [
-          "analytics.query.conversation.transcripts",
+          "analytics.post.transcripts.aggregates.query",
           "speechandtextanalytics.get.topics",
           "analytics.post.transcripts.aggregates.query"
         ],
@@ -40383,6 +40692,29 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "division-rollup-executive-scorecard": {
+        "description": "A single top-of-house scorecard rolling every queue and agent within a division up into the handful of numbers an executive asks for first. Deliberately narrow \u2014 one row per division, one trend arrow \u2014 by design; drill into division-investigation for root cause on any red metric rather than adding more columns here.",
+        "datasetsInOrder": [
+          "authorization.list.division.queues",
+          "analytics.query.conversation.aggregates.division.performance",
+          "analytics.query.queue.aggregates.service.level",
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "quality.get.evaluations.query",
+          "workforce.get.management.unit.adherence"
+        ],
+        "joinOn": "divisionId \u2192 queueId (via authorization.list.division.queues) \u2192 userId",
+        "groupBy": [
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "nOffered (division total)",
+          "serviceLevelPct (weighted average across the division's queues)",
+          "abandonRate%",
+          "evalAvgScore (division average)",
+          "adherencePct (division average)"
+        ],
+        "executivePresentation": "One scorecard row per division \u2014 Volume, Service Level %, Abandon %, Quality Score, Adherence % \u2014 with a trend arrow vs. the prior period. A red cell is the cue to open division-investigation for that division, not a reason to add another column to this view."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40391,12 +40723,12 @@
         "subjectParam": "conversationId",
         "datasetsInOrder": [
           "analytics.get.single.conversation.analytics",
-          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.object",
           "conversations.get.call.detail",
-          "telephony.get.sip.message.for.conversation",
+          "telephony.get.sip.messages.for.conversation",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata",
-          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          "conversations.get.speech.text.analytics"
         ],
         "diagnosticSignals": [
           "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
@@ -40442,7 +40774,7 @@
         "datasetsInOrder": [
           "analytics.query.queue.observations.real.time.stats",
           "routing.get.queue.estimated.wait.time",
-          "routing.get.queue.members.with.status",
+          "routing-queue-members",
           "analytics.query.user.observations.real.time.status",
           "analytics.query.conversation.aggregates.queue.performance",
           "analytics.query.conversation.aggregates.abandon.metrics"
@@ -40480,14 +40812,14 @@
         ],
         "enrichWith": [
           "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "telephony.get.sip.messages.for.conversation (for IVR-originated SIP failures)"
         ]
       },
       "recording-compliance-audit": {
         "description": "Verify recording coverage across a queue or agent \u2014 confirm recordings are being captured per policy. Used for compliance audits and archival verification.",
         "subjectParam": "queueId or agentUserId",
         "datasetsInOrder": [
-          "analytics.query.conversation.details.by.queue",
+          "analytics-conversation-details-query",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata"
         ],
@@ -40502,6 +40834,27 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "byoi-and-digital-integration-health-check": {
+        "description": "Configuration and health snapshot of BYOI (Bring Your Own Integration) / Open Messaging integrations \u2014 status, webhook configuration, recent config changes, and whether conversations are actually landing. Used when an external system integrator reports 'messages aren't arriving' or 'the bot never gets a reply.' See https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection for the injection contract.",
+        "datasetsInOrder": [
+          "conversations.get.messaging.integrations.open",
+          "conversations.get.messaging.integrations.open.detail",
+          "conversations.get.messaging.integrations",
+          "audit-logs",
+          "analytics-conversation-details-query"
+        ],
+        "diagnosticSignals": [
+          "Integration status != Active \u2192 inbound POST to /inbound/open/message will be rejected; reactivate before further diagnosis",
+          "audit-logs shows a PATCH on the integration around the failure window \u2192 a webhook URL or auth change is the likely root cause; correlate the change timestamp to the first failed injection",
+          "analytics-conversation-details-query returns zero conversations for the integration's queue in the window despite reported customer messages \u2192 injection isn't reaching Genesys at all; verify the external system's POST reached /api/v2/conversations/messages/{integrationId}/inbound/open/message and returned 200",
+          "conversations exist but agents never see them \u2192 check the integration's default queue routing configuration, not the integration's health",
+          "conversations.get.conversation.customattributes on a landed conversation shows malformed/unexpected keys \u2192 the external system's payload schema has drifted from the integration contract"
+        ],
+        "enrichWith": [
+          "conversations.get.conversation.customattributes (inspect the attribute payload the external system actually sent for a specific landed conversation)",
+          "routing-queues (confirm the integration's default queue is active and staffed)"
         ]
       }
     }

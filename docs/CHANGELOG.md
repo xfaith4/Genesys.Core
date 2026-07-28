@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-07-28
+
+### Added
+
+- Added 19 dataset wrappers to `catalog/genesys.catalog.json` closing every gap between
+  `combinations.investigationRecipes` / `executiveReportingPlaybooks` / `voiceEngineerPlaybooks` and
+  the formal `datasets` registry — conversation base/call-detail/participant-wrapup/summaries, S&TA
+  categories/summaries, quality conversation surveys, SIP message trace, WFM agent management-unit
+  and bulk adherence, queue wrapup-codes/members-with-status/estimated-wait-time, queue-scoped
+  conversation details, division objects/grants, and per-agent auto-answer settings
+  (`users.get.agent.autoanswer.settings`, closing the `getUsersAgentuiAgentsAutoanswerAgentIdSettings`
+  TODO called out in the `agent-not-responding-autoanswer` recipe).
+- Added `analytics.query.conversation.aggregates.division.performance`, a stable dataset alias for
+  the previously date-baked `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`
+  endpoint key, and corrected its `itemsPath` to `$.results` (the aggregates response shape) instead
+  of the `$.conversations` path it had inherited from the details-query endpoint family.
+- Added `combinations.investigationRecipes.byoi-conversation-enrichment` — a machine-readable
+  version of the BYOI (Bring Your Own Interactions) conversation-provenance pattern previously only
+  documented as prose in `docs/ENDPOINT_COMBINATIONS.md` §6, so application-layer consumers that walk
+  the JSON catalog (rather than the markdown doc) can drive the same investigation.
+
+### Changed
+
+- Promoted the auto-answer settings check in `agent-not-responding-autoanswer` from a loose
+  `enrichWith` text note to a formal `autoanswer-settings` step using the new dataset.
+- Repointed the `division-investigation` recipe's `conversation-aggregates-by-division` step at the
+  new `analytics.query.conversation.aggregates.division.performance` dataset key.
+- Updated `docs/ENDPOINT_COMBINATIONS.md` with a sync note cross-referencing the new datasets and
+  the machine-readable BYOI recipe.
+
 ## 2026-06-08
 
 ### Changed

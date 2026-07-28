@@ -1,8 +1,18 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-28  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+
+> **2026-07-28 catalog sync:** All dataset keys referenced by `combinations.investigationRecipes` /
+> `executiveReportingPlaybooks` / `voiceEngineerPlaybooks` in `catalog/genesys.catalog.json` now
+> resolve to a real entry in `catalog/datasets` (19 dataset wrappers were added to close the gap —
+> conversation base/call-detail/wrapup/summaries, S&TA categories/summaries, quality surveys, SIP
+> trace, WFM management-unit/adherence, queue wrapup-codes/members/EWT, queue-scoped conversation
+> details, division objects/grants, a corrected division-performance aggregate, and per-agent
+> auto-answer settings). The BYOI enrichment pattern in section 6 below is now also available as a
+> machine-readable recipe, `combinations.investigationRecipes.byoi-conversation-enrichment`, for
+> consumers that walk the JSON catalog directly instead of this document.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-05-10T13:24:11.0000000Z",
+  "generatedAt": "2026-07-28T00:00:00.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -1296,6 +1296,240 @@
         "profile": "rateLimitAware"
       },
       "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.specific.conversation.details": {
+      "description": "Base conversation object with media type, state, originating direction, and full participant roster — primary seed for the single-conversation investigation.",
+      "endpoint": "conversations.get.specific.conversation.details",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific participant in a conversation — requires iterating over agent participants from the conversation seed.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full call conversation detail — participants, recordings, ANI/DNIS, call legs, and hold events. Voice-specific complement to the base conversation object.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation": {
+      "description": "Top-level speech and text analytics scores for a conversation — agent/customer sentiment, overtalk count, silence percent.",
+      "endpoint": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation — rapid content review without listening to the recording.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI summaries for a conversation — reason for contact and resolution notes.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results for a specific conversation.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.message.for.conversation": {
+      "description": "Raw SIP signalling log for a conversation — INVITE/BYE/CANCEL/4xx/5xx messages. Definitive source for trunk routing and call-failure forensics.",
+      "endpoint": "telephony.get.sip.message.for.conversation",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit an agent belongs to — used to locate the agent's schedule, adherence, and WFM team.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs — scheduled vs. actual routing status with adherence percentage and impact.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.wrapup.codes": {
+      "description": "Wrapup code catalog assigned to a queue — used to decode wrapup distribution results into human-readable labels.",
+      "endpoint": "routing.get.queue.wrapup.codes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.members.with.status": {
+      "description": "All members of a queue with live routing status, presence, and conversation summary.",
+      "endpoint": "routing.get.queue.members.with.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue by media type — real-time caller wait forecast used to compare against SLA target.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Query Conversation Details — individual conversation records for a queue in a window; seed for per-conversation drilldown from a queue investigation.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.search.division.objects": {
+      "description": "Objects (e.g. queues) assigned to a division — the definitive queue enumeration for a division-scoped investigation; query with objectType=QUEUE.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — subjects (users/roles) and their granted permissions within this division.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates — division-level daily volume and handle-time rollup (nConnected, tHandle, tTalk, nOffered, nError), grouped by divisionId. Stable, reusable dataset alias replacing the ad-hoc date-ranged endpoint key used previously in the division investigation recipe; also corrects itemsPath to $.results (the aggregates response shape) rather than the $.conversations path copied from the details-query endpoint family.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "users.get.agent.autoanswer.settings": {
+      "description": "Per-agent ACD auto-answer configuration — authoritative confirmation of the acdAutoAnswer flag used to seed the auto-answer/NOT_RESPONDING investigation cohort for a specific agent.",
+      "endpoint": "getUsersAgentuiAgentsAutoanswerAgentIdSettings",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
       "validationStatus": "unvalidated"
     }
   },
@@ -39926,6 +40160,14 @@
             "description": "Station / WebRTC registration state — the most common physical root cause. A station with registered=false (or no associated station) during the window explains why auto-answered media had nowhere to land."
           },
           {
+            "step": "autoanswer-settings",
+            "dataset": "users.get.agent.autoanswer.settings",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "acdAutoAnswer, autoAnswerAlertToneSeconds (or equivalent per-agent auto-answer configuration)",
+            "description": "Authoritative per-agent auto-answer configuration — confirms the acdAutoAnswer seed flag directly against the agent's own settings rather than the bulk users listing, and surfaces any per-agent override (e.g. alert-tone delay) that changes how quickly a missed auto-answer becomes a NOT_RESPONDING episode."
+          },
+          {
             "step": "real-time-status",
             "dataset": "analytics.query.user.observations.real.time.status",
             "filterBy": "userId",
@@ -39942,7 +40184,7 @@
             "description": "Account-change audit — surfaces when acdAutoAnswer or station assignment was changed and by whom, to distinguish a recent config change from an environmental fault."
           }
         ],
-        "joinSequence": "autoanswer-cohort (id) → not-responding-rollup (userId) → not-responding-segments (userId) → failed-interactions (participantUserId → conversationId, time-aligned to episodes) → station-registration (userId) → real-time-status (userId) → config-audit (userId)",
+        "joinSequence": "autoanswer-cohort (id) → not-responding-rollup (userId) → not-responding-segments (userId) → failed-interactions (participantUserId → conversationId, time-aligned to episodes) → station-registration (userId) → autoanswer-settings (userId) → real-time-status (userId) → config-audit (userId)",
         "derivedMetrics": [
           "notRespondingCount = count of NOT_RESPONDING segments per agent in window",
           "notRespondingTime = sum tAgentRoutingStatus[NOT_RESPONDING] per agent",
@@ -39960,7 +40202,6 @@
         ],
         "enrichWith": [
           "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
-          "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
           "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
         ]
       },
@@ -40139,7 +40380,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40172,6 +40413,81 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "byoi-conversation-enrichment": {
+        "description": "Enrichment pass for one conversationId that was injected via a BYOI (Bring Your Own Interactions) provider integration — a call, message, or email that originated in an external system (custom SIP provider, CRM telephony, third-party contact centre) and was ingested into Genesys Cloud through the provider conversation-injection API. Once injected, the interaction flows through the same Architect routing, analytics, recording, and quality pipeline as a native conversation, so this recipe layers on top of the single-conversation-investigation recipe rather than replacing it: run the base recipe first, then use this recipe to confirm provenance and pull the external context the base recipe cannot see.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "basedOn": "single-conversation-investigation",
+        "steps": [
+          {
+            "step": "provenance-check",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[].purpose=external, participants[].externalContactId",
+            "description": "A non-null externalTag or externalConversationId is the definitive BYOI indicator, set via the provider's POST /api/v2/conversations/providers/{providerId}/calls (or the equivalent message/email injection call). Absence of both fields means this is a native conversation and the rest of this recipe does not apply."
+          },
+          {
+            "step": "provider-context",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set custom attributes: CRM case ID, intent label, external call/message ID",
+            "description": "Custom attributes carrying the external system's own identifiers and context — the primary way to correlate the Genesys-side conversationId back to a record in the originating system."
+          },
+          {
+            "step": "provider-flow-variables",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables set while the injected conversation was routed",
+            "description": "Confirms the injected conversation was evaluated by the same routing/Architect logic as a native interaction, not just recorded as a historical artifact."
+          },
+          {
+            "step": "native-pipeline-confirmation",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing (tTalk, tHeld, tAcw, tHandle) identical in shape to a native conversation",
+            "description": "BYOI conversations flow through the same analytics pipeline as native ones — segment timing is accurate and comparable to native conversations in the same queue."
+          },
+          {
+            "step": "recording-check",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus (if recording was enabled for the provider integration)",
+            "description": "Recordings exist only if the BYOI integration streamed media to Genesys Cloud for recording; an empty result for an otherwise-complete conversation usually means the provider only injected metadata/events, not media."
+          },
+          {
+            "step": "evaluation-check",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, evaluatorId (if QM evaluated the injected conversation)",
+            "description": "Quality evaluations proceed normally against BYOI conversations that have a recording or transcript to evaluate."
+          },
+          {
+            "step": "sip-handoff-trace",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP INVITE/BYE messages for the provider-to-Genesys SIP-to-SIP handoff",
+            "description": "For voice BYOI, this trace reflects the provider's SIP-to-SIP handoff into Genesys Cloud, not an inbound PSTN leg — a voice engineer should not expect carrier/PSTN signaling here."
+          }
+        ],
+        "joinSequence": "provenance-check (conversationId) → provider-context → provider-flow-variables → native-pipeline-confirmation → recording-check → evaluation-check → sip-handoff-trace (voice only)",
+        "diagnosticSignals": [
+          "externalTag/externalConversationId non-null on provenance-check → confirmed BYOI conversation; proceed with this recipe",
+          "provider-context empty but provenance-check confirms BYOI → provider did not send custom attributes; correlate via externalConversationId only",
+          "recording-check empty on an otherwise-complete BYOI conversation → provider streamed events/metadata only, not media",
+          "sip-handoff-trace shows only a single provider-side INVITE with no carrier signaling → expected for BYOI; do not treat as a missing PSTN leg"
+        ],
+        "embeddableFrameworkNote": "Conversations surfaced to agents via the Genesys Cloud Embeddable Framework (condensed conversation info) return the same object shape as conversations.get.specific.conversation.details. The condensed view exposes participants[].purpose, participants[].state, participants[].calls[].state, participants[].calls[].muted, and participants[].calls[].held — all present in the full object returned by provenance-check, so no separate dataset is needed to reconcile what an agent's embedded widget displayed against this investigation.",
+        "executiveMetrics": [
+          "byoiConversationCount (nConnected filtered to externalTag != null)",
+          "byoiRecordingCoveragePct",
+          "byoiEvaluationCoveragePct"
         ]
       }
     },

@@ -40173,6 +40173,101 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "campaign-investigation": {
+        "description": "Root-cause investigation of a single outbound dialer campaign — mirrors the Get-GenesysCampaignInvestigation flagship (Genesys.Ops): campaign configuration, contact list, target queue, diagnostics, dialer events, audit changes, and the conversations the campaign actually generated, plus a derived outbound-abandon view. Used by voice engineers and campaign managers when a campaign is under-pacing, over-pacing, generating excessive abandons, or a recent config change is suspected.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "implementedBy": "Get-GenesysCampaignInvestigation (modules/Genesys.Ops/Genesys.Ops.psm1)",
+        "steps": [
+          {
+            "step": "campaign",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, campaignStatus, dialingMode, contactListId, queueId, abandonRate",
+            "description": "Base campaign configuration — filtered client-side to the requested campaignId; also seeds contactListId/queueId/name onto the subject for downstream steps"
+          },
+          {
+            "step": "contactList",
+            "dataset": "outbound.get.contact.lists",
+            "joinKey": "campaign.contactListId → id",
+            "provides": "name, size",
+            "description": "Contact list backing the campaign — confirms list size against dialer progress"
+          },
+          {
+            "step": "queue",
+            "dataset": "routing.get.single.queue.config",
+            "filterBy": "queueId",
+            "joinKey": "campaign.queueId → id",
+            "provides": "target queue configuration the campaign dials into",
+            "description": "Queue the campaign routes connected calls to — feed queueId into queue-investigation to check agent availability on the receiving side"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "filterBy": "campaignId",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "health, errorCount, pacing indicator",
+            "description": "Fast triage entry point — aggregated health/pacing/error signal for the campaign; start here before drilling into events"
+          },
+          {
+            "step": "outboundEvents",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "campaignStart, contactCallCompleted, contactCallAbandon, and other per-contact dialer events with callResult",
+            "description": "Individual dialer events — drill-down evidence for a specific contact/attempt behind an aggregate stat"
+          },
+          {
+            "step": "auditChanges",
+            "dataset": "audit-logs",
+            "filterBy": "EntityId=campaignId + investigation window",
+            "joinKey": "campaign.id → entity.id",
+            "provides": "timestamp, action, actor, changed property",
+            "description": "Account-change audit — surfaces recent campaign config changes (pacing, contact list swap, queue reassignment) to distinguish a config regression from an environmental fault"
+          },
+          {
+            "step": "conversationAnalytics",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participants.campaignId = campaignId, interval = window",
+            "joinKey": "campaign.id → participants[].campaignId (or nested session/segment campaignId)",
+            "provides": "conversationId, agentId, tTalk, tHandle, wrapUpCode for conversations this campaign generated",
+            "description": "Conversations produced by the campaign — seed conversationId values into single-conversation-investigation for per-call forensics on a flagged attempt"
+          },
+          {
+            "step": "outboundAbandons",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId, callResult/type matches an abandon signature",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "the subset of outboundEvents classified as dialer-side (outbound) abandons",
+            "description": "Derived view of outboundEvents narrowed to abandon events — the primary compliance/pacing signal for predictive and progressive campaigns"
+          }
+        ],
+        "joinSequence": "seed (campaign) → contactList (contactListId) → queue (queueId) → diagnostics (campaignId) → outboundEvents (campaignId) → auditChanges (campaignId) → conversationAnalytics (campaignId, window) → outboundAbandons (campaignId, derived)",
+        "executiveMetrics": [
+          "campaignCompletionPct",
+          "contactsDialed",
+          "connectRate%",
+          "abandonRate% (dialer-side)",
+          "rightPartyContactRate%",
+          "dispositionCounts (by callResult)"
+        ],
+        "diagnosticSignals": [
+          "diagnostics.health != 'healthy' or errorCount > 0 → check auditChanges for a recent config change before assuming an environmental fault",
+          "outboundAbandons rate rising against a flat or falling abandonRate baseline on the campaign record → pacing algorithm outrunning agent availability; check queue.activeAgents via queue-investigation",
+          "outboundEvents present but conversationAnalytics returns few/no conversations → calls connecting but not reaching a routable conversation; check queue configuration and CPA/answering-machine detection settings",
+          "auditChanges shows a pacing or contact-list change immediately before an abandon-rate spike → confirmed config-change root cause",
+          "contactList.size shrinking faster than campaign.abandonRate would predict → list exhaustion, not a dialer fault"
+        ],
+        "enrichWith": [
+          "getOutboundCampaignDiagnostics (/api/v2/outbound/campaigns/{campaignId}/diagnostics) — granular diagnostic conditions behind the diagnostics-summary status; not yet wired into the flagship, fetch directly when diagnostics.health is unhealthy",
+          "getOutboundCampaignProgress (/api/v2/outbound/campaigns/{campaignId}/progress) — real-time percentageComplete; use for live triage of a stalled campaign",
+          "getOutboundCampaignStats (/api/v2/outbound/campaigns/{campaignId}/stats) — connect/no-answer/busy/callback counters for computing connect and right-party-contact rates without waiting for the analytics window to close",
+          "getOutboundCampaignSkillcombinations (/api/v2/outbound/campaigns/{campaignId}/skillcombinations) — for skills-based campaigns, isolates which specific skill combination is stalling pacing",
+          "getOutboundCampaignLinedistribution (/api/v2/outbound/campaigns/{campaignId}/linedistribution) — voice-engineer signal for whether pacing is capped by shared trunk/line capacity on the campaign's Edge Group or Site rather than agent availability",
+          "getOutboundCampaignInteractions (/api/v2/outbound/campaigns/{campaignId}/interactions) — lighter-weight alternative to conversationAnalytics when only the conversationId list is needed, not full analytics detail"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

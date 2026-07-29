@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-29
+
+### Added
+
+- Added a `campaign-investigation` recipe to
+  `catalog/genesys.catalog.json` `combinations.investigationRecipes`,
+  documenting the dataset join sequence already implemented by
+  `Get-GenesysCampaignInvestigation` (campaign → contactList → queue →
+  diagnostics → outboundEvents → auditChanges → conversationAnalytics →
+  outboundAbandons), plus an `enrichWith` list of six additional Outbound
+  swagger operations (`getOutboundCampaignDiagnostics`,
+  `getOutboundCampaignProgress`, `getOutboundCampaignStats`,
+  `getOutboundCampaignSkillcombinations`,
+  `getOutboundCampaignLinedistribution`, `getOutboundCampaignInteractions`)
+  that are valid catalog endpoints but not yet wired into the flagship —
+  useful for live pacing/trunk-capacity triage a voice engineer would want
+  beyond the historical-window analytics the flagship currently pulls.
+  Verified against `catalog/schema/genesys.catalog.schema.json` and
+  cross-checked every `dataset` reference resolves in `datasets`/`endpoints`.
+
 ## 2026-06-08
 
 ### Changed

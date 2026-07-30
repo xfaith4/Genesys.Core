@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-07-30
+
+### Fixed
+
+- Reconciled `catalog/genesys.catalog.json`'s `combinations` block
+  (`investigationRecipes`, `voiceEngineerPlaybooks`,
+  `executiveReportingPlaybooks`) against `datasets{}`: several steps
+  referenced endpoint-registry slugs instead of the dataset keys that wrap
+  them (e.g. `telephony.get.sip.message.for.conversation`,
+  `routing.get.queue.members.with.status`,
+  `authorization.search.division.objects`,
+  `conversations.get.specific.conversation.details`), which would have made
+  those steps fail at run time. All references now resolve to a real
+  `datasets{}` entry.
+- Fixed an `itemsPath` bug on the division-conversation-aggregates endpoint
+  (`$.conversations` → `$.results`) — it targets the aggregates-query path,
+  which returns a `results` array, not a `conversations` array.
+
+### Added
+
+- Added 12 new catalog dataset entries for endpoints that were already
+  referenced by investigation recipes but never catalogued: per-participant
+  wrapup, voice call detail, S&TA categories/summaries, Copilot conversation
+  summaries, per-conversation survey lookup, WFM agent-management-unit and
+  bulk adherence, queue estimated wait time, division access grants, a clean
+  division-level conversation-aggregates dataset, and a division-scoped
+  conversation-detail sample dataset for QM/case-level drilldown.
+- Added a `conversation-sample` step to the `division-investigation` recipe
+  so a division-scoped investigation can drill from a KPI anomaly straight
+  to individual conversations without a queue-by-queue fan-out.
+- Documented the above in `docs/ENDPOINT_COMBINATIONS.md` (Division
+  investigation section, Agent/Conversation/Queue extension tables, and the
+  dataset combination reference matrix) and corrected the stale dataset/
+  endpoint counts in `README.md`.
+
 ## 2026-06-08
 
 ### Changed

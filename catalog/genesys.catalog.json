@@ -1297,6 +1297,155 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by one participant in a conversation \u2014 requires iterating participantId values from the conversation seed step. Single-conversation-investigation step for confirming what an agent coded a call as.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full voice call detail for a single conversation \u2014 call legs, hold/mute events, and DNIS routing path. Richer than the generic conversation object for voice-specific forensics.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine \u2014 pairs with conversations.get.speech.text.analytics for content-level (not just sentiment) drilldown.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation \u2014 useful for rapid content review without listening to a recording. Contains free-text summary content; treat like evaluation comments for redaction purposes and confirm field-level scrub rules before this leaves an internal QM audience.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI-generated summary for a conversation \u2014 reason for contact, resolution, and follow-up notes per communication leg. Contains free-text summary content that may restate customer-provided details; treat like evaluation comments for redaction purposes and confirm field-level scrub rules before this leaves an internal QM audience.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey result scoped to one conversationId \u2014 narrower than quality.get.surveys, useful when the single-conversation-investigation already has the conversationId in hand and does not need the broader query-by-window form.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit a single agent belongs to \u2014 resolves managementUnitId so schedule and adherence data can be located for that agent without listing every management unit.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Current schedule adherence for an explicit list of userIds \u2014 scheduled vs. actual routing status with adherence percentage and variance. Complements workforce.get.management.unit.adherence: use this form when the investigation already has a userId list (e.g. a division or team roster) and does not need to resolve a management unit first.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Real-time estimated wait time (EWT) for a queue, by media type \u2014 the forward-looking counterpart to the current observation counters; compare against the SLA target for an immediate action trigger.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division \u2014 subjects (users/roles) and the permissions granted within this division's scope. Used in division investigations to answer who can administer this business unit, not just who works in it.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Conversation volume and handle-time aggregates grouped by divisionId (nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError) \u2014 the primary KPI rollup for division- and executive-level reporting, since queues and agents both roll up to a division regardless of which functional area they serve.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.division.sample": {
+      "description": "Per-conversation detail rows scoped to a division (agent-participant segments only) \u2014 supports QM sampling and case-level drilldown directly from a division-scoped investigation without fanning out queue-by-queue first.",
+      "endpoint": "analytics.division.analysis.conversation.quality.report.oct.15.dec.8",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -2659,7 +2808,7 @@
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
         "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
         "group: Analytics",
@@ -39612,7 +39761,7 @@
           },
           {
             "step": "conversation-base",
-            "dataset": "conversations.get.specific.conversation.details",
+            "dataset": "conversations.get.conversation.object",
             "joinKey": "conversationId",
             "provides": "mediaType, state, originatingDirection, participantRoster, ANI, DNIS",
             "description": "Base conversation object with media type, state, and full participant roster"
@@ -39647,7 +39796,7 @@
           },
           {
             "step": "sta-overview",
-            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "dataset": "conversations.get.speech.text.analytics",
             "joinKey": "conversationId",
             "provides": "agentSentimentScore, customerSentimentScore, overtalkCount, silencePercent",
             "description": "Top-level S&TA scores including sentiment, silence, and overtalk"
@@ -39697,7 +39846,7 @@
           },
           {
             "step": "sip-trace",
-            "dataset": "telephony.get.sip.message.for.conversation",
+            "dataset": "telephony.get.sip.messages.for.conversation",
             "joinKey": "conversationId",
             "audience": [
               "voice-engineer"
@@ -39961,7 +40110,7 @@
         "enrichWith": [
           "users.get.user.queue.memberships (confirm the agent was on a queue that offered ACD interactions in the window)",
           "getUsersAgentuiAgentsAutoanswerAgentIdSettings (authoritative per-agent auto-answer settings — endpoint only, not yet a dataset; use to confirm the seed flag for a specific agent)",
-          "telephony.get.sip.message.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
+          "telephony.get.sip.messages.for.conversation (SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station)"
         ]
       },
       "queue-investigation": {
@@ -39979,7 +40128,7 @@
           },
           {
             "step": "wrapup-codes",
-            "dataset": "routing.get.queue.wrapup.codes",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "wrapUpCode catalog for this queue",
@@ -39987,7 +40136,7 @@
           },
           {
             "step": "members",
-            "dataset": "routing.get.queue.members.with.status",
+            "dataset": "routing-queue-members",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "userId, routingStatus, presence, conversationSummary",
@@ -40059,7 +40208,7 @@
           },
           {
             "step": "conversations",
-            "dataset": "analytics.query.conversation.details.by.queue",
+            "dataset": "analytics-conversation-details-query",
             "filterBy": "queueId",
             "joinKey": "queueId",
             "provides": "conversationId, agentId, wrapUpCode, tTalk, tHandle",
@@ -40106,7 +40255,7 @@
           },
           {
             "step": "division-queues",
-            "dataset": "authorization.search.division.objects",
+            "dataset": "authorization.list.division.queues",
             "filterBy": "divisionId",
             "queryParam": "objectType=QUEUE",
             "joinKey": "divisionId",
@@ -40139,7 +40288,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40160,9 +40309,17 @@
             "joinKey": "userId",
             "provides": "evalCount, avgScore per agent in division",
             "description": "Quality scores for all agents in the division"
+          },
+          {
+            "step": "conversation-sample",
+            "dataset": "analytics.query.conversation.details.division.sample",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "conversationId, queueId, agentId, wrapUpCode, tTalk, tHandle",
+            "description": "Optional case-level sample for this division \u2014 lets a QM analyst or executive reviewer drill from a KPI anomaly straight to individual conversations without a separate per-queue fan-out"
           }
         ],
-        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.list.division.queues (objectType=QUEUE) to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
         "executiveMetrics": [
           "nOffered (division total)",
           "nConnected",
@@ -40276,7 +40433,6 @@
       "speech-text-analytics-sentiment-trends": {
         "description": "Org-wide sentiment and topic trends for voice channels. Identifies rising negativity, compliance-risk conversations, and topic spikes that require targeted coaching or process changes.",
         "datasetsInOrder": [
-          "analytics.query.conversation.transcripts",
           "speechandtextanalytics.get.topics",
           "analytics.post.transcripts.aggregates.query"
         ],
@@ -40391,12 +40547,12 @@
         "subjectParam": "conversationId",
         "datasetsInOrder": [
           "analytics.get.single.conversation.analytics",
-          "conversations.get.specific.conversation.details",
+          "conversations.get.conversation.object",
           "conversations.get.call.detail",
-          "telephony.get.sip.message.for.conversation",
+          "telephony.get.sip.messages.for.conversation",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata",
-          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          "conversations.get.speech.text.analytics"
         ],
         "diagnosticSignals": [
           "SIP 486 Busy Here \u2192 trunk at capacity; check telephony.get.trunk.metrics.summary",
@@ -40442,7 +40598,7 @@
         "datasetsInOrder": [
           "analytics.query.queue.observations.real.time.stats",
           "routing.get.queue.estimated.wait.time",
-          "routing.get.queue.members.with.status",
+          "routing-queue-members",
           "analytics.query.user.observations.real.time.status",
           "analytics.query.conversation.aggregates.queue.performance",
           "analytics.query.conversation.aggregates.abandon.metrics"
@@ -40479,15 +40635,15 @@
           "nFlow drop without corresponding queue drop \u2192 calls not reaching the flow (DID routing issue)"
         ],
         "enrichWith": [
-          "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "analytics-conversation-details-query (to correlate flow failures to specific conversations)",
+          "telephony.get.sip.messages.for.conversation (for IVR-originated SIP failures)"
         ]
       },
       "recording-compliance-audit": {
         "description": "Verify recording coverage across a queue or agent \u2014 confirm recordings are being captured per policy. Used for compliance audits and archival verification.",
         "subjectParam": "queueId or agentUserId",
         "datasetsInOrder": [
-          "analytics.query.conversation.details.by.queue",
+          "analytics-conversation-details-query",
           "conversations.get.recordings",
           "conversations.get.conversation.recording.metadata"
         ],

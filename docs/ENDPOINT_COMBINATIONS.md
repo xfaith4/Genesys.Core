@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-07-30  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -11,6 +11,21 @@ the join keys that connect them, and the analytical questions it answers.
 The goal of Genesys.Core is to be **informative without being a data dump**. Every combination
 here answers a specific operational question and terminates when that question is answered — not
 when the API is exhausted.
+
+> **Machine-readable companion.** `catalog/genesys.catalog.json` carries a `combinations` block
+> (`investigationRecipes`, `executiveReportingPlaybooks`, `voiceEngineerPlaybooks`) that mirrors
+> the patterns below as structured, tool-consumable step lists — join keys, diagnostic signals,
+> and executive-metric shortlists included. This markdown document is the narrative explanation;
+> the JSON block is the source other tooling should parse. A 2026-07-30 pass reconciled the two:
+> several `investigationRecipes` / `voiceEngineerPlaybooks` steps referenced endpoint-registry
+> slugs (e.g. `telephony.get.sip.message.for.conversation`, `routing.get.queue.members.with.status`,
+> `authorization.search.division.objects`) instead of the catalog dataset keys that actually wrap
+> them, which would have made those steps fail at run time. Those references were corrected, and
+> ten genuinely new endpoints that were referenced but never catalogued — participant wrapup,
+> voice call detail, S&TA categories/summaries, Copilot conversation summaries, per-conversation
+> survey lookup, WFM management-unit/adherence-bulk, queue estimated wait time, and division access
+> grants — were added as proper `datasets{}` entries. See the Division section below for the new
+> `conversation-sample` step this unlocked.
 
 ---
 
@@ -176,6 +191,9 @@ quality scores, and coaching coverage.
 | 7 | `quality.get.agents.activity` | `userId` | QM evaluation counts, highest/average/lowest scores per agent |
 | 8 | `coaching.get.appointments` | `userId` | Coaching sessions scheduled/completed for agents in the window |
 | 9 | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup code distribution across all queues in the division |
+| 10 | `analytics.query.conversation.aggregates.division.performance` | `divisionId` | Division-level KPI rollup: nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError — the headline numbers for a director-level summary |
+| 11 | `authorization.get.division.grants` | `divisionId` | Access-control grants in this division — who can administer it, not just who works in it |
+| 12 *(optional)* | `analytics.query.conversation.details.division.sample` | `divisionId` | Per-conversation drilldown rows so a reviewer can jump from a KPI anomaly straight to individual conversations without a queue-by-queue fan-out |
 
 ### Key Joins
 
@@ -189,6 +207,11 @@ users.division.analysis.get.users.with.division.info[].id
   → analytics.query.user.aggregates.login.activity[].userId
   → quality.get.agents.activity[].user.id
   → coaching.get.appointments[].attendees[].id
+
+authorization.get.single.division.id
+  → analytics.query.conversation.aggregates.division.performance[].group.divisionId (KPI rollup)
+  → analytics.query.conversation.details.division.sample[].conversationId (case-level sample, optional)
+  → authorization.get.division.grants[].subjectId (access-control audit, independent of performance)
 ```
 
 ### Analytical Questions Answered
@@ -199,6 +222,9 @@ users.division.analysis.get.users.with.division.info[].id
 - Which agents spent the most time off-queue or in non-productive states?
 - Which agents have been evaluated? Who has the highest/lowest scores?
 - Which agents have received recent coaching? Is coaching correlated with score improvement?
+- What is the single headline KPI number for this division this period, without summing per-queue rows by hand?
+- Who has administrative access to this division's configuration, and is that grant list still current?
+- Given an anomaly in the KPI rollup, which specific conversations should a reviewer pull first?
 
 ### Division vs Queue as Investigation Entry Point
 
@@ -389,10 +415,12 @@ datasets enrich the investigation without replacing any existing step.
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
+| wfmManagementUnit | `workforce.get.agent.management.unit` | `userId` | WFM management unit the agent belongs to — needed to locate schedule/adherence data |
+| adherence | `workforce.get.adherence.bulk` | `userId` | Scheduled vs. actual routing status with variance — was the agent on-schedule during the window? |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
-agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+agent being in an active state at investigation time. `coaching`, `wfmManagementUnit`, and
+`adherence` steps are conditional on WFM being licensed and configured.
 
 ---
 
@@ -409,10 +437,17 @@ These additional datasets complete the deep-dive picture.
 | customAttributes | `conversations.get.conversation.customattributes` | `conversationId` | IVR/Architect custom attribute payload |
 | participantAttributes | `conversations.search.participant.attributes` | `conversationId` | Participant-level flow variables |
 | transcriptUrl | `speechandtextanalytics.get.conversation.communication.transcripturl` | `communicationId` | Transcript download URL (transcription enabled only) |
+| participantWrapup | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code selected by each agent participant (requires iterating participants from the seed) |
+| callDetail | `conversations.get.call.detail` | `conversationId` | Call-leg detail — hold/mute/transfer events and DNIS routing path (voice only, conditional) |
+| staCategories | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Topic/category classifications from the S&TA engine (STA enabled only, conditional) |
+| staSummaries | `speechandtextanalytics.get.conversation.summaries.detail` | `conversationId` | AI-generated per-leg summary text (STA enabled only, conditional) |
+| aiSummary | `conversations.get.conversation.summaries` | `conversationId` | Copilot/Agent Assist reason-for-contact and resolution notes (Copilot enabled only, conditional) |
+| conversationSurvey | `quality.get.conversation.surveys` | `conversationId` | CSAT/NPS result scoped directly to this conversationId — narrower alternative to `quality.get.surveys` when no window query is needed |
 
-**Conditional steps:** `sipTrace` runs only when `conversations.get.conversation.object.participants[].calls` is
-non-empty (voice conversation). `sentimentTimeline` runs only when `conversations.get.speech.text.analytics`
-returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
+**Conditional steps:** `sipTrace` and `callDetail` run only when `conversations.get.conversation.object.participants[].calls` is
+non-empty (voice conversation). `sentimentTimeline`, `staCategories`, and `staSummaries` run only when `conversations.get.speech.text.analytics`
+returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`. `aiSummary` runs only when Copilot/Agent Assist summarization is
+enabled for the org.
 
 ---
 
@@ -428,6 +463,7 @@ complete the picture.
 | transfers | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer rate and type breakdown |
 | wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup code frequencies (join wrapupLabels for labels) |
 | conversationDetail | `analytics-conversation-details-query` (queueId filter) | `conversationId` | Individual conversations for case-level review |
+| estimatedWaitTime | `routing.get.queue.estimated.wait.time` | `queueId` | Real-time caller wait forecast by media type — the forward-looking counterpart to the historical SLA step |
 
 ---
 
@@ -445,12 +481,19 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.search.participant.attributes` | ● | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
+| `quality.get.conversation.surveys` | ○ | | | | | |
+| `conversations.get.conversation.participant.wrapup` | ○ | | | | | |
+| `conversations.get.call.detail` | ○ | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.categories` | ○ | | | | | |
+| `speechandtextanalytics.get.conversation.summaries.detail` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ○ | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
 | `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
 | `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
@@ -466,6 +509,11 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.user.details.activity.report` | | | ● | | | ● |
 | `quality.get.agents.activity` | | | ● | ● | | ○ |
 | `coaching.get.appointments` | | | ● | | | ○ |
+| `authorization.get.division.grants` | | | ● | | | |
+| `analytics.query.conversation.aggregates.division.performance` | | | ● | ● | | |
+| `analytics.query.conversation.details.division.sample` | | | ○ | | | |
+| `workforce.get.agent.management.unit` | | | ○ | | | ○ |
+| `workforce.get.adherence.bulk` | | | ● | | | ○ |
 | `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
 | `analytics.post.transcripts.aggregates.query` | | | | ● | | |
 | `analytics.query.queue.observations.real.time.stats` | | | | | ● | |

@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-07-31
+
+### Added
+
+- **Endpoint-combination evaluation pass:** reviewed the Genesys Cloud API Explorer, the
+  Embeddable Framework condensed-conversation-info reference, and the BYOI integration guides
+  against the existing catalog and investigation docs. Added three new catalog datasets —
+  `groups.get.groups`, `groups.get.single.group`, `groups.get.group.members` (all
+  `validationStatus: unvalidated`, wired to real paths from the bundled Swagger snapshot's
+  `getGroups`/`getGroup`/`getGroupMembers` operations) — since Genesys "Groups" are a distinct,
+  cross-division/cross-queue cohort construct not previously represented in the catalog.
+- Extended `docs/ENDPOINT_COMBINATIONS.md` with three new combination sections: §10 Groups —
+  Cross-Queue Agent Cohorts, §11 Flow / IVR Investigation, and §12 Platform & Integration Health
+  Rollup. Also wired fourteen previously-cataloged-but-undocumented datasets (WFM adherence/business
+  units, `routing.get.skill.groups`, `quality.get.published.evaluation.forms`, per-media-type active
+  conversation lists, presence-definition label resolution, notification topics,
+  `conversations.search.customattributes`, conversation suggestions, `stations.get.stations`) into
+  the existing Conversation/Division/Executive/Real-Time sections as concrete extension steps,
+  and expanded the dataset combination reference matrix accordingly.
+- Extended `docs/INVESTIGATIONS.md` with scoped (not-yet-implemented) flagship candidates §4.5
+  Division, §4.6 Groups, and §4.7 Flow/IVR investigations, resolving the roadmap's open "scope one
+  additional flagship" item with concrete dataset-step contracts for all three named candidates
+  rather than picking one. Updated the Dependencies table (§6) with each candidate's Track-A
+  prerequisite datasets.
+- Updated `docs/ROADMAP.md` to mark the flagship-scoping item done and split it from the
+  still-open implementation work.
+
 ## 2026-06-08
 
 ### Changed

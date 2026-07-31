@@ -22,7 +22,7 @@ The Ops layer builds on that contract with **investigations**: subject-centred c
 
 ## Key Features
 
-- **Catalog-as-source-of-truth** — 31 dataset keys, 74 endpoint definitions in `genesys.catalog.json`; schema-validated before every run
+- **Catalog-as-source-of-truth** — 114 curated dataset keys backed by 3,100+ endpoint definitions in `genesys.catalog.json`; schema-validated before every run
 - **Pluggable paging strategies** — `none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `transactionResults` — selected per endpoint from the catalog
 - **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
 - **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs

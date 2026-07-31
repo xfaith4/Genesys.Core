@@ -607,6 +607,42 @@
         "profile": "default"
       }
     },
+    "groups.get.groups": {
+      "description": "Ad hoc group list \u2014 named user cohorts that span divisions and queues (e.g. \"Spanish Speakers\", \"Team Leads\"). Seed step for group-based investigations that are not bounded by a single division or queue.",
+      "endpoint": "groups.get.groups",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.single.group": {
+      "description": "Full configuration for a single group \u2014 name, description, type (official/social), visibility, and membership rules.",
+      "endpoint": "groups.get.single.group",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.group.members": {
+      "description": "Membership roster for a single group \u2014 individuals, owners, and dynamically included people. Joins by groupId; members' userId values cross-reference users and division/queue datasets.",
+      "endpoint": "groups.get.group.members",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
     "analytics.query.flow.observations": {
       "description": "Query Flow Observations \u2014 real-time Architect flow execution status: oFlow, oFlowDisconnect.",
       "endpoint": "analytics.query.flow.observations",
@@ -2860,6 +2896,45 @@
       "notes": [
         "Get Flow Outcome Definitions",
         "group: Flows"
+      ]
+    },
+    "groups.get.groups": {
+      "method": "GET",
+      "path": "/api/v2/groups",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "notes": [
+        "Get a group list — ad hoc, cross-division, cross-queue user cohorts (distinct from Divisions and Queues)",
+        "group: Groups"
+      ]
+    },
+    "groups.get.single.group": {
+      "method": "GET",
+      "path": "/api/v2/groups/{groupId}",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$",
+      "defaultQueryParams": {
+        "groupId": "group-id-goes-here"
+      },
+      "notes": [
+        "Get group — name, description, type, visibility, and rules for a single group",
+        "group: Groups"
+      ]
+    },
+    "groups.get.group.members": {
+      "method": "GET",
+      "path": "/api/v2/groups/{groupId}/members",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$.entities",
+      "defaultQueryParams": {
+        "groupId": "group-id-goes-here"
+      },
+      "notes": [
+        "Get group members — includes individuals, owners, and dynamically included people",
+        "group: Groups"
       ]
     },
     "analytics.division.analysis.conversation.quality.report.oct.15.dec.8": {

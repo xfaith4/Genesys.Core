@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-07-31
 
 ## 1. Product Intent
 
@@ -107,8 +107,17 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Implement one of the three scoped flagship candidates below (composer code,
+      fixtures, and tests) — scoping is done, implementation is not.
+- [x] Scope additional flagship investigation candidates (2026-07-31): all three —
+      Division, Groups, and Flow — scoped with concrete dataset-step contracts in
+      `docs/INVESTIGATIONS.md` §4.5–§4.7, backed by combination patterns with
+      worked joins and analytical questions in `docs/ENDPOINT_COMBINATIONS.md`
+      §3, §10, and §11. Added three new catalog datasets (`groups.get.groups`,
+      `groups.get.single.group`, `groups.get.group.members`) to support the
+      Groups candidate; all other candidates compose datasets already in the
+      catalog. None of the three has composer code yet — that remains open
+      above.
 
 ### Maintenance
 

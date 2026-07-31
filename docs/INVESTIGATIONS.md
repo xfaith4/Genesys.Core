@@ -233,6 +233,93 @@ fields carried over by user records embedded under each membership entry.
 | conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
 | outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
 
+### 4.5 Division investigation _(scoped candidate — not yet implemented)_
+
+> Status: Scoped by the 2026-07-31 endpoint-combination evaluation, responding to the roadmap's
+> open "Next" item to pick a fourth flagship. Documented here so implementation has a concrete
+> contract; no `Get-GenesysDivisionInvestigation` cmdlet exists yet. The underlying combination
+> pattern (with worked joins and analytical questions) lives in
+> [ENDPOINT_COMBINATIONS.md §3](ENDPOINT_COMBINATIONS.md#3-division--agent-group-investigation).
+
+**Cmdlet (proposed):** `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>`
+**InvestigationKey (proposed):** `division-investigation`
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| division | `authorization.get.single.division` | seed | Division name, description, home-division flag |
+| queues | `authorization.list.division.queues` | `divisionId` | Every queue this division owns |
+| agents | `users.division.analysis.get.users.with.division.info` | `divisionId` | Every agent assigned to the division |
+| agentPerformance | `analytics.query.conversation.aggregates.agent.performance` (divisionId filter) | `userId` | Per-agent volume/AHT for the window |
+| agentActivity | `analytics.query.user.aggregates.login.activity` (divisionId filter) | `userId` | Per-agent time-in-state for the window |
+| quality | `quality.get.agents.activity` | `userId` | Evaluation coverage and scores per agent |
+| coaching | `coaching.get.appointments` | `userId` | Coaching sessions in the window |
+| wrapupMix | `analytics.query.conversation.aggregates.wrapup.distribution` (divisionId filter) | `queueId` | Wrapup distribution across every queue the division owns |
+| adherence *(WFM-conditional)* | `workforce.get.management.unit.adherence` | `managementUnitId` (resolved via `workforce.get.business.units` / `workforce.get.management.units`) | Real-time schedule adherence, only when the org has WFM scheduling published for these agents |
+
+**Why this is a genuine fourth flagship, not a re-shape of an existing one:** the Agent Investigation
+composes one user's identity/activity; the Queue Investigation composes one queue's conversations and
+SLA. Neither answers "how did this administrative unit perform as a group" without the caller manually
+enumerating queues and agents and joining the results themselves — which is exactly the manual-join
+pain point this whole composition layer exists to remove (see §1 above).
+
+**Open design question carried from §10 of `ENDPOINT_COMBINATIONS.md`:** whether `adherence` should be
+`Required = $false` unconditionally (skip cleanly on non-WFM orgs) or probed once via
+`workforce.get.business.units` and only added to the step list when that probe returns a non-empty
+result. Resolve this during implementation, not before — it doesn't change the dataset contract above.
+
+### 4.6 Groups investigation _(scoped candidate — not yet implemented)_
+
+> Status: Scoped alongside the Division candidate. Full combination pattern, key joins, and
+> analytical questions live in
+> [ENDPOINT_COMBINATIONS.md §10](ENDPOINT_COMBINATIONS.md#10-groups--cross-queue-agent-cohorts-new).
+
+**Cmdlet (proposed):** `Get-GenesysGroupInvestigation -GroupId <x> -Since <window>`
+**InvestigationKey (proposed):** `group-investigation`
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| group | `groups.get.single.group` | seed | Group name, description, type, visibility |
+| members | `groups.get.group.members` | `groupId` | Every member userId |
+| memberPerformance | `analytics.query.conversation.aggregates.agent.performance` (userId list) | `userId` | Per-member volume/AHT |
+| memberActivity | `analytics.query.user.aggregates.login.activity` (userId list) | `userId` | Per-member time-in-state |
+| memberQuality | `quality.get.agents.activity` (userId list) | `userId` | Per-member evaluation coverage/scores |
+| memberDivisions | `users.division.analysis.get.users.with.division.info` (userId list) | `userId` | Cross-tab: which division(s) members actually belong to |
+
+Distinct from the Division candidate above only in its seed and membership resolution steps (§4.5's
+`queues`/`agents` steps become §4.6's `members` step); every downstream analytics step is the same
+shape. If both ship, the join-helper contract in §3 makes sharing the downstream steps between the
+two composers straightforward — this is worth doing rather than duplicating four analytics steps
+verbatim, but is an implementation-time decision, not a scoping one.
+
+**Catalog status:** `groups.get.groups`, `groups.get.single.group`, and `groups.get.group.members`
+were added to the catalog as part of this evaluation pass with `validationStatus: unvalidated` — they
+need a Track A live-validation pass (per §6 below) before this candidate can move past scoping.
+
+### 4.7 Flow / IVR investigation _(scoped candidate — not yet implemented)_
+
+> Status: Scoped alongside the Division and Groups candidates, resolving the roadmap's three-way
+> "Division, Flow, or Outbound Campaign" open item (Campaign already shipped as §4.4). Full
+> combination pattern lives in
+> [ENDPOINT_COMBINATIONS.md §11](ENDPOINT_COMBINATIONS.md#11-flow--ivr-investigation-new-combination-pattern).
+
+**Cmdlet (proposed):** `Get-GenesysFlowInvestigation -FlowId <x> -Since <window>`
+**InvestigationKey (proposed):** `flow-investigation`
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| flow | `flows.get.all.flows` (filtered) | seed | Flow name, type, division, published version |
+| outcomes | `flows.get.flow.outcomes` | `flowId` filter | Outcome label resolution |
+| milestones | `flows.get.flow.milestones` | `flowId` filter | Checkpoint label resolution |
+| executionMetrics | `analytics.query.flow.aggregates.execution.metrics` | `flowId` + window | Aggregate execution counts, duration, outcome distribution |
+| liveExecutions | `analytics.query.flow.observations` | `flowId` | Real-time in-flight execution count |
+| conversations | `analytics-conversation-details-query` (flow-touched filter) | `conversationId` | Case-level drilldown into individual runs |
+
+Unlike the Division and Groups candidates, this one has no natural single "identity" seed dataset the
+way `authorization.get.single.division` or `groups.get.single.group` provide — `flows.get.all.flows`
+must be filtered client-side to one `flowId` since no single-flow-by-id dataset is currently cataloged.
+Adding a dedicated single-flow-lookup endpoint (if the Architect Flows API exposes one) is a Track A
+prerequisite worth confirming during implementation rather than assumed here.
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:
@@ -254,6 +341,9 @@ under Track A.
 | Agent | `users.get.user.details.with.full.expansion`, `users.get.user.routing.skills`, `users.get.user.queue.memberships`, bulk presences with one-user query parameters, user activity report with a user/window body, `analytics-conversation-details-query` with a user/window body, `audit-logs` with EntityType/EntityId filters |
 | Conversation | `conversations.get.specific.conversation.details`, `analytics-conversation-details-query`, `users`, division-info, skills, recordings, evaluations |
 | Queue | `routing-queues`, queue members, queue observations, queue performance aggregates, abandon aggregates, user observations |
+| Division _(§4.5, scoped only)_ | `authorization.get.single.division`, `authorization.list.division.queues`, division-info, agent performance/login-activity aggregates with a divisionId filter, `quality.get.agents.activity`, `coaching.get.appointments` — plus `workforce.get.management.unit.adherence` only if the WFM step is included |
+| Groups _(§4.6, scoped only)_ | `groups.get.single.group`, `groups.get.group.members` — both added this pass with `validationStatus: unvalidated` and need a first live-validation run before anything downstream can be marked done |
+| Flow _(§4.7, scoped only)_ | `flows.get.all.flows`, `flows.get.flow.outcomes`, `flows.get.flow.milestones`, `analytics.query.flow.aggregates.execution.metrics`, `analytics.query.flow.observations` |
 
 The mirror-catalog cutover should also land before any investigation references
 catalog keys, to avoid a double rename when the deprecated stub is removed.

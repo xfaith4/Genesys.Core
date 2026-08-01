@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-08-01
+
+### Added
+
+- Added six curated BYOI/Open Messaging catalog datasets to
+  `catalog/genesys.catalog.json` (`conversations.get.message.conversation.details`,
+  `conversations.get.message.content.details`,
+  `conversations.get.messaging.integrations.open`,
+  `conversations.get.messaging.threading.timeline`,
+  `conversations.get.messaging.supportedcontent.profiles`,
+  `conversations.get.messaging.settings.profiles`) covering the digital
+  messaging / Bring-Your-Own-Integration surface that was previously present
+  only in the raw synced endpoint list.
+- Added the `byoi-digital-messaging-conversation-investigation` investigation
+  recipe: a single-conversation forensic workflow for BYOI/Open Messaging
+  conversations, joined against the same handle-time, sentiment, evaluation,
+  and CSAT enrichment already used for voice, plus BYOI-specific diagnostics
+  (webhook/integration health, supported-content mismatches, threading-window
+  conversation splits). Notes the embeddable-framework "condensed conversation
+  info" client-side session record as the typical real-world source of the
+  seed `conversationId`.
+- Added the `byoi-digital-channel-integration-health` executive reporting
+  playbook: an org-wide rollup of configured Open Messaging integrations,
+  per-channel volume/handle-time/CSAT, and threading-driven fragmentation
+  risk, extending the existing `digital-channel-volume-and-sla` playbook down
+  to the integration level.
+- Verified all new dataset/endpoint references against the catalog schema
+  (`catalog/schema/genesys.catalog.schema.json`, passing `jsonschema`
+  validation) and against the existing `Assert-Catalog` required-field
+  contract (endpoint/itemsPath/paging.profile/retry.profile present on every
+  new dataset).
+
 ## 2026-06-08
 
 ### Changed

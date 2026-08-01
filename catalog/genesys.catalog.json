@@ -1297,6 +1297,81 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.message.conversation.details": {
+      "description": "Message-media conversation object (BYOI/Open Messaging, Facebook, Instagram, Twitter, WhatsApp, or webchat-via-messenger) \u2014 participants, messenger type, and integration linkage for a single conversationId. A digital conversationId is frequently handed to support/engineering by the embeddable Messenger widget's client-side 'condensed conversation info' (the minimal state the widget persists to resume a session across page reloads); this dataset is the server-side seed for turning that id into a full investigation.",
+      "endpoint": "getConversationsMessage",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.message.content.details": {
+      "description": "Individual message content and delivery details by messageId \u2014 text body, attachments/structured content, direction, and timestamps. Iterate over the message list on the seed conversation to pull full message-by-message content for transcript-style review.",
+      "endpoint": "getConversationsMessageDetails",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.integrations.open": {
+      "description": "Configured Open Messaging (BYOI \u2014 Bring Your Own Integration) integrations \u2014 integrationId, outbound notification webhook, and linked supported-content/messaging-settings profiles. Seed step for resolving which BYOI channel a given digital conversation originated from, and for auditing webhook/integration health org-wide.",
+      "endpoint": "getConversationsMessagingIntegrationsOpen",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.threading.timeline": {
+      "description": "Per-messenger-type conversation threading window \u2014 the idle timeout after which a new inbound message starts a new conversation instead of continuing the existing one. Explains unexpected conversation splits/merges seen when investigating a customer's multi-message digital contact history.",
+      "endpoint": "getConversationsMessagingThreadingtimeline",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.supportedcontent.profiles": {
+      "description": "Supported Content profiles \u2014 the allowed attachment, card, and quick-reply content types assignable to a messaging integration. Use to confirm a rejected/unsupported message attachment matches the integration's configured content profile.",
+      "endpoint": "getConversationsMessagingSupportedcontent",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.messaging.settings.profiles": {
+      "description": "Messaging settings profiles \u2014 content moderation, event, and conversation-disconnect-timeout configuration assignable to a messaging integration. Pairs with the integration and supported-content datasets to fully describe a BYOI channel's runtime behavior.",
+      "endpoint": "getConversationsMessagingSettings",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -40173,6 +40248,106 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "byoi-digital-messaging-conversation-investigation": {
+        "description": "Complete investigation of a single BYOI (Bring Your Own Integration) / Open Messaging digital conversation — message content, integration/channel configuration, threading behaviour, and the same handle-time, sentiment, and CSAT enrichment applied to voice. Typical trigger: a customer or support agent reports a problem in a webchat/Messenger widget session and supplies only the conversationId that the embeddable framework's client-side 'condensed conversation info' persisted in the browser to resume that session — this recipe turns that single id into a full server-side record.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "message-conversation",
+            "dataset": "conversations.get.message.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants, messageMediaType, integrationId, direction",
+            "description": "Base message-media conversation object — resolves the conversationId handed over by the customer/widget into the participant roster and the originating integrationId"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "state, division, queueId, wrapUpCode",
+            "description": "Same base conversation object used for voice — messaging conversations flow through the identical queue/routing/wrapup model"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "tHandle, tAcw, tAnswered, tAbandon",
+            "description": "Handle/ACW/answer timing — identical metric set as voice, letting messaging and voice be compared on the same executive dashboard"
+          },
+          {
+            "step": "message-content",
+            "dataset": "conversations.get.message.content.details",
+            "joinKey": "conversationId+messageId",
+            "provides": "message text, attachments/structured content, direction, timestamp",
+            "description": "Per-message content pulled by iterating the message list on the seed step — the digital equivalent of a voice transcript"
+          },
+          {
+            "step": "integration-config",
+            "dataset": "conversations.get.messaging.integrations.open",
+            "filterBy": "integrationId",
+            "joinKey": "integrationId",
+            "provides": "integration name, outbound webhook, supportedContentId, messagingSettingId",
+            "description": "Confirms which BYOI channel/webhook the conversation originated from and whether the webhook configuration is healthy"
+          },
+          {
+            "step": "supported-content",
+            "dataset": "conversations.get.messaging.supportedcontent.profiles",
+            "filterBy": "supportedContentId",
+            "joinKey": "supportedContentId",
+            "provides": "allowed attachment/card/quick-reply content types",
+            "description": "Explains a rejected or stripped attachment by comparing the message content type against the integration's supported-content profile"
+          },
+          {
+            "step": "threading-timeline",
+            "dataset": "conversations.get.messaging.threading.timeline",
+            "filterBy": "messengerType",
+            "joinKey": "messengerType",
+            "provides": "threading window (idle timeout before a new conversation is started)",
+            "description": "Explains why a customer's follow-up message became a new conversationId instead of continuing this one"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore",
+            "description": "Text sentiment scoring applies to messaging conversations the same way it does to transcribed voice calls"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, evaluatorId",
+            "description": "Quality evaluation if the messaging conversation was scored"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore",
+            "description": "Post-interaction CSAT/NPS for the digital contact"
+          }
+        ],
+        "joinSequence": "seed (message-conversation) → conversation-base (conversationId) → message-content (per messageId) → integration-config (integrationId) → supported-content (supportedContentId) → threading-timeline (messengerType) → sta-overview → evaluation (filter) → survey",
+        "diagnosticSignals": [
+          "message present in conversation-base but absent from conversations.get.message.content.details → content delivery or media upload failure between the BYOI webhook and Genesys Cloud",
+          "integration-config outboundNotificationWebhookUrl unreachable/erroring → agent replies never reach the customer's channel; check the customer's webhook endpoint, not Genesys Cloud",
+          "attachment content type absent from supported-content profile → attachment silently dropped rather than delivered",
+          "gap between two conversationIds for the same customer shorter than the threading-timeline window → unexpected new-conversation split; investigate client-side retry/duplicate-send behaviour instead of assuming a server defect",
+          "no conversations.get.message.conversation.details result for a conversationId reported by a customer → the id came from stale client-side 'condensed conversation info' (e.g. a resumed session after the underlying conversation already disconnected/expired); confirm session freshness with the customer before escalating as a data-loss defect"
+        ],
+        "executiveMetrics": [
+          "tHandle",
+          "tAcw",
+          "agentSentimentScore",
+          "customerSentimentScore",
+          "evaluationScore",
+          "csatScore",
+          "wrapUpCode",
+          "messengerType"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40383,6 +40558,30 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "byoi-digital-channel-integration-health": {
+        "description": "Org-wide rollup of BYOI/Open Messaging channel health — configured integrations, per-channel volume and handle time, and threading behaviour. Extends the digital-channel-volume-and-sla playbook with the integration-level detail an executive needs to see which custom digital channel (not just which mediaType) is driving volume, cost, or CX risk.",
+        "datasetsInOrder": [
+          "conversations.get.messaging.integrations.open",
+          "conversations.get.messaging.threading.timeline",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "quality.get.conversation.surveys"
+        ],
+        "joinOn": "integrationId → conversation.messengerType/mediaType",
+        "groupBy": [
+          "integrationId",
+          "messengerType",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "integrationCount by messenger type (Open, Facebook, Instagram, Twitter, WhatsApp)",
+          "nOffered / nConnected by integrationId",
+          "tHandle by integrationId vs. org-wide digital average",
+          "csatScore by integrationId",
+          "threadingSplitRisk (conversations per customer within the threading window — proxy for channel fragmentation)"
+        ],
+        "executivePresentation": "Per-channel volume/CSAT scorecard table ranked by handle-time or CSAT outlier; flag any BYOI integration with no recent volume as a candidate for decommission"
       }
     },
     "voiceEngineerPlaybooks": {

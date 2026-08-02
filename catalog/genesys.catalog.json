@@ -1297,6 +1297,329 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.details": {
+      "description": "External (CRM) contact profile linked to a conversation participant via externalContactId — name, organization, and contact identifiers for correlating a Genesys conversation to the customer's CRM record.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Digital journey sessions (web/app visits) associated with an external contact — pre-contact browsing history that explains what the customer was doing before they called or chatted in.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "journey.get.session.events": {
+      "description": "Page-view and event timeline within a single journey session — URLs visited, custom events fired, and timestamps, ordered chronologically up to the point of contact.",
+      "endpoint": "getJourneySessionEvents",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.evaluation.form.detail": {
+      "description": "Evaluation form definition — question groups, question text, weights, and critical/N-A-able flags referenced by a completed evaluation's evaluationForm.id. Needed to interpret why an evaluation score is what it is, not just the number.",
+      "endpoint": "getQualityFormsEvaluation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.management.units.by.division": {
+      "description": "Workforce Management management units mapped to their owning division — the join key that connects WFM schedule/adherence data to the division-as-agent-group model used elsewhere in the catalog.",
+      "endpoint": "getWorkforcemanagementManagementunitsDivisionviews",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit a single agent belongs to — resolves managementUnitId from a userId so schedule and adherence data (workforce.get.management.unit.adherence, workforce.get.management.unit.users) can be looked up without knowing the org's WFM structure ahead of time. Closes a dangling reference from the agent-investigation recipe's wfm-management-unit step.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs — scheduled vs. actual routing status with adherence percentage, one call for up to a batch of agents instead of one management-unit sweep. Closes a dangling reference from the agent-investigation recipe's adherence step.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.query.agent.adherence.explanations": {
+      "description": "Schedule adherence exceptions for one agent over a date range — late login, early logout, unscheduled activity, and out-of-adherence duration per exception. Explains why an agent's adherence score is low, not just the aggregate percentage.",
+      "endpoint": "postWorkforcemanagementAgentAdherenceExplanationsQuery",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "workforce.query.businessunit.adherence.explanations": {
+      "description": "Schedule adherence exceptions across an entire business unit — the organisation-wide adherence rollup used for executive WFM reporting alongside SLA and AHT.",
+      "endpoint": "postWorkforcemanagementBusinessunitAdherenceExplanationsQuery",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.specific.conversation.details": {
+      "description": "Base conversation object for a single conversation — participants, sessions, communications, media type, state, originating direction, and ANI/DNIS. Closes a dangling reference from the single-conversation-investigation recipe's conversation-base step and the single-call-forensics playbook.",
+      "endpoint": "conversations.get.specific.conversation.details",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Voice-specific call detail for a single conversation — call legs, hold/mute/transfer events, and the DNIS routing path. Closes a dangling reference from the single-conversation-investigation recipe's call-detail step and the single-call-forensics playbook.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by a specific agent participant on a conversation. Closes a dangling reference from the single-conversation-investigation recipe's participant-wrapup step.",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "Copilot/Agent Assist AI-generated summaries for a conversation — reason for contact and resolution notes. Closes a dangling reference from the single-conversation-investigation recipe's ai-summaries step.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.message.for.conversation": {
+      "description": "Raw SIP signalling log (INVITE/BYE/CANCEL/4xx/5xx) for a single conversation — the definitive source for call-setup failure, one-way audio, and codec-negotiation diagnosis. Closes a dangling reference from the single-conversation-investigation recipe's sip-trace step and the single-call-forensics playbook.",
+      "endpoint": "telephony.get.sip.message.for.conversation",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-sip",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the Speech & Text Analytics engine, with match scores. Closes a dangling reference from the single-conversation-investigation recipe's sta-categories step.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation": {
+      "description": "Top-level Speech & Text Analytics scores for a conversation — agent/customer sentiment, overtalk count, and silence percentage. Closes a dangling reference from the single-conversation-investigation recipe's sta-overview step and the single-call-forensics playbook.",
+      "endpoint": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated content summaries per communication leg of a conversation, from the Speech & Text Analytics engine. Closes a dangling reference from the single-conversation-investigation recipe's sta-summaries step.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction customer satisfaction survey results (CSAT/NPS) for a single conversation. Closes a dangling reference from the single-conversation-investigation recipe's survey step.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Direct synchronous conversation-details query filtered to a single queue — participant/segment detail without the async job round-trip. Closes a dangling reference from the queue-investigation recipe's conversations step and the recording-compliance-audit playbook.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time for a single queue. Closes a dangling reference from the queue-investigation recipe's estimated-wait-time step and the queue-saturation-and-staffing-analysis playbook.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.members.with.status": {
+      "description": "Queue membership roster with each member's current routing status and presence. Closes a dangling reference from the queue-investigation recipe's members step and the queue-saturation-and-staffing-analysis playbook.",
+      "endpoint": "routing.get.queue.members.with.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.wrapup.codes": {
+      "description": "Wrapup codes configured on a single queue, for label resolution against wrapup-distribution aggregates. Closes a dangling reference from the queue-investigation recipe's wrapup-codes step.",
+      "endpoint": "routing.get.queue.wrapup.codes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.search.division.objects": {
+      "description": "Objects (e.g. queues) assigned to a division, filterable by objectType. The authoritative way to enumerate a division's queues — closes a dangling reference from the division-investigation recipe's division-queues step.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Role-based access grants scoped to a division — who has what permissions within it. Closes a dangling reference from the division-investigation recipe's division-grants step.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.division.analysis.conversation.aggregates.by.division": {
+      "description": "Conversation aggregates (nConnected, tHandle, tTalk, tHeld, tAcw, tAnswered, nOffered, nOutbound, nError) grouped by divisionId. The division-level KPI rollup used by the division-investigation recipe's conversation-aggregates-by-division step.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.transcripts": {
+      "description": "Transcript aggregates — Speech & Text Analytics coverage and sentiment metrics (nSpeechTextAnalyzedConversations, oSentimentScore, tAgentSpeech, tCustomerSpeech) grouped by queue/user. Closes a dangling reference from the speech-text-analytics-sentiment-trends executive playbook.",
+      "endpoint": "analytics.query.conversation.transcripts",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -39704,9 +40027,41 @@
             ],
             "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
             "description": "Raw SIP signalling log \u2014 critical for trunk routing diagnosis and call failure forensics"
+          },
+          {
+            "step": "evaluation-form-detail",
+            "dataset": "quality.get.evaluation.form.detail",
+            "joinKey": "evaluation.evaluationForm.id (from evaluation step)",
+            "conditional": "Runs only if the evaluation step returned a result.",
+            "provides": "questionGroups, question text, weights, critical/N-A-able flags",
+            "description": "Resolves what the evaluation form actually asked \u2014 turns a bare evaluationScore into an explanation of which questions or critical items drove it"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact.details",
+            "joinKey": "conversation-base.participants[].externalContactId",
+            "conditional": "Runs only when a participant on conversation-base carries a non-null externalContactId (CRM-linked or BYOI conversation).",
+            "provides": "CRM contact name, organization, contact identifiers",
+            "description": "Resolves the customer's CRM identity from the conversation's externalContactId \u2014 turns an anonymous ANI into a named account for escalation handling"
+          },
+          {
+            "step": "customer-journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "external-contact.id",
+            "conditional": "Runs only when external-contact resolved and Journey/Predictive Engagement is licensed.",
+            "provides": "sessionId list, channel, device, referrer, session start/end",
+            "description": "Digital sessions (web/app visits) for this customer \u2014 what brought them to the point of contacting, useful for both CX root-cause and BYOI context reconstruction"
+          },
+          {
+            "step": "journey-session-events",
+            "dataset": "journey.get.session.events",
+            "joinKey": "customer-journey-sessions[].id",
+            "conditional": "Optional deep-dive; only pull for the session immediately preceding conversationStart.",
+            "provides": "pageView/event timeline with timestamps and URLs",
+            "description": "Page-by-page timeline of the session that led to this conversation \u2014 confirms whether the customer was on a specific product/support page before calling or chatting in"
           }
         ],
-        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
+        "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 evaluation-form-detail (evaluationForm.id) \u2192 survey \u2192 external-contact (externalContactId, conditional) \u2192 customer-journey-sessions (contactId, conditional) \u2192 journey-session-events (sessionId, conditional)",
         "voiceEngineerHighlights": [
           "sip-trace: SIP 486/503/487 responses reveal trunk capacity or routing-rule failure",
           "call-detail: DNIS value vs. expected queue DNIS confirms correct routing table entry",
@@ -40139,7 +40494,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.division.analysis.conversation.aggregates.by.division",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40160,9 +40515,26 @@
             "joinKey": "userId",
             "provides": "evalCount, avgScore per agent in division",
             "description": "Quality scores for all agents in the division"
+          },
+          {
+            "step": "wfm-management-units-by-division",
+            "dataset": "workforce.get.management.units.by.division",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "managementUnitId, managementUnitName, businessUnitId scoped to this division",
+            "description": "Ties the division to its owning WFM management unit(s) \u2014 divisions and WFM management units are configured independently in Genesys Cloud, so this join is required before any adherence or schedule data can be scoped to a division"
+          },
+          {
+            "step": "adherence-by-division",
+            "dataset": "workforce.query.businessunit.adherence.explanations",
+            "filterBy": "businessUnitId from wfm-management-units-by-division",
+            "joinKey": "businessUnitId",
+            "conditional": "Runs only when wfm-management-units-by-division resolved at least one management unit for this division.",
+            "provides": "adherence exception count, out-of-adherence duration, exception category, per agent",
+            "description": "Schedule-adherence exceptions for the business unit(s) backing this division \u2014 the shrinkage/attendance counterpart to the SLA and quality metrics above; a division can look healthy on AHT and SLA while quietly bleeding adherence"
           }
         ],
-        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries.",
+        "divisionNote": "Agents serve queues across divisions \u2014 an agent's primary division.id does not restrict which queues they appear in. Use authorization.search.division.objects with objectType=QUEUE to enumerate the definitive queue list for a division, then use those queueIds to filter conversation and quality queries. WFM management units are a separate hierarchy from divisions/queues \u2014 always resolve them via wfm-management-units-by-division rather than assuming a 1:1 name match.",
         "executiveMetrics": [
           "nOffered (division total)",
           "nConnected",
@@ -40171,7 +40543,9 @@
           "abandonRate%",
           "evalAvgScore",
           "agentCount",
-          "queueCount"
+          "queueCount",
+          "adherenceExceptionCount (division total)",
+          "outOfAdherenceMinutes (division total)"
         ]
       }
     },
@@ -40383,6 +40757,29 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "division-adherence-exception-rollup": {
+        "description": "Categorized, historical adherence exceptions (late login, early logout, unscheduled activity) rolled up from business unit to division — complements wfm-adherence-and-occupancy above, which reports the current-moment adherence snapshot by management unit but has no path back to a division. Use this playbook when the entry point is a division/business-unit exec view rather than a known managementUnitId, or when the question is 'why' adherence is low rather than 'what is it right now'.",
+        "datasetsInOrder": [
+          "workforce.get.business.units",
+          "workforce.get.management.units.by.division",
+          "workforce.query.businessunit.adherence.explanations",
+          "workforce.query.agent.adherence.explanations"
+        ],
+        "joinOn": "businessUnitId (business unit level) or userId (agent drilldown)",
+        "groupBy": [
+          "businessUnitId",
+          "divisionId",
+          "exceptionCategory"
+        ],
+        "outputMetrics": [
+          "adherenceExceptionCount (by category: late login, early logout, unscheduled activity)",
+          "outOfAdherenceMinutes (total and per agent)",
+          "adherencePct = 1 - (outOfAdherenceMinutes / scheduledMinutes)",
+          "shrinkagePct (planned + unplanned, if exposed by the explanation payload)"
+        ],
+        "executivePresentation": "Adherence % trend line per business unit with an exception-category breakdown; flag business units below the adherence target alongside the SLA scorecard so a schedule problem is never mistaken for a staffing or routing problem",
+        "note": "Divisions and WFM management units are separate hierarchies in Genesys Cloud — always resolve the businessUnitId via workforce.get.management.units.by.division before querying adherence for a division-scoped exec view; do not assume the division name and management-unit name match."
       }
     },
     "voiceEngineerPlaybooks": {

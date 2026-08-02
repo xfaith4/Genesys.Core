@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-08-02
+
+### Added
+
+- Added 9 net-new catalog datasets in `catalog/genesys.catalog.json`:
+  `externalcontacts.get.contact.details`, `externalcontacts.get.contact.journey.sessions`,
+  `journey.get.session.events`, `quality.get.evaluation.form.detail`,
+  `workforce.get.management.units.by.division`,
+  `workforce.query.agent.adherence.explanations`,
+  `workforce.query.businessunit.adherence.explanations`,
+  `workforce.get.agent.management.unit`, `workforce.get.adherence.bulk`. All
+  reuse endpoints already present in `catalog.endpoints`.
+- Added conditional customer-journey/CRM-correlation steps
+  (`evaluation-form-detail`, `external-contact`, `customer-journey-sessions`,
+  `journey-session-events`) to the `single-conversation-investigation` recipe.
+- Added `wfm-management-units-by-division` and `adherence-by-division` steps
+  to the `division-investigation` recipe, plus `adherenceExceptionCount` /
+  `outOfAdherenceMinutes` to its `executiveMetrics`.
+- Added a new `division-adherence-exception-rollup` executive reporting
+  playbook to `combinations.executiveReportingPlaybooks`.
+- Added `docs/ENDPOINT_COMBINATIONS.md` §11–13 documenting the above plus a
+  full audit of dangling recipe/playbook dataset references.
+
+### Fixed
+
+- Closed 19 pre-existing dangling dataset references across
+  `combinations.investigationRecipes` (`single-conversation-investigation`,
+  `queue-investigation`, `division-investigation`, `agent-investigation`) and
+  `combinations.executiveReportingPlaybooks.speech-text-analytics-sentiment-trends`
+  — each referenced a dataset key by name that was never registered in
+  `catalog.datasets`, even though the backing Genesys Cloud endpoint already
+  existed in `catalog.endpoints`. Registered all 19 as datasets; renamed one
+  (`analytics.division.analysis.conversation.aggregates.by.division`, previously
+  keyed with a baked-in date range) on registration and updated its one
+  reference accordingly. See `docs/ENDPOINT_COMBINATIONS.md` §13 for the full
+  table.
+
 ## 2026-06-08
 
 ### Changed

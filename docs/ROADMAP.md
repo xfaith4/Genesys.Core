@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-08-02
 
 ## 1. Product Intent
 
@@ -27,6 +27,27 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Endpoint combination audit + catalog gap closure (2026-08-02): evaluated
+      the catalog against Genesys Cloud developer-center guidance (API
+      Explorer, embeddable-framework condensed conversation info, BYOI
+      integration/conversation-injection guides, blueprints) to find
+      high-value combinations for single-conversation, queue, agent, and
+      division/agent-group investigations plus executive rollups. Found and
+      fixed 19 pre-existing dangling dataset references in
+      `combinations.investigationRecipes`/`*Playbooks` (endpoints existed in
+      `catalog.endpoints` but were never registered as callable `datasets` —
+      see `docs/ENDPOINT_COMBINATIONS.md` §13). Added 9 net-new datasets and
+      catalog combinations for customer-journey/CRM correlation on the Single
+      Conversation Deep Dive (externalcontacts + Journey session data,
+      conditional on `externalContactId`), evaluation-form detail (explains
+      *why* a QM score is what it is), and WFM schedule-adherence enrichment
+      bridging divisions to WFM business/management units for the Division
+      Investigation and a new `division-adherence-exception-rollup`
+      executive playbook. See `docs/ENDPOINT_COMBINATIONS.md` §11–13 for full
+      detail. Direct fetches of `developer.genesys.cloud`/`help.genesys.cloud`
+      pages returned HTTP 403 in this environment; findings were grounded in
+      the repo's own already-vetted `catalog.endpoints` mirror of the
+      Genesys Cloud v2 API instead of external re-verification.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

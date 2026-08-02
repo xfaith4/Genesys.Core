@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-02  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,9 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Customer Journey & CRM Correlation (Release 1.4 proposal)](#11-customer-journey--crm-correlation-release-14-proposal)
+12. [Workforce Management Adherence Enrichment (Release 1.4 proposal)](#12-workforce-management-adherence-enrichment-release-14-proposal)
+13. [Catalog Gap Closure — Dangling Recipe References](#13-catalog-gap-closure--dangling-recipe-references)
 
 ---
 
@@ -484,6 +487,182 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `externalcontacts.get.contact.details` | ○ | | | | | |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
+| `journey.get.session.events` | ○ | | | | | |
+| `quality.get.evaluation.form.detail` | ○ | | | | | |
+| `workforce.get.management.units.by.division` | | | ● | ○ | | |
+| `workforce.get.agent.management.unit` | | | | | | ● |
+| `workforce.get.adherence.bulk` | | | | | | ● |
+| `workforce.query.agent.adherence.explanations` | | | | | | ○ |
+| `workforce.query.businessunit.adherence.explanations` | | | ● | ● | | |
+
+---
+
+## 11. Customer Journey & CRM Correlation (Release 1.4 proposal)
+
+**Subject:** One `conversationId` where a participant carries an `externalContactId`
+**Use case:** A voice engineer, QM analyst, or CX researcher needs to know *who* the customer
+is beyond a phone number, and what they were doing (which web pages, which app screens) in the
+minutes before they called or chatted in. This is the single most-requested enrichment gap in
+the existing Single Conversation Deep Dive (§1): that recipe explains everything Genesys did
+with the call, but nothing about the customer behind it.
+
+**Core question:** *Who was this customer, and what brought them to this contact?*
+
+### Why this wasn't possible before
+
+`conversations.get.conversation.object` (§1, step 1) already returns `participants[].externalContactId`
+when the conversation is linked to a CRM record — through native External Contacts matching,
+a Predictive Engagement journey match, or a BYOI-injected `externalConversationId` payload (§6).
+That field was always available; nothing in the catalog read it further.
+
+### New Dataset Steps (added to the catalog in this pass)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| + | `externalcontacts.get.contact.details` | `participants[].externalContactId` | CRM contact name, organization, and identifiers |
+| + | `externalcontacts.get.contact.journey.sessions` | `externalContactId` → `contactId` | List of digital sessions (web/app visits) tied to this customer |
+| + | `journey.get.session.events` | `journeySessions[].id` → `sessionId` | Page-view/event timeline within the session immediately preceding the contact |
+| + | `quality.get.evaluation.form.detail` | `evaluation.evaluationForm.id` | The question groups/weights behind an evaluation score — turns a bare number into an explanation |
+
+These have been added as conditional steps at the end of the `single-conversation-investigation`
+recipe in `catalog/genesys.catalog.json` (`combinations.investigationRecipes.single-conversation-investigation`).
+They are conditional because most conversations have no `externalContactId` and most orgs do not
+license Predictive Engagement/Journey — the steps no-op cleanly when the precondition isn't met,
+per the existing `Required: $false` step semantics described in [INVESTIGATIONS.md §3.2](INVESTIGATIONS.md#32-step-descriptor).
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.details.contactId
+  → externalcontacts.get.contact.journey.sessions.contactId
+  → journey.get.session.events.sessionId (for the session closest to conversationStart)
+
+quality.get.evaluations.query[].evaluationForm.id
+  → quality.get.evaluation.form.detail.formId
+```
+
+### Analytical Questions Answered
+
+- Who is this customer in the CRM, beyond an ANI or a display name?
+- Did the customer visit the website or app before calling — and which page/product?
+- For a BYOI-injected conversation (§6), does the external system's `externalConversationId`
+  resolve to the same CRM identity as native contact matching would produce?
+- Why did this evaluation score what it scored — which question or critical item drove it?
+
+### Executive Reporting Angle
+
+At scale, `externalcontacts.get.contact.journey.sessions` + `journey.get.session.events` feed a
+"self-service before contact" metric: what fraction of contacts were preceded by a session on a
+help/FAQ page, meaning self-service failed to deflect them. This is a natural digital-channel
+counterpart to the IVR containment metric already tracked in `flow-and-ivr-performance`
+(executive playbook).
+
+---
+
+## 12. Workforce Management Adherence Enrichment (Release 1.4 proposal)
+
+**Subject:** One `divisionId`, or an organisation-wide business-unit rollup
+**Use case:** Executive reporting (§4) and the Division/Agent Group Investigation (§3) report SLA,
+AHT, transfer rate, and quality — but never schedule adherence. A team can hit every SLA target
+while quietly running under-adherent, and that gap surfaces as an SLA miss next period with no
+visible cause. WFM data was never joined to the division model because divisions and WFM
+management units are configured as two independent hierarchies in Genesys Cloud — there was no
+dataset that bridged them.
+
+**Core question:** *Is this division's staffing showing up where it's scheduled to be?*
+
+### New Dataset Steps (added to the catalog in this pass)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| + | `workforce.get.management.units.by.division` | `divisionId` | The WFM management unit(s) that back a division — the missing bridge |
+| + | `workforce.get.agent.management.unit` | `userId` | The WFM management unit a single agent belongs to (closes a pre-existing dangling reference — see §13) |
+| + | `workforce.get.adherence.bulk` | `userId` list | Current adherence state for a batch of agents in one call (closes a pre-existing dangling reference — see §13) |
+| + | `workforce.query.agent.adherence.explanations` | `userId` + date range | *Categorized* historical adherence exceptions for one agent — late login, early logout, unscheduled activity |
+| + | `workforce.query.businessunit.adherence.explanations` | `businessUnitId` + date range | Same exceptions rolled up across an entire business unit |
+
+These differ from the existing `wfm-adherence-and-occupancy` executive playbook (§10 matrix),
+which reports the *current-moment* adherence snapshot by management unit
+(`workforce.get.management.unit.adherence`) but has no path back to a division. The new
+`workforce.query.*.adherence.explanations` datasets are historical and *categorized* — they
+answer "why is adherence low" rather than "what is it right now" — and
+`workforce.get.management.units.by.division` supplies the division → business-unit bridge that
+was previously missing entirely.
+
+### Key Joins
+
+```
+authorization.get.single.division.id
+  → workforce.get.management.units.by.division.divisionId
+  → workforce.query.businessunit.adherence.explanations.businessUnitId
+
+users.division.analysis.get.users.with.division.info[].id
+  → workforce.get.agent.management.unit.userId (resolve MU without knowing org WFM structure)
+  → workforce.query.agent.adherence.explanations.userId
+```
+
+### Analytical Questions Answered
+
+- Which business unit(s) back this division's staffing, when the names don't match 1:1?
+- What fraction of this division's scheduled time was actually out-of-adherence, and why
+  (late login vs. unscheduled activity vs. early logout)?
+- Is an SLA miss this week explained by an adherence collapse, or by a genuine volume spike?
+
+### Executive Reporting Angle
+
+Added as a new `division-adherence-exception-rollup` executive playbook
+(`combinations.executiveReportingPlaybooks` in the catalog) and as two new steps
+(`wfm-management-units-by-division`, `adherence-by-division`) appended to the existing
+`division-investigation` recipe. `adherenceExceptionCount` and `outOfAdherenceMinutes` were
+added to that recipe's `executiveMetrics` list so adherence sits on the same dashboard as SLA,
+abandon rate, and quality score — not in a separate WFM-only report nobody cross-references.
+
+---
+
+## 13. Catalog Gap Closure — Dangling Recipe References
+
+While evaluating which endpoints combine well for this pass, an audit of every `dataset` field
+referenced inside `combinations.investigationRecipes` and `combinations.*Playbooks` against the
+actual `catalog.datasets` registry turned up **19 dangling references**: dataset keys that recipes
+and playbooks had referenced by name for one or more releases, but that were never registered as
+callable datasets. In every case the underlying Genesys Cloud REST endpoint was already present
+and correctly defined in `catalog.endpoints` — only the curated `datasets` wrapper entry was
+missing, so `Invoke-Dataset`/`Invoke-Investigation` would have thrown "dataset not found" the
+moment any of these steps actually ran.
+
+All 19 have been registered as datasets in this pass (9 net-new capability additions from §11–12
+above are separate from this list). The closed gaps:
+
+| Recipe / Playbook | Step | Dataset Key (now registered) |
+|---|---|---|
+| `single-conversation-investigation` | conversation-base | `conversations.get.specific.conversation.details` |
+| `single-conversation-investigation` | call-detail | `conversations.get.call.detail` |
+| `single-conversation-investigation` | participant-wrapup | `conversations.get.conversation.participant.wrapup` |
+| `single-conversation-investigation` | ai-summaries | `conversations.get.conversation.summaries` |
+| `single-conversation-investigation` | sip-trace | `telephony.get.sip.message.for.conversation` |
+| `single-conversation-investigation` | sta-categories | `speechandtextanalytics.get.conversation.categories` |
+| `single-conversation-investigation` | sta-overview | `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` |
+| `single-conversation-investigation` | sta-summaries | `speechandtextanalytics.get.conversation.summaries.detail` |
+| `single-conversation-investigation` | survey | `quality.get.conversation.surveys` |
+| `queue-investigation` | conversations | `analytics.query.conversation.details.by.queue` |
+| `queue-investigation` | estimated-wait-time | `routing.get.queue.estimated.wait.time` |
+| `queue-investigation` | members | `routing.get.queue.members.with.status` |
+| `queue-investigation` | wrapup-codes | `routing.get.queue.wrapup.codes` |
+| `division-investigation` | division-queues | `authorization.search.division.objects` |
+| `division-investigation` | division-grants | `authorization.get.division.grants` |
+| `division-investigation` | conversation-aggregates-by-division | `analytics.division.analysis.conversation.aggregates.by.division` (renamed from a date-baked key on registration) |
+| `agent-investigation` | wfm-management-unit | `workforce.get.agent.management.unit` |
+| `agent-investigation` | adherence | `workforce.get.adherence.bulk` |
+| `speech-text-analytics-sentiment-trends` (executive playbook) | — | `analytics.query.conversation.transcripts` |
+
+This closure is a prerequisite for the §1/§2/§3 recipes to actually run end-to-end — it is not
+optional cleanup. Anyone implementing the `Get-GenesysConversationInvestigation` /
+`Get-GenesysQueueInvestigation` / `Get-GenesysDivisionInvestigation` composers against these
+recipes should re-verify against `catalog/genesys.catalog.json` directly rather than assuming
+the recipe JSON was already backed by a working dataset.
 
 ---
 

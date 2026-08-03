@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-03  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -322,6 +322,15 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
+
+### Catalog Recipe
+
+Steps 1–3 and 7–8 above (the org-wide scan, before any per-agent or per-edge drilldown) are
+captured as a structured recipe in `catalog/genesys.catalog.json` under
+`combinations.realTimeOperationsPlaybooks["org-wide-live-wallboard"]`. It documents the same
+poll-don't-window rule, plus diagnostic signals for when to escalate from the wallboard into
+the single-queue (`queue-saturation-and-staffing-analysis`), single-agent (steps 4–6 above), or
+telephony (`trunk-and-edge-health-check`) drilldowns.
 
 ---
 

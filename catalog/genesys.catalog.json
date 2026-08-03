@@ -40504,6 +40504,45 @@
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
       }
+    },
+    "realTimeOperationsPlaybooks": {
+      "_description": "Org-wide, point-in-time playbooks for NOC teams, real-time analysts, and floor supervisors who need the current state of the contact centre, not a historical window. These datasets do not accept interval parameters; they are polled on a cadence appropriate to the display.",
+      "org-wide-live-wallboard": {
+        "description": "Live queue and agent state across the entire org (or a filtered set of production queues) for a NOC wallboard or supervisor floor view. Distinct from queue-saturation-and-staffing-analysis, which drills into one hot queue — this is the org-wide scan that tells a real-time analyst which queue to drill into next.",
+        "subjectParam": null,
+        "windowRequired": false,
+        "datasetsInOrder": [
+          "analytics.query.queue.observations.real.time.stats",
+          "analytics.query.conversation.activity.real.time",
+          "analytics.query.user.observations.real.time.status",
+          "analytics.query.flow.observations",
+          "telephony.get.trunk.metrics.summary",
+          "alerting.get.alerts"
+        ],
+        "joinOn": "queueId (queue-side rows) and userId (agent-side rows) — no single shared subject; the two surfaces render as parallel panels refreshed on the same poll cadence, not row-joined",
+        "pollingCadence": "10–30 seconds for a wall display; these are current-state snapshots, not interval queries — do not pass since/until",
+        "outputMetrics": [
+          "oWaiting, oInteracting, oOnQueueUsers, oOffQueueUsers, oActiveUsers per queue",
+          "oAlerting, oLongestWaiting per queue × mediaType",
+          "oUserPresence, oUserRoutingStatus per agent",
+          "active Architect flow executions (oFlow) — flags a runaway or stuck flow before it shows up as queue pain",
+          "trunk currentCalls / maxConcurrentCalls — capacity headroom",
+          "count and severity of currently firing alerts"
+        ],
+        "diagnosticSignals": [
+          "oWaiting rising with oOnQueueUsers flat → queue is falling behind live; drill into that queueId with queue-saturation-and-staffing-analysis",
+          "oLongestWaiting exceeding the queue's SLA target by a wide margin → immediate escalation candidate, independent of the aggregate SLA number",
+          "oFlow count anomalously high or stuck on one flow → possible Architect flow loop or stalled data action; check flow logs",
+          "trunk currentCalls approaching maxConcurrentCalls org-wide while individual queues look calm → telephony capacity ceiling, not a routing problem",
+          "alerting.get.alerts non-empty for a telephony or queue rule → correlate the alert's entity against the panel showing the anomaly"
+        ],
+        "drilldownTo": [
+          "queue-saturation-and-staffing-analysis (subjectParam: queueId) — once a specific queue is flagged",
+          "trunk-and-edge-health-check — once telephony capacity or edge status is flagged",
+          "analytics.get.agent.active.status / users.get.agent.active.conversations (subjectParam: userId) — once a specific agent is flagged from oUserRoutingStatus"
+        ],
+        "audience": ["real-time-analyst", "noc", "supervisor"]
+      }
     }
   }
 }

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-03
+
+### Added
+
+- Added `combinations.realTimeOperationsPlaybooks["org-wide-live-wallboard"]` to
+  `catalog/genesys.catalog.json` — an org-wide, point-in-time recipe combining
+  queue observations, conversation activity, agent presence/routing status,
+  flow observations, trunk metrics, and active alerts for a NOC/supervisor
+  wallboard. This was the one pattern from `docs/ENDPOINT_COMBINATIONS.md`
+  section 5 (Real-Time Operations Monitoring) that existed in prose but had no
+  structured catalog recipe; the other five documented combination patterns
+  already had one (`single-conversation-investigation`, `agent-investigation`,
+  `queue-investigation`, `division-investigation`, and the executive/voice
+  playbook sets).
+- Cross-referenced the new recipe from `docs/ENDPOINT_COMBINATIONS.md` §5,
+  including its drilldown paths into `queue-saturation-and-staffing-analysis`,
+  `trunk-and-edge-health-check`, and single-agent real-time datasets.
+
 ## 2026-06-08
 
 ### Changed

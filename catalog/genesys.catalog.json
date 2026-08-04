@@ -1297,6 +1297,30 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External contact record for a conversation participant — name, contact methods, and CRM linkage. Join target for participants[].externalContactId on BYOI-injected or externally-linked conversations.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization": {
+      "description": "External organization record — the company/account associated with a conversation participant. Join target for participants[].externalOrganizationId; groups external contacts by account for account-level investigation.",
+      "endpoint": "getExternalcontactsOrganization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -40503,6 +40527,49 @@
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
+      }
+    },
+    "integrationPlaybooks": {
+      "_description": "Provenance and enrichment playbooks for conversations that cross an integration boundary — BYOI/Open Messaging-injected interactions and conversations viewed live through the Embeddable Framework widget. These answer 'where did this conversation really come from' and 'what did the agent's embedded view actually show', which the core investigation recipes do not cover.",
+      "byoi-conversation-provenance-and-enrichment": {
+        "description": "Determine whether a conversation was ingested from an external system via BYOI/Open Messaging rather than originating natively in Genesys Cloud, and pull the external CRM contact/organization context tied to it. Used when a conversation's routing or timing looks unusual and the engineer suspects it did not originate on a native PSTN/ACD leg.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "conversations.get.conversation.object",
+          "conversations.get.conversation.customattributes",
+          "conversations.search.participant.attributes",
+          "externalcontacts.get.contact",
+          "externalcontacts.get.organization"
+        ],
+        "diagnosticSignals": [
+          "externalTag present and non-null on conversations.get.conversation.object → conversation was ingested from an external system, most commonly via the Open Messaging inbound APIs (POST /api/v2/conversations/messages/{integrationId}/inbound/open/message and /event); it did not originate as a native PSTN/ACD leg",
+          "externalTag null but a participant carries externalContactId → the conversation is native, and was matched to a known external contact by identifier lookup — not a BYOI injection; do not treat as external provenance",
+          "externalTag set but conversations.get.conversation.customattributes returns empty → the sending integration is not passing a context payload; check the integration's attribute-mapping configuration, not Genesys Cloud",
+          "participants[].externalContactId resolves via externalcontacts.get.contact to a 404 → the external contact was deleted or merged after the conversation occurred; use externalcontacts.get.organization on externalOrganizationId as a fallback for account-level context",
+          "voice conversation with externalTag set and no rows from telephony.get.sip.messages.for.conversation → expected for many BYOI ingestion paths that never generate a Genesys-side SIP leg; confirm with the integration owner before treating as a signaling capture gap"
+        ],
+        "enrichWith": [
+          "telephony.get.sip.messages.for.conversation (only if the injected conversation did traverse a Genesys Edge/trunk leg)",
+          "quality.get.evaluations.query (BYOI-injected conversations flow through QM evaluation identically to native conversations once ingested)"
+        ],
+        "verificationNote": "The externalTag field and the participant-level externalContactId/externalOrganizationId fields were confirmed against this repo's cached OpenAPI definitions for the Conversation, AnalyticsConversation, and Participant schemas (see GenesysCloudAPIEndpoints.json). A field named externalConversationId, previously referenced in docs/ENDPOINT_COMBINATIONS.md as a BYOI indicator, could not be found in any cached schema and has been removed from this catalog entry — use externalTag and the externalContactId/externalOrganizationId join instead. The conversation-injection endpoint previously documented as POST /api/v2/conversations/providers/{providerId}/calls also does not appear in the cached OpenAPI spec; the verified inbound-injection paths are the /api/v2/conversations/messages/{integrationId}/inbound/open/* family (message, event, receipt, structured/response), which are ingestion webhooks the external system calls and are not themselves investigation-read datasets. developer.genesys.cloud was unreachable from this environment (network policy) when this entry was written, so the BYOI integration guide itself could not be re-fetched — re-verify against https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection when that host is reachable."
+      },
+      "embeddable-framework-live-conversation-view": {
+        "description": "Maps what a supervisor or an embedded CRM widget shows live via the Embeddable Framework's condensed conversation info (participant purpose/state, call state/muted/held) onto the full-fidelity catalog datasets, so an engineer can reproduce or audit what an agent's screen displayed during an escalation.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "conversations.get.conversation.object",
+          "analytics.get.single.conversation.analytics"
+        ],
+        "diagnosticSignals": [
+          "Widget reported the call as held but the customer states they were connected → cross-check participants[].calls[].held and startHoldTime on conversations.get.conversation.object against the agent's reported timeline",
+          "Widget showed the agent participant disappear mid-call → check participants[] for a consultParticipantId/bargedParticipantId indicating a consult or transfer, rather than assuming an unexpected drop",
+          "Widget muted indicator stuck true after an unmute action → likely a client-side desync; treat conversations.get.conversation.object as the source of truth, not the widget's cached local state"
+        ],
+        "enrichWith": [
+          "conversations.get.conversation.recording.metadata (recording continuity is independent of the mute flag — mute affects the audio path, not the recording)"
+        ],
+        "verificationNote": "The Embeddable Framework's condensed conversation info is a reduced, client-side JS object; developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info was unreachable from this environment (network policy) when this entry was written, so its exact field list could not be re-verified this pass. The field names above (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) are confirmed present on the full REST Conversation/Participant/Call schema in this repo's cached OpenAPI spec and are known, from prior Genesys documentation, to be the fields the widget surfaces — but re-check against the live page when it is reachable before treating this as authoritative for exact widget field naming."
       }
     }
   }

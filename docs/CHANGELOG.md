@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-04
+
+### Added
+
+- Added `combinations.integrationPlaybooks` to `catalog/genesys.catalog.json` with two new
+  entries: `byoi-conversation-provenance-and-enrichment` (detect BYOI/Open-Messaging-injected
+  conversations via `externalTag` and enrich with external CRM contact/organization context) and
+  `embeddable-framework-live-conversation-view` (map the Embeddable Framework's condensed
+  conversation info onto the full REST conversation object for escalation audits).
+- Added `externalcontacts.get.contact` and `externalcontacts.get.organization` datasets to
+  `catalog/genesys.catalog.json`, the join targets for `participants[].externalContactId` /
+  `externalOrganizationId` on BYOI-enriched investigations.
+
+### Fixed
+
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` section 6 (BYOI External Conversation Enrichment):
+  the previously documented injection endpoint
+  (`POST /api/v2/conversations/providers/{providerId}/calls`) and response field
+  (`externalConversationId`) do not appear in this repo's cached Genesys Cloud OpenAPI spec
+  (`GenesysCloudAPIEndpoints.json`). Replaced with the verified Open Messaging inbound endpoint
+  family and the confirmed `externalTag` / `externalContactId` / `externalOrganizationId` fields.
+
 ## 2026-06-08
 
 ### Changed

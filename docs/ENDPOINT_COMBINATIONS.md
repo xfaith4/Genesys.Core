@@ -1,8 +1,25 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-04  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
+>
+> **2026-08-04 pass:** corrected the BYOI injection endpoint and provenance fields in section 6
+> against this repo's cached OpenAPI spec (the previously cited `POST
+> /api/v2/conversations/providers/{providerId}/calls` and `externalConversationId` were not found
+> in the spec); added two new catalog entries under `combinations.integrationPlaybooks` in
+> `catalog/genesys.catalog.json` (`byoi-conversation-provenance-and-enrichment`,
+> `embeddable-framework-live-conversation-view`) plus two new datasets
+> (`externalcontacts.get.contact`, `externalcontacts.get.organization`) needed for BYOI
+> account/contact enrichment. `developer.genesys.cloud` was unreachable from this environment
+> (network policy blocked it), so the BYOI and Embeddable Framework doc pages named in this pass's
+> task could not be fetched directly — findings below are grounded in this repo's cached Genesys
+> Cloud OpenAPI spec (`GenesysCloudAPIEndpoints.json`) instead, and are flagged where doc
+> confirmation is still outstanding. The existing executive-rollup, real-time-monitoring, and
+> division/queue/agent combination coverage in this document and in
+> `combinations.investigationRecipes` / `combinations.executiveReportingPlaybooks` /
+> `combinations.voiceEngineerPlaybooks` was reviewed and found already comprehensive — no changes
+> were needed there.
 
 This document describes how catalog datasets combine into coherent investigations and executive
 reporting rollups. Each combination is documented with its subject, the ordered dataset steps,
@@ -327,29 +344,56 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that was injected via BYOI (Bring Your Own Interactions)
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom messaging platform) and was ingested into Genesys Cloud through the BYOI/Open
+Messaging inbound APIs. The conversation appears in Genesys analytics, quality, and recordings
+like any native conversation, but its business context lives in the external system.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
+> **Correction (2026-08-04):** an earlier revision of this section cited
+> `POST /api/v2/conversations/providers/{providerId}/calls` as the BYOI injection endpoint and
+> `externalConversationId` as a response field. Neither was found in this repo's cached OpenAPI
+> spec (`GenesysCloudAPIEndpoints.json` → `paths` / `definitions`) when re-checked. The verified
+> injection surface is the Open Messaging inbound family below; `developer.genesys.cloud` was
+> unreachable from this environment (network policy) during the re-check, so the BYOI integration
+> guide itself could not be re-fetched — treat this section as swagger-verified but re-confirm
+> against [the BYOI conversation-injection guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection)
+> once that host is reachable, in case the guide describes a newer or additional path.
+
+### Verified Injection Endpoints (external system → Genesys Cloud)
+
+These are ingestion webhooks the external system calls; they are not investigation-read datasets,
+but knowing them explains how an `externalTag`-bearing conversation came to exist:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/v2/conversations/messages/inbound/open` | Generic Open Messaging inbound entry point |
+| POST | `/api/v2/conversations/messages/{integrationId}/inbound/open/message` | Inject an inbound message on a specific Open Messaging integration |
+| POST | `/api/v2/conversations/messages/{integrationId}/inbound/open/event` | Inject a typing/presence-style event (e.g. typing indicator) |
+| POST | `/api/v2/conversations/messages/{integrationId}/inbound/open/receipt` | Inject a delivery/read receipt |
+| POST | `/api/v2/conversations/messages/{integrationId}/inbound/open/structured/response` | Inject a structured (card/quick-reply) response |
+
 ### How to Identify a BYOI Conversation
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns a
+`Conversation` object with a top-level `externalTag` field, and each participant may carry
+`externalContactId` / `externalOrganizationId` (both confirmed on the `Participant` schema):
 
 ```json
 {
   "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    { "purpose": "external", "externalContactId": "...", "externalOrganizationId": "..." }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` is the definitive BYOI/Open-Messaging provenance indicator. A participant
+carrying `externalContactId` without a conversation-level `externalTag` means the conversation is
+**native** and was matched to a known external contact by identifier lookup — that is a CRM match,
+not a BYOI injection, and should not be reported as one.
 
 ### Additional Steps for BYOI Conversations
 
@@ -357,6 +401,12 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `externalcontacts.get.contact` | The external CRM contact record for `participants[].externalContactId` — name and contact methods |
+| + | `externalcontacts.get.organization` | The external account/organization for `participants[].externalOrganizationId` — account-level rollup |
+
+The full step-by-step recipe (dataset order, diagnostic signals, and enrichment joins) is captured
+as `combinations.integrationPlaybooks["byoi-conversation-provenance-and-enrichment"]` in
+`catalog/genesys.catalog.json`.
 
 ### BYOI Conversation in Analytics
 
@@ -365,15 +415,26 @@ as native Genesys conversations. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
 - `conversations.get.conversation.recording.metadata` — recordings exist if enabled
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — voice BYOI legs *may* produce a captured SIP
+  trace depending on the ingestion path; a voice conversation with `externalTag` set and no SIP
+  rows is expected for many Open Messaging / non-Edge ingestion paths and is not by itself
+  evidence of a signaling capture gap — confirm with the integration owner before escalating
 
 ### Embeddable Framework Conversations
 
 Conversations visible to agents via the Embeddable Framework return the same object shape as
-`conversations.get.conversation.object`. The condensed view used by the embedded client includes:
-`participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
-`participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+`conversations.get.conversation.object`. The condensed view used by the embedded client is
+understood to include: `participants[].purpose`, `participants[].state`,
+`participants[].calls[].state`, `participants[].calls[].muted`, `participants[].calls[].held`.
+These fields are confirmed present in the full REST object returned by the dataset (verified
+against this repo's cached OpenAPI `Conversation`/`Participant`/`Call` schemas) and need no special
+handling to reproduce for audit purposes. The exact client-side condensed field list could not be
+re-verified against
+[the Embeddable Framework condensed-conversation-info page](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info)
+in this pass — `developer.genesys.cloud` was unreachable from this environment (network policy) —
+so treat the field list above as REST-schema-verified, not widget-doc-verified. The corresponding
+recipe is `combinations.integrationPlaybooks["embeddable-framework-live-conversation-view"]` in
+`catalog/genesys.catalog.json`.
 
 ---
 
@@ -484,6 +545,17 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+### BYOI / Embeddable Framework Integration Datasets (not in the six columns above)
+
+These datasets are consumed by `combinations.integrationPlaybooks` rather than by any of the six
+core investigations directly — they extend the Conversation Deep Dive when a conversation's
+provenance needs to be traced across an integration boundary.
+
+| Dataset Key | Used By | What It Adds |
+|---|---|---|
+| `externalcontacts.get.contact` | `byoi-conversation-provenance-and-enrichment` | External CRM contact for `participants[].externalContactId` |
+| `externalcontacts.get.organization` | `byoi-conversation-provenance-and-enrichment` | External account/organization for `participants[].externalOrganizationId` |
 
 ---
 

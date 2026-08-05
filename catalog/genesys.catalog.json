@@ -1297,6 +1297,279 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations.get.specific.conversation.details": {
+      "description": "Base conversation object — participants, media type, state, ANI/DNIS, and routing history for a single conversation. Referenced by the single-conversation-investigation recipe seed step; same underlying endpoint as conversations.get.conversation.object.",
+      "endpoint": "conversations.get.specific.conversation.details",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.participant.wrapup": {
+      "description": "Wrapup code selected by one participant in a conversation — resolves the per-agent disposition when a call involved multiple agent participants (transfers, conferences, consults).",
+      "endpoint": "conversations.get.conversation.participant.wrapup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.call.detail": {
+      "description": "Full call-leg detail for a voice conversation — hold/mute/transfer events and the DNIS routing path. Deeper than the base conversation object for call-flow reconstruction in single-conversation forensics.",
+      "endpoint": "conversations.get.call.detail",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation": {
+      "description": "Top-level Speech and Text Analytics scores for a conversation — agent/customer sentiment, overtalk count, silence percentage. Single-object response despite the collection-style path.",
+      "endpoint": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.categories": {
+      "description": "Topic and category classifications applied to a conversation by the S&TA engine — matched compliance/topic categories with confidence scores.",
+      "endpoint": "speechandtextanalytics.get.conversation.categories",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "speechandtextanalytics.get.conversation.summaries.detail": {
+      "description": "AI-generated S&TA summaries for each communication leg of a conversation — condensed narrative of what was discussed, useful for rapid QM triage without a full transcript read.",
+      "endpoint": "speechandtextanalytics.get.conversation.summaries.detail",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "conversations.get.conversation.summaries": {
+      "description": "AI-generated conversation summaries (Copilot/Einstein-style summary per communication leg) — distinct from the S&TA summaries endpoint; sourced from the conversations API rather than the S&TA API.",
+      "endpoint": "conversations.get.conversation.summaries",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "conversation-sentiment",
+      "validationStatus": "unvalidated"
+    },
+    "quality.get.conversation.surveys": {
+      "description": "Post-interaction CSAT/NPS survey results scoped to one conversation — conversation-scoped counterpart to the org-wide quality.get.surveys dataset.",
+      "endpoint": "quality.get.conversation.surveys",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.get.sip.message.for.conversation": {
+      "description": "SIP signaling trace for a single voice conversation — INVITE, 200 OK, BYE, re-INVITE, and media-negotiation messages. Same underlying endpoint as telephony.get.sip.messages.for.conversation, added under the operation-id-style key referenced by the single-conversation-investigation recipe.",
+      "endpoint": "telephony.get.sip.message.for.conversation",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-sip",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.agent.management.unit": {
+      "description": "The WFM management unit an agent belongs to — used to locate the agent's schedule, adherence records, and WFM team for agent-investigation WFM extensions.",
+      "endpoint": "workforce.get.agent.management.unit",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "workforce.get.adherence.bulk": {
+      "description": "Bulk schedule adherence for a list of user IDs — scheduled vs. actual routing status with adherence percentage. Feeds WFM adherence reporting and agent-investigation extensions.",
+      "endpoint": "workforce.get.adherence.bulk",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.wrapup.codes": {
+      "description": "Wrapup codes assigned to a single queue — same underlying endpoint as routing.get.queue.wrapup.codes.by.queue, added under the operation-id-style key referenced by the queue-investigation recipe.",
+      "endpoint": "routing.get.queue.wrapup.codes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.members.with.status": {
+      "description": "Members of a single routing queue with live routing status and presence. Same underlying endpoint as routing-queue-members, added under the operation-id-style key referenced by the queue-investigation recipe.",
+      "endpoint": "routing.get.queue.members.with.status",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "queue-investigation-members",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queue.estimated.wait.time": {
+      "description": "Current estimated wait time (EWT) for a queue — real-time caller wait forecast in seconds. High-value single call for queue-saturation and staffing-analysis playbooks; no historical window needed.",
+      "endpoint": "routing.get.queue.estimated.wait.time",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.details.by.queue": {
+      "description": "Conversation details query pre-scoped to a queueId predicate — same POST /analytics/conversations/details/query endpoint as analytics-conversation-details-query, added under the operation-id-style key referenced by the queue-investigation recipe.",
+      "endpoint": "analytics.query.conversation.details.by.queue",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.search.division.objects": {
+      "description": "Objects (queues, etc.) assigned to a division, filtered by objectType — same underlying endpoint as authorization.list.division.queues, added under the operation-id-style key referenced by the division-investigation recipe.",
+      "endpoint": "authorization.search.division.objects",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — subjects (users/roles) and the permissions they hold scoped to this division. Governance/compliance step: answers who can manage this business unit's queues and agents. Used by the division-investigation recipe.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
+      "description": "Conversation aggregates grouped by divisionId — nConnected, tHandle, tTalk, nOffered, nError by division and day. The core KPI rollup source for division-scoped executive reporting; used by the division-investigation recipe.",
+      "endpoint": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.skill.group.member.divisions": {
+      "description": "Divisions assigned as members of a routing skill group — reveals when an entire division's agents are granted a skill group's routing capability in one configuration. The clearest direct evidence that a division functions as a cross-queue agent group, not just an ownership boundary for queues.",
+      "endpoint": "getRoutingSkillgroupMembersDivisions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.queues.by.division": {
+      "description": "Simplified queue objects filterable by divisionId — a direct division-to-queue lookup for division investigations, cheaper than fanning out authorization.search.division.objects and joining full queue configs.",
+      "endpoint": "getRoutingQueuesDivisionviews",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "routing.get.wrapupcodes.by.division": {
+      "description": "Simplified wrapup code objects filterable by divisionId — resolves wrapup-code labels across every queue in a division in one call instead of joining routing.get.queue.wrapup.codes per queue.",
+      "endpoint": "getRoutingWrapupcodesDivisionviews",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

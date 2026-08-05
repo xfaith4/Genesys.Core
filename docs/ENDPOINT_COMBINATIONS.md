@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-05  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Catalog Consistency Sweep & New Division Endpoints (2026-08-05)](#11-catalog-consistency-sweep--new-division-endpoints-2026-08-05)
 
 ---
 
@@ -199,6 +200,32 @@ users.division.analysis.get.users.with.division.info[].id
 - Which agents spent the most time off-queue or in non-productive states?
 - Which agents have been evaluated? Who has the highest/lowest scores?
 - Which agents have received recent coaching? Is coaching correlated with score improvement?
+
+### Divisions Are a First-Class Agent Group, Not Just a Queue-Ownership Tag
+
+Two additional endpoints confirm this concretely rather than by inference:
+
+- **`routing.get.skill.group.member.divisions`** (`GET /api/v2/routing/skillgroups/{skillGroupId}/members/divisions`)
+  — a routing skill group's membership can be defined as *entire divisions*, not
+  only individual users. When a skill group has division members, every agent
+  whose primary division matches gains that skill group's routing capability
+  automatically, across every queue that draws on the skill group — without a
+  per-agent or per-queue configuration step. This is the clearest direct
+  evidence that a division is a cross-queue *agent group*, not merely an
+  object-ownership boundary for queues/campaigns/flows.
+- **`authorization.get.division.grants`** (`GET /api/v2/authorization/divisions/{divisionId}/grants`)
+  — access-control grants scoped to the division: which subjects (users or
+  roles) can manage the division's queues, agents, and objects. This is the
+  governance counterpart to the operational rollup — useful when an
+  investigation needs to answer "who is *allowed* to change this business
+  unit's configuration," not just "how did it perform."
+
+`routing.get.queues.by.division` (`GET /api/v2/routing/queues/divisionviews`)
+and `routing.get.wrapupcodes.by.division` (`GET /api/v2/routing/wrapupcodes/divisionviews`)
+are lighter-weight, division-filterable alternatives to the
+`authorization.search.division.objects` fan-out for the two most common
+per-division lookups (queue roster, wrapup-code labels) — prefer these when a
+division investigation only needs names/IDs rather than full object configs.
 
 ### Division vs Queue as Investigation Entry Point
 
@@ -484,6 +511,58 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `routing.get.skill.group.member.divisions` | | | ● | | | |
+| `routing.get.queues.by.division` | | | ● | | | |
+| `routing.get.wrapupcodes.by.division` | | | ● | | | |
+| `authorization.get.division.grants` | | | ● | | | |
+| `routing.get.queue.estimated.wait.time` | | ● | | | ● | |
+
+---
+
+## 11. Catalog Consistency Sweep & New Division Endpoints (2026-08-05)
+
+Routine review of the catalog against the machine-readable `combinations` block
+(`catalog/genesys.catalog.json → combinations.investigationRecipes` /
+`executiveReportingPlaybooks` / `voiceEngineerPlaybooks`) found that 18 dataset
+keys referenced by recipe steps had no matching entry under `catalog.datasets`.
+Those steps would fail at `Invoke-Dataset` resolution time if a composer ran
+them. All 18 have been added as full dataset entries. Most are aliases of an
+already-curated dataset, added under the literal operation-id-style key the
+recipe step references, so the recipe JSON did not need to change:
+
+| New dataset key | Recipe(s) that reference it | Notes |
+|---|---|---|
+| `conversations.get.specific.conversation.details` | single-conversation-investigation | Same endpoint as `conversations.get.conversation.object` |
+| `conversations.get.conversation.participant.wrapup` | single-conversation-investigation | Per-participant wrapup code (multi-agent calls) |
+| `conversations.get.call.detail` | single-conversation-investigation | Call-leg detail: hold/mute/transfer events |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | single-conversation-investigation | Top-level S&TA scores |
+| `speechandtextanalytics.get.conversation.categories` | single-conversation-investigation | S&TA topic/category classifications |
+| `speechandtextanalytics.get.conversation.summaries.detail` | single-conversation-investigation | AI-generated per-leg S&TA summaries |
+| `conversations.get.conversation.summaries` | single-conversation-investigation | Copilot/Einstein-style summaries (Conversations API, not S&TA) |
+| `quality.get.conversation.surveys` | single-conversation-investigation | Conversation-scoped CSAT/NPS |
+| `telephony.get.sip.message.for.conversation` | single-conversation-investigation | Same endpoint as `telephony.get.sip.messages.for.conversation` |
+| `workforce.get.agent.management.unit` | agent-investigation | WFM management unit lookup for an agent |
+| `workforce.get.adherence.bulk` | agent-investigation | Bulk schedule adherence |
+| `routing.get.queue.wrapup.codes` | queue-investigation | Same endpoint as `routing.get.queue.wrapup.codes.by.queue` |
+| `routing.get.queue.members.with.status` | queue-investigation | Same endpoint as `routing-queue-members` |
+| `routing.get.queue.estimated.wait.time` | queue-investigation, queue-saturation-and-staffing-analysis | Real-time EWT; new, no prior curated dataset |
+| `analytics.query.conversation.details.by.queue` | queue-investigation | Same endpoint as `analytics-conversation-details-query` |
+| `authorization.search.division.objects` | division-investigation | Same endpoint as `authorization.list.division.queues` |
+| `authorization.get.division.grants` | division-investigation | New; division access-control grants |
+| `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` | division-investigation | Division-grouped conversation aggregates — the KPI rollup source |
+
+Separately, three raw catalog endpoints with clear division/agent-group value
+were promoted to curated datasets even though no recipe referenced them yet
+(see the callout in §3 above): `routing.get.skill.group.member.divisions`,
+`routing.get.queues.by.division`, and `routing.get.wrapupcodes.by.division`.
+
+All 21 additions were verified against `catalog/schema/genesys.catalog.schema.json`
+(schema-valid) and cross-checked so every `combinations` recipe step now
+resolves to a real `datasets` entry. `redactionProfile` was set to an existing
+profile (mostly `standard`, or the matching sibling's profile for aliased
+endpoints); none required a new redaction profile definition. All carry
+`validationStatus: unvalidated` pending live `Invoke-Dataset` acceptance, per
+the existing Track A convention.
 
 ---
 

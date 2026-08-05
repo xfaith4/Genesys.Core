@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-08-05
 
 ## 1. Product Intent
 
@@ -96,6 +96,24 @@ the engineering teams that automate against them.
       retained with cross-references to the new investigation; full
       fixture-driven integration test suite under
       `tests/integration/QueueInvestigation.Tests.ps1`.
+- [x] Campaign Investigation flagship: `Get-GenesysCampaignInvestigation`
+      implemented over eight steps (campaign, contactList, queue, diagnostics,
+      outboundEvents, auditChanges, conversationAnalytics, outboundAbandons);
+      documented in `INVESTIGATIONS.md` §4.4; fixture-driven integration test
+      suite under `tests/integration/CampaignInvestigation.Tests.ps1`. This
+      closes the "Outbound Campaign" candidate previously listed under Next.
+- [x] Catalog/combinations consistency sweep (2026-08-05): the machine-readable
+      `combinations` block in `catalog/genesys.catalog.json` (investigation
+      recipes and reporting playbooks) referenced 18 dataset keys with no
+      matching entry under `datasets` — steps that would fail at
+      `Invoke-Dataset` resolution time. All 18 were promoted to full dataset
+      entries (endpoint/itemsPath/paging/retry/redactionProfile), plus three
+      previously-uncurated division endpoints added for the Division
+      investigation candidate below: `routing.get.skill.group.member.divisions`
+      (division-as-skill-group-member membership — direct evidence a division
+      functions as a cross-queue agent group), `routing.get.queues.by.division`,
+      and `routing.get.wrapupcodes.by.division`. Catalog schema-validated
+      clean after the change; see `docs/ENDPOINT_COMBINATIONS.md` §11.
 
 ### Active
 
@@ -107,8 +125,16 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Scope one additional flagship investigation candidate (Division or Flow)
+      with a concrete operator use case and fixture contract. Outbound Campaign
+      shipped — see Completed. Division has a concrete operator use case
+      (cross-queue business-unit rollups; divisions as agent groups via
+      skill-group division membership), a documented composer contract
+      (`combinations.investigationRecipes.division-investigation` in the
+      catalog, and §3 of `docs/ENDPOINT_COMBINATIONS.md`), and every dataset
+      key it needs now resolves — the remaining work is the
+      `Get-GenesysDivisionInvestigation` composer implementation and its
+      fixture-driven test suite, mirroring the Queue/Campaign pattern.
 
 ### Maintenance
 

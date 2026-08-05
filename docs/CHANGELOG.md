@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-05
+
+### Changed
+
+- Catalog/combinations consistency sweep: found 18 dataset keys referenced by
+  `catalog/genesys.catalog.json → combinations` recipe steps (single-conversation,
+  agent, queue, and division investigations) with no matching `catalog.datasets`
+  entry — steps that would fail at `Invoke-Dataset` resolution time. Promoted
+  all 18 to full dataset entries with endpoint/itemsPath/paging/retry/redaction
+  metadata. Catalog re-validated clean against
+  `catalog/schema/genesys.catalog.schema.json`.
+- Added three previously-uncurated division-scoped datasets:
+  `routing.get.skill.group.member.divisions` (skill groups can have entire
+  divisions as members — direct evidence a division functions as a cross-queue
+  agent group), `routing.get.queues.by.division`, and
+  `routing.get.wrapupcodes.by.division`.
+- Updated `docs/ENDPOINT_COMBINATIONS.md` with a new §11 documenting the sweep
+  and a new §3 callout on divisions as agent groups; updated the dataset
+  combination reference matrix.
+- Updated `docs/ROADMAP.md`: logged the previously-unrecorded Campaign
+  Investigation flagship as completed (shipped 2026-05-15, undocumented in the
+  status board until now) and removed it from the "Next" candidate list;
+  noted that the Division investigation candidate's dataset dependencies are
+  now fully resolvable, leaving only the composer implementation.
+
 ## 2026-06-08
 
 ### Changed

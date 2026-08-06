@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-08-06
+
+### Added
+
+- Audited the 111 registered `catalog/genesys.catalog.json` datasets against
+  `docs/ENDPOINT_COMBINATIONS.md` / `docs/INVESTIGATIONS.md` and found 19
+  already-registered datasets with no documented investigation combination
+  (WFM management-unit/business-unit/adherence datasets, `routing.get.skill.groups`,
+  Predictive Engagement / Agent Assist suggestion datasets, Architect flow
+  execution aggregates, per-media-type active-conversation lists, call
+  history, evaluation-form and STA topic label resolution, station
+  registrations, and name/email user search).
+- Added `docs/ENDPOINT_COMBINATIONS.md` §10 — a new Workforce Management
+  Group Investigation pattern (`managementUnitId` subject) documenting WFM
+  management units as a second, independent cross-queue agent-grouping axis
+  alongside Authorization Division, including the join that surfaces
+  division/management-unit roster mismatches.
+- Added `docs/ENDPOINT_COMBINATIONS.md` §11 — a Cross-Cutting Reference &
+  Diagnostics Datasets section documenting label-resolution joins (evaluation
+  forms, STA topics, skill groups, stations, user search, reporting exports,
+  Predictive Engagement action maps) against the investigations they enrich.
+- Extended the Conversation Deep Dive, Real-Time Operations Monitoring, and
+  Executive Reporting Rollup sections with Agent Assist/Predictive Engagement
+  suggestion steps, Architect flow-diagnostics context, per-media-type active
+  conversation drilldown, call-history reconciliation, and QM
+  form/topic label-resolution joins; extended the reference matrix to cover
+  all newly documented datasets and a WFM Group Investigation column.
+- Cross-referenced `docs/INVESTIGATIONS.md` §10 open questions: the
+  "subject-by-name lookups" question already has its resolution dataset
+  registered (`users.search.users.by.name.or.email`, unwired to any cmdlet);
+  the division `4.1` step is noted as Authorization-Division-only, with WFM
+  management units documented separately rather than merged into it.
+
 ## 2026-06-08
 
 ### Changed

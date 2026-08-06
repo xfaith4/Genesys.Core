@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-06  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -25,7 +25,9 @@ when the API is exhausted.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Workforce Management Group Investigation (Management Units)](#10-workforce-management-group-investigation-management-units)
+11. [Cross-Cutting Reference & Diagnostics Datasets](#11-cross-cutting-reference--diagnostics-datasets)
+12. [Dataset Combination Reference Matrix](#12-dataset-combination-reference-matrix)
 
 ---
 
@@ -87,6 +89,11 @@ Step 8 (SIP trace) is the definitive source for:
 The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/providers/edges/{edgeId}/metrics`)
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
+
+When the complaint implicates a specific handset or softphone rather than the trunk or Edge (one-sided
+audio only on one agent's calls, an agent whose calls consistently drop), cross-reference
+`stations.get.stations` for the agent's assigned station — registration status and station type help
+rule the physical/soft endpoint in or out before escalating to a trunk- or Edge-level explanation.
 
 ### BYOI Indicator
 
@@ -208,6 +215,19 @@ users.division.analysis.get.users.with.division.info[].id
 | `divisionId` | Business unit or team scope | All queues + all agents + group performance |
 | `userId` (Agent Investigation) | Specific agent complaint | That agent's conversations + skills + presence |
 
+### Division Is Not the Only Cross-Queue Agent Grouping
+
+An **authorization division** groups queues and agents for permission scoping — it answers *who is
+allowed to see/manage what*. It is not the only axis on which agents are grouped independently of
+the queues they staff. A **WFM management unit** (`workforce.get.management.units`) groups the same
+agents for scheduling and adherence purposes, and its membership frequently does **not** line up
+1:1 with division membership — an agent can be scheduled by one management unit while working
+queues that span several divisions, or a management unit can pull members from queues in more than
+one division. Treat division and management unit as two independent grouping axes over the same
+agent population and cross-reference both before concluding "this team" means one thing. See
+[Section 10](#10-workforce-management-group-investigation-management-units) for the management-unit
+investigation pattern, including the join that surfaces division/management-unit mismatches.
+
 ---
 
 ## 4. Executive Reporting Rollup
@@ -244,8 +264,10 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | Dataset Key | Grouping | Metrics |
 |-------------|----------|---------|
 | `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
+| `quality.get.published.evaluation.forms` | `evaluationForm.id` (label join) | Resolves scores in `quality.get.agents.activity` / `quality.get.evaluations.query` to form/question names instead of raw form GUIDs |
 | `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
 | `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
+| `speechandtextanalytics.get.topics` | `topicId` (label join) | Resolves topic IDs surfaced by STA aggregates to human-readable topic names for a "top customer topics" rollup panel |
 
 #### Layer 5 — Infrastructure Health (optional, voice-focused)
 | Dataset Key | Grouping | Metrics |
@@ -253,6 +275,19 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | `telephony.get.trunk.metrics.summary` | — | SIP trunk utilisation, errors |
 | `telephony.get.edges` | `edgeId` | Edge registration status |
 | `alerting.get.alerts` | — | Currently firing threshold alerts |
+
+#### Layer 6 — Workforce Adherence (optional, WFM-licensed orgs)
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `workforce.get.business.units` | — | Enumerates BUs to fan the rollup out per business unit |
+| `workforce.get.management.unit.adherence` | `managementUnitId`, daily | Org-wide adherence %: scheduled-vs-actual variance, exception minutes |
+
+### Automating Delivery
+
+`analytics.get.reporting.exports` lists the org's configured scheduled export jobs (format,
+recipients, cadence). Cross-reference it before building a bespoke delivery mechanism for this
+rollup — the export may already exist, or the rollup can be registered as a new export using the
+same schedule/recipient pattern rather than inventing a parallel distribution path.
 
 ### Executive Dashboard Composition Pattern
 
@@ -312,6 +347,21 @@ agent availability right now, without waiting for a historical analytics job.
 | 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
 | 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
 | 9 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
+| 10 *(channel drilldown)* | `conversations.get.active.calls` / `.get.active.chats` / `.get.active.emails` / `.get.active.callbacks` | Org or queue | Per-media-type live conversation lists — the individual conversation IDs behind the aggregate counts in steps 1–2 |
+
+### Media-Type Drilldown
+
+Steps 1–2 give aggregate counts (`oInteracting`, `oWaiting`) but not *which* conversations they
+are. When a wall board shows an unusual `oWaiting` spike for a queue, step 10's per-media-type
+active lists (`conversations.get.active.calls`, `.get.active.chats`, `.get.active.emails`,
+`.get.active.callbacks`) give the actual conversation IDs and durations so a supervisor can jump
+straight to the [Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer)
+for the longest-waiting item instead of waiting for an analytics job to populate.
+
+For **after-the-fact** reconciliation (a call that has already ended and needs to be found without
+a known `conversationId`), `conversations.get.call.history` provides a lighter-weight,
+non-analytics-job lookup path scoped to voice — useful when a voice engineer only has a phone
+number and an approximate time and needs to locate the conversation before starting a deep dive.
 
 ### Polling Note
 
@@ -409,10 +459,17 @@ These additional datasets complete the deep-dive picture.
 | customAttributes | `conversations.get.conversation.customattributes` | `conversationId` | IVR/Architect custom attribute payload |
 | participantAttributes | `conversations.search.participant.attributes` | `conversationId` | Participant-level flow variables |
 | transcriptUrl | `speechandtextanalytics.get.conversation.communication.transcripturl` | `communicationId` | Transcript download URL (transcription enabled only) |
+| agentAssist | `conversations.get.conversation.suggestions` | `conversationId` | Agent Assist / Predictive Engagement suggestions offered during the conversation (knowledge articles, response suggestions) |
+| agentAssistDetail | `conversations.get.conversation.suggestion.detail` | `suggestionId` (from `agentAssist`) | Full content, confidence score, and source of a specific suggestion — was it shown, and was it used? |
+| flowDiagnostics | `analytics.query.flow.aggregates.execution.metrics` | `flowId` (from participant/session flow field) + window | Aggregate outcome/failure/milestone counts for the Architect flow the conversation traversed — is this conversation's slow IVR/misroute part of a wider flow problem? |
 
 **Conditional steps:** `sipTrace` runs only when `conversations.get.conversation.object.participants[].calls` is
 non-empty (voice conversation). `sentimentTimeline` runs only when `conversations.get.speech.text.analytics`
-returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
+returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`. `agentAssist`/`agentAssistDetail`
+run only when the org has Agent Assist / Predictive Engagement licensed and the conversation carries a
+`participants[].attributes` entry referencing a suggestion. `flowDiagnostics` is a queue-of-work style
+aggregate (not conversation-scoped) — it complements a single conversation's flow experience with "is this
+typical for this flow" context rather than replacing per-conversation attribute data.
 
 ---
 
@@ -431,59 +488,151 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Workforce Management Group Investigation (Management Units)
+
+**Subject:** One `managementUnitId` (optionally scoped by `businessUnitId`) + time window
+**Use case:** A WFM analyst or operations director needs to know whether a scheduling team is
+adhering to its plan, and whether that team's membership actually lines up with the division/queue
+boundaries used everywhere else in reporting. Management units are WFM's grouping construct — a
+management unit is *also* a group of agents that can span multiple queues, exactly like a division,
+but on an independent axis (scheduling, not permissions).
+
+**Core question:** *Is this scheduling team adhering to plan, and who is actually in it?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `workforce.get.business.units` | seed | Enumerate business units (top-level WFM container) |
+| 2 | `workforce.get.management.units` | `businessUnitId` | Management units within the business unit |
+| 3 | `workforce.get.management.unit.users` | `managementUnitId` | Agent roster (`userId`) scheduled under this management unit |
+| 4 | `workforce.get.management.unit.adherence` | `managementUnitId` | Per-agent scheduled-vs-actual state and variance for the window |
+| 5 | `users.division.analysis.get.users.with.division.info` | `userId` (from step 3) | Division assignment for the same roster — surfaces division/management-unit mismatches |
+| 6 | `analytics.query.conversation.aggregates.agent.performance` | `userId` (from step 3) | Ties adherence variance to actual handle volume/AHT for the same agents |
+
+### Key Joins
+
+```
+workforce.get.business.units.id
+  → workforce.get.management.units.businessUnitId
+
+workforce.get.management.units.id
+  → workforce.get.management.unit.users.managementUnitId
+  → workforce.get.management.unit.adherence.managementUnitId
+
+workforce.get.management.unit.users[].id
+  → users.division.analysis.get.users.with.division.info[].id (left join — surfaces mismatches, not just matches)
+  → analytics.query.conversation.aggregates.agent.performance[].userId
+```
+
+### Analytical Questions Answered
+
+- Which agents are out of adherence right now, and by how much?
+- Does the management-unit roster match the division roster reported elsewhere, or does this team
+  pull members from more than one division/queue?
+- Is a queue's real-time understaffing (Section 5) explained by scheduled agents currently
+  out-of-adherence in their management unit?
+- Did adherence variance correlate with a drop in handled volume or a rise in AHT for the same
+  agents (step 6)?
+
+### Note on Scope
+
+This is a distinct investigation entry point from Section 3 (Authorization Division), not a
+replacement for it. Run both when a "team" needs to be fully characterized — division answers *who
+can see/manage what*, management unit answers *who is scheduled together*. See
+[the cross-referencing note in Section 3](#division-is-not-the-only-cross-queue-agent-grouping)
+for why the two rosters can legitimately disagree.
+
+---
+
+## 11. Cross-Cutting Reference & Diagnostics Datasets
+
+The datasets below are not investigation entry points on their own — they are **label-resolution
+and drilldown joins** that turn raw IDs already returned by the investigations above into
+operator-readable context. Each is a small, single-purpose lookup; combine it with the investigation
+it enriches rather than pulling it standalone.
+
+| Dataset Key | Resolves / Enriches | Join Key | Used By |
+|-------------|---------------------|----------|---------|
+| `quality.get.published.evaluation.forms` | Evaluation form/question names for raw `evaluationForm.id` values | `evaluationForm.id` | Conversation Deep Dive (step 6), Division Investigation (step 7), Executive Rollup Layer 4 |
+| `speechandtextanalytics.get.topics` | Topic names for raw topic IDs surfaced by STA sentiment/aggregate results | `topicId` | Conversation Deep Dive (steps 9–10), Executive Rollup Layer 4 |
+| `routing.get.skill.groups` | Skill-based agent groupings (an alternate cut to division/management-unit — capability rather than schedule or permission) | `skillGroupId` | Division Investigation, Real-Time Operations Monitoring |
+| `stations.get.stations` | Physical/soft-phone device assigned to an agent, registration status | `userId` → assigned station | Conversation Deep Dive Voice Engineer Notes |
+| `users.search.users.by.name.or.email` | Resolves an agent's name or email to `userId` | free-text → `userId` | Entry point resolution for Agent Investigation and any investigation seeded by name rather than GUID (see [`INVESTIGATIONS.md` §10](INVESTIGATIONS.md#10-open-questions) — this dataset is the resolution mechanism the "subject-by-name lookups" open question calls for) |
+| `analytics.get.reporting.exports` | Existing scheduled export jobs — avoid building a parallel delivery mechanism for a new rollup | — | Executive Reporting Rollup |
+| `journey.get.action.maps` | Predictive Engagement trigger/condition definitions referenced by a conversation's originating action map | `actionMapId` | Conversation Deep Dive (BYOI/digital origin context) |
+
+---
+
+## 12. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | WFM Group Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.published.evaluation.forms` | ○ | | ○ | ○ | | | |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `speechandtextanalytics.get.topics` | ○ | | | ○ | | | |
+| `conversations.get.conversation.suggestions` | ○ | | | | | | |
+| `conversations.get.conversation.suggestion.detail` | ○ | | | | | | |
+| `journey.get.action.maps` | ○ | | | | | | |
+| `analytics.query.flow.aggregates.execution.metrics` | ○ | | | | | | |
+| `stations.get.stations` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `routing.get.skill.groups` | | ○ | ○ | | ○ | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | ● |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | ● |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.get.reporting.exports` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `conversations.get.active.calls` / `.get.active.chats` / `.get.active.emails` / `.get.active.callbacks` | | ○ | | | ● | | |
+| `conversations.get.call.history` | ○ | | | | ○ | | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `users.search.users.by.name.or.email` | | | | | | ○ | ○ |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `workforce.get.business.units` | | | | ○ | | | ● |
+| `workforce.get.management.units` | | | | | | | ● |
+| `workforce.get.management.unit.users` | | | | | | | ● |
+| `workforce.get.management.unit.adherence` | | | | ○ | | | ● |
 
 ---
 

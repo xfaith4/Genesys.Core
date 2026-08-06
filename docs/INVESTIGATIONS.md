@@ -335,4 +335,16 @@ No existing cmdlet is renamed or removed by this work.
 - **Subject-by-name lookups.** Operators often know an agent by name, not by
   GUID. Resolution belongs in the Ops cmdlet wrapper (e.g.
   `Get-GenesysAgentInvestigation -UserName 'Jane Doe'`), not in the composer.
-  The composer always takes resolved IDs.
+  The composer always takes resolved IDs. The catalog already carries the
+  dataset this resolution step would call — `users.search.users.by.name.or.email`
+  — but no cmdlet wrapper calls it yet; wiring it in is the concrete next step
+  when this is picked up, not a new dataset registration.
+
+- **WFM management units as a second grouping axis.** Section 4.1's `division`
+  step reflects Authorization Division only. A WFM management unit
+  (`workforce.get.management.units` / `.get.management.unit.users`) groups the
+  same agent population for scheduling/adherence and frequently disagrees with
+  division membership. This is documented as its own investigation pattern in
+  [`ENDPOINT_COMBINATIONS.md` §10](ENDPOINT_COMBINATIONS.md#10-workforce-management-group-investigation-management-units)
+  rather than folded into the Agent investigation's `division` step, since the
+  two rosters can diverge and collapsing them into one field would hide that.

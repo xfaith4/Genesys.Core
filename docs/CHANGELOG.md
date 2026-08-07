@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-08-07
+
+### Added
+
+- **BYOI / Open Messaging catalog coverage:** promoted eleven previously-unwired Open Messaging
+  and External Contacts raw endpoints into curated `catalog/genesys.catalog.json` endpoint
+  aliases (`conversations.messaging.*`, `conversations.get.message.*`,
+  `externalcontacts.associate.conversation`, `externalcontacts.get.contact*`), and six new
+  investigation-facing datasets (`conversations-message-conversation`,
+  `conversations-messaging-open-integration(s)`, `externalcontacts-contact`,
+  `externalcontacts-contact-journey-sessions`, `authorization.get.division.grants`).
+- Added redaction profile `external-contact-identity` (`pii-restrictive`) for the new
+  External Contacts datasets.
+- Added two `combinations.investigationRecipes` entries: `byoi-conversation-provenance`
+  (resolve which Open Messaging integration/provider injected a digital conversation, and its
+  associated CRM identity) and `customer-journey-across-conversations` (surface every
+  conversation belonging to one external customer identity, independent of queue, division, or
+  channel).
+- Documented both as new sections in `docs/ENDPOINT_COMBINATIONS.md` (§11, §12), with an
+  addendum to §6 covering the Open Messaging dataset surface and an updated reference matrix.
+
+### Fixed
+
+- `authorization.get.division.grants` was referenced by the `division-investigation` recipe's
+  `division-grants` step but did not exist as a catalog dataset (only as an endpoint alias) —
+  the step would have failed to resolve at composition time. Added the missing dataset entry
+  under that exact key so the existing recipe now resolves correctly.
+
 ## 2026-06-08
 
 ### Changed

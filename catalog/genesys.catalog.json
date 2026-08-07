@@ -1297,6 +1297,84 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "conversations-message-conversation": {
+      "description": "Message-channel conversation object (digital/BYOI counterpart to conversations.get.conversation.object). Carries the originating Open Messaging integrationId for BYOI-injected conversations.",
+      "endpoint": "conversations.get.message.conversation",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "agent-investigation-conversations",
+      "validationStatus": "unvalidated"
+    },
+    "conversations-messaging-open-integrations": {
+      "description": "All Open Messaging (BYOI) integrations registered for the org \u2014 reference dataset resolving integrationId to provider/channel name.",
+      "endpoint": "conversations.messaging.list.open.integrations",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "conversations-messaging-open-integration": {
+      "description": "Single Open Messaging (BYOI) integration detail \u2014 resolves the integrationId carried on an injected conversation to its provider name and webhook configuration.",
+      "endpoint": "conversations.messaging.get.open.integration",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts-contact": {
+      "description": "External (CRM) contact identity associated with a conversation via externalcontacts.associate.conversation \u2014 name and owning external organization.",
+      "endpoint": "externalcontacts.get.contact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts-contact-journey-sessions": {
+      "description": "All journey sessions for one external contact \u2014 surfaces every conversation and tracked touchpoint belonging to a customer identity, independent of which queue, division, or channel handled it. Core dataset for customer-centric cross-queue investigation.",
+      "endpoint": "externalcontacts.get.contact.journey.sessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access-control grants (subjects and permissions) scoped to a division \u2014 resolves which users/roles can see or act on a division's queues and agents. Used to answer 'who has access to this division's group of queues/agents' in division investigations.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1564,6 +1642,18 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "external-contact-identity": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts-contact and externalcontacts-contact-journey-sessions. Keeps id, name, and externalOrganizationId for investigation joins; strips raw phone/email/address/social-handle arrays and free-text notes.",
+        "removeFields": [
+          "phoneNumbers",
+          "twitterId",
+          "emails",
+          "address",
+          "surveyOptOut",
+          "employerInfo"
         ]
       }
     }
@@ -39593,6 +39683,181 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "conversations.messaging.list.open.integrations": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessagingIntegrationsOpen",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "List Open Messaging (BYOI) integrations registered for the org \u2014 provider name, supported content, and webhook/outbound notification config for each external channel."
+    },
+    "conversations.messaging.get.open.integration": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messaging/integrations/open/{integrationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessagingIntegrationsOpenIntegrationId",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "Get a single Open Messaging (BYOI) integration \u2014 resolves an integrationId (the provider identifier carried on injected conversations) to its configured channel name and outbound notification webhook.",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      }
+    },
+    "conversations.messaging.create.open.integration": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messaging/integrations/open",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postConversationsMessagingIntegrationsOpen",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "Register a new Open Messaging (BYOI) integration \u2014 the provisioning step that must precede any inbound injection call. See https://developer.genesys.cloud/api/digital/openmessaging/."
+    },
+    "conversations.messaging.inject.inbound.open.message": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messages/{integrationId}/inbound/open/message",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postConversationsMessageInboundOpenMessage",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "BYOI conversation-injection entry point for digital channels \u2014 injects an inbound customer message against a registered Open Messaging integration. Starts a new conversation or continues an existing one; requires an OAuth client-credentials token with messaging scope.",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      }
+    },
+    "conversations.messaging.inject.inbound.open.event": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messages/{integrationId}/inbound/open/event",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postConversationsMessageInboundOpenEvent",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "Injects an inbound presence/typing event (e.g. customer-is-typing) against a BYOI message conversation on a registered Open Messaging integration.",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      }
+    },
+    "conversations.messaging.inject.inbound.open.receipt": {
+      "method": "POST",
+      "path": "/api/v2/conversations/messages/{integrationId}/inbound/open/receipt",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postConversationsMessageInboundOpenReceipt",
+      "tags": [
+        "Conversations",
+        "Messaging",
+        "BYOI"
+      ],
+      "summary": "Injects a delivery/read receipt for an outbound agent message on a BYOI message conversation \u2014 closes the loop for external channels that confirm message status asynchronously.",
+      "defaultQueryParams": {
+        "integrationId": "integration-id-goes-here"
+      }
+    },
+    "conversations.get.message.conversation": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messages/{conversationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessage",
+      "tags": [
+        "Conversations",
+        "Messaging"
+      ],
+      "summary": "Get a message-channel conversation object \u2014 the digital/BYOI counterpart to conversations.get.conversation.object for voice. Same participant/session/queue shape; carries the originating integrationId for BYOI-injected conversations.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "conversations.get.message.details": {
+      "method": "GET",
+      "path": "/api/v2/conversations/messages/{messageId}/details",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getConversationsMessageDetails",
+      "tags": [
+        "Conversations",
+        "Messaging"
+      ],
+      "summary": "Get a single message's delivery/content detail by messageId \u2014 used to drill into one exchange within a message conversation.",
+      "defaultQueryParams": {
+        "messageId": "message-id-goes-here"
+      }
+    },
+    "externalcontacts.associate.conversation": {
+      "method": "PUT",
+      "path": "/api/v2/externalcontacts/conversations/{conversationId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "putExternalcontactsConversation",
+      "tags": [
+        "External Contacts",
+        "BYOI"
+      ],
+      "summary": "Associate (or, with externalContactId omitted, disassociate) an external contact with a conversation. This is the join point that lets a BYOI-injected or native conversation carry a CRM/external identity for enrichment.",
+      "defaultQueryParams": {
+        "conversationId": "conversation-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContact",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "Fetch a single external contact by ID \u2014 name, external identifiers, and owning external organization. Resolves the externalContactId surfaced on an associated conversation.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}/journey/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContactJourneySessions",
+      "tags": [
+        "External Contacts",
+        "Journey"
+      ],
+      "summary": "All journey sessions (web, conversation, and other tracked touchpoints) for one external contact \u2014 the identity-centric view that surfaces every conversation belonging to a customer regardless of which queue, division, or channel handled it.",
+      "defaultQueryParams": {
+        "contactId": "contact-id-goes-here"
+      }
     }
   },
   "combinations": {
@@ -40172,6 +40437,107 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "byoi-conversation-provenance": {
+        "description": "Provenance drill-down for a digital/message conversation that carries a non-null externalTag or externalConversationId \u2014 i.e. it was injected via the BYOI Open Messaging integration rather than originating natively in Genesys Cloud. Resolves which external provider/channel injected the conversation and what CRM identity it carries, on top of the standard single-conversation-investigation steps.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "triggerCondition": "conversations.get.conversation.object (or conversations-message-conversation for mediaType=message) returns a non-null externalTag/externalConversationId.",
+        "steps": [
+          {
+            "step": "message-conversation",
+            "dataset": "conversations-message-conversation",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "integrationId, externalTag, externalConversationId, participants",
+            "description": "Digital-channel conversation object; carries the Open Messaging integrationId that performed the injection."
+          },
+          {
+            "step": "integration-identity",
+            "dataset": "conversations-messaging-open-integration",
+            "joinKey": "integrationId",
+            "provides": "provider/channel name, outbound notification webhook config",
+            "description": "Resolves integrationId from the seed step to the human-readable BYOI provider name \u2014 answers 'which external system injected this conversation'."
+          },
+          {
+            "step": "contact-identity",
+            "dataset": "externalcontacts-contact",
+            "joinKey": "externalContactId (from participants[].externalContactId)",
+            "provides": "contact name, externalOrganizationId",
+            "description": "CRM identity associated with the conversation via externalcontacts.associate.conversation, if one was set."
+          },
+          {
+            "step": "recording-and-evaluation",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, mediaType, duration",
+            "description": "BYOI conversations flow through the same recording/QM pipeline as native conversations once injected; confirms whether a recording exists."
+          }
+        ],
+        "voiceEngineerNote": "For voice BYOI, telephony.get.sip.messages.for.conversation reflects the provider's SIP-to-SIP handoff, not an inbound PSTN leg \u2014 do not expect a 200 OK on an INVITE from a carrier trunk; expect it from the provider's SBC/edge instead.",
+        "executiveMetrics": [
+          "byoiConversationCount",
+          "byoiShareOfVolume%",
+          "integrationId (top provider by volume)"
+        ]
+      },
+      "customer-journey-across-conversations": {
+        "description": "Customer-identity-centric investigation: given one external (CRM) contact, surface every conversation that customer has had, regardless of which queue, division, agent, or channel handled it. Complements the queue-centric and division-centric recipes \u2014 those answer 'who handled this group of interactions', this answers 'what has this one customer experienced across every group'.",
+        "subjectParam": "externalContactId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "contact-identity",
+            "dataset": "externalcontacts-contact",
+            "role": "seed",
+            "joinKey": "contactId",
+            "provides": "name, externalOrganizationId",
+            "description": "Resolve the external contact's identity and owning organization."
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts-contact-journey-sessions",
+            "joinKey": "contactId",
+            "provides": "sessionId, channel, conversationId list, first/last-seen timestamps",
+            "description": "Every tracked touchpoint for this contact \u2014 the cross-queue, cross-division, cross-channel index of all conversations belonging to this one customer."
+          },
+          {
+            "step": "conversation-detail",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "conversationId list from journey-sessions",
+            "joinKey": "conversationId",
+            "provides": "queueId, userId, mediaType, tHandle, wrapUpCode per conversation",
+            "description": "Full participant/segment detail for each conversation the journey surfaced \u2014 reveals which queues and agents this customer has actually touched over time."
+          },
+          {
+            "step": "queues-and-divisions-touched",
+            "dataset": "(derived)",
+            "joinKey": "queueId -> routing.get.single.queue.config.divisionId",
+            "provides": "distinct queueId set, distinct divisionId set",
+            "description": "Deduplicate queueId and divisionId across conversation-detail rows to answer 'how many different groups (queues and divisions) has this customer been routed through' \u2014 a high signal for escalation/hand-off pattern analysis."
+          },
+          {
+            "step": "evaluations-and-surveys",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId list from journey-sessions",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, csatScore per touched conversation",
+            "description": "Quality and satisfaction trend across the full customer relationship, not just one interaction."
+          }
+        ],
+        "analyticalQuestions": [
+          "How many times has this customer contacted us, and over what time span?",
+          "Did this customer get routed to the same queue/division repeatedly, or bounced across several?",
+          "Is satisfaction trending up or down across the relationship, not just the latest contact?",
+          "Was this customer ever handled via a BYOI/external channel, and does that correlate with lower CSAT?"
+        ],
+        "executiveMetrics": [
+          "distinctConversationCount",
+          "distinctQueueCount",
+          "distinctDivisionCount",
+          "csatTrend",
+          "repeatContactRate%"
         ]
       }
     },

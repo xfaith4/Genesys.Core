@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-07 (added §11 BYOI Conversation Provenance and §12 Customer Journey Across Conversations; see [CHANGELOG.md](CHANGELOG.md))  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,8 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [BYOI Conversation Provenance (Open Messaging)](#11-byoi-conversation-provenance-open-messaging)
+12. [Customer Journey Across Conversations](#12-customer-journey-across-conversations)
 
 ---
 
@@ -375,6 +377,25 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
 full object returned by the dataset and need no special handling.
 
+### Digital/Message BYOI: Open Messaging
+
+Digital-channel BYOI (chat, SMS, social, custom messaging platforms) is injected through the
+**Open Messaging** integration surface, not the voice `conversations/calls` path. The relevant
+datasets — newly cataloged — are:
+
+| Dataset Key | Endpoint | Purpose |
+|-------------|----------|---------|
+| `conversations-messaging-open-integrations` | `GET /api/v2/conversations/messaging/integrations/open` | List all registered BYOI channel integrations for the org |
+| `conversations-messaging-open-integration` | `GET /api/v2/conversations/messaging/integrations/open/{integrationId}` | Resolve one `integrationId` to its provider/channel name |
+| `conversations-message-conversation` | `GET /api/v2/conversations/messages/{conversationId}` | Message-channel conversation object — the digital counterpart to `conversations.get.conversation.object` |
+
+Injection itself is a write path (`conversations.messaging.inject.inbound.open.message/event/receipt`,
+`POST /api/v2/conversations/messages/{integrationId}/inbound/open/*`) and is out of scope for
+read-only investigations, but every BYOI-injected digital conversation carries the `integrationId`
+that produced it — join it back to `conversations-messaging-open-integration` to answer "which
+external system originated this conversation?" See [§11](#11-byoi-conversation-provenance-open-messaging)
+for the full provenance recipe.
+
 ---
 
 ## 7. Agent Investigation Extensions (Release 1.3)
@@ -484,6 +505,108 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `conversations-message-conversation` | ○ | | | | | |
+| `conversations-messaging-open-integration` | ○ | | | | | |
+| `externalcontacts-contact` | ○ | | | ○ | | |
+| `externalcontacts-contact-journey-sessions` | | | | ○ | | |
+| `authorization.get.division.grants` | | | ● | | | |
+
+---
+
+## 11. BYOI Conversation Provenance (Open Messaging)
+
+**Subject:** One `conversationId` for a digital/message conversation carrying a non-null
+`externalTag` or `externalConversationId`
+**Use case:** A digital-channel investigation needs to know which external system or partner
+platform injected a conversation via BYOI's Open Messaging integration, and what CRM identity
+it was tied to. This is the digital-channel counterpart to [§6](#6-byoi-external-conversation-enrichment),
+using the concrete Open Messaging endpoints added to the catalog rather than the generic BYOI
+description.
+
+**Core question:** *Which external system originated this conversation, and what customer identity does it carry?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations-message-conversation` | seed → `conversationId` | Participants, `integrationId`, `externalTag`, `externalConversationId` |
+| 2 | `conversations-messaging-open-integration` | `integrationId` | Human-readable provider/channel name and webhook config for the integration that injected the conversation |
+| 3 | `externalcontacts-contact` | `externalContactId` (from participant) | CRM identity associated with the conversation, if `externalcontacts.associate.conversation` was called during/after injection |
+| 4 | `conversations.get.conversation.recording.metadata` | `conversationId` | Recording metadata — BYOI conversations flow through the same recording pipeline once injected |
+
+### Key Joins
+
+```
+conversations-message-conversation.conversationId
+  → conversations-messaging-open-integration.integrationId (provider resolution)
+  → externalcontacts-contact.externalContactId (left join — association is optional)
+```
+
+### Analytical Questions Answered
+
+- Which BYOI/Open Messaging integration (partner platform) originated this conversation?
+- Was a CRM identity attached to this conversation, and via which external organization?
+- What share of total conversation volume is BYOI-injected vs. native, by provider?
+
+### Voice Engineer Note
+
+For voice BYOI specifically (not covered by Open Messaging — voice BYOI arrives as a native
+`conversations/calls` object with `externalTag` set), the SIP trace
+(`telephony.get.sip.messages.for.conversation`) reflects the provider's SIP-to-SIP handoff. Do
+not expect a 200 OK on the INVITE from a PSTN carrier trunk — expect it from the provider's SBC
+or edge appliance instead. See [§1](#1-single-conversation-deep-dive-voice-engineer) step 8 for
+the full SIP forensics pattern.
+
+---
+
+## 12. Customer Journey Across Conversations
+
+**Subject:** One `externalContactId` (a CRM/external customer identity)
+**Use case:** A supervisor, CX analyst, or escalation handler needs the full picture of one
+customer's relationship with the contact centre — not one conversation, one queue, or one
+agent, but every interaction that customer has had, however it was routed. This is the
+customer-identity-centric complement to the queue-centric ([§2](#2-all-conversations-in-a-queue))
+and division-centric ([§3](#3-division--agent-group-investigation)) investigations: those answer
+"who handled this group of interactions," this answers "what has this one customer experienced
+across every group."
+
+**Core question:** *What has this customer's full relationship with us looked like, across every queue and division that ever touched it?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts-contact` | seed → `contactId` | Customer identity, owning `externalOrganizationId` |
+| 2 | `externalcontacts-contact-journey-sessions` | `contactId` | Every tracked touchpoint for this contact — the cross-queue, cross-division, cross-channel index of conversations belonging to this customer |
+| 3 | `analytics-conversation-details-query` | `conversationId` list (from step 2) | Full participant/segment detail for every conversation the journey surfaced: `queueId`, `userId`, `mediaType`, `tHandle`, `wrapUpCode` |
+| 4 *(derived)* | `routing.get.single.queue.config` per distinct `queueId` | `queueId` | `divisionId` — dedupe to the distinct set of divisions this customer's conversations were routed through |
+| 5 | `quality.get.evaluations.query` | `conversationId` list | Evaluation and CSAT trend across the full relationship, not just the latest contact |
+
+### Key Joins
+
+```
+externalcontacts-contact.id
+  → externalcontacts-contact-journey-sessions.contactId
+  → externalcontacts-contact-journey-sessions[].conversationId (list)
+      → analytics-conversation-details-query[].conversationId
+          → routing.get.single.queue.config.divisionId (dedupe → distinct division set)
+      → quality.get.evaluations.query[].conversationId (left join)
+```
+
+### Analytical Questions Answered
+
+- How many times has this customer contacted us, and over what time span?
+- Did this customer get routed to the same queue/division repeatedly, or bounced across several — a signal of misrouting or an unresolved issue?
+- Is satisfaction trending up or down across the whole relationship, not just the latest contact?
+- Was this customer ever handled via a BYOI/external channel, and does that correlate with lower CSAT?
+
+### Why This Combination Matters
+
+Divisions and queues are natural *groups of agents*; this recipe treats a customer identity as
+the organizing subject instead, and shows every group that customer has passed through. A
+customer bounced across three divisions in one week is a materially different story than three
+customers each contacting one division once — and that pattern is invisible to any queue- or
+division-scoped investigation on its own.
 
 ---
 

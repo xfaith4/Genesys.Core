@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-08-08
+
+### Fixed
+
+- Repaired 19 broken dataset references inside `catalog/genesys.catalog.json`
+  → `combinations` (investigation recipes and executive/voice-engineer
+  playbooks referenced raw endpoint operation IDs or a stray dated key —
+  `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8` —
+  that were never registered in `datasets`, so the investigation composer
+  contract in `docs/INVESTIGATIONS.md` would have failed to resolve them at
+  run time). Eight were corrected to point at the already-registered
+  canonical dataset alias; eleven were newly registered as datasets, wrapping
+  real endpoints (`conversations.get.call.detail`,
+  `conversations.get.conversation.participant.wrapup`,
+  `conversations.get.conversation.summaries`, `quality.get.conversation.surveys`,
+  `routing.get.queue.estimated.wait.time`,
+  `speechandtextanalytics.get.conversation.categories`,
+  `speechandtextanalytics.get.conversation.summaries.detail`,
+  `authorization.get.division.grants`, `workforce.get.adherence.bulk`,
+  `workforce.get.agent.management.unit`, and a cleanly-named
+  `analytics.query.conversation.aggregates.by.division`). Removed a resulting
+  duplicate entry in the `speech-text-analytics-sentiment-trends` playbook's
+  `datasetsInOrder`. All 72 dataset references inside `combinations` now
+  resolve against `datasets`, and the catalog re-validates against
+  `catalog/schema/genesys.catalog.schema.json`.
+- Corrected `docs/ENDPOINT_COMBINATIONS.md` Section 6 (BYOI External
+  Conversation Enrichment): the previously documented voice-injection
+  endpoint (`POST /api/v2/conversations/providers/{providerId}/calls`) and
+  the `externalConversationId` field do not appear in the cached Genesys
+  Cloud OpenAPI spec (`GenesysCloudAPIEndpoints.json`) checked into this
+  repo, and outbound access to `developer.genesys.cloud` was blocked from
+  this environment so it could not be re-verified against live docs either.
+  The section now flags that path as unconfirmed and documents only the
+  fields/endpoints that are actually present in the cached spec
+  (`Conversation.externalTag`, `Participant.externalContactId` /
+  `externalOrganizationId`, and the `conversations.messaging.integrations.open`
+  / `postConversationsMessageInboundOpenMessage` endpoints for digital BYOI).
+
+### Added
+
+- Added `externalcontacts.get.contact`, `externalcontacts.get.contact.notes`,
+  `externalcontacts.get.contact.journey.sessions`,
+  `externalcontacts.get.contact.journey.segments`,
+  `externalcontacts.get.organization`, and
+  `conversations.get.messaging.open.integration` datasets to
+  `catalog/genesys.catalog.json`, wrapping real External Contacts / Open
+  Messaging endpoints confirmed against the cached OpenAPI spec.
+- Added a new investigation recipe,
+  `combinations.investigationRecipes["external-contact-and-journey-enrichment"]`,
+  joining a conversation's `externalContactId` / `externalOrganizationId` /
+  `integrationId` (read from participant fields, no extra call) to CRM
+  contact identity, case notes, customer-journey sessions/segments, B2B
+  organization context, and — for digital conversations — the originating
+  BYOI/Open Messaging integration. Documented as
+  `docs/ENDPOINT_COMBINATIONS.md` Section 11, including which parts of the
+  recipe are verified against the cached spec and which are conditional
+  no-ops when the relevant ID is null.
+
 ## 2026-06-08
 
 ### Changed

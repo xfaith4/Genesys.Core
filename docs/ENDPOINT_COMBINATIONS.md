@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-08  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [External Contact & Customer Journey Enrichment](#11-external-contact--customer-journey-enrichment)
 
 ---
 
@@ -327,29 +328,62 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ## 6. BYOI External Conversation Enrichment
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that originated outside native Genesys Cloud routing  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider, or a digital bot/brand channel) and was surfaced inside Genesys
+Cloud. The conversation appears in Genesys analytics and recordings, but context lives in the
+external system.
+
+> **Verification note (2026-08-08):** An earlier revision of this document cited
+> `POST /api/v2/conversations/providers/{providerId}/calls` as the BYOI voice-injection endpoint.
+> That path does **not** appear in the cached Genesys Cloud OpenAPI spec checked into this repo
+> (`GenesysCloudAPIEndpoints.json`), and outbound access to `developer.genesys.cloud` was blocked
+> from this environment, so it could not be re-verified against current documentation either.
+> Treat that specific path as **unconfirmed** until validated against a live tenant or current
+> Genesys docs. What *is* confirmed against the cached spec:
+> - `Conversation.externalTag` is a real, documented field on the Conversation object — the
+>   reliable, catalog-verified signal that a conversation did not originate through native
+>   Genesys Cloud routing.
+> - `externalConversationId` is **not** a documented field on `Conversation` in the cached spec —
+>   do not rely on it as a join key without confirming it against a live response first.
+> - For **digital** BYOI (Open Messaging), the real, catalog-confirmed endpoint family is
+>   `conversations.messaging.integrations.open` (`GET/POST /api/v2/conversations/messaging/integrations/open`,
+>   `GET/PATCH/DELETE /api/v2/conversations/messaging/integrations/open/{integrationId}`) for
+>   integration/brand identity, and `postConversationsMessageInboundOpenMessage`
+>   (`POST /api/v2/conversations/messages/{integrationId}/inbound/open/message`) for the inbound
+>   injection call itself. See [Section 11](#11-external-contact--customer-journey-enrichment) for
+>   the CRM/journey-side enrichment recipe, which is wired into `catalog/genesys.catalog.json`.
+> - For **voice** BYOI/BYOC, the closest verified surface in this catalog is the
+>   `telephony.get.trunk.metrics.summary` / `telephony/providers/edges/trunks` family — this is
+>   Bring Your Own Carrier trunk configuration, not a generic conversation-injection endpoint, and
+>   should not be conflated with it.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
 ### How to Identify a BYOI Conversation
 
-In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
+In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns a
+`Conversation` object. The confirmed field for BYOI/external-origin detection is:
 
 ```json
 {
   "externalTag": "<your-provider-set-tag>",
-  "externalConversationId": "<provider-conversation-id>",
   "participants": [
-    { "purpose": "external", "externalContactId": "..." }
+    {
+      "purpose": "external",
+      "externalContactId": "...",
+      "externalOrganizationId": "...",
+      "externalContactInitialDivisionId": "..."
+    }
   ]
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` on the conversation, or a non-null `externalContactId` /
+`externalOrganizationId` on a participant, is the catalog-confirmed BYOI/external-origin
+indicator. Use `externalContactId` and `externalOrganizationId` as join keys into the
+[External Contact & Customer Journey Enrichment](#11-external-contact--customer-journey-enrichment)
+recipe.
 
 ### Additional Steps for BYOI Conversations
 
@@ -484,6 +518,75 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+> The six `externalcontacts.*` and `conversations.get.messaging.open.integration` datasets used by
+> the External Contact & Customer Journey Enrichment recipe are omitted from this matrix — they are
+> optional, conditional-on-null-check steps rather than a core column of any of the six investigation
+> types above. See their own reference table in [Section 11](#11-external-contact--customer-journey-enrichment).
+
+---
+
+## 11. External Contact & Customer Journey Enrichment
+
+**Subject:** One `conversationId` already resolved by [Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer)
+or [Agent Investigation](#3-division--agent-group-investigation)  
+**Use case:** A conversation carries a link to a CRM-style External Contact (native Genesys Cloud
+Contacts feature, distinct from Outbound dialer contacts) — this is populated for BYOI/externally
+provided conversations and for native conversations where an agent or Architect flow associated a
+contact. A supervisor or analyst wants to know who this customer is in the CRM, what happened with
+them before this conversation, and — for digital conversations — which BYOI/Open Messaging
+integration originated the message.
+
+**Core question:** *Who is this customer, and what context do we already have about them?*
+
+This recipe is registered in `catalog/genesys.catalog.json` under
+`combinations.investigationRecipes["external-contact-and-journey-enrichment"]` — it is a real,
+schema-validated recipe consumable by the investigation composer, not documentation-only.
+
+### Dataset Steps (ordered, all conditional)
+
+| Step | Dataset Key | Join Key | What It Adds | Skip Condition |
+|------|-------------|----------|---------------|-----------------|
+| 1 | `(derived)` | seed → `conversationId` | `externalContactId`, `externalOrganizationId`, `integrationId` read from participant fields already returned by step 1 of the base investigation | never — always attempt, it's free |
+| 2 | `externalcontacts.get.contact` | `externalContactId` | Contact name, title, custom schema fields | `externalContactId` is null |
+| 3 | `externalcontacts.get.contact.notes` | `externalContactId` | Case notes from prior interactions, any channel | `externalContactId` is null |
+| 4 | `externalcontacts.get.contact.journey.sessions` | `externalContactId` | Cross-channel activity timeline before this conversation | `externalContactId` is null |
+| 5 | `externalcontacts.get.contact.journey.segments` | `externalContactId` | Marketing/behavioral segment membership | `externalContactId` is null |
+| 6 | `externalcontacts.get.organization` | `externalOrganizationId` | Company/account record for B2B context | `externalOrganizationId` is null |
+| 7 | `conversations.get.messaging.open.integration` | `integrationId` | Which BYOI/Open Messaging brand or bot platform this digital conversation came through | `mediaType != "message"` or `integrationId` is null |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.participants[].externalContactId
+  → externalcontacts.get.contact.id
+      → externalcontacts.get.contact.notes[].contactId
+      → externalcontacts.get.contact.journey.sessions[].contactId
+      → externalcontacts.get.contact.journey.segments[].contactId
+
+externalcontacts.get.contact.externalOrganizationId
+  → externalcontacts.get.organization.id
+
+conversations.get.conversation.object.participants[].messageDetails.integrationId
+  → conversations.get.messaging.open.integration.integrationId
+```
+
+### Analytical Questions Answered
+
+- Is this customer a known CRM contact, or a first-time/anonymous interaction?
+- What did this customer do across channels before this conversation started?
+- Has this customer contacted us before, and what was recorded about them?
+- Is this a B2B interaction, and which account does it belong to?
+- For a digital/message conversation, which BYOI integration or brand originated it?
+
+### Verified vs. Unverified
+
+Every dataset in this recipe resolves to an operation present in the cached Genesys Cloud OpenAPI
+spec (`GenesysCloudAPIEndpoints.json`, tag `External Contacts` / `Conversations`) and is registered
+in `catalog/genesys.catalog.json → datasets`. The `Participant.externalContactId`,
+`externalOrganizationId`, and `externalContactInitialDivisionId` fields are confirmed against the
+`Participant` schema definition in that same spec. This closes the gap left by the BYOI section
+above, where the voice-injection endpoint could not be verified — everything in this section could.
 
 ---
 

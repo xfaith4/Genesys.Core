@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-08-09
+
+### Fixed
+
+- Audited `catalog/genesys.catalog.json`'s `combinations` block (investigation
+  recipes and executive/voice-engineer playbooks) against the curated
+  `datasets` map and found 19 dataset references that did not resolve —
+  8 were aliasing bugs where a recipe step referenced a raw `endpoints` key
+  or a duplicate/renamed key instead of the promoted `datasets` key
+  (`conversations.get.specific.conversation.details` →
+  `conversations.get.conversation.object`, `telephony.get.sip.message.for.conversation`
+  (singular) → `telephony.get.sip.messages.for.conversation`,
+  `routing.get.queue.wrapup.codes` → `routing.get.queue.wrapup.codes.by.queue`,
+  `routing.get.queue.members.with.status` → `routing-queue-members`,
+  `authorization.search.division.objects` → `authorization.list.division.queues`,
+  `analytics.query.conversation.details.by.queue` → `analytics-conversation-details-query`,
+  a duplicate `analytics.query.conversation.transcripts` entry removed in
+  favor of the already-present `analytics.post.transcripts.aggregates.query`).
+- Fixed the `division-investigation` recipe's seed step, which was pulling
+  `authorization.get.all.divisions` (every division in the org) instead of
+  the single-division-scoped `authorization.get.single.division` dataset.
+
+### Added
+
+- Promoted 12 previously-uncurated endpoints from the raw `endpoints` catalog
+  into first-class `datasets` entries (paging/retry profile assigned,
+  schema-validated) to close the remaining reference gaps and add real
+  investigative value: `workforce.get.adherence.bulk`,
+  `quality.get.conversation.surveys`, `conversations.get.call.detail`,
+  `conversations.get.conversation.participant.wrapup`,
+  `workforce.get.agent.management.unit`, `authorization.get.division.grants`,
+  `speechandtextanalytics.get.conversation.summaries.detail`,
+  `speechandtextanalytics.get.conversation.categories`,
+  `routing.get.queue.estimated.wait.time`,
+  `conversations.get.conversation.summaries`, a newly-named
+  `analytics.query.conversation.aggregates.division.performance` (wrapping a
+  malformed-name aggregates-by-division endpoint entry and correcting its
+  `itemsPath` to `$.results` to match its sibling aggregates-query datasets),
+  and `users.get.agent.autoanswer.settings` (authoritative per-agent
+  auto-answer confirmation for the `agent-not-responding-autoanswer`
+  playbook, previously flagged in that recipe as "endpoint only, not yet a
+  dataset").
+- Documented the audit and the new high-value endpoint combinations in
+  `docs/ENDPOINT_COMBINATIONS.md`.
+- Verified the patched catalog against `catalog/schema/genesys.catalog.schema.json`
+  (`jsonschema` validation passed) after the edits.
+
 ## 2026-06-08
 
 ### Changed

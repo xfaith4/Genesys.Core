@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-09  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Catalog Audit — 2026-08-09](#11-catalog-audit--2026-08-09)
 
 ---
 
@@ -514,3 +515,54 @@ The matrix below shows which datasets are used across which investigations and r
 *All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*  
 *All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*  
 *Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
+
+---
+
+## 11. Catalog Audit — 2026-08-09
+
+The `catalog/genesys.catalog.json` file carries a machine-consumed `combinations` block
+(`investigationRecipes`, `executiveReportingPlaybooks`, `voiceEngineerPlaybooks`) that mirrors —
+and is more granular than — the recipes documented above. This audit cross-checked every
+`dataset` / `datasetsInOrder` reference in that block against the curated `datasets` map and
+found two classes of gap, both now closed.
+
+### Aliasing bugs fixed (recipe pointed at the wrong existing key)
+
+| Recipe step referenced | Corrected to | Why |
+|---|---|---|
+| `conversations.get.specific.conversation.details` | `conversations.get.conversation.object` | Recipe used the raw endpoint key; the promoted dataset key is `conversations.get.conversation.object` |
+| `telephony.get.sip.message.for.conversation` (singular) | `telephony.get.sip.messages.for.conversation` | Endpoint-key vs. dataset-key mismatch |
+| `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | `conversations.get.speech.text.analytics` | Endpoint-key vs. dataset-key mismatch |
+| `routing.get.queue.wrapup.codes` | `routing.get.queue.wrapup.codes.by.queue` | Endpoint-key vs. dataset-key mismatch |
+| `routing.get.queue.members.with.status` | `routing-queue-members` | Endpoint-key vs. dataset-key mismatch |
+| `authorization.search.division.objects` | `authorization.list.division.queues` | Endpoint-key vs. dataset-key mismatch |
+| `analytics.query.conversation.details.by.queue` | `analytics-conversation-details-query` | Duplicate raw endpoint entry for the same `POST /analytics/conversations/details/query` call |
+| `analytics.query.conversation.transcripts` (duplicate list entry) | removed — `analytics.post.transcripts.aggregates.query` already covers it | Duplicate raw endpoint entry for the same `POST /analytics/transcripts/aggregates/query` call |
+| `authorization.get.all.divisions` as the `division-investigation` seed | `authorization.get.single.division` | The seed step is scoped to one `divisionId`; the "all divisions" list dataset was wired in by mistake |
+
+### New datasets promoted (endpoint existed in the raw catalog but had no curated `datasets` entry)
+
+These are genuinely new, high-value additions — not renames — each with a paging/retry profile
+assigned and schema-validated:
+
+| Dataset key | Endpoint | Adds to |
+|---|---|---|
+| `conversations.get.conversation.participant.wrapup` | `GET /conversations/{conversationId}/participants/{participantId}/wrapup` | Single Conversation Deep Dive — wrapup code per agent participant, independent of the aggregate wrapup-distribution query |
+| `conversations.get.call.detail` | `GET /conversations/calls/{conversationId}` | Single Conversation Deep Dive — call legs, hold/mute/transfer events, DNIS routing path |
+| `conversations.get.conversation.summaries` | `GET /conversations/{conversationId}/summaries` | Single Conversation Deep Dive — Copilot/Agent Assist AI summary (reason for contact, resolution) |
+| `speechandtextanalytics.get.conversation.categories` | `GET /speechandtextanalytics/conversations/{conversationId}/categories` | Single Conversation Deep Dive — topic/category classification from the S&TA engine |
+| `speechandtextanalytics.get.conversation.summaries.detail` | `GET /speechandtextanalytics/conversations/{conversationId}/summaries` | Single Conversation Deep Dive — per-communication-leg AI summary text |
+| `quality.get.conversation.surveys` | `GET /quality/conversations/{conversationId}/surveys` | Single Conversation Deep Dive — CSAT/NPS scoped to one conversation, vs. the org-wide survey list |
+| `routing.get.queue.estimated.wait.time` | `GET /routing/queues/{queueId}/estimatedwaittime` | Queue Investigation / Real-Time Operations Monitoring — live EWT to compare against SLA target |
+| `authorization.get.division.grants` | `GET /authorization/divisions/{divisionId}/grants` | Division / Agent Group Investigation — who has what access grant in the division |
+| `workforce.get.agent.management.unit` | `GET /workforcemanagement/agents/{agentId}/managementunit` | Agent Investigation — links an agent to their WFM team, the join key needed for adherence lookups |
+| `workforce.get.adherence.bulk` | `GET /workforcemanagement/adherence` | Agent Investigation / Executive Rollup — scheduled-vs-actual adherence per agent |
+| `analytics.query.conversation.aggregates.division.performance` | `POST /analytics/conversations/aggregates/query` (grouped by `divisionId`) | Division / Agent Group Investigation — division-level KPI rollup (the raw endpoint entry this wraps had a malformed name and an incorrect `itemsPath`, corrected to `$.results` to match its sibling aggregate-query datasets) |
+| `users.get.agent.autoanswer.settings` | `GET /users/agentui/agents/autoanswer/{agentId}/settings` | Agent Investigation (`agent-not-responding-autoanswer` playbook) — authoritative confirmation of an agent's ACD auto-answer setting, independent of the derived `acdAutoAnswer` field on the user record |
+
+### Validation
+
+The patched catalog was re-validated against `catalog/schema/genesys.catalog.schema.json`
+(`jsonschema` in Python; the repo's native check is `tests/unit/CatalogSchema.Tests.ps1` via
+`Assert-Catalog`) and every `dataset` / `datasetsInOrder` reference inside `combinations` was
+re-walked to confirm it now resolves to a real `datasets` key.

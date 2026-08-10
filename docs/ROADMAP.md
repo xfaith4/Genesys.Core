@@ -27,6 +27,17 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Customer journey enrichment combination (2026-08-10): added
+      `externalcontacts.get.contact.journey.sessions`,
+      `externalcontacts.get.contact.journey.segments`, and
+      `analytics.query.journey.aggregates` datasets to the catalog; wired
+      optional `journey-sessions`/`journey-segments` steps (joined on
+      `externalContactId`) into the single-conversation-investigation recipe
+      and a new `digital-journey-to-conversation-funnel` executive playbook.
+      Reconciled `docs/ENDPOINT_COMBINATIONS.md` §1 with the catalog's
+      existing `ai-summaries` step (already present in
+      `combinations.investigationRecipes` but undocumented) and added §10
+      Customer Journey Enrichment plus reference-matrix rows.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

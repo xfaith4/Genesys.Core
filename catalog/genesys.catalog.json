@@ -1070,6 +1070,42 @@
       },
       "validationStatus": "unvalidated"
     },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Digital journey sessions (web/app visits) for the external contact tied to a conversation participant \u2014 pre-interaction context for why the customer reached out.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "description": "Journey segment assignments for the external contact tied to a conversation participant \u2014 marketing/behavioral segments active at the time of the interaction.",
+      "endpoint": "getExternalcontactsContactJourneySegments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.journey.aggregates": {
+      "description": "Aggregate customer-journey metrics (session/segment/outcome counts) \u2014 executive-level journey-to-conversation funnel input, e.g. web session \u2192 chat/call \u2192 conversion.",
+      "endpoint": "postAnalyticsJourneysAggregatesQuery",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
     "conversations.search.customattributes": {
       "description": "Bulk custom attribute search across conversations \u2014 use for multi-conversation enrichment.",
       "endpoint": "postConversationsCustomattributesSearch",
@@ -39681,6 +39717,24 @@
             "description": "Copilot/Agent Assist AI summaries \u2014 reason for contact and resolution notes"
           },
           {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "externalContactId (from conversation-base participants[].externalContactId)",
+            "optional": true,
+            "condition": "conversation-base participant has a non-null externalContactId (tracked web/app visitor or BYOI-linked contact)",
+            "provides": "pageViews, channel, device, referrer, sessionStart/End for the digital journey leading up to this interaction",
+            "description": "Pre-interaction digital journey \u2014 answers 'what was the customer doing before they reached out' (cart abandonment, repeated page views, failed self-service)"
+          },
+          {
+            "step": "journey-segments",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "joinKey": "externalContactId",
+            "optional": true,
+            "condition": "same externalContactId as journey-sessions",
+            "provides": "segment membership (e.g. high-value, at-risk, campaign-targeted) active at contact time",
+            "description": "Marketing/behavioural segment context \u2014 useful for prioritisation and for explaining why a customer received a particular treatment"
+          },
+          {
             "step": "evaluation",
             "dataset": "quality.get.evaluations.query",
             "filterBy": "conversationId",
@@ -40316,6 +40370,27 @@
           "mediaTypeMix% (voice vs. digital)"
         ],
         "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+      },
+      "digital-journey-to-conversation-funnel": {
+        "description": "Customer digital journey outcomes — what fraction of tracked web/app sessions convert into a live interaction (call/chat/message), and what segment those customers belonged to. Complements digital-channel-volume-and-sla with pre-interaction context instead of interaction-only volume.",
+        "datasetsInOrder": [
+          "analytics.query.journey.aggregates",
+          "analytics.query.conversation.aggregates.digital.channels"
+        ],
+        "joinOn": "outcomeId / segmentId (journey aggregates) correlated to mediaType volume by reporting window",
+        "groupBy": [
+          "outcomeId",
+          "segmentId",
+          "mediaType"
+        ],
+        "outputMetrics": [
+          "sessionCount (tracked digital sessions in window)",
+          "conversionToInteractionRate% = interactions started from tracked sessions / sessionCount",
+          "segmentMix% (share of interactions from each behavioural segment)",
+          "topReferrer / topOutcome driving contact volume"
+        ],
+        "executivePresentation": "Funnel chart: digital session → self-service attempt → live interaction; segment breakdown table",
+        "notes": "Requires Genesys Journey Management / Predictive Engagement licensing. Per-conversation drill-in uses the journey-sessions and journey-segments steps in single-conversation-investigation (externalContactId join)."
       },
       "wfm-adherence-and-occupancy": {
         "description": "Workforce adherence and occupancy \u2014 scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",

@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-11  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Outbound Campaign Investigation & Dialer Compliance](#11-outbound-campaign-investigation--dialer-compliance)
 
 ---
 
@@ -375,6 +376,14 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
 full object returned by the dataset and need no special handling.
 
+> This pattern is formalised as the `byoi-external-conversation-investigation` recipe under
+> `combinations.investigationRecipes` in `catalog/genesys.catalog.json`, which extends
+> `single-conversation-investigation` with the `externalTag` check and provider hand-off caveats
+> above. See the Genesys developer docs for the underlying contracts:
+> [BYOI integration guide](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/),
+> [conversation injection](https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection),
+> [condensed conversation info](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info).
+
 ---
 
 ## 7. Agent Investigation Extensions (Release 1.3)
@@ -484,6 +493,48 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Outbound Campaign Investigation & Dialer Compliance
+
+**Subject:** One `campaignId` (+ time window for the compliance playbook)  
+**Use case:** An outbound operations analyst or voice engineer needs to explain why a dialer
+campaign is generating excessive abandons, agents are reporting dead air between calls, or a
+compliance team needs abandon-rate evidence for a specific campaign. Formalises the same steps
+implemented by the `Get-GenesysCampaignInvestigation` cmdlet (see
+[INVESTIGATIONS.md §4.4](INVESTIGATIONS.md)) and the `campaign-investigation` /
+`outbound-dialer-pacing-and-abandon-compliance` entries in `catalog/genesys.catalog.json`.
+
+**Core question:** *Is this campaign pacing correctly, and is it within abandon-rate compliance?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `outbound.get.campaigns` | seed → `campaignId` | Dialing mode, connected queue, contact list, configured abandon-rate threshold |
+| 2 | `outbound.get.contact.lists` | `contactListId` | Dial-list identity and size (left join) |
+| 3 | `routing.get.single.queue.config` | `queueId` | Connected queue's media and ACW settings (left join) |
+| 4 | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Live pacing snapshot: calls-per-agent, contact rate — the fastest over/under-dialing signal |
+| 5 | `outbound.get.events` | `campaignId` | Full dialer event/disposition stream; filter client-side for abandon-tagged dispositions |
+| 6 | `audit-logs` | `entityId = campaignId` | Recent config changes — correlate pacing spikes to a dialingMode or ratio change |
+| 7 | `analytics-conversation-details-query` | `campaignId` segment filter | Conversation-level detail for connected calls the campaign generated |
+| 8 *(real-time)* | `analytics.query.user.observations.real.time.status` | `queueId` | Live agent availability on the connected queue — pacing must track this, not lag it |
+
+### Analytical Questions Answered
+
+- Is the dialer over-pacing relative to current agent availability?
+- Is the abandon rate within the campaign's configured threshold (regulatory compliance)?
+- Did a recent configuration change (pacing ratio, dialing mode) cause the current spike?
+- Is answering-machine detection misfiring and wasting dial capacity?
+- What is the right-party-contact rate, and how does it compare across campaigns for ROI reporting?
+
+### Voice Engineer Notes
+
+`diagnostics.contactRatePerMinute` rising while the connected queue's `oOnQueueUsers` is flat or
+falling is the earliest warning of an imminent abandon-rate breach — check this before the abandon
+count itself climbs. `outbound.get.events` has no server-side abandon filter, so abandon evidence
+is always a client-side derived subset of the full event stream (disposition text match).
 
 ---
 

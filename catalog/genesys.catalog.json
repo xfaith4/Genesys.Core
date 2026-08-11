@@ -40173,6 +40173,170 @@
           "agentCount",
           "queueCount"
         ]
+      },
+      "campaign-investigation": {
+        "description": "Forensic and operational investigation of one outbound dialer campaign — configuration, live pacing diagnostics, dialer events/dispositions, audit history, and the conversation analytics rows the campaign generated. Mirrors the Get-GenesysCampaignInvestigation cmdlet contract. Used by outbound operations analysts and voice engineers to diagnose pacing problems, abandon-rate compliance risk, and dial-list exhaustion.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "campaignStatus, dialingMode, queueId, contactListId, callerIdNumber, abandonRatePercentage",
+            "description": "Campaign configuration — status, dialing mode (preview/progressive/predictive/agentless), connected queue, caller ID, and the configured abandon-rate threshold"
+          },
+          {
+            "step": "contactList",
+            "dataset": "outbound.get.contact.lists",
+            "joinKey": "campaign.contactListId → id",
+            "provides": "contactListName, size, columnNames",
+            "description": "Contact-list identity and size for dial-list reconciliation (left join — optional)"
+          },
+          {
+            "step": "queue",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "campaign.queueId → id",
+            "provides": "queueName, mediaSettings, acwSettings",
+            "description": "Connected queue metadata for answer-handling context (left join — optional)"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "filterBy": "campaignId",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "callsPerAgent, contactRatePerMinute, currently-dialing counts",
+            "description": "Live outbound diagnostics snapshot for pacing/health triage — the fastest signal that a dialer's pacing algorithm is over- or under-dialing"
+          },
+          {
+            "step": "outboundEvents",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "dialer events and dispositions timestamped per attempt",
+            "description": "Full dialer event stream for the campaign — dial attempts, connects, and disposition codes"
+          },
+          {
+            "step": "auditChanges",
+            "dataset": "audit-logs",
+            "filterBy": "entityId=campaignId",
+            "joinKey": "campaign.id → entity.id",
+            "provides": "recent configuration changes to the campaign",
+            "description": "Audit trail — confirms whether a pacing or list change coincides with the reported issue window"
+          },
+          {
+            "step": "conversationAnalytics",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "campaignId (segmentFilters predicate)",
+            "joinKey": "campaign.id → participants[].sessions[].segments[].campaignId",
+            "provides": "conversationId, agentId, wrapUpCode, tTalk, tHandle for conversations the campaign generated",
+            "description": "Conversation analytics rows tied to the campaign in the requested window — seed for per-conversation drilldown into single-conversation-investigation"
+          },
+          {
+            "step": "outboundAbandons",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId + disposition contains 'abandon'",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "derived subset of outboundEvents matching abandon dispositions",
+            "description": "Client-side filtered abandon evidence extracted from outboundEvents — the events dataset has no server-side abandon filter, so this is a derived view of the same call"
+          }
+        ],
+        "joinSequence": "seed (campaign) → contactList (contactListId) → queue (queueId) → diagnostics (campaignId) → outboundEvents (campaignId) → auditChanges (entityId) → conversationAnalytics (campaignId) → outboundAbandons (derived filter of outboundEvents)",
+        "voiceEngineerHighlights": [
+          "diagnostics.contactRatePerMinute rising while queue.oOnQueueUsers is flat → pacing algorithm out-dialing available agent capacity, imminent abandon-rate breach",
+          "outboundAbandons count / outboundEvents count > configured abandonRatePercentage → regulatory compliance risk (e.g. FTC/Ofcom abandon-rate rules), reduce pacing ratio immediately",
+          "conversationAnalytics rows with tTalk=0 correlated to outboundEvents 'answered' disposition → answering-machine or silent-call detection misfire",
+          "auditChanges showing a dialingMode or callsPerAgent change immediately before a pacing spike → root cause is a configuration change, not a system defect"
+        ],
+        "executiveMetrics": [
+          "contactsDialed",
+          "rightPartyContactRate%",
+          "abandonRate% (vs configured threshold)",
+          "dispositionCounts (by outcome)",
+          "campaignCompletionPct%",
+          "avgHandleTime (connected conversations)"
+        ]
+      },
+      "byoi-external-conversation-investigation": {
+        "description": "Enrichment investigation for a conversation that originated outside Genesys Cloud and was injected via the BYOI (Bring Your Own Interaction) provider API (POST /api/v2/conversations/providers/{providerId}/calls). Extends single-conversation-investigation with the external-origin indicators, provider-set context, and the caveats needed to interpret SIP and recording data correctly for an injected call. Also covers the Embeddable Framework's condensed conversation view, which returns the same object shape.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "extendsRecipe": "single-conversation-investigation",
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[].purpose=external, participants[].externalContactId",
+            "description": "A non-null externalTag or externalConversationId is the definitive BYOI indicator; absent on native Genesys-originated conversations"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set context: CRM case ID, intent label, external call ID",
+            "description": "Custom attributes set by the injecting provider at call-injection time"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables captured during the injected conversation's routing",
+            "description": "Confirms the injected conversation was processed by the same Architect flows as a native call"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing — accurate for BYOI conversations, they flow through the standard analytics pipeline",
+            "description": "Per-segment timing overlay; BYOI conversations are analytically indistinguishable from native ones once injected"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, archivalStatus",
+            "description": "Recordings exist if recording is enabled on the receiving queue; absence does not by itself indicate a BYOI-specific gap"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, evaluatorId",
+            "description": "Quality evaluations proceed normally for BYOI conversations — no special handling required"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP signalling for the provider hand-off leg",
+            "description": "Reflects the BYOI SIP-to-SIP hand-off between the external provider and the Genesys Edge, not an inbound PSTN leg — expect a different call-flow shape than a native inbound call"
+          }
+        ],
+        "joinSequence": "seed (conversation-base, check externalTag) → custom-attributes → participant-attributes → analytics-detail → recording-metadata → evaluation → sip-trace (voice engineer, provider hand-off only)",
+        "voiceEngineerHighlights": [
+          "externalTag present with no matching sip-trace INVITE from the expected PSTN carrier → confirms the call entered via BYOI, not a misrouted trunk; check the provider's hand-off leg instead",
+          "custom-attributes carrying a provider CRM case ID with no matching case in participant-attributes → provider-side context propagation failure, escalate to the BYOI integration owner rather than telephony",
+          "sip-trace showing a single INVITE/200 OK pair with no re-INVITE → expected shape for a stable SIP-to-SIP hand-off; multiple re-INVITEs suggest the provider's media renegotiation is unstable",
+          "Embeddable Framework agents see the same conversation-base object — participants[].calls[].muted/held fields are populated identically to native calls, so agent-reported audio issues are diagnosed the same way as step 8 of single-conversation-investigation"
+        ],
+        "executiveMetrics": [
+          "tTalk",
+          "tHandle",
+          "evaluationScore",
+          "externalOriginRate% (BYOI conversations / total conversations, by queue)"
+        ],
+        "referenceDocs": [
+          "https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/",
+          "https://developer.genesys.cloud/platform/integrations/byoi-integration-guide/conv-injection",
+          "https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40502,6 +40666,28 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "outbound-dialer-pacing-and-abandon-compliance": {
+        "description": "Diagnose outbound predictive/progressive dialer pacing problems and abandon-rate compliance risk for one campaign. The go-to playbook when a campaign is flagged for excessive abandons, agents report back-to-back dead air between calls, or a compliance audit needs abandon-rate evidence.",
+        "subjectParam": "campaignId",
+        "datasetsInOrder": [
+          "outbound.get.campaigns",
+          "outbound.get.campaign.diagnostics.summary",
+          "outbound.get.events",
+          "routing.get.single.queue.config",
+          "analytics.query.user.observations.real.time.status"
+        ],
+        "diagnosticSignals": [
+          "diagnostics.contactRatePerMinute rising while the connected queue's oOnQueueUsers is flat or falling → pacing outrunning agent availability, imminent abandon-rate breach",
+          "outbound abandon-tagged events / total dialed events > campaign.abandonRatePercentage → confirmed compliance breach; reduce dialingMode aggressiveness immediately",
+          "high rate of 'answering machine detected' dispositions with low right-party-contact rate → AMD tuning issue wasting dial capacity",
+          "outbound.get.events showing repeated 'no answer' bursts within seconds of each other → pacing ratio too aggressive for the current answer rate",
+          "campaign dialingMode = predictive with agent oOnQueueUsers dropping sharply mid-campaign → staffing dip will spike abandons unless pacing auto-adjusts"
+        ],
+        "enrichWith": [
+          "audit-logs (filter entityId=campaignId to confirm whether a recent pacing/config change caused the spike)",
+          "analytics-conversation-details-query (campaignId segment filter, for per-conversation drilldown into handle time and origin)"
         ]
       }
     }

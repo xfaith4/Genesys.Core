@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-11
+
+### Added
+
+- Added `campaign-investigation` to `combinations.investigationRecipes` in
+  `catalog/genesys.catalog.json`, formalising the existing
+  `Get-GenesysCampaignInvestigation` cmdlet contract (campaign → contact list →
+  queue → pacing diagnostics → dialer events → audit trail → conversation
+  analytics → derived abandon evidence) as a catalog-documented recipe with
+  voice-engineer diagnostic highlights and executive metrics.
+- Added `byoi-external-conversation-investigation` to
+  `combinations.investigationRecipes`, documenting how to detect and enrich
+  conversations injected via the BYOI (Bring Your Own Interaction) provider
+  API — `externalTag`/`externalConversationId` detection, provider custom
+  attributes, and the SIP-to-SIP hand-off caveat for voice engineers — with
+  references to the Genesys BYOI integration guide, conversation-injection
+  guide, and Embeddable Framework condensed-conversation-info docs.
+- Added `outbound-dialer-pacing-and-abandon-compliance` to
+  `combinations.voiceEngineerPlaybooks`, covering predictive/progressive
+  dialer pacing diagnosis and abandon-rate compliance triage for a single
+  campaign.
+- Added [ENDPOINT_COMBINATIONS.md §11](ENDPOINT_COMBINATIONS.md) documenting
+  the outbound campaign investigation dataset sequence and voice-engineer
+  notes, and cross-referenced the BYOI section (§6) to the new catalog recipe.
+
 ## 2026-06-08
 
 ### Changed

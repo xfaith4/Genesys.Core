@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-13
+
+### Fixed
+
+- Closed a reference-integrity gap in `catalog.combinations` (`catalog/genesys.catalog.json`):
+  19 dataset names referenced by `investigationRecipes`, `executiveReportingPlaybooks`, and
+  `voiceEngineerPlaybooks` did not resolve against `catalog.datasets`. Added 15 new dataset
+  wrappers around already swagger-verified endpoints (conversation-base seed lookup, per-leg
+  wrapup and call detail, S&TA overview/categories/summaries, Copilot/Einstein conversation
+  summaries, single-conversation survey lookup, WFM management-unit and bulk-adherence lookups,
+  queue EWT, queue-scoped conversation-details query, division-object and division-grants
+  lookups, and a new `analytics.query.conversation.aggregates.division.performance` dataset —
+  the division-level counterpart to the existing queue/agent performance aggregates). Corrected
+  4 near-duplicate recipe-step references and removed 1 duplicate playbook entry. No new raw
+  endpoints were introduced; every addition wraps a path already present in `catalog.endpoints`.
+  See `docs/ENDPOINT_COMBINATIONS.md` § 11 for the full audit and a copy-pasteable verification
+  script.
+
 ## 2026-06-08
 
 ### Changed

@@ -26,6 +26,7 @@ when the API is exhausted.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Machine-Readable Combinations (`catalog.combinations`)](#11-machine-readable-combinations-catalogcombinations)
 
 ---
 
@@ -484,6 +485,85 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Machine-Readable Combinations (`catalog.combinations`)
+
+Everything above is the human-readable narrative. `catalog/genesys.catalog.json`
+also carries a machine-readable `combinations` object that the same recipes are
+derived from, structured for tooling (Genesys.Ops composers, the Conversation
+Analysis SPA, and CI drift checks) to consume without parsing markdown:
+
+```
+combinations.investigationRecipes            # single-conversation, agent,
+                                               # agent-not-responding-autoanswer,
+                                               # queue, division
+combinations.executiveReportingPlaybooks      # 9 rollup playbooks (SLA/abandon,
+                                               # agent scorecard, wrapup/transfer,
+                                               # quality/CSAT, S&TA sentiment,
+                                               # digital channels, WFM adherence,
+                                               # outbound campaigns, flow/IVR)
+combinations.voiceEngineerPlaybooks           # 5 diagnostic playbooks (single-call
+                                               # forensics, trunk/edge health,
+                                               # queue saturation, flow/IVR
+                                               # diagnostics, recording compliance)
+```
+
+Each `investigationRecipes` step and each playbook's `datasetsInOrder` entry
+names a key in `catalog.datasets` — the same dataset keys documented in the
+tables above. A recipe or playbook is only actionable if every dataset name it
+references resolves to a real entry in `catalog.datasets`.
+
+**2026-08-13 catalog closure:** an audit of every dataset reference inside
+`combinations` found 19 names that did not resolve against `catalog.datasets`
+— some pointed at bare `catalog.endpoints` operation IDs instead of a dataset
+wrapper (no `paging`/`retry`/`redactionProfile` config), one was a stray
+duplicate of an existing dataset already listed in the same playbook, and a
+few were near-miss typos of an existing dataset key (singular vs. plural,
+`*codes` vs `*codes.by.queue`, etc.). This pass:
+
+- Added 15 new dataset wrappers around already swagger-verified endpoints that
+  had no dataset entry yet, including the conversation-base seed lookup
+  (`conversations.get.specific.conversation.details`), per-leg wrapup and call
+  detail, S&TA overview/categories/summaries, Copilot/Einstein conversation
+  summaries, the single-conversation survey lookup, WFM management-unit and
+  bulk-adherence lookups for the Agent Investigation, queue EWT, the
+  queue-scoped conversation-details query, division-object and
+  division-grants lookups, and a new division-grouped conversation aggregate
+  (`analytics.query.conversation.aggregates.division.performance`) — the
+  division-level counterpart to the existing queue/agent aggregate datasets.
+- Corrected 4 recipe-step references that were pointing at a near-duplicate
+  name instead of the existing correct dataset key.
+- Removed 1 duplicate reference from the S&TA sentiment-trends playbook.
+
+No new raw endpoints were fabricated — every new dataset wraps a path that
+already existed in `catalog.endpoints` (sourced from the official Genesys
+swagger via `scripts/Sync-SwaggerEndpoints.ps1`); this pass only added the
+missing dataset-level wrapper (`itemsPath`, `paging.profile`,
+`retry.profile`) and fixed the reference strings pointing at it.
+
+Verify the reference-integrity of this block at any time with:
+
+```python
+python3 -c "
+import json
+data = json.load(open('catalog/genesys.catalog.json'))
+datasets = set(data['datasets'])
+def walk(o):
+    if isinstance(o, dict):
+        for k in ('dataset','datasetKey'):
+            if isinstance(o.get(k), str) and o[k] not in datasets and o[k] != '(derived)':
+                print('missing:', o[k])
+        for v in o.get('datasetsInOrder', []) if isinstance(o.get('datasetsInOrder'), list) else []:
+            if v not in datasets:
+                print('missing:', v)
+        for v in o.values(): walk(v)
+    elif isinstance(o, list):
+        for v in o: walk(v)
+walk(data['combinations'])
+"
+```
 
 ---
 

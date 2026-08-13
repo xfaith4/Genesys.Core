@@ -27,6 +27,12 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Combinations reference-integrity closure (2026-08-13): audited every
+      dataset name inside `catalog.combinations` against `catalog.datasets`,
+      found 19 unresolved references, added 15 new dataset wrappers around
+      already swagger-verified endpoints (no new raw endpoints introduced),
+      fixed 4 near-duplicate references, and removed 1 duplicate playbook
+      entry. See `docs/ENDPOINT_COMBINATIONS.md` § 11.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

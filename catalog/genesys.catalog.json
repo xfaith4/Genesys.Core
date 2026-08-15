@@ -2654,16 +2654,16 @@
         "group: Conversations"
       ]
     },
-    "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8": {
+    "analytics.query.conversation.aggregates.division.performance": {
       "method": "POST",
       "path": "/api/v2/analytics/conversations/aggregates/query",
       "pagingProfile": "analytics_details_query",
       "retryProfile": "default",
-      "itemsPath": "$.conversations",
+      "itemsPath": "$.results",
       "notes": [
-        "Division Analysis - Conversation Aggregates by Division (Oct 15 - Dec 8)",
+        "Query Conversation Aggregates - Division Performance",
         "group: Analytics",
-        "defaultBody:\n{\n  \"interval\": \"2024-10-15T00:00:00.000Z/2024-12-08T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
+        "defaultBody:\n{\n  \"interval\": \"2025-12-01T00:00:00.000Z/2025-12-07T23:59:59.999Z\",\n  \"granularity\": \"P1D\",\n  \"groupBy\": [\n    \"divisionId\"\n  ],\n  \"metrics\": [\n    \"nConnected\",\n    \"tHandle\",\n    \"tTalk\",\n    \"tHeld\",\n    \"tAcw\",\n    \"tAnswered\",\n    \"nOffered\",\n    \"nOutbound\",\n    \"nError\"\n  ],\n  \"filter\": {\n    \"type\": \"and\",\n    \"predicates\": [\n      {\n        \"dimension\": \"mediaType\",\n        \"value\": \"voice\"\n      }\n    ]\n  }\n}"
       ]
     },
     "analytics.get.conversation.details.job.results": {
@@ -40139,7 +40139,7 @@
           },
           {
             "step": "conversation-aggregates-by-division",
-            "dataset": "analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8",
+            "dataset": "analytics.query.conversation.aggregates.division.performance",
             "filterBy": "divisionId",
             "joinKey": "divisionId",
             "provides": "nConnected, tHandle, tTalk, nOffered, nError by divisionId (daily)",
@@ -40172,6 +40172,175 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ]
+      },
+      "real-time-operations-monitoring": {
+        "description": "Point-in-time snapshot of contact-centre health for a NOC/real-time analyst or supervisor wallboard. No historical window — every step reflects current state as of the API call and is intended to be polled, not run once.",
+        "subjectParam": "organizationWide (optional queueId/userId drilldown)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "queue-observations",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oActiveUsers per queue",
+            "description": "Live per-queue interaction and staffing counts — the wallboard headline row"
+          },
+          {
+            "step": "conversation-activity",
+            "dataset": "analytics.query.conversation.activity.real.time",
+            "joinKey": "queueId+mediaType",
+            "provides": "oInteracting, oWaiting, oAlerting, oLongestWaiting",
+            "description": "Live conversation-state counts by queue and media type; oLongestWaiting flags the worst-case current wait"
+          },
+          {
+            "step": "user-observations",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "joinKey": "userId",
+            "provides": "oUserPresence, oUserRoutingStatus per agent",
+            "description": "Live agent presence and routing status across the organisation or a queue-scoped member list"
+          },
+          {
+            "step": "flow-observations",
+            "dataset": "analytics.query.flow.observations",
+            "joinKey": "flowId",
+            "provides": "oFlow: currently-executing Architect flow instance counts",
+            "description": "Live IVR/flow execution load — flags a flow stuck looping or an unexpected spike in active instances"
+          },
+          {
+            "step": "agent-drilldown",
+            "dataset": "analytics.get.agent.active.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "audience": [
+              "supervisor"
+            ],
+            "provides": "full real-time channel assignment for one agent",
+            "description": "Targeted drilldown when a supervisor clicks one agent on the wallboard — not part of the polling loop"
+          },
+          {
+            "step": "agent-active-conversations",
+            "dataset": "users.get.agent.active.conversations",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "audience": [
+              "supervisor"
+            ],
+            "provides": "in-progress conversationIds for one agent",
+            "description": "Companion to agent-drilldown — the actual live interaction(s) the agent is on"
+          },
+          {
+            "step": "agent-routing-status",
+            "dataset": "users.get.agent.current.routing.status",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "audience": [
+              "supervisor"
+            ],
+            "provides": "IDLE / INTERACTING / NOT_RESPONDING / OFF_QUEUE",
+            "description": "Current ACD routing state for one agent — confirms whether NOT_RESPONDING is stalling queue throughput"
+          },
+          {
+            "step": "trunk-health",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "trunk utilisation and error counters",
+            "description": "Voice infrastructure health check — pull when queue-observations shows abnormal wait times with no staffing explanation"
+          },
+          {
+            "step": "edge-health",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "filterBy": "edgeId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "CPU, memory, active call count on one Edge",
+            "description": "Targeted Edge appliance check when trunk-health or a specific site's calls show resource pressure"
+          },
+          {
+            "step": "active-alerts",
+            "dataset": "alerting.get.alerts",
+            "provides": "currently-firing threshold alerts",
+            "description": "Any alert already firing for a monitored metric — correlate against the steps above before manual triage"
+          }
+        ],
+        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop.",
+        "executiveMetrics": [
+          "oInteracting",
+          "oWaiting",
+          "oOnQueueUsers",
+          "oLongestWaiting",
+          "oActiveUsers"
+        ]
+      },
+      "byoi-conversation-enrichment": {
+        "description": "Enrichment recipe for a conversation injected via the Bring Your Own Instance (BYOI) provider API. Runs alongside single-conversation-investigation to surface external-system provenance — CRM case IDs, external call IDs, and provider SIP-to-SIP handoff — for a conversation that did not originate as an inbound PSTN call.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "externalTag, externalConversationId, participants[].purpose=external, participants[].externalContactId",
+            "description": "A non-null externalTag is the definitive BYOI indicator; externalConversationId is the provider's own identifier for the same interaction"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "provider-set custom attributes — CRM case ID, intent label, external call ID",
+            "description": "Custom attributes set by the BYOI provider at injection time; the primary link back to the external system's case/ticket"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "IVR/Architect flow variables captured during the injected conversation flow",
+            "description": "Flow-set values for the injected conversation — identical shape to native conversations, no BYOI-specific handling needed"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing — accurate for BYOI conversations, they flow through the same routing/analytics pipeline",
+            "description": "Confirms the BYOI conversation was queued/routed/handled identically to a native conversation once inside Genesys Cloud"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration — present if recording is enabled for the provider's media",
+            "description": "BYOI recordings follow the same recording policy as native conversations"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores if the conversation was evaluated",
+            "description": "Evaluations proceed normally for BYOI conversations — no special handling required"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP signalling trace",
+            "description": "Reflects the provider's SIP-to-SIP handoff (injection leg), not an inbound PSTN leg — expect a different call-setup pattern than native voice conversations"
+          }
+        ],
+        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "executiveMetrics": [
+          "externalTag coverage % (BYOI volume vs. native)",
+          "tHandle (BYOI vs. native comparison)",
+          "evaluationScore (BYOI vs. native comparison)"
         ]
       }
     },

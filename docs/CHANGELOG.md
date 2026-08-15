@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-08-15
+
+### Fixed
+
+- Corrected a malformed endpoint key in `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes.division-investigation` recipe:
+  `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`
+  (a stray literal date range baked into the operationId, with `itemsPath` set
+  to `$.conversations` instead of the aggregates endpoint's actual
+  `$.results` root) is renamed to
+  `analytics.query.conversation.aggregates.division.performance` with a
+  corrected `itemsPath`, consistent with its sibling
+  `analytics.query.conversation.aggregates.*` endpoints. The
+  `conversation-aggregates-by-division` recipe step now references the
+  corrected key.
+
+### Added
+
+- Added two investigation recipes to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes` for parity with the patterns already
+  documented in `docs/ENDPOINT_COMBINATIONS.md`:
+  `real-time-operations-monitoring` (point-in-time queue/agent/flow/trunk
+  observation steps for a NOC wallboard, with single-agent drilldown steps
+  marked separately from the polling loop) and `byoi-conversation-enrichment`
+  (BYOI provenance and external-attribute steps that run alongside
+  `single-conversation-investigation` for conversations injected via the
+  BYOI provider API). All dataset references in both new recipes resolve to
+  existing `datasets` or `endpoints` entries in the same catalog file — a
+  reference-integrity audit walked every `dataset` field across all seven
+  `investigationRecipes` and confirmed each resolves to a real catalog
+  entry; the division-performance key above was the one genuine break
+  found (17 other references that don't exist under `datasets` are
+  intentional references to raw `endpoints` operationIds and were already
+  correct).
+- Cross-referenced the JSON `combinations` recipes from
+  `docs/ENDPOINT_COMBINATIONS.md` so the human-readable patterns and the
+  machine-readable catalog recipes are discoverable from each other.
+
 ## 2026-06-08
 
 ### Changed

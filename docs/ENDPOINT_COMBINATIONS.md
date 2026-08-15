@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-05-10  
+> Last updated: 2026-08-15  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -11,6 +11,17 @@ the join keys that connect them, and the analytical questions it answers.
 The goal of Genesys.Core is to be **informative without being a data dump**. Every combination
 here answers a specific operational question and terminates when that question is answered — not
 when the API is exhausted.
+
+**Machine-readable counterpart:** every pattern below (except the metric glossary) is also encoded
+as a structured recipe in `catalog/genesys.catalog.json` under `combinations.investigationRecipes`,
+`combinations.executiveReportingPlaybooks`, and `combinations.voiceEngineerPlaybooks`. The JSON
+recipes carry the same step/joinKey/dataset shape as this document plus `executiveMetrics` and
+`voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
+tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
+`real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
+`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
+there is no third namespace.
 
 ---
 

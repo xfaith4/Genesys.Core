@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-05-10T13:24:11.0000000Z",
+  "generatedAt": "2026-08-16T00:00:00.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -40342,6 +40342,182 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "callback-investigation": {
+        "description": "Investigation of a single scheduled callback — configuration, disposition, and correlation to the outbound dial leg once the callback fires. Used when a customer reports a missed/never-received callback, or to audit callback answer and delay performance for a queue.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "callback-detail",
+            "dataset": "getConversationsCallback",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "callbackScheduledTime, callbackNumbers, automatedCallbackConfigId, skipEnabled, scriptId",
+            "description": "Callback configuration — when it was scheduled, the number(s) to dial, and whether an automated (IVR-driven) callback config was used"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "state, participants, direction",
+            "description": "Base conversation object — the same conversationId carries through from CALLBACK media state to the resulting CONNECTED voice segment once dialed"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timeline including tDialing, tContacting, tTalk",
+            "description": "Confirms whether the outbound dial leg was ever placed (tDialing>0) and whether it connected (tTalk>0)"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "getConversationsCallbackParticipantWrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode selected for the callback disposition",
+            "description": "Agent-selected wrapup for the callback; absence after the SLA window indicates the callback was never actioned"
+          },
+          {
+            "step": "queue-callback-cohort",
+            "dataset": "conversations.get.active.callbacks",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "all pending/overdue callbacks currently queued",
+            "description": "Queue-wide pending-callback list — use to confirm whether this callback is still waiting to fire or has already been actioned"
+          },
+          {
+            "step": "recording",
+            "dataset": "conversations.get.recordings",
+            "joinKey": "conversationId",
+            "provides": "downloadURL, recordingType",
+            "description": "Once the callback connects it is recorded like any voice interaction — confirms capture of the resulting call"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx on the outbound dial leg",
+            "description": "Diagnoses whether the outbound dial attempt failed (busy/no-answer/rejected) after the callback fired"
+          }
+        ],
+        "joinSequence": "seed (callback-detail) → conversation-base (conversationId) → analytics-detail → participant-wrapup → queue-callback-cohort (queueId) → recording → sip-trace",
+        "diagnosticSignals": [
+          "callbackScheduledTime well in the past with no CONNECTED segment in analytics-detail → callback dial attempt is stuck or was never triggered",
+          "tDialing>0 but tTalk=0 → outbound leg was placed but the customer never answered",
+          "SIP 486/408 on the dial leg → customer line busy or no-answer; expected retry depends on automatedCallbackConfigId policy",
+          "wrapUpCode absent after scheduledTime + SLA window → callback never actioned by an agent; escalate to routing/queue staffing",
+          "automatedCallbackConfigId present with skipEnabled=true and no resulting voice segment → automated callback script failed before dialing the agent"
+        ],
+        "executiveMetrics": [
+          "callbackAnswerRate%",
+          "avgCallbackDelayMinutes (scheduledTime to tDialing start)",
+          "callbackAbandonRate%",
+          "callbacksOverdueCount"
+        ]
+      },
+      "digital-conversation-investigation": {
+        "description": "Companion to single-conversation-investigation for asynchronous/digital channels (chat, email, SMS/WhatsApp/social messaging, cobrowse) where SIP and call-detail steps do not apply. Surfaces message content, cobrowse session state, and text-analytics sentiment for the interaction.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType (chat/email/message), participants, direction",
+            "description": "Base conversation object — mediaType determines which of the message-detail steps below applies"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timeline — tHandle, tAcw, and per-segment response gaps for async channels",
+            "description": "Segment timeline; for async channels the gap between customer-message and agent-response segments is the meaningful latency metric, not tTalk"
+          },
+          {
+            "step": "message-detail",
+            "dataset": "getConversationsMessage",
+            "joinKey": "conversationId",
+            "provides": "unified digital message content (SMS, WhatsApp, social, and other messaging-platform conversations)",
+            "description": "Current unified Messaging API content lookup — use for any mediaType=message conversation"
+          },
+          {
+            "step": "email-detail",
+            "dataset": "getConversationsEmailMessages",
+            "joinKey": "conversationId",
+            "provides": "email thread body and attachments",
+            "description": "Email-specific message thread; applies only when mediaType=email"
+          },
+          {
+            "step": "chat-detail-legacy",
+            "dataset": "getConversationsChatMessages",
+            "joinKey": "conversationId",
+            "provides": "legacy ACD Web Chat v2 message content",
+            "description": "Deprecated endpoint (see the ACD Web Chat v2 removal article) — only returns data for older chat conversations that predate the migration to the unified Messaging API; a 410/empty result on a recent conversation confirms the channel has migrated and message-detail should be used instead"
+          },
+          {
+            "step": "cobrowse-session",
+            "dataset": "getConversationsCobrowsesession",
+            "joinKey": "conversationId",
+            "provides": "cobrowse sessionState, participant screen-share detail",
+            "description": "Populated only when a cobrowse/screen-share session was launched during the interaction"
+          },
+          {
+            "step": "sta-overview",
+            "dataset": "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "agentSentimentScore, customerSentimentScore",
+            "description": "Text analytics applies identically to chat/email/message transcripts as it does to voice"
+          },
+          {
+            "step": "sta-categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "categoryName, score, matched topics",
+            "description": "Topic/category classification for the digital transcript"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant",
+            "description": "Wrapup code selected by the handling agent"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed",
+            "description": "Quality evaluation, if the digital interaction was scored"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "provides": "csatScore, npsScore, surveyStatus",
+            "description": "Post-interaction CSAT/NPS survey results"
+          }
+        ],
+        "joinSequence": "seed (conversation-base) → analytics-detail → message-detail / email-detail / chat-detail-legacy (mediaType-dependent) → cobrowse-session → sta-overview → participant-wrapup → evaluation → survey",
+        "diagnosticSignals": [
+          "mediaType=message but message-detail returns no content → provider webhook delivery failure; check the messaging integration configuration",
+          "cobrowse-session sessionState=ERROR → screen-share failed to establish, typically a customer-side browser/permission issue",
+          "large gap between a customer-message segment and the next agent-response segment (from analytics-detail) exceeding the channel SLA → async response-time breach, distinct from voice AHT",
+          "chat-detail-legacy returns empty/410 on a recent conversation → channel has migrated to the unified Messaging API; retry with message-detail",
+          "sta sentiment sharply negative on the last customer message with no further agent reply in the segment timeline → unresolved negative-sentiment thread; escalate"
+        ],
+        "executiveMetrics": [
+          "avgFirstResponseTime",
+          "avgResolutionTime (async)",
+          "cobrowseUsageRate%",
+          "csatScore",
+          "customerSentimentScore"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -40552,6 +40728,35 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "knowledge-base-and-bot-deflection-effectiveness": {
+        "description": "Knowledge-base search and feedback quality paired with bot/IVR containment. Identifies content gaps driving live-agent escalation and quantifies self-service ROI. Pairs naturally with flow-and-ivr-performance — containment tells you how many callers self-served; this playbook tells you why the rest didn't.",
+        "datasetsInOrder": [
+          "getKnowledgeKnowledgebases",
+          "postKnowledgeKnowledgebaseDocumentsSearch",
+          "getKnowledgeKnowledgebaseDocumentFeedback",
+          "getKnowledgeKnowledgebaseUnansweredGroups",
+          "flows.get.flow.outcomes"
+        ],
+        "joinOn": "knowledgeBaseId (documents/feedback/unanswered) → flowId (outcomes, for bot-fronted knowledge)",
+        "groupBy": [
+          "knowledgeBaseId",
+          "documentId",
+          "flowId"
+        ],
+        "outputMetrics": [
+          "searchToAnswerRate% = searches returning a result / total searches",
+          "documentFeedbackPositiveRate% = thumbsUp / (thumbsUp + thumbsDown)",
+          "unansweredGroupCount (distinct unmatched query clusters)",
+          "topUnansweredPhrases (by group frequency — direct content-gap backlog)",
+          "botDeflectionRate% = nFlowOutcome (self-service exit) / nFlow, cross-referenced against unansweredGroupCount trend"
+        ],
+        "executivePresentation": "Content-gap backlog table (top unanswered phrase groups, ranked by frequency) + deflection-rate trend line; flag knowledge bases with feedback positive rate below target",
+        "diagnosticSignals": [
+          "unansweredGroupCount rising week-over-week with flat documentFeedbackPositiveRate → emerging topic not yet covered by any article; prioritise authoring",
+          "high searchToAnswerRate but low documentFeedbackPositiveRate → search is matching the wrong or outdated article; content quality issue, not coverage",
+          "botDeflectionRate% dropping while unansweredGroupCount is flat → regression is in the bot/flow logic, not the knowledge base"
+        ]
       }
     },
     "voiceEngineerPlaybooks": {

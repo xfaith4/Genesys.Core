@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-08-16
+
+### Added
+
+- Added two more investigation recipes to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes`: `callback-investigation` (correlates a
+  scheduled callback's configuration and disposition to the outbound dial leg
+  it triggers, using `getConversationsCallback`,
+  `getConversationsCallbackParticipantWrapup`, and
+  `conversations.get.active.callbacks` for queue-wide overdue tracking) and
+  `digital-conversation-investigation` (the chat/email/messaging counterpart
+  to `single-conversation-investigation`, covering
+  `getConversationsMessage`/`getConversationsEmailMessages` content,
+  `getConversationsCobrowsesession` screen-share state, and a note that
+  `getConversationsChatMessages` is deprecated ACD Web Chat v2 and should
+  only be used for pre-migration conversations).
+- Added `knowledge-base-and-bot-deflection-effectiveness` to
+  `combinations.executiveReportingPlaybooks`, pairing knowledge-base search,
+  document feedback, and unanswered-query-group datasets with
+  `flows.get.flow.outcomes` so a containment-rate drop can be attributed to
+  either a content gap or a bot-logic regression.
+- Documented all three additions in `docs/ENDPOINT_COMBINATIONS.md` as new
+  sections 11 (Callback Investigation) and 12 (Digital / Async Channel
+  Conversation Investigation), plus a Layer 6 (Self-Service & Knowledge)
+  addition to the Executive Reporting Rollup pattern, keeping the
+  human-readable doc and the machine-readable catalog recipes in sync.
+- Re-ran the reference-integrity audit established in the 2026-08-15 entry
+  across all nine `investigationRecipes`, all ten
+  `executiveReportingPlaybooks`, and all four `voiceEngineerPlaybooks`
+  (157 `dataset`/`datasetsInOrder` references total): every reference
+  resolves to an existing `datasets` or `endpoints` entry, no broken keys
+  found.
+
 ## 2026-08-15
 
 ### Fixed

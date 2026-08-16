@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-16  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,12 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 11 (Callback Investigation) maps to the
+`callback-investigation` recipe key; Pattern 12 (Digital/Async Channel Investigation) maps to the
+`digital-conversation-investigation` recipe key. The knowledge-base/bot-deflection rollup in
+Section 4 maps to the `knowledge-base-and-bot-deflection-effectiveness` executive playbook. Every
+`dataset` value in a JSON recipe resolves to either a curated `datasets` entry or a raw
+`endpoints` operationId in the same catalog file — there is no third namespace.
 
 ---
 
@@ -37,6 +40,8 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Callback Investigation](#11-callback-investigation)
+12. [Digital / Async Channel Conversation Investigation](#12-digital--async-channel-conversation-investigation)
 
 ---
 
@@ -264,6 +269,17 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | `telephony.get.trunk.metrics.summary` | — | SIP trunk utilisation, errors |
 | `telephony.get.edges` | `edgeId` | Edge registration status |
 | `alerting.get.alerts` | — | Currently firing threshold alerts |
+
+#### Layer 6 — Self-Service & Knowledge (bot/IVR deflection ROI)
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `getKnowledgeKnowledgebaseDocumentFeedback` | `knowledgeBaseId`, `documentId` | Positive/negative feedback rate — content quality signal |
+| `getKnowledgeKnowledgebaseUnansweredGroups` | `knowledgeBaseId` | Clustered unmatched-query groups — the content-gap backlog, ranked by frequency |
+| `flows.get.flow.outcomes` | `flowId` | Self-service exit outcomes — pairs with unanswered-groups to separate a content gap from a bot-logic regression |
+
+This layer answers a question Layer 1's `containmentRate%` cannot: *why* the calls that didn't
+self-serve failed to. See the `knowledge-base-and-bot-deflection-effectiveness` playbook in
+`catalog/genesys.catalog.json` for the full join and diagnostic signals.
 
 ### Executive Dashboard Composition Pattern
 
@@ -495,6 +511,83 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Callback Investigation
+
+**Subject:** One `conversationId` that is a scheduled callback
+**Use case:** A customer reports "I scheduled a callback and never got a call," or a supervisor
+wants to audit callback answer/delay performance for a queue. Callbacks share a `conversationId`
+with the eventual outbound dial leg, so the same investigation surfaces both the scheduling
+record and the call that (or that failed to) result from it.
+
+**Core question:** *Did this callback fire on time, and did it connect?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `getConversationsCallback` | seed → `conversationId` | Scheduled time, callback number(s), `automatedCallbackConfigId`, `skipEnabled` |
+| 2 | `conversations.get.specific.conversation.details` | `conversationId` | State, participants, direction — the same object once the outbound leg dials |
+| 3 | `analytics.get.single.conversation.analytics` | `conversationId` | `tDialing`, `tContacting`, `tTalk` — confirms whether the dial leg was placed and answered |
+| 4 | `getConversationsCallbackParticipantWrapup` | `conversationId` + `participantId` | Wrapup code selected for the callback disposition |
+| 5 | `conversations.get.active.callbacks` | `queueId` | Queue-wide pending/overdue callback list |
+| 6 | `conversations.get.recordings` | `conversationId` | Recording of the resulting call, once connected |
+| 7 *(voice engineer)* | `telephony.get.sip.message.for.conversation` | `conversationId` | SIP trace on the outbound dial attempt — busy/no-answer/rejected |
+
+### Analytical Questions Answered
+
+- Did the callback fire at (or near) its scheduled time?
+- Did the outbound dial leg connect, or did the customer never answer?
+- Is this callback still pending, and is it already overdue against the queue's SLA?
+- If the dial failed, was it a customer no-answer/busy, or a trunk/routing failure (SIP trace)?
+
+**Machine-readable recipe:** `combinations.investigationRecipes.callback-investigation` in
+`catalog/genesys.catalog.json`.
+
+---
+
+## 12. Digital / Async Channel Conversation Investigation
+
+**Subject:** One `conversationId` on a chat, email, or messaging (SMS/WhatsApp/social) channel
+**Use case:** Companion to Pattern 1 (Single Conversation Deep Dive) for interactions where SIP
+and call-detail steps do not apply. A supervisor or QM analyst needs the message content,
+cobrowse session state (if used), and text-analytics sentiment for one digital interaction.
+
+**Core question:** *What was said, and how quickly did the agent respond?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | `mediaType` (chat/email/message) — determines which message-detail step applies |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timeline; the gap between a customer-message segment and the next agent-response segment is the async equivalent of talk time |
+| 3 | `getConversationsMessage` | `conversationId` | Unified Messaging API content — SMS, WhatsApp, social, and other message-media conversations |
+| 4 | `getConversationsEmailMessages` | `conversationId` | Email thread body and attachments (`mediaType = email` only) |
+| 5 *(legacy)* | `getConversationsChatMessages` | `conversationId` | Deprecated ACD Web Chat v2 content — only returns data for conversations that predate the Messaging API migration; an empty/410 result on a recent conversation means retry with step 3 |
+| 6 | `getConversationsCobrowsesession` | `conversationId` | Cobrowse/screen-share session state, populated only if a session was launched |
+| 7 | `speech.and.text.analytics.get.speech.and.text.analytics.for.conversation` | `conversationId` | Sentiment scores — text analytics applies to digital transcripts the same as voice |
+| 8 | `speechandtextanalytics.get.conversation.categories` | `conversationId` | Topic/category classification |
+| 9 | `quality.get.evaluations.query` | `conversationId` | QM evaluation score, if scored |
+| 10 | `quality.get.conversation.surveys` | `conversationId` | Post-interaction CSAT/NPS |
+
+### Analytical Questions Answered
+
+- What channel was this, and what did the customer/agent actually say?
+- Was a cobrowse session used, and did it establish successfully?
+- How long did the customer wait for each agent response (async response-time SLA, not AHT)?
+- What was the sentiment trend across the conversation, and was the last customer message left unanswered?
+
+### Note on Chat API Deprecation
+
+`getConversationsChatMessages` (ACD Web Chat v2) is deprecated — see the
+[deprecation article](https://help.genesys.cloud/articles/deprecation-removal-of-acd-web-chat-version-2/).
+New chat/message conversations resolve through `getConversationsMessage`; keep the legacy step only
+for investigating conversations that predate the migration.
+
+**Machine-readable recipe:** `combinations.investigationRecipes.digital-conversation-investigation`
+in `catalog/genesys.catalog.json`.
 
 ---
 

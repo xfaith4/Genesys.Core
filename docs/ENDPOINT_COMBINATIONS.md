@@ -174,6 +174,14 @@ quality scores, and coaching coverage.
 
 **Core question:** *How did this division's agents perform as a group?*
 
+**Shipped flagship:** A narrower 8-step cut of this pattern (division detail, the definitive
+division-scoped queue list, division agents, access grants, agent performance, division-level
+conversation aggregates, queue performance, and quality scores) now ships as
+`Get-GenesysDivisionInvestigation` (`division-investigation` investigation key) — see
+`docs/INVESTIGATIONS.md` § 4.5. The login-activity, activity-report, coaching, and wrap-up
+distribution steps below remain background design for a future extension, not yet composed by the
+cmdlet.
+
 ### Dataset Steps (ordered)
 
 | Step | Dataset Key | Join Key | What It Adds |

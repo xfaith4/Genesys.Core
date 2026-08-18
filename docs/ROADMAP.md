@@ -96,6 +96,23 @@ the engineering teams that automate against them.
       retained with cross-references to the new investigation; full
       fixture-driven integration test suite under
       `tests/integration/QueueInvestigation.Tests.ps1`.
+- [x] Division Investigation flagship (2026-08-18): `Get-GenesysDivisionInvestigation`
+      implemented over eight steps (division, queues, agents, grants,
+      agentPerformance, divisionPerformance, queuePerformance, qualityScores)
+      composing `authorization.get.all.divisions`, `authorization.list.division.queues`,
+      `users.division.analysis.get.users.with.division.info`,
+      `authorization.get.division.grants`,
+      `analytics.query.user.aggregates.performance.metrics`,
+      `analytics.query.conversation.aggregates.division.performance` (new
+      catalog dataset entry), `analytics.query.conversation.aggregates.queue.performance`,
+      and `quality.get.evaluations.query`. Implements
+      `combinations.investigationRecipes.division-investigation` from
+      `catalog/genesys.catalog.json`; the `division` subject type was added to
+      `Invoke-Investigation`'s `SubjectType` set and to
+      `catalog/schema/investigation.manifest.schema.json`. Full fixture-driven
+      integration test suite under
+      `tests/integration/DivisionInvestigation.Tests.ps1`; deterministic sample
+      output under `samples/demo-division-investigation/`.
 
 ### Active
 
@@ -107,8 +124,9 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Scope one additional flagship investigation candidate (Flow Outcome) with
+      a concrete operator use case and fixture contract. Division and Outbound
+      Campaign have both shipped as flagships.
 
 ### Maintenance
 

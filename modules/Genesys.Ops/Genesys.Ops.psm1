@@ -5939,7 +5939,7 @@ function Invoke-GenesysDataset {
             [string] $InvestigationKey,
 
             [Parameter(Mandatory)]
-            [ValidateSet('agent', 'campaign', 'conversation', 'queue')]
+            [ValidateSet('agent', 'campaign', 'conversation', 'division', 'queue')]
             [string] $SubjectType,
 
             [Parameter(Mandatory)]
@@ -9457,6 +9457,371 @@ $($sectionHtml -join [Environment]::NewLine)
             -InvestigationKey 'queue-investigation' `
             -SubjectType 'queue' `
             -Subject @{ SubjectId = $QueueId; QueueId = $QueueId } `
+            -Window @{ Since = $Since; Until = $Until } `
+            -Steps $steps `
+            -OutputRoot $OutputRoot `
+            -RunId $RunId `
+            -DatasetInvoker $DatasetInvoker
+    }
+
+    function Get-GenesysDivisionInvestigationStepDefinition {
+        <#
+    .SYNOPSIS
+        Returns the ordered step descriptors for the Division Investigation flagship.
+    .DESCRIPTION
+        Centralised so the public cmdlet and integration tests share the same
+        contract. Designed for the investigation composer — each step is a
+        hashtable consumed by Invoke-Investigation.
+
+        Implements combinations.investigationRecipes.division-investigation from
+        catalog/genesys.catalog.json. Per that recipe's divisionNote, an agent's
+        primary division.id does not restrict which queues they appear in —
+        authorization.search.division.objects (queried here via the
+        authorization.list.division.queues catalog dataset, which already wraps
+        that same endpoint) is the definitive queue list for the division and
+        drives the queue-scoped fan-out steps below.
+    #>
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [string] $DivisionId,
+
+            [datetime] $Since,
+
+            [datetime] $Until
+        )
+
+        $idMatchesDivision = { param($r, $s)
+            ($r.PSObject.Properties['id'] -and [string]$r.id -eq $s.DivisionId)
+        }
+        $divisionMatchesUser = { param($r, $s)
+            $divProp = $r.PSObject.Properties['division']
+            if (-not $divProp -or -not $divProp.Value) { return $false }
+            $idProp = $divProp.Value.PSObject.Properties['id']
+            return $idProp -and [string]$idProp.Value -eq $s.DivisionId
+        }
+        $divisionIdMatches = { param($r, $s)
+            $did = $r.PSObject.Properties['divisionId']
+            return $did -and [string]$did.Value -eq $s.DivisionId
+        }
+        $agentPerformanceMatches = { param($r, $s)
+            if (-not $s.ContainsKey('DivisionAgentIds')) { return $false }
+            $uid = $r.PSObject.Properties['userId']
+            return $uid -and ([string]$uid.Value -in $s.DivisionAgentIds)
+        }
+        $queuePerformanceMatches = { param($r, $s)
+            if (-not $s.ContainsKey('DivisionQueueIds')) { return $false }
+            $qid = $r.PSObject.Properties['queueId']
+            return $qid -and ([string]$qid.Value -in $s.DivisionQueueIds)
+        }
+        $evaluationMatchesDivisionAgent = { param($r, $s)
+            if (-not $s.ContainsKey('DivisionAgentIds')) { return $false }
+            $agentProp = $r.PSObject.Properties['agent']
+            if (-not $agentProp -or -not $agentProp.Value) { return $false }
+            $idProp = $agentProp.Value.PSObject.Properties['id']
+            return $idProp -and ([string]$idProp.Value -in $s.DivisionAgentIds)
+        }
+
+        $singleDivisionQueueParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ divisionId = [string]$subject['DivisionId']; objectType = 'QUEUE' } }
+        }
+        $singleDivisionGrantParameters = {
+            param($subject, $sections, $window)
+            @{ Query = @{ divisionId = [string]$subject['DivisionId'] } }
+        }
+        $updateSubjectWithDivisionQueueIds = {
+            param($records, $subject)
+            $ids = @(
+                @($records) |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
+                            [string]$_.id
+                        }
+                    } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+            @{ DivisionQueueIds = $ids }
+        }
+        $updateSubjectWithDivisionAgentIds = {
+            param($records, $subject)
+            $ids = @(
+                @($records) |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
+                            [string]$_.id
+                        }
+                    } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+            @{ DivisionAgentIds = $ids }
+        }
+        $agentPerformanceParameters = {
+            param($subject, $sections, $window)
+
+            $agentIds = @(
+                @($sections['agents']) |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
+                            [string]$_.id
+                        }
+                    } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+            if ($agentIds.Count -eq 0) { $agentIds = @('__no-division-agents__') }
+
+            $filterType = if ($agentIds.Count -gt 1) { 'or' } else { 'and' }
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1H'
+                    groupBy     = @('userId')
+                    metrics     = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'nOffered', 'tAnswered')
+                    filter      = [ordered]@{
+                        type       = $filterType
+                        predicates = @(
+                            $agentIds | ForEach-Object {
+                                [ordered]@{
+                                    dimension = 'userId'
+                                    value     = [string]$_
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $divisionPerformanceParameters = {
+            param($subject, $sections, $window)
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'P1D'
+                    groupBy     = @('divisionId')
+                    metrics     = @('nConnected', 'tHandle', 'tTalk', 'tHeld', 'tAcw', 'tAnswered', 'nOffered', 'nOutbound', 'nError')
+                    filter      = [ordered]@{
+                        type       = 'and'
+                        predicates = @(
+                            [ordered]@{
+                                dimension = 'divisionId'
+                                value     = [string]$subject['DivisionId']
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        $queuePerformanceParameters = {
+            param($subject, $sections, $window)
+
+            $queueIds = @(
+                @($sections['queues']) |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$_.id)) {
+                            [string]$_.id
+                        }
+                    } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
+            if ($queueIds.Count -eq 0) { $queueIds = @('__no-division-queues__') }
+
+            $filterType = if ($queueIds.Count -gt 1) { 'or' } else { 'and' }
+            $sinceIso = ConvertTo-IsoUtcTimestamp $window['Since']
+            $untilIso = ConvertTo-IsoUtcTimestamp $window['Until']
+            @{
+                Body = [ordered]@{
+                    interval    = "$sinceIso/$untilIso"
+                    granularity = 'PT1H'
+                    groupBy     = @('queueId', 'mediaType')
+                    metrics     = @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound')
+                    filter      = [ordered]@{
+                        type       = $filterType
+                        predicates = @(
+                            $queueIds | ForEach-Object {
+                                [ordered]@{
+                                    dimension = 'queueId'
+                                    value     = [string]$_
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        @(
+            @{
+                Name          = 'division'
+                DatasetKey    = 'authorization.get.all.divisions'
+                SubjectFilter = $idMatchesDivision
+                EmitAs        = 'division'
+                Required      = $true
+                JoinKind      = 'Seed'
+                JoinOn        = @{ Left = $null; Right = 'id' }
+                SortKey       = 'id'
+            }
+            @{
+                Name           = 'queues'
+                DatasetKey     = 'authorization.list.division.queues'
+                Parameters     = $singleDivisionQueueParameters
+                SubjectUpdater = $updateSubjectWithDivisionQueueIds
+                EmitAs         = 'queues'
+                Required       = $false
+                JoinKind       = 'Left'
+                JoinOn         = @{ Left = 'division.id'; Right = 'divisionId' }
+                SortKey        = 'id'
+            }
+            @{
+                Name           = 'agents'
+                DatasetKey     = 'users.division.analysis.get.users.with.division.info'
+                SubjectFilter  = $divisionMatchesUser
+                SubjectUpdater = $updateSubjectWithDivisionAgentIds
+                EmitAs         = 'agents'
+                Required       = $false
+                JoinKind       = 'Left'
+                JoinOn         = @{ Left = 'division.id'; Right = 'divisionId' }
+                SortKey        = 'id'
+            }
+            @{
+                Name       = 'grants'
+                DatasetKey = 'authorization.get.division.grants'
+                Parameters = $singleDivisionGrantParameters
+                EmitAs     = 'grants'
+                Required   = $false
+                JoinKind   = 'Left'
+                JoinOn     = @{ Left = 'division.id'; Right = 'divisionId' }
+                SortKey    = 'subjectId'
+            }
+            @{
+                Name          = 'agentPerformance'
+                DatasetKey    = 'analytics.query.user.aggregates.performance.metrics'
+                Parameters    = $agentPerformanceParameters
+                SubjectFilter = $agentPerformanceMatches
+                EmitAs        = 'agentPerformance'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agents.id'; Right = 'userId' }
+                SortKey       = 'userId'
+            }
+            @{
+                Name          = 'divisionPerformance'
+                DatasetKey    = 'analytics.query.conversation.aggregates.division.performance'
+                Parameters    = $divisionPerformanceParameters
+                SubjectFilter = $divisionIdMatches
+                EmitAs        = 'divisionPerformance'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'division.id'; Right = 'divisionId' }
+                SortKey       = 'divisionId'
+            }
+            @{
+                Name          = 'queuePerformance'
+                DatasetKey    = 'analytics.query.conversation.aggregates.queue.performance'
+                Parameters    = $queuePerformanceParameters
+                SubjectFilter = $queuePerformanceMatches
+                EmitAs        = 'queuePerformance'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'queues.id'; Right = 'queueId' }
+                SortKey       = 'queueId'
+            }
+            @{
+                Name          = 'qualityScores'
+                DatasetKey    = 'quality.get.evaluations.query'
+                SubjectFilter = $evaluationMatchesDivisionAgent
+                EmitAs        = 'qualityScores'
+                Required      = $false
+                JoinKind      = 'Left'
+                JoinOn        = @{ Left = 'agents.id'; Right = 'userId' }
+                SortKey       = 'id'
+            }
+        )
+    }
+
+    function Get-GenesysDivisionInvestigation {
+        <#
+    .SYNOPSIS
+        Run the Division Investigation flagship — joins division metadata, the
+        definitive division-scoped queue list, agents whose primary division is
+        this one, access-control grants, agent performance aggregates,
+        division-level conversation aggregates, queue performance aggregates,
+        and quality evaluation scores for one division.
+    .DESCRIPTION
+        Composes eight catalog datasets via Invoke-Investigation and emits the
+        standard run-artifact set under out/division-investigation/<runId>/.
+        Implements combinations.investigationRecipes.division-investigation
+        from catalog/genesys.catalog.json.
+
+        Resolves -DivisionName to a DivisionId before invoking the composer.
+        Use -DatasetInvoker (a scriptblock returning fixture data) to drive
+        determinism / integration tests without touching the live API.
+    .PARAMETER DivisionId
+        Resolved Genesys division GUID. Required if -DivisionName is not supplied.
+    .PARAMETER DivisionName
+        Display-name used to look up a single division via Get-GenesysDivision.
+        The first exact-name match is used; ambiguous matches throw.
+    .PARAMETER Since
+        Inclusive start of the investigation window. Defaults to 7 days ago.
+    .PARAMETER Until
+        Exclusive end of the investigation window. Defaults to now.
+    .PARAMETER OutputRoot
+        Root for the run-artifact tree. Defaults to 'out'.
+    .PARAMETER RunId
+        Override the auto-generated run identifier. Use only for deterministic
+        tests; do not set in production.
+    .PARAMETER DatasetInvoker
+        Test seam — see Invoke-Investigation. When supplied, no live API calls
+        are made and Connect-GenesysCloud is not required.
+    .EXAMPLE
+        Get-GenesysDivisionInvestigation -DivisionId 'd1b2c3...' -Since (Get-Date).AddDays(-7)
+    .EXAMPLE
+        Get-GenesysDivisionInvestigation -DivisionName 'APAC'
+    #>
+        [CmdletBinding(DefaultParameterSetName = 'ById')]
+        param(
+            [Parameter(ParameterSetName = 'ById', Mandatory)]
+            [string] $DivisionId,
+
+            [Parameter(ParameterSetName = 'ByName', Mandatory)]
+            [string] $DivisionName,
+
+            [datetime] $Since,
+            [datetime] $Until,
+            [string]   $OutputRoot = 'out',
+            [string]   $RunId,
+            [scriptblock] $DatasetInvoker
+        )
+
+        if (-not $Until) { $Until = Get-Date }
+        if (-not $Since) { $Since = $Until.AddDays(-7) }
+
+        if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+            if (-not $DatasetInvoker) { Assert-GenesysConnected }
+            $matches = @(Get-GenesysDivision | Where-Object { $_.name -eq $DivisionName })
+            if ($matches.Count -eq 0) { throw "No Genesys division matched '$DivisionName'." }
+            if ($matches.Count -gt 1) {
+                $ids = ($matches | ForEach-Object { "$($_.name) <$($_.id)>" }) -join '; '
+                throw "Ambiguous division name '$DivisionName' — $($matches.Count) matches: $ids"
+            }
+            $DivisionId = $matches[0].id
+        }
+
+        if (-not $DatasetInvoker) { Assert-GenesysConnected }
+
+        $steps = Get-GenesysDivisionInvestigationStepDefinition -DivisionId $DivisionId -Since $Since -Until $Until
+
+        Invoke-Investigation `
+            -InvestigationKey 'division-investigation' `
+            -SubjectType 'division' `
+            -Subject @{ SubjectId = $DivisionId; DivisionId = $DivisionId } `
             -Window @{ Since = $Since; Until = $Until } `
             -Steps $steps `
             -OutputRoot $OutputRoot `

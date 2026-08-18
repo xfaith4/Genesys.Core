@@ -1297,6 +1297,32 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "authorization.get.division.grants": {
+      "description": "Access control grants assigned to a division — subjects (users/roles) and their granted permissions within this division. Fan-out step in division investigations.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "analytics.query.conversation.aggregates.division.performance": {
+      "description": "Query Conversation Aggregates — division-level conversation volume and handle-time metrics grouped by divisionId. KPI rollup for division investigations.",
+      "endpoint": "analytics.query.conversation.aggregates.division.performance",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "analytics_details_query"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {

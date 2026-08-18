@@ -169,6 +169,7 @@
         'Export-GenesysInvestigationDiagnosticsBundle'
         'Export-GenesysConversationInvestigationPackage'
         'Get-GenesysQueueInvestigation'
+        'Get-GenesysDivisionInvestigation' # Division Investigation flagship
 
         # Dataset coverage audit
         'Test-GenesysOpsDatasetCoverage'

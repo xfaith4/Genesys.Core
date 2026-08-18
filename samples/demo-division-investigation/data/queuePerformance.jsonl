@@ -1,0 +1,2 @@
+{"queueId":"queue-demo-001","mediaType":"voice","nConnected":120,"tHandle":43200,"tTalk":33500,"tAcw":9800,"tAnswered":112,"tHeld":2600,"nOffered":125,"nOutbound":0}
+{"queueId":"queue-demo-002","mediaType":"voice","nConnected":60,"tHandle":21600,"tTalk":16700,"tAcw":4800,"tAnswered":56,"tHeld":1500,"nOffered":65,"nOutbound":12}

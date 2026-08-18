@@ -233,6 +233,29 @@ fields carried over by user records embedded under each membership entry.
 | conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
 | outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
 
+### 4.5 Division investigation
+
+**Cmdlet:** `Get-GenesysDivisionInvestigation -DivisionId <x> -Since <window>`
+**InvestigationKey:** `division-investigation`
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| division | `authorization.get.all.divisions` (filtered) | seed | Division name, description, home-division flag |
+| queues | `authorization.list.division.queues` (single-division query) | `divisionId` | Definitive queue list for the division — an agent's primary division does not restrict which queues they serve, so this is the authoritative fan-out source for queue-scoped steps |
+| agents | `users.division.analysis.get.users.with.division.info` (filtered) | `divisionId` | Agents whose primary division is this one |
+| grants | `authorization.get.division.grants` (single-division query) | `divisionId` | Access-control grants (subject, role) within this division |
+| agentPerformance | `analytics.query.user.aggregates.performance.metrics` (agent-list body filter) | `userId` | nConnected, tHandle, tTalk, tAcw, nOffered, tAnswered per agent in the division |
+| divisionPerformance | `analytics.query.conversation.aggregates.division.performance` (divisionId body filter) | `divisionId` | Division-level conversation volume and handle-time KPI rollup |
+| queuePerformance | `analytics.query.conversation.aggregates.queue.performance` (queue-list body filter) | `queueId` | SLA/handle metrics per queue owned by the division |
+| qualityScores | `quality.get.evaluations.query` (filtered to division agents) | `userId` | Evaluation scores for agents in the division |
+
+Implements `combinations.investigationRecipes.division-investigation` from
+`catalog/genesys.catalog.json`. The `queues` and `agentPerformance`/`queuePerformance` steps read
+prior steps' output (`queues`, `agents`) inside their `Parameters` scriptblocks to build the
+analytics `filter.predicates` list, the same technique the Queue Investigation's `activeAgents`
+step uses. See `docs/ENDPOINT_COMBINATIONS.md` § 3 for the original, broader design pattern this
+flagship narrows down to a shippable 8-step cut.
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:
@@ -242,6 +265,7 @@ Deterministic sample outputs are committed for review and demos:
 - `samples/demo-conversation-investigation-run/` — standard run artifacts for the Conversation Investigation.
 - `samples/demo-conversation-investigation/` — packaged conversation-investigation deliverable (HTML/XLSX/CSV/PCAP-oriented example).
 - `samples/demo-queue-investigation/` — standard run artifacts for the enriched Queue Investigation.
+- `samples/demo-division-investigation/` — standard run artifacts for the Division Investigation.
 
 ## 6. Dependencies
 

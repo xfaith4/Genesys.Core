@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-19  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,7 +19,8 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+`byoi-conversation-enrichment` recipe key; Pattern 10 (External Contact / Customer 360) maps to the
+`external-contact-360-investigation` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
@@ -36,7 +37,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [External Contact / Customer 360 Investigation](#10-external-contact--customer-360-investigation)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -98,6 +100,11 @@ Step 8 (SIP trace) is the definitive source for:
 The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/providers/edges/{edgeId}/metrics`)
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
+
+If the complaint is about a recurring issue rather than one isolated call, use
+[Pattern 10 (External Contact / Customer 360)](#10-external-contact--customer-360-investigation) to
+pull every conversation this customer has ever had, then repeat this pattern's SIP-trace step across
+each returned `conversationId` to see whether the failure is systemic or intermittent.
 
 ### BYOI Indicator
 
@@ -442,59 +449,140 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. External Contact / Customer 360 Investigation
+
+**Subject:** One `contactId` (an external/customer contact), optionally rolled up to its
+`externalOrganizationId` for a B2B account view  
+**Use case:** A customer calls in about a recurring problem, a QM analyst is reviewing a complaint
+pattern, or an executive wants to know whether a specific account is generating disproportionate
+support volume. Unlike every other pattern in this document, the entry point is **customer
+identity**, not internal org structure — this is the one investigation that cuts across every
+queue, agent, and division a customer has ever touched.
+
+**Core question:** *How has this customer been treated across every channel, agent, and contact
+they've had with us?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `externalcontacts.get.contact` | seed → `contactId` | Name, title, `externalOrganization.id`, division |
+| 2 | `externalcontacts.get.contact.identifiers` | `contactId` | Claimed phone/email/social identifiers — why disparate ANI/DNIS/chat handles resolve to one customer |
+| 3 | `analytics-conversation-details-query` (`externalContactId` filter) | `conversationId` | Every conversation, any media type, where a participant carries this `externalContactId` |
+| 4 | `quality.get.surveys` | `conversationId` | CSAT/NPS per past interaction — sequence to see the trend |
+| 5 | `quality.get.evaluations.query` | `conversationId` | QM scores across this customer's interactions — a pattern across multiple agents points at the case, not the agent |
+| 6 *(Journey licensed)* | `externalcontacts.get.contact.journey.sessions` | `contactId` | Pre-contact digital journey (web/app touches) |
+| 7 *(Journey licensed)* | `externalcontacts.get.contact.journey.segments` | `contactId` | Behavioural/marketing segments assigned to the contact |
+| 8 | `externalcontacts.get.contact.notes` | `contactId` | Free-text notes agents logged on prior contacts — context for the next one |
+| 9 *(B2B, optional)* | `getExternalcontactsOrganizationContacts` | `externalOrganizationId` (from step 1) | Other contacts at the same account — turns a single-contact view into an account-level rollup |
+
+### Key Joins
+
+```
+externalcontacts.get.contact.id (contactId)
+  → externalcontacts.get.contact.identifiers.contactId
+  → externalcontacts.get.contact.journey.sessions.contactId (optional)
+  → externalcontacts.get.contact.journey.segments.contactId (optional)
+  → externalcontacts.get.contact.notes.contactId
+  → analytics-conversation-details-query[].participants[].externalContactId
+
+analytics-conversation-details-query[].conversationId
+  → quality.get.surveys[].conversationId (left join)
+  → quality.get.evaluations.query[].conversationId (left join)
+
+externalcontacts.get.contact.externalOrganization.id
+  → getExternalcontactsOrganizationContacts.externalOrganizationId (optional B2B account rollup)
+```
+
+### Analytical Questions Answered
+
+- How many times has this customer contacted us, over what window, via which channels?
+- Which queues and agents have handled this customer? Is there a repeat-transfer or repeat-escalation pattern?
+- Is this customer's CSAT/NPS trending up or down across their interaction history?
+- What have agents previously noted about this customer that the next agent should know?
+- (B2B) Is the whole account — not just one contact — generating a support-volume spike?
+
+### Cross-Reference to Pattern 1 (Voice Engineer)
+
+This recipe's `externalContactId` join key is present but redacted by default in the
+`agent-investigation-conversations` redaction profile used elsewhere — the dedicated
+`external-contact-360` redaction profile intentionally keeps it, since it is this recipe's primary
+join key. When a customer reports a recurring problem ("every time I call, X happens"), pull step 3
+for their `contactId`, then run **Pattern 1 (Single Conversation Deep Dive)** against each returned
+`conversationId`'s SIP trace to determine whether the failure is systemic (same trunk/route/codec
+every time) or intermittent.
+
+### Identification Rule
+
+`conversations.get.conversation.object.participants[].externalContactId` is the join key connecting
+a conversation to an `externalcontacts.get.contact` record. This is distinct from the BYOI
+`externalTag`/`externalConversationId` fields in Pattern 6 — a conversation can carry both a BYOI
+provenance tag and a linked external contact, and the two should not be conflated.
+
+**Machine-readable counterpart:** `combinations.investigationRecipes.external-contact-360-investigation`
+in `catalog/genesys.catalog.json`.
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Customer 360 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | ○ |
+| `quality.get.surveys` | ● | | | ● | | | ● |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `externalcontacts.get.contact` | | | | | | | ● |
+| `externalcontacts.get.contact.identifiers` | | | | | | | ● |
+| `externalcontacts.get.contact.journey.sessions` | | | | | | | ○ |
+| `externalcontacts.get.contact.journey.segments` | | | | | | | ○ |
+| `externalcontacts.get.contact.notes` | | | | | | | ● |
+| `getExternalcontactsOrganizationContacts` | | | | | | | ○ |
 
 ---
 

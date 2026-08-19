@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-08-19
+
+### Added
+
+- Added an **External Contact / Customer 360 Investigation** pattern — the
+  first investigation in the catalog scoped by customer identity rather than
+  internal org structure (conversation/queue/division/agent). Given a
+  `contactId`, it rolls up every conversation that customer has ever had
+  (any media type, any queue, any agent) plus their CSAT/NPS and QM score
+  history, prior agent notes, optional Journey sessions/segments, and an
+  optional B2B account-level rollup via `externalOrganizationId`. Documented
+  as Pattern 10 in `docs/ENDPOINT_COMBINATIONS.md` (TOC and reference matrix
+  updated, matrix gained a `Customer 360` column) with a machine-readable
+  counterpart at `combinations.investigationRecipes.external-contact-360-investigation`
+  in `catalog/genesys.catalog.json`.
+- Added five curated datasets backing the new recipe, all pointing at
+  previously-uncurated `externalcontacts` operationIds already present in
+  the raw `endpoints` catalog: `externalcontacts.get.contact`,
+  `externalcontacts.get.contact.identifiers`,
+  `externalcontacts.get.contact.journey.sessions`,
+  `externalcontacts.get.contact.journey.segments`, and
+  `externalcontacts.get.contact.notes`.
+- Added the `external-contact-360` redaction profile — retains name, phone,
+  email, and title needed for identity resolution and case context, but
+  strips freeform custom-schema fields and social-media handles that
+  commonly carry incidental PII beyond investigation scope. Deliberately
+  does not remove `externalContactId`, which is the recipe's primary join
+  key (that field is redacted by default in the pre-existing
+  `agent-investigation-conversations` profile used elsewhere, so the two
+  profiles diverge intentionally).
+
 ## 2026-08-15
 
 ### Fixed

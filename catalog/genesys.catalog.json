@@ -1297,6 +1297,71 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External (customer) contact record \u2014 identity, external organization linkage, division. Seed step for the external-contact-360-investigation recipe.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-360",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.identifiers": {
+      "description": "Claimed identifiers (phone/email/social handles) for one external contact \u2014 explains how disparate ANI/DNIS/chat handles resolve to the same customer record.",
+      "endpoint": "getExternalcontactsContactIdentifiers",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-360",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Digital journey sessions (web/app touches) recorded for one external contact. Requires Journey/Predictive Engagement licensing.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "description": "Behavioural/marketing journey segments currently assigned to one external contact. Requires Journey/Predictive Engagement licensing.",
+      "endpoint": "getExternalcontactsContactJourneySegments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Free-text notes agents have logged about one external contact on prior contacts \u2014 pre-contact context for the next interaction.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "external-contact-360",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1448,6 +1513,18 @@
           "client_id",
           "userId",
           "conversationId"
+        ]
+      },
+      "external-contact-360": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts datasets in the external-contact-360-investigation recipe. Retains name/phone/email/title needed for identity resolution and case context, but strips freeform custom-schema fields and social-media handles that commonly carry incidental PII beyond investigation scope. Does NOT remove externalContactId — it is the recipe's primary join key.",
+        "removeFields": [
+          "customFields",
+          "twitterId",
+          "lineId",
+          "whatsAppId",
+          "facebookId",
+          "address"
         ]
       },
       "agent-investigation-users": {
@@ -40341,6 +40418,98 @@
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
+        ]
+      },
+      "external-contact-360-investigation": {
+        "description": "Cross-conversation history for a single external (customer) contact, or for an entire account when the contact belongs to an external organization. Unlike the conversation/queue/agent/division recipes, this recipe is scoped by customer identity, not by internal org structure — it answers 'how has this customer been treated across every channel, agent, and queue they've touched?' Use for repeat-escalation review, VOC trend analysis, and pre-contact context assembly.",
+        "subjectParam": "contactId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "contact-identity",
+            "dataset": "externalcontacts.get.contact",
+            "role": "seed",
+            "joinKey": "contactId",
+            "provides": "name, title, externalOrganization.id, division, modifyDate",
+            "description": "Core identity record for the external contact; externalOrganization.id drives the optional account-level rollup"
+          },
+          {
+            "step": "contact-identifiers",
+            "dataset": "externalcontacts.get.contact.identifiers",
+            "joinKey": "contactId",
+            "provides": "claimed identifiers (phone/email/social handles) used to resolve this contact across inbound channels",
+            "description": "Explains why disparate ANI/DNIS or chat handles all resolve to the same customer record"
+          },
+          {
+            "step": "conversation-history",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "externalContactId",
+            "joinKey": "conversationId",
+            "provides": "every conversation (any mediaType) where a participant carries this externalContactId, with queue/agent/segment detail",
+            "description": "The core cross-cutting rollup — replaces having to already know each conversationId; surfaces the full contact history in one query"
+          },
+          {
+            "step": "csat-history",
+            "dataset": "quality.get.surveys",
+            "filterBy": "conversationId (from conversation-history)",
+            "joinKey": "conversationId",
+            "provides": "CSAT/NPS score per past interaction",
+            "description": "Left join — not every conversation triggers a survey. Sequenced by conversation date shows whether satisfaction is trending up or down for this customer"
+          },
+          {
+            "step": "qm-evaluation-history",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId (from conversation-history)",
+            "joinKey": "conversationId",
+            "audience": [
+              "qm-analyst"
+            ],
+            "provides": "evaluation scores across this customer's past interactions",
+            "description": "Left join. A pattern of low scores across multiple agents on the same customer points at the customer/case, not any one agent"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "externalcontacts.get.contact.journey.sessions",
+            "joinKey": "contactId",
+            "provides": "digital journey sessions (web/app touches) recorded for this contact",
+            "description": "Optional — requires Journey/Predictive Engagement licensing. Shows pre-contact digital behaviour (e.g. viewed the billing page before calling about a bill)"
+          },
+          {
+            "step": "journey-segments",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "joinKey": "contactId",
+            "provides": "behavioural/marketing segments currently assigned to this contact",
+            "description": "Optional — same licensing dependency as journey-sessions"
+          },
+          {
+            "step": "agent-notes",
+            "dataset": "externalcontacts.get.contact.notes",
+            "joinKey": "contactId",
+            "provides": "free-text notes agents have logged about this customer on prior contacts",
+            "description": "Context an agent or QM analyst should read before the next contact; treat as free-text PII — apply the external-contact-360 redaction profile"
+          },
+          {
+            "step": "account-siblings",
+            "dataset": "getExternalcontactsOrganizationContacts",
+            "filterBy": "externalOrganizationId (from contact-identity)",
+            "joinKey": "externalOrganizationId",
+            "role": "optional",
+            "audience": [
+              "b2b-account-review"
+            ],
+            "provides": "other contacts at the same external organization",
+            "description": "Run only when contact-identity.externalOrganization is non-null. Turns a single-contact investigation into an account-level rollup — useful when a B2B account shows a support-volume spike across several named contacts"
+          }
+        ],
+        "identificationRule": "conversations carry a per-participant externalContactId (see the agent-investigation-conversations redaction profile, which redacts this field by default). This recipe intentionally surfaces it as the primary join key — it should not be run through a redaction profile that removes externalContactId.",
+        "executiveMetrics": [
+          "contact frequency (conversations per contact per period) — repeat-contact rate",
+          "CSAT/NPS trend across a contact's interaction sequence",
+          "QM score distribution across a contact's interaction sequence — flags case-driven vs. agent-driven quality issues",
+          "account-level contact volume (sum across account-siblings) for B2B support-spike detection"
+        ],
+        "voiceEngineerHighlights": [
+          "When a customer reports a recurring problem ('every time I call, X happens'), pull conversation-history for their contactId, then run Pattern 1 (Single Conversation Deep Dive / single-call-forensics) against each returned conversationId's SIP trace to check whether the failure is systemic (same trunk/route/codec every time) or intermittent"
         ]
       }
     },

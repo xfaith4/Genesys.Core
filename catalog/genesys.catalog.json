@@ -40342,6 +40342,86 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "campaign-investigation": {
+        "description": "Complete forensic investigation of one outbound dialer campaign — configuration, contact list, target queue, engine diagnostics, event timeline, configuration-change audit trail, connected conversations, and outbound-abandon evidence. Mirrors the Get-GenesysCampaignInvestigation flagship cmdlet. Used by voice engineers and compliance analysts investigating pacing complaints, abandon-rate exposure, or unexpected campaign behaviour.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "campaignId",
+            "provides": "campaignStatus, dialingMode, contactListId, queueId, callerName, callerAddress, abandonRate",
+            "description": "Campaign configuration — dialing mode, target contact list and queue, caller ID, and the configured abandon rate ceiling"
+          },
+          {
+            "step": "contactList",
+            "dataset": "outbound.get.contact.lists",
+            "joinKey": "campaign.contactListId → id",
+            "provides": "contact list name, size, columnNames",
+            "description": "Contact list metadata for the campaign's dial source; left join, absent if the list has since been deleted"
+          },
+          {
+            "step": "queue",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "campaign.queueId → id",
+            "provides": "mediaSettings.call.alertingTimeoutSeconds, queue routing config",
+            "description": "Target queue the campaign dials into — its alerting timeout directly governs how quickly unanswered connects become abandons"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "health, pacingMode, errorCount, contactableRate",
+            "description": "Campaign engine health summary — surfaces pacing or dialer errors without reading the raw event stream"
+          },
+          {
+            "step": "outboundEvents",
+            "dataset": "outbound.get.events",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "campaignStart/campaignStop, contactCallCompleted, contactCallAbandon event timeline",
+            "description": "Full campaign event timeline ordered by timestamp — dial attempts, connects, and abandons"
+          },
+          {
+            "step": "auditChanges",
+            "dataset": "audit-logs",
+            "joinKey": "campaign.id → entity.id",
+            "provides": "UPDATE_OUTBOUND_CAMPAIGN change history for the window",
+            "description": "Configuration-change audit trail — correlates a behaviour change to a config edit (e.g. pacing, CPS, or abandon-rate target changed mid-run)"
+          },
+          {
+            "step": "conversationAnalytics",
+            "dataset": "analytics-conversation-details-query",
+            "joinKey": "campaign.id → participants[].campaignId",
+            "provides": "connected conversations with full segment detail for this campaign",
+            "description": "Analytics query filtered to campaignId (segmentFilters predicate) — the actual conversations the campaign produced, for handle-time and disposition drill-down"
+          },
+          {
+            "step": "outboundAbandons",
+            "dataset": "outbound.get.events",
+            "joinKey": "campaign.id → campaignId",
+            "provides": "contactCallAbandon events only (subset of outboundEvents)",
+            "description": "Event stream filtered to abandon events — the definitive evidence set for an outbound-abandon-rate compliance complaint"
+          }
+        ],
+        "joinSequence": "seed (campaign) → contactList (campaign.contactListId) → queue (campaign.queueId) → diagnostics (campaign.id) → outboundEvents (campaign.id) → auditChanges (campaign.id, window) → conversationAnalytics (campaign.id, window) → outboundAbandons (campaign.id, filtered to abandon type)",
+        "voiceEngineerHighlights": [
+          "diagnostics.health != 'healthy' or diagnostics.errorCount > 0 points to a dialer engine fault, not a queue or agent capacity issue",
+          "outboundAbandons volume relative to campaign.abandonRate confirms whether the campaign stayed within its configured/regulatory abandon threshold",
+          "auditChanges timestamps overlapping a spike in outboundAbandons usually means a pacing or CPS change was pushed mid-run",
+          "queue.mediaSettings.call.alertingTimeoutSeconds too short relative to agent availability inflates NoAnswer and abandon counts",
+          "conversationAnalytics segments with disconnectType='client' and no agent participant confirm outbound-system (not customer) disconnects"
+        ],
+        "executiveMetrics": [
+          "abandonRate",
+          "contactableRate",
+          "errorCount",
+          "nCampaignConnected",
+          "nCampaignAbandoned",
+          "campaignCompletionPct"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

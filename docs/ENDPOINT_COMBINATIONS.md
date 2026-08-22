@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-22  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,7 +19,8 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+`byoi-conversation-enrichment` recipe key; Pattern 7 (Campaign / Outbound Investigation) maps to
+the `campaign-investigation` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
@@ -33,10 +34,11 @@ there is no third namespace.
 4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
 5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
 6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
-7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
-8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
-9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+7. [Campaign / Outbound Investigation](#7-campaign--outbound-investigation)
+8. [Agent Investigation Extensions](#8-agent-investigation-extensions-release-13)
+9. [Conversation Investigation Extensions](#9-conversation-investigation-extensions-release-13)
+10. [Queue Investigation Extensions](#10-queue-investigation-extensions-release-13)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -386,9 +388,88 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
 full object returned by the dataset and need no special handling.
 
+### Reverse Lookup: External Case ID → Conversation
+
+The steps above all assume a starting `conversationId`. In practice, support agents and voice
+engineers investigating a BYOI conversation often start from the *external* identifier instead —
+a CRM case number or the provider's own call ID — because that is what the customer or the CRM
+ticket gives them.
+
+`conversations.search.customattributes` searches custom-attribute values across conversations and
+returns the matching `conversationId` list, so it can seed the whole investigation before a
+Genesys conversation ID is known:
+
+```
+conversations.search.customattributes (query = external CRM case ID)
+  → conversationId[] (one or more matches)
+  → conversations.get.conversation.object.conversationId (continue with step 1 above, per match)
+```
+
+This is the mirror image of step "custom-attributes" in the Single Conversation Deep Dive
+(pattern 1), which reads attributes for a *known* conversation; this reverse lookup finds the
+conversation(s) when only the external key is known. Encoded as `reverseLookupStep` on the
+`byoi-conversation-enrichment` recipe in `catalog/genesys.catalog.json`.
+
 ---
 
-## 7. Agent Investigation Extensions (Release 1.3)
+## 7. Campaign / Outbound Investigation
+
+**Subject:** One `campaignId` + time window
+**Use case:** An outbound operations analyst or WFM lead needs to understand one dialing campaign
+end-to-end — configuration and pacing, the contact list behind it, dialer dispositions, compliance
+exposure (abandon rate vs. the regulatory limit), and the individual connected calls it produced.
+This is the endpoint combination behind the shipped `Get-GenesysCampaignInvestigation` cmdlet
+(`campaign-investigation` in `catalog/genesys.catalog.json` → `combinations.investigationRecipes`).
+
+**Core question:** *Is this campaign healthy, compliant, and worth the connect rate it's getting?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `outbound.get.campaigns` | seed → `campaignId` | Status, dialing mode, caller ID, `contactListId`, `queueId`, configured `abandonRateLimit` |
+| 2 | `outbound.get.contact.lists` | `contactListId` | Contact list name and size — denominator for penetration rate |
+| 3 | `routing.get.single.queue.config` | `queueId` | Connected queue's ACW/media settings — where connected calls land |
+| 4 | `outbound.get.campaign.diagnostics.summary` | `campaignId` | Live pacing, current abandon rate, agents assigned/available — real-time health |
+| 5 | `outbound.get.events` | `campaignId` | Every dialer event and disposition (connected, no-answer, busy, voicemail, abandon) |
+| 6 *(derived)* | `outbound.get.events` (abandon-flagged subset) | `campaignId` | Abandon-only events, compared against `abandonRateLimit` for compliance risk |
+| 7 | `analytics-conversation-details-query` (campaignId segment filter) | `participants.campaignId` | Every connected call the campaign produced — `conversationId`, `agentId`, `tTalk`, `tHandle`, `wrapUpCode` |
+| 8 | `audit-logs` (EntityType=`Campaign`, EntityId=`campaignId`) | `campaignId` | Who changed campaign config/status and when — correlates pacing changes with performance shifts |
+
+### Key Joins
+
+```
+outbound.get.campaigns.id
+  → outbound.get.contact.lists.id (via campaign.contactListId)
+  → routing.get.single.queue.config.id (via campaign.queueId)
+  → outbound.get.campaign.diagnostics.summary.campaignId
+  → outbound.get.events[].campaignId (all dialer dispositions)
+  → analytics-conversation-details-query[].participants[].campaignId (connected calls only)
+  → audit-logs[].entity.id (campaign config change history)
+```
+
+### Analytical Questions Answered
+
+- What is the campaign's connect rate, no-answer rate, and abandon rate right now?
+- Is the campaign dialing faster than agents can answer — is it at risk of breaching `abandonRateLimit`?
+- How much of the contact list has been worked (penetration)?
+- What happened on a specific connected call from this campaign? (drill into pattern 1 via the `conversationId` from step 7)
+- Did a configuration or pacing change correlate with a shift in connect/abandon rate? (step 8 vs. steps 4–7)
+
+### Voice Engineer / Compliance Notes
+
+Step 6 (derived abandon events) is the compliance-critical signal: outbound abandon-rate limits
+are typically regulatory (e.g. TCPA-adjacent rules), not just an operational target. A campaign
+whose diagnostics (step 4) show abandon rate approaching `abandonRateLimit` needs pacing
+intervention before it becomes a compliance incident, not after.
+
+Step 7 is the bridge into the Single Conversation Deep Dive (pattern 1) — every `conversationId`
+it returns can be investigated individually for audio quality, SIP trace, or wrap-up review using
+the same steps as an inbound call.
+
+---
+
+## 8. Agent Investigation Extensions (Release 1.3)
 
 The existing Agent Investigation (`Get-GenesysAgentInvestigation`) covers 8 steps. These additional
 datasets enrich the investigation without replacing any existing step.
@@ -407,7 +488,7 @@ licensed and configured.
 
 ---
 
-## 8. Conversation Investigation Extensions (Release 1.3)
+## 9. Conversation Investigation Extensions (Release 1.3)
 
 The existing Conversation Investigation (`Get-GenesysConversationInvestigation`) covers 8 steps.
 These additional datasets complete the deep-dive picture.
@@ -427,7 +508,7 @@ returns `speechAndTextAnalyticsConversation.analysisStatus = "Success"`.
 
 ---
 
-## 9. Queue Investigation Extensions (Release 1.3)
+## 10. Queue Investigation Extensions (Release 1.3)
 
 The existing Queue Investigation (`Get-GenesysQueueInvestigation`) covers 6 steps. These additions
 complete the picture.
@@ -442,59 +523,63 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Campaign Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | |  |
+| `analytics.get.single.conversation.analytics` | ● | | | | | |  |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | |  |
+| `conversations.get.conversation.customattributes` | ● | | | | | |  |
+| `conversations.search.participant.attributes` | ● | | | | | |  |
+| `quality.get.evaluations.query` | ● | ○ | | | | |  |
+| `quality.get.surveys` | ● | | | ● | | |  |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |  |
+| `conversations.get.speech.text.analytics` | ○ | | | | | |  |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |  |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |  |
+| `routing.get.single.queue.config` | | ● | | | | | ○ |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |  |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |  |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |  |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |  |
+| `routing-queue-members` | | ● | | | | |  |
+| `authorization.get.single.division` | | | ● | | | |  |
+| `authorization.list.division.queues` | | | ● | | | |  |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |  |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |  |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |  |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● |  |
+| `quality.get.agents.activity` | | | ● | ● | | ○ |  |
+| `coaching.get.appointments` | | | ● | | | ○ |  |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |  |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | |  |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |  |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | |  |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | |  |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ |  |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ |  |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ |  |
+| `analytics.query.flow.observations` | | | | | ● | |  |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |  |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |  |
+| `alerting.get.alerts` | | | | ○ | ● | |  |
+| `users.get.user.details.with.full.expansion` | | | | | | ● |  |
+| `users.get.user.routing.skills` | | | | | | ● |  |
+| `users.get.user.queue.memberships` | | | | | | ● |  |
+| `users.get.bulk.user.presences` | | | | | | ● |  |
+| `routing.get.user.utilization` | | | | | | ○ |  |
+| `audit-logs` | | | | | | ● | ● |
+| `outbound.get.campaigns` | | | | | | | ● |
+| `outbound.get.contact.lists` | | | | | | | ● |
+| `outbound.get.campaign.diagnostics.summary` | | | | | | | ● |
+| `outbound.get.events` | | | | | | | ● |
 
 ---
 

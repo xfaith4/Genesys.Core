@@ -40337,10 +40337,101 @@
           }
         ],
         "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "reverseLookupStep": {
+          "step": "custom-attribute-search",
+          "dataset": "conversations.search.customattributes",
+          "joinKey": "customAttributeValue → conversationId[]",
+          "provides": "conversationId list matching a known external key (CRM case ID, external call ID)",
+          "description": "Reverse lookup: given only an external CRM case ID or provider call ID (not a Genesys conversationId), search custom attributes across conversations to find every linked interaction. Use this to seed the recipe when a support ticket or CRM case is the known starting point instead of a conversationId."
+        },
         "executiveMetrics": [
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
+        ]
+      },
+      "campaign-investigation": {
+        "description": "End-to-end investigation of one outbound dialing campaign — configuration, contact list, connected queue, live diagnostics, dialer event dispositions, audit changes, and the conversation analytics rows the campaign produced. Mirrors the Get-GenesysCampaignInvestigation composer (Genesys.Ops) so the catalog documents exactly what the shipped cmdlet runs.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "campaignStatus, dialingMode, callerAddress, contactListId, queueId, abandonRateLimit",
+            "description": "Campaign configuration and current status — seeds contactListId and queueId for downstream steps"
+          },
+          {
+            "step": "contact-list",
+            "dataset": "outbound.get.contact.lists",
+            "joinKey": "campaign.contactListId=contactList.id",
+            "provides": "contact list name, size, column names",
+            "description": "Contact list identity and size — reconciliation context for dialed-vs-total-list volume"
+          },
+          {
+            "step": "queue",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "campaign.queueId=queue.id",
+            "provides": "queue name, mediaSettings, ACW settings",
+            "description": "Connected queue metadata for answer-handling context — where connected calls land"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "joinKey": "campaignId",
+            "provides": "live pacing, abandon rate, agents assigned/available, contact list progress",
+            "description": "Real-time outbound diagnostics snapshot — pacing and health triage for a currently-running campaign"
+          },
+          {
+            "step": "outbound-events",
+            "dataset": "outbound.get.events",
+            "joinKey": "campaignId",
+            "provides": "type, callResult, contactId, timestamp",
+            "description": "Dialer events and dispositions (connected, no-answer, busy, voicemail, abandon) for reconciliation and compliance"
+          },
+          {
+            "step": "outbound-abandons",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId + abandon-related disposition",
+            "joinKey": "campaignId",
+            "provides": "abandon-flagged dialer events",
+            "description": "Derived abandon-focused subset of outbound events — compares against campaign.abandonRateLimit for compliance risk"
+          },
+          {
+            "step": "conversation-analytics",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "campaignId (segment dimension filter) + window",
+            "joinKey": "participants.campaignId",
+            "provides": "conversationId, agentId, tTalk, tHandle, wrapUpCode per connected call",
+            "description": "Conversation analytics rows the campaign produced in the window — seed for per-conversation drilldown into single-conversation-investigation"
+          },
+          {
+            "step": "audit-changes",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=Campaign, EntityId=campaignId, window",
+            "joinKey": "campaignId",
+            "provides": "who changed campaign config/status and when",
+            "description": "Audit trail for the campaign — correlates status/pacing changes with performance shifts"
+          }
+        ],
+        "joinSequence": "seed (campaign) → contact-list (contactListId) → queue (queueId) → diagnostics → outbound-events → outbound-abandons (derived) → conversation-analytics → audit-changes",
+        "executiveMetrics": [
+          "totalAttempts",
+          "totalConnected",
+          "connectRatePct",
+          "noAnswerRatePct",
+          "abandonRatePct",
+          "abandonRateLimit",
+          "campaignStatus",
+          "avgHandleTime",
+          "contactListPenetrationPct"
+        ],
+        "voiceEngineerHighlights": [
+          "diagnostics: pacing and agent-availability pressure explain a spiking abandon rate in real time",
+          "outbound-abandons vs abandonRateLimit: compliance risk if the campaign is dialing faster than agents can answer",
+          "conversation-analytics.conversationId: drill into single-conversation-investigation for any specific connected call (audio quality, SIP trace, wrap-up)"
         ]
       }
     },

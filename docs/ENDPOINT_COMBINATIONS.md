@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-23  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -300,6 +300,33 @@ analytics.query.conversation.aggregates.wrapup.distribution[].group.wrapUpCode
   → routing.get.all.wrapup.codes[].id (global wrapup code labels)
 ```
 
+### Division / Business-Unit Leaderboard (Cross-Queue Rollup)
+
+Layers 1–4 above group by `queueId` or `userId` — useful for operational reporting, but neither
+answers the question a VP asks first: *which business unit is performing best this period?*
+Divisions are the cross-queue grouping unit in Genesys Cloud — a division's queues can span
+multiple functional areas, and an agent's home division does not restrict which queues they
+appear in. Rolling metrics up by `divisionId` instead of `queueId` gives a genuinely different
+(and often more executive-relevant) cut of the same data.
+
+| Dataset Key | Grouping | Metrics |
+|-------------|----------|---------|
+| `authorization.get.all.divisions` | — | Division names/descriptions — the leaderboard's row labels |
+| `authorization.search.division.objects` (`objectType=QUEUE`) | `divisionId` | Authoritative queue-to-division mapping (queue's `divisionId`, not the agent's home division) |
+| `users.division.analysis.get.users.with.division.info` | `divisionId` | Agent count per division |
+| `analytics.query.conversation.aggregates.division.performance` | `divisionId`, daily | nOffered, nConnected, tHandle, nError — the volume/AHT rollup per division |
+| `quality.get.agents.activity` | `divisionId` (via agent list) | evalAvgScore per division |
+
+**Computed leaderboard columns:** `avgHandleTime = tHandle / nConnected`, `agentCount`,
+`queueCount`, `evalAvgScore`, `volumeSharePct = division nOffered / org-wide nOffered`. Sort
+descending on `evalAvgScore` or ascending on `avgHandleTime` to surface the business unit that
+most needs executive attention this period.
+
+This is the org-wide comparison counterpart to Section 3 (Division / Agent Group Investigation),
+which is a single-division deep dive. **Machine-readable recipe:**
+`combinations.executiveReportingPlaybooks.division-business-unit-comparison` in
+`catalog/genesys.catalog.json`.
+
 ---
 
 ## 5. Real-Time Operations Monitoring
@@ -471,7 +498,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `routing-queue-members` | | ● | | | | |
 | `authorization.get.single.division` | | | ● | | | |
 | `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
+| `authorization.get.all.divisions` | | | ● | ● | | |
+| `authorization.search.division.objects` | | | ● | ● | | |
+| `analytics.query.conversation.aggregates.division.performance` | | | ● | ● | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | ● | | ● |
 | `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
 | `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
 | `analytics.query.user.details.activity.report` | | | ● | | | ● |

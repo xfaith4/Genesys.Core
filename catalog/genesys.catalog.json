@@ -40552,6 +40552,31 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "division-business-unit-comparison": {
+        "description": "Org-wide leaderboard comparing every division (business unit / region) side by side. Divisions are a cross-queue grouping in Genesys Cloud — agents assigned to a division serve queues spanning multiple functional areas, so this is the only executive rollup that answers 'which business unit is performing best' rather than 'which queue' or 'which agent'. Complements the single-division deep dive in investigationRecipes.division-investigation.",
+        "datasetsInOrder": [
+          "authorization.get.all.divisions",
+          "authorization.search.division.objects",
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.conversation.aggregates.division.performance",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "divisionId",
+        "groupBy": [
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "nOffered (division total)",
+          "nConnected (division total)",
+          "avgHandleTime = tHandle / nConnected (division avg)",
+          "agentCount (per division)",
+          "queueCount (per division, via authorization.search.division.objects objectType=QUEUE)",
+          "evalAvgScore (per division)",
+          "volumeSharePct = division nOffered / org-wide nOffered"
+        ],
+        "executivePresentation": "Ranked division leaderboard table (bar chart on nConnected or avgHandleTime) with agentCount/queueCount as context columns; sort ascending on avgHandleTime or descending on evalAvgScore to surface the business unit that most needs attention this period",
+        "divisionNote": "Do not filter by an agent's home division alone — authorization.search.division.objects with objectType=QUEUE gives the authoritative queue-to-division mapping, since a queue's division and an agent's home division are independently assignable."
       }
     },
     "voiceEngineerPlaybooks": {

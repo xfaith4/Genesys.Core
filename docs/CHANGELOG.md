@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-08-23
+
+### Added
+
+- Added `division-business-unit-comparison` to `catalog/genesys.catalog.json`'s
+  `combinations.executiveReportingPlaybooks`, closing a gap surfaced by a
+  fresh review of endpoint combinations against the Genesys developer
+  documentation (API Explorer, embeddable framework, BYOI integration
+  guides, blueprints): every existing executive playbook rolls up by
+  `queueId` or `userId`, but Genesys Cloud divisions are a cross-queue
+  grouping (a division's queues can span functional areas, and an agent's
+  home division does not restrict which queues they serve), so no playbook
+  answered "which business unit is performing best this period?" directly.
+  The new recipe joins `authorization.get.all.divisions`,
+  `authorization.search.division.objects` (`objectType=QUEUE`, for the
+  authoritative queue-to-division mapping), `users.division.analysis.get.users.with.division.info`,
+  `analytics.query.conversation.aggregates.division.performance`, and
+  `quality.get.agents.activity` on `divisionId` into a ranked leaderboard
+  (volume, AHT, agent/queue counts, average eval score, volume share).
+  Documented in `docs/ENDPOINT_COMBINATIONS.md` under a new "Division /
+  Business-Unit Leaderboard" subsection of Section 4, with matching rows
+  added to the Section 10 reference matrix.
+- A full reference-integrity audit was run across all three `combinations`
+  sections (`investigationRecipes`, `executiveReportingPlaybooks`,
+  `voiceEngineerPlaybooks` — the 2026-08-15 audit covered only the first)
+  confirming every `dataset`/`datasetsInOrder` value resolves to a real
+  `datasets` or `endpoints` entry; no further breaks were found.
+
 ## 2026-08-15
 
 ### Fixed

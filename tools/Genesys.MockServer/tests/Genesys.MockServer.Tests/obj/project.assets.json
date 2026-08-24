@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
     "net8.0": {
       "coverlet.collector/6.0.2": {
@@ -2863,33 +2863,35 @@
     ]
   },
   "packageFolders": {
-    "/tmp/codeql-scratch-bb9b28227c813073/dbs/csharp/working/packages": {}
+    "F:\\DevCaches\\nuget-packages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/tmp/workspace/xfaith4/Genesys.Core/tools/Genesys.MockServer/tests/Genesys.MockServer.Tests/Genesys.MockServer.Tests.csproj",
+      "projectUniqueName": "F:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\tools\\Genesys.MockServer\\tests\\Genesys.MockServer.Tests\\Genesys.MockServer.Tests.csproj",
       "projectName": "Genesys.MockServer.Tests",
-      "projectPath": "/tmp/workspace/xfaith4/Genesys.Core/tools/Genesys.MockServer/tests/Genesys.MockServer.Tests/Genesys.MockServer.Tests.csproj",
-      "packagesPath": "/tmp/codeql-scratch-bb9b28227c813073/dbs/csharp/working/packages",
-      "outputPath": "/tmp/workspace/xfaith4/Genesys.Core/tools/Genesys.MockServer/tests/Genesys.MockServer.Tests/obj/",
+      "projectPath": "F:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\tools\\Genesys.MockServer\\tests\\Genesys.MockServer.Tests\\Genesys.MockServer.Tests.csproj",
+      "packagesPath": "F:\\DevCaches\\nuget-packages",
+      "outputPath": "F:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\tools\\Genesys.MockServer\\tests\\Genesys.MockServer.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/home/runner/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\benfu\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
       ],
       "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\dotnet\\library-packs": {},
+        "C:\\Users\\benfu\\AppData\\Roaming\\NuGet\\Downloads": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
-          "framework": "net8.0",
           "targetAlias": "net8.0",
           "projectReferences": {
-            "/tmp/workspace/xfaith4/Genesys.Core/tools/Genesys.MockServer/Genesys.MockServer.csproj": {
-              "projectPath": "/tmp/workspace/xfaith4/Genesys.Core/tools/Genesys.MockServer/Genesys.MockServer.csproj"
+            "F:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\tools\\Genesys.MockServer\\Genesys.MockServer.csproj": {
+              "projectPath": "F:\\Development\\20_Staging\\GenesysCloud\\Genesys.Core\\tools\\Genesys.MockServer\\Genesys.MockServer.csproj"
             }
           }
         }
@@ -2904,11 +2906,10 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.300"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0": {
-        "framework": "net8.0",
         "targetAlias": "net8.0",
         "dependencies": {
           "Microsoft.AspNetCore.Mvc.Testing": {
@@ -2947,22 +2948,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.27, 8.0.27]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.27, 8.0.27]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.300/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.317/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

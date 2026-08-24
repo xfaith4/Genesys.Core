@@ -40267,7 +40267,7 @@
             "description": "Any alert already firing for a monitored metric — correlate against the steps above before manual triage"
           }
         ],
-        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop.",
+        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop. For a wallboard or alerting pipeline held open longer than a minute, or watching more than a handful of queues/agents, prefer the event-driven realtime-notification-channel-strategy recipe instead of polling these three steps on a timer.",
         "executiveMetrics": [
           "oInteracting",
           "oWaiting",
@@ -40341,6 +40341,172 @@
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
+        ]
+      },
+      "customer-journey-and-external-contact-enrichment": {
+        "description": "Enrichment recipe linking a conversation's customer to their CRM identity (External Contacts) and pre-contact digital journey (Predictive Engagement). Runs alongside single-conversation-investigation whenever a participant carries an externalContactId. Answers: who is this customer, what did they do online before calling, and did self-service fail them? Rolls up to the customer-journey-attribution executive playbook for journey-to-contact conversion reporting.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-participants",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].externalContactId, participants[].purpose",
+            "description": "Identify which participant(s) carry an externalContactId — the join key into External Contacts. Absence of an externalContactId on the customer participant means no CRM match was made; the recipe short-circuits here for that conversation."
+          },
+          {
+            "step": "contact-identity",
+            "dataset": "getExternalcontactsContact",
+            "joinKey": "externalContactId",
+            "provides": "name, title, workPhone, organization link, twitterId",
+            "description": "CRM identity record for the customer — resolves an anonymous ANI/participant to a known contact."
+          },
+          {
+            "step": "contact-notes",
+            "dataset": "getExternalcontactsContactNotes",
+            "joinKey": "externalContactId",
+            "provides": "prior interaction notes left by agents or integrations",
+            "description": "Free-text history on the contact — repeat-contact context without re-listening to prior calls."
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "getExternalcontactsContactJourneySessions",
+            "joinKey": "externalContactId",
+            "provides": "sessionId list, device, channel, first/last seen timestamps",
+            "description": "Web/app browsing sessions Predictive Engagement attributes to this contact, spanning before and after the call."
+          },
+          {
+            "step": "journey-events",
+            "dataset": "getJourneySessionEvents",
+            "joinKey": "sessionId",
+            "provides": "pageview, event, and segment-triggered actions within a session",
+            "description": "The pages/actions the customer took online — e.g. abandoned a cart or repeatedly viewed a billing FAQ before calling. sessionId comes from journey-sessions."
+          },
+          {
+            "step": "journey-outcome-scores",
+            "dataset": "getJourneySessionOutcomescores",
+            "joinKey": "sessionId",
+            "provides": "outcomeId, score per configured Predictive Engagement outcome",
+            "description": "Scored likelihood the session was working toward a configured outcome (e.g. 'Purchase', 'Support Escalation'). A high score followed by a phone contact is a self-service-failure signal."
+          },
+          {
+            "step": "outcome-catalog",
+            "dataset": "getJourneyOutcomes",
+            "provides": "outcomeId -> name mapping",
+            "description": "Resolves outcome IDs from journey-outcome-scores to human-readable names for reporting."
+          }
+        ],
+        "joinSequence": "conversation-participants (externalContactId) → contact-identity → contact-notes → journey-sessions (externalContactId) → journey-events (sessionId) → journey-outcome-scores (sessionId) → outcome-catalog (label resolution)",
+        "diagnosticSignals": [
+          "High journey-outcome-score session immediately followed by a phone contact in the same window → self-service, IVR, or bot deflection likely failed at the final step; review the session's last events before the call",
+          "Same ANI recurs across multiple conversations with no externalContactId on any of them → CRM identity-resolution gap, not a customer-behaviour issue; check the External Contacts matching rules",
+          "journey-sessions returns no rows for a matched contact → the contact has no tracked digital footprint (call-only customer, or the web/app deployment snippet is not tagging sessions for this contact)"
+        ],
+        "executiveMetrics": [
+          "journeyMatchRate% = conversations with a resolved externalContactId / total conversations",
+          "avgSessionsBeforeContact",
+          "highOutcomeScoreBeforeContact% = sessions with outcomeScore above threshold that ended in a phone contact (self-service-failure indicator)"
+        ]
+      },
+      "queue-overflow-and-deflection-analysis": {
+        "description": "Quantifies how many contacts that could not be answered in-queue overflowed to a callback offer or a voicemail box, instead of abandoning outright. Runs alongside queue-investigation to complete the 'what happened to unanswered contacts' picture — raw abandon metrics alone do not distinguish a lost contact from a deflected one.",
+        "subjectParam": "queueId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "queue-abandons",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "nAbandoned, tAbandon, tShortAbandon, nOffered",
+            "description": "Baseline abandon volume from queue-investigation — the denominator this recipe explains."
+          },
+          {
+            "step": "callback-offers",
+            "dataset": "conversations.get.active.callbacks",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "queueId",
+            "provides": "callback conversationId, scheduled callback time, status (pending/connected/cancelled)",
+            "description": "Callbacks offered from this queue in the window. A customer who accepted a callback should not be counted as a lost contact even though the original interaction shows as abandoned/disconnected."
+          },
+          {
+            "step": "voicemail-overflow",
+            "dataset": "getVoicemailQueueMessages",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "voicemail message count, duration, read status",
+            "description": "Voicemails deposited when the queue's voicemail-on-overflow policy triggered — the queue's final overflow path after hold and callback are exhausted."
+          },
+          {
+            "step": "wrapup-cross-check",
+            "dataset": "analytics.query.conversation.aggregates.wrapup.distribution",
+            "joinKey": "queueId",
+            "provides": "wrapUpCode distribution, including any callback- or voicemail-specific codes",
+            "description": "Cross-checks whether overflowed contacts are wrapped up distinctly from directly-handled ones, so the deflection metrics below reconcile against wrapup volume."
+          }
+        ],
+        "joinSequence": "queue-abandons (seed) → callback-offers (queueId) → voicemail-overflow (queueId) → wrapup-cross-check (queueId)",
+        "derivedMetrics": [
+          "deflectionRate% = (callbacksAccepted + voicemailsLeft) / nOffered",
+          "trueAbandonRate% = (nAbandoned - callbacksAccepted - voicemailsLeft) / nOffered",
+          "callbackAcceptanceRate% = callbacksAccepted / callbacksOffered"
+        ],
+        "diagnosticSignals": [
+          "nAbandoned high but deflectionRate% also high → overflow paths are working as designed; the true lost-contact rate is lower than the raw abandon metric suggests",
+          "voicemail-overflow volume rising with flat callback-offers → callback may not be enabled or reachable on this queue; check queue-config acwSettings/mediaSettings for a callback configuration gap",
+          "callbackAcceptanceRate% low → the callback-offer prompt or timing may be poorly placed in the IVR flow; correlate with flow-and-ivr-diagnostics"
+        ],
+        "executiveMetrics": ["deflectionRate%", "trueAbandonRate%", "callbackAcceptanceRate%", "voicemailVolume"]
+      },
+      "realtime-notification-channel-strategy": {
+        "description": "Event-driven alternative to the polling pattern in real-time-operations-monitoring. Genesys Cloud's Notifications API pushes state changes over a websocket the instant they occur, eliminating polling latency and the wasted API calls of unchanged-state polls. Recommended for any wallboard, alerting pipeline, or supervisor UI that stays open longer than a minute or watches more than a handful of queues/agents.",
+        "subjectParam": "organizationWide (topic-scoped, not a single subject)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "list-available-topics",
+            "dataset": "notifications.get.available.notification.topics",
+            "role": "seed",
+            "provides": "topic template catalog, e.g. v2.routing.queues.{id}.conversations, v2.users.{id}.presence",
+            "description": "Enumerate valid topic templates before subscribing — confirms the exact topic string and whether it requires a specific permission or license."
+          },
+          {
+            "step": "create-channel",
+            "dataset": "postNotificationsChannels",
+            "provides": "channelId, connectUri (wss:// websocket endpoint), expires",
+            "description": "Opens a notification channel; the returned connectUri is the websocket to hold open for pushed events. Channels expire and must be recreated or refreshed before that time."
+          },
+          {
+            "step": "subscribe-topics",
+            "dataset": "postNotificationsChannelSubscriptions",
+            "filterBy": "channelId",
+            "joinKey": "channelId",
+            "provides": "confirms subscribed topic list",
+            "description": "Subscribes the channel to specific queue/user/conversation topics — e.g. one v2.routing.queues.{queueId}.conversations per monitored queue, one v2.users.{userId}.routingStatus per monitored agent."
+          },
+          {
+            "step": "verify-subscriptions",
+            "dataset": "getNotificationsChannelSubscriptions",
+            "filterBy": "channelId",
+            "joinKey": "channelId",
+            "provides": "current subscription list for the channel",
+            "description": "Confirms what a channel is actually subscribed to — useful when reconciling a long-lived wallboard connection against its expected queue/agent scope."
+          }
+        ],
+        "joinSequence": "list-available-topics (seed) → create-channel → subscribe-topics (channelId) → verify-subscriptions (channelId)",
+        "topicsOfInterest": [
+          "v2.routing.queues.{id}.conversations — pushed the instant a conversation enters, leaves, or changes state in the queue",
+          "v2.analytics.queues.{id}.observations — pushed queue-level real-time-stat deltas (oWaiting, oInteracting, oOnQueueUsers)",
+          "v2.users.{id}.presence — pushed the instant an agent's system presence changes",
+          "v2.users.{id}.routingStatus — pushed the instant an agent's ACD routing status changes; replaces polling for the NOT_RESPONDING signal used in agent-not-responding-autoanswer",
+          "v2.analytics.users.{id}.observations — pushed per-agent real-time observation deltas"
+        ],
+        "tradeoffNote": "Use the polling steps in real-time-operations-monitoring for a small number of one-off or infrequent lookups. Prefer notification channels for anything held open longer than a minute or covering more than a handful of queues/agents — a channel carries a maximum number of topic subscriptions, so a large wallboard needs multiple channels fanned out by queue/agent group.",
+        "executiveMetrics": [
+          "notificationLatencyMs (push vs. poll interval saved)",
+          "apiCallsAvoidedPerHour (channel subscriptions vs. equivalent polling cadence)"
         ]
       }
     },
@@ -40552,6 +40718,41 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "customer-journey-attribution": {
+        "description": "Journey-to-contact conversion reporting — what share of conversations trace back to a known digital journey, and how often that journey signalled a self-service failure before the customer called. Feeds CX strategy and self-service investment decisions.",
+        "datasetsInOrder": [
+          "conversations.get.specific.conversation.details",
+          "getExternalcontactsContactJourneySessions",
+          "getJourneySessionOutcomescores",
+          "getJourneyOutcomes"
+        ],
+        "joinOn": "externalContactId → sessionId",
+        "groupBy": ["queueId", "outcomeId", "mediaType"],
+        "outputMetrics": [
+          "journeyMatchRate%",
+          "avgSessionsBeforeContact",
+          "highOutcomeScoreBeforeContact%",
+          "topOutcomes (by frequency, preceding a contact)"
+        ],
+        "executivePresentation": "Funnel: digital session → high outcome score → phone contact; highlight outcomes with elevated pre-contact scores as self-service investment candidates"
+      },
+      "queue-overflow-and-deflection-kpis": {
+        "description": "Cross-queue rollup of the queue-overflow-and-deflection-analysis recipe — how much abandon volume was actually deflected to a callback or voicemail versus truly lost. The corrective lens on the abandon-rate KPI in service-level-and-abandon-kpis.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "conversations.get.active.callbacks",
+          "getVoicemailQueueMessages"
+        ],
+        "joinOn": "queueId",
+        "groupBy": ["queueId", "divisionId"],
+        "outputMetrics": [
+          "deflectionRate%",
+          "trueAbandonRate%",
+          "callbackAcceptanceRate%",
+          "voicemailVolume"
+        ],
+        "executivePresentation": "Stacked bar per queue: truly lost vs. callback-deflected vs. voicemail-deflected, layered under the standard abandon-rate KPI card"
       }
     },
     "voiceEngineerPlaybooks": {

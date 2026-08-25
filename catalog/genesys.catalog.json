@@ -39704,6 +39704,20 @@
             ],
             "provides": "SIP INVITE/BYE/CANCEL/4xx/5xx messages",
             "description": "Raw SIP signalling log \u2014 critical for trunk routing diagnosis and call failure forensics"
+          },
+          {
+            "step": "sentiment-timeline",
+            "dataset": "speech.and.text.analytics.get.sentiment.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "per-utterance sentiment trend distinct from the sta-overview aggregate score",
+            "description": "Sentiment timeline across the conversation \u2014 pinpoints the exact moment sentiment turned negative, rather than only the overall score from sta-overview"
+          },
+          {
+            "step": "agent-assist-suggestions",
+            "dataset": "conversations.get.conversation.suggestions",
+            "joinKey": "conversationId",
+            "provides": "suggestionId, confidence, source, accepted/dismissed state",
+            "description": "Agent Assist / Copilot suggestions offered during the call; drill into conversations.get.conversation.suggestion.detail for full article/content on a specific suggestion when auditing AI-assist quality"
           }
         ],
         "joinSequence": "seed \u2192 conversation-base (conversationId) \u2192 participant-wrapup (per participantId) \u2192 recording-metadata \u2192 sta-overview \u2192 evaluation (filter) \u2192 survey",
@@ -39724,6 +39738,10 @@
           "evaluationScore",
           "csatScore",
           "wrapUpCode"
+        ],
+        "enrichWith": [
+          "quality.get.published.evaluation.forms (decode evaluationFormId from the evaluation step into the actual scoring criteria/questions used)",
+          "journey.get.action.maps (for digital/BYOI conversations, resolve an actionMapId found in custom-attributes to the Predictive Engagement offer that triggered the interaction)"
         ]
       },
       "agent-investigation": {
@@ -39872,6 +39890,12 @@
           "criticalItemFailCount",
           "coachingSessionCount",
           "presenceUtilisationPct"
+        ],
+        "enrichWith": [
+          "users.search.users.by.name.or.email (alternate seed when only the agent's name or email is known, not userId)",
+          "presence.get.organization.presence.definitions + presence.get.system.presence.definitions (decode presence-activity segment IDs into readable presence labels, e.g. Break, Lunch, Meeting)",
+          "quality.get.published.evaluation.forms (decode the evaluationFormId on each evaluations record into the scoring criteria used)",
+          "analytics.post.users.details.jobs (async job variant of presence-activity for very large windows or many agents at once — avoids pagination limits on the synchronous query)"
         ]
       },
       "agent-not-responding-autoanswer": {
@@ -39978,6 +40002,13 @@
             "description": "Queue configuration \u2014 routing settings, ACW timeout, and scoring method"
           },
           {
+            "step": "single-queue-detail",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "id",
+            "provides": "SLA target, DNIS patterns, skill evaluation method, full acwSettings",
+            "description": "Single-queue GET (not the paged list) \u2014 use once queueId is known instead of scanning routing-queues; returns deeper configuration (SLA target, DNIS patterns) not present in the list view"
+          },
+          {
             "step": "wrapup-codes",
             "dataset": "routing.get.queue.wrapup.codes",
             "filterBy": "queueId",
@@ -40000,6 +40031,14 @@
             "joinKey": "queueId",
             "provides": "oInteracting, oWaiting, oOnQueueUsers, oOffQueueUsers, oAlerting",
             "description": "Live queue counters \u2014 interacting, waiting, alerting, and on/off-queue agent counts"
+          },
+          {
+            "step": "live-inventory",
+            "dataset": "conversations.get.active.conversations",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "conversationId, mediaType, direction, state for every conversation in progress right now",
+            "description": "The actual list of currently-live conversations behind the real-time-observations counts; use conversations.get.active.callbacks / active.chats / active.emails for a media-type-scoped view instead of filtering the combined list"
           },
           {
             "step": "estimated-wait-time",
@@ -40088,6 +40127,11 @@
           "estWaitTimeSecs",
           "oOnQueueUsers",
           "oWaiting"
+        ],
+        "enrichWith": [
+          "routing.get.skill.groups (when scoringMethod is skills-based, resolve the skill/skill-group requirements driving routing into this queue)",
+          "analytics.get.multiple.conversations.by.ids (batch-fetch full conversation detail for the conversationId list from the conversations step in one call instead of iterating single-conversation-investigation per id)",
+          "analytics-conversation-details / analytics-conversation-timeline-analysis (async job alternative to the conversations step for high-volume queues or long windows that would exceed the synchronous query's pagination limits)"
         ]
       },
       "division-investigation": {
@@ -40172,6 +40216,11 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ],
+        "enrichWith": [
+          "authorization.get.single.division (full single-division detail when only the division-detail list entry is needed for one id, e.g. re-checking after a rename)",
+          "authorization.get.roles (decode roleId in division-grants into a human-readable role name for an access-review report)",
+          "organization.get.organization.details (org-wide default division and org name context for a multi-division executive rollup)"
         ]
       },
       "real-time-operations-monitoring": {
@@ -40265,9 +40314,19 @@
             "dataset": "alerting.get.alerts",
             "provides": "currently-firing threshold alerts",
             "description": "Any alert already firing for a monitored metric — correlate against the steps above before manual triage"
+          },
+          {
+            "step": "live-inventory-by-media",
+            "dataset": "conversations.get.active.conversations",
+            "joinKey": "queueId",
+            "audience": [
+              "supervisor"
+            ],
+            "provides": "the actual conversationId list behind the queue-observations counts, or conversations.get.active.callbacks / active.chats / active.emails for a single-media-type wallboard tile",
+            "description": "Drilldown from an oWaiting/oInteracting count to the specific conversations composing it — click-through target from the wallboard headline row"
           }
         ],
-        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop.",
+        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop. For a push-based alternative to polling, use notifications.get.available.notification.topics to discover queue/user observation topics and notifications.get.notification.subscriptions to manage a WebSocket subscription instead of re-polling on an interval.",
         "executiveMetrics": [
           "oInteracting",
           "oWaiting",
@@ -40295,6 +40354,15 @@
             "joinKey": "conversationId",
             "provides": "provider-set custom attributes — CRM case ID, intent label, external call ID",
             "description": "Custom attributes set by the BYOI provider at injection time; the primary link back to the external system's case/ticket"
+          },
+          {
+            "step": "bulk-custom-attribute-search",
+            "dataset": "conversations.search.customattributes",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "custom attribute values across many conversationIds in one call",
+            "description": "Multi-conversation variant of custom-attributes; use when auditing BYOI provider health across a whole cohort of injected conversations rather than one at a time"
           },
           {
             "step": "participant-attributes",
@@ -40337,10 +40405,58 @@
           }
         ],
         "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "enrichWith": [
+          "journey.get.action.maps (when the BYOI conversation was triggered by a Predictive Engagement offer, resolve the actionMapId carried in custom-attributes to the offer's trigger conditions)",
+          "oauth.get.clients + oauth.get.authorizations (identify which OAuth client is acting as the BYOI provider, for provenance on who is injecting)"
+        ],
         "executiveMetrics": [
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
+        ]
+      },
+      "quality-calibration-and-form-governance": {
+        "description": "QM calibration prep — which evaluation form(s) are in use, scoring variance across evaluators for the same conversation, and evaluator activity load. Used ahead of a calibration session and for auditing form governance across a division.",
+        "subjectParam": "divisionId or evaluatorUserId",
+        "subjectOptional": true,
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "form-catalog",
+            "dataset": "quality.get.published.evaluation.forms",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "formId, formName, questionGroups, published version",
+            "description": "Every published evaluation form — the scoring rubric behind every evaluationScore surfaced elsewhere in the catalog"
+          },
+          {
+            "step": "evaluations-in-window",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "divisionId or evaluatorUserId + investigation window",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, evaluationFormId, evaluatorId, agentUserId, conversationId, criticalItemFailed",
+            "description": "All evaluations in the window; join evaluationFormId back to form-catalog to see which rubric produced each score"
+          },
+          {
+            "step": "evaluator-activity",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "evaluatorUserId",
+            "joinKey": "evaluatorId",
+            "provides": "evalCount, avgScore, highScore, lowScore per evaluator",
+            "description": "Per-evaluator scoring volume and average — a wide spread between evaluators on avgScore for the same form is the calibration-session trigger"
+          }
+        ],
+        "joinSequence": "form-catalog (id) → evaluations-in-window (evaluationFormId) → evaluator-activity (evaluatorId)",
+        "diagnosticSignals": [
+          "same evaluationFormId, same conversationId, two evaluatorIds with scores >15% apart → calibration drift; agenda item for the next calibration session",
+          "one evaluator's avgScore consistently above or below the division mean → lenient/strict scoring bias",
+          "a form's questionGroups changed (new published version) mid-window → scores before/after are not directly comparable; segment the trend by form version"
+        ],
+        "executiveMetrics": [
+          "avgEvaluationScore% (by form)",
+          "scoreVarianceAcrossEvaluators",
+          "evalCount (per evaluator)",
+          "criticalItemFailRate%"
         ]
       }
     },
@@ -40552,6 +40668,34 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "integration-and-api-governance": {
+        "description": "API consumption and rate-limit risk for the org's integrations — including BYOI providers and any third-party client pulling from this catalog's own endpoints. Feeds a governance review of which OAuth clients are heavy consumers, how close the org is to its API/org limits, and whether scheduled exports are duplicating ad-hoc pulls.",
+        "datasetsInOrder": [
+          "oauth.get.clients",
+          "oauth.get.authorizations",
+          "oauth.post.client.usage.query",
+          "oauth.get.client.usage.query.results",
+          "usage.get.api.usage.by.client",
+          "usage.get.api.usage.organization.summary",
+          "analytics.query.rate.limit.aggregates",
+          "organization.get.organization.limits"
+        ],
+        "joinOn": "clientId",
+        "groupBy": [
+          "clientId",
+          "userId"
+        ],
+        "outputMetrics": [
+          "requestsByClient (top N consumers)",
+          "rateLimitHitCount = nOverLimit",
+          "orgLimitHeadroomPct = 1 - (currentUsage / orgLimit) per limited resource",
+          "usageTrend (week-over-week per client)"
+        ],
+        "executivePresentation": "Top-consumers bar chart + rate-limit incident table; flag any client trending toward an org limit",
+        "enrichWith": [
+          "analytics.get.reporting.exports (check for an already-scheduled export before standing up a new ad-hoc pull for the same data)"
+        ]
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40580,7 +40724,9 @@
         ],
         "enrichWith": [
           "users (for agent identity given userId from analytics-detail participants)",
-          "quality.get.evaluations.query (for evaluation if one exists)"
+          "quality.get.evaluations.query (for evaluation if one exists)",
+          "conversations.get.conversation.suggestions (Agent Assist activity during the call, when investigating an AI-assist quality complaint alongside the audio)",
+          "telephony.create.edge.logs.job (when the SIP trace alone doesn't explain a media/audio-quality complaint, pull the raw Edge packet-capture bundle for the call window — see edge-log-forensic-capture)"
         ]
       },
       "trunk-and-edge-health-check": {
@@ -40603,6 +40749,25 @@
         "enrichWith": [
           "alerting.get.alerts (check for active telephony alerts)",
           "alerting.get.rules (confirm alerting thresholds are configured for trunk capacity)"
+        ]
+      },
+      "edge-log-forensic-capture": {
+        "description": "Deep SIP/media forensics beyond what telephony.get.sip.message.for.conversation exposes — pulls the raw Edge appliance log bundle for a call window. Escalation path from single-call-forensics or trunk-and-edge-health-check when the SIP trace and trunk metrics don't explain an audio-quality or one-way-audio complaint.",
+        "subjectParam": "edgeId",
+        "datasetsInOrder": [
+          "telephony.create.edge.logs.job",
+          "telephony.get.edge.logs.job",
+          "telephony.request.edge.logs.job.upload"
+        ],
+        "joinOn": "jobId",
+        "diagnosticSignals": [
+          "job status stuck in PENDING beyond a few minutes → Edge is unreachable or under load; check edge-health first",
+          "returned file list has no capture covering the call's timestamp → Edge log retention window has already rolled past the incident; capture must be requested sooner after an escalation",
+          "RTP-layer errors in the retrieved logs with a clean SIP trace → media path (network/NAT/firewall) issue distinct from call signalling"
+        ],
+        "enrichWith": [
+          "telephony.get.sip.message.for.conversation (run first — this playbook is the escalation when the SIP trace alone is inconclusive)",
+          "telephony.get.edge.performance.metrics (rule out CPU/memory pressure on the Edge before requesting a full log capture)"
         ]
       },
       "queue-saturation-and-staffing-analysis": {
@@ -40670,6 +40835,7 @@
         ],
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
+          "audits.get.service.mapping (decode the audit-logs serviceName field into the human-readable service catalog Recording belongs to)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
       }

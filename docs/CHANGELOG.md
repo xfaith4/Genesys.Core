@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-08-25
+
+### Added
+
+- Audited `catalog/genesys.catalog.json`'s 111 curated `datasets` entries against the
+  `combinations` recipes and found 49 endpoints with no recipe wiring them up; 24 of those
+  turned out to be duplicate catalog entries for an endpoint already used under a different key
+  (e.g. `routing-queue-members` vs. the already-wired `routing.get.queue.members.with.status`)
+  and were left alone. The remaining 25 genuinely new endpoints were folded into the catalog:
+  - **`single-conversation-investigation`**: added `sentiment-timeline`
+    (`speech.and.text.analytics.get.sentiment.for.conversation`, distinct from the aggregate
+    `sta-overview` score) and `agent-assist-suggestions`
+    (`conversations.get.conversation.suggestions`) steps, plus an `enrichWith` note for decoding
+    evaluation forms and Journey action maps.
+  - **`agent-investigation`**: added an `enrichWith` note covering an alternate name/email seed
+    (`users.search.users.by.name.or.email`), presence-code decoding
+    (`presence.get.organization.presence.definitions` / `presence.get.system.presence.definitions`),
+    evaluation-form decoding, and an async large-window alternative
+    (`analytics.post.users.details.jobs`).
+  - **`queue-investigation`**: added a `single-queue-detail` step
+    (`routing.get.single.queue.config`, deeper config than the list-based seed) and a
+    `live-inventory` step (`conversations.get.active.conversations`), plus an `enrichWith` note
+    for skill groups, batch conversation fetch, and async job alternatives for high-volume
+    windows.
+  - **`division-investigation`**: added an `enrichWith` note for single-division detail, role-name
+    decoding (`authorization.get.roles`), and org-level context.
+  - **`real-time-operations-monitoring`**: added a `live-inventory-by-media` drilldown step and a
+    push-based (Notifications API) alternative to polling in `pollingNote`.
+  - **`byoi-conversation-enrichment`**: added a `bulk-custom-attribute-search` step
+    (`conversations.search.customattributes`) for cohort-level BYOI audits, plus an `enrichWith`
+    note for Journey action maps and OAuth client provenance.
+  - New investigation recipe **`quality-calibration-and-form-governance`** — evaluation form
+    catalog, evaluations-in-window, and per-evaluator activity, for QM calibration prep.
+  - New executive playbook **`integration-and-api-governance`** — OAuth client/authorization
+    inventory, API usage by client, rate-limit aggregates, and org limits, for governing BYOI and
+    other integrations' API consumption.
+  - New voice-engineer playbook **`edge-log-forensic-capture`** — the three-step async Edge
+    logs-job flow (create/get/request-upload), documented as the escalation path from
+    `single-call-forensics` and `trunk-and-edge-health-check` when a SIP trace alone doesn't
+    explain an audio-quality complaint.
+  A reference-integrity pass confirmed every `dataset` value across all eight
+  `investigationRecipes`, ten `executiveReportingPlaybooks`, and six `voiceEngineerPlaybooks`
+  resolves to a real `datasets` or `endpoints` entry — zero broken references.
+- Added Patterns 11–13 (Quality Calibration & Form Governance, Integration & API Governance, Edge
+  Log Forensic Capture) to `docs/ENDPOINT_COMBINATIONS.md`, cross-referenced to the three new
+  catalog recipes above.
+
 ## 2026-08-15
 
 ### Fixed

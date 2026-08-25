@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-25  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,22 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 11 (Quality Calibration) maps to
+`quality-calibration-and-form-governance`; Pattern 12 (Integration & API Governance) maps to
+the `integration-and-api-governance` executive playbook; Pattern 13 (Edge Log Forensic Capture)
+maps to the `edge-log-forensic-capture` voice-engineer playbook. Every `dataset` value in a JSON
+recipe resolves to either a curated `datasets` entry or a raw `endpoints` operationId in the same
+catalog file — there is no third namespace.
+
+**2026-08-25 enrichment pass:** an audit of the 111 curated `datasets` entries found 25 endpoints
+with no recipe wiring them up (Agent Assist suggestions, a sentiment timeline distinct from the
+overall S&TA score, live per-media-type conversation inventory, single-queue and single-division
+detail GETs, published evaluation forms, skill groups, Journey action maps, Edge log capture jobs,
+and OAuth/API-usage governance data, among others). Where an endpoint genuinely duplicated one
+already wired into a recipe under a different catalog key (e.g. `routing-queue-members` vs. the
+already-used `routing.get.queue.members.with.status`), it was left alone rather than added as a
+redundant step. The rest were folded into existing patterns as new steps or `enrichWith` notes, or
+into three new patterns (11–13) below.
 
 ---
 
@@ -37,6 +50,9 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Quality Calibration & Form Governance](#11-quality-calibration--form-governance)
+12. [Integration & API Governance](#12-integration--api-governance)
+13. [Edge Log Forensic Capture (Voice Engineer Escalation)](#13-edge-log-forensic-capture-voice-engineer-escalation)
 
 ---
 
@@ -495,6 +511,102 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Quality Calibration & Form Governance
+
+**Subject:** One `divisionId` or `evaluatorUserId` + time window
+**Use case:** A QM lead is preparing a calibration session, or auditing which evaluation forms are
+in active use and whether evaluators are scoring consistently against them.
+
+**Core question:** *Are our evaluators scoring the same conversation the same way, against the
+same rubric?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `quality.get.published.evaluation.forms` | seed → `formId` | Every published form and its question groups — the rubric behind every `evaluationScore` in the catalog |
+| 2 | `quality.get.evaluations.query` | `evaluationFormId` | Evaluations in the window, each carrying which form and which evaluator produced the score |
+| 3 | `quality.get.agents.activity` | `evaluatorId` | Per-evaluator scoring volume and average — the input to a calibration agenda |
+
+### Analytical Questions Answered
+
+- Which form(s) are actually in use, and did the rubric change mid-window (new published version)?
+- Do two evaluators scoring the same conversation land within an acceptable band, or is there drift?
+- Is one evaluator consistently lenient or strict relative to the division mean?
+
+### Diagnostic Signals
+
+- Same `evaluationFormId`, same `conversationId`, two `evaluatorId`s >15% apart → calibration
+  drift; put it on the next calibration session agenda.
+- One evaluator's `avgScore` consistently outside the division mean → lenient/strict bias.
+- A form's `questionGroups` changed mid-window → don't trend scores before/after as one series.
+
+---
+
+## 12. Integration & API Governance
+
+**Subject:** Organisation-wide, no fixed subject (optionally scoped to one `clientId`)
+**Use case:** A platform/integrations engineer — often the same person operating the BYOI provider
+integration from Pattern 6 — needs to know which OAuth clients are consuming the most API capacity,
+whether any client is approaching a rate limit or org limit, and whether an ad-hoc pull would
+duplicate an already-scheduled export.
+
+**Core question:** *Is any integration at risk of hitting a rate limit or organisation limit, and
+who is the heaviest consumer?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `oauth.get.clients` | seed → `clientId` | Every configured OAuth client and its grant type |
+| 2 | `oauth.get.authorizations` | `clientId` | Active authorization grants — which users/clients hold tokens right now |
+| 3 | `oauth.post.client.usage.query` → `oauth.get.client.usage.query.results` | `clientId` (async job) | Historical request volume per client |
+| 4 | `usage.get.api.usage.by.client` | `clientId` | Request counts by client, org-scoped |
+| 5 | `usage.get.api.usage.organization.summary` | — | Org-wide request total for context |
+| 6 | `analytics.query.rate.limit.aggregates` | `clientId` | `nOverLimit` — actual rate-limit rejections, not just volume |
+| 7 | `organization.get.organization.limits` | — | Configured org limits, to compute headroom |
+
+**Before building a new pull:** check `analytics.get.reporting.exports` first — a scheduled export
+covering the same data may already exist.
+
+### Analytical Questions Answered
+
+- Which OAuth client (e.g. the BYOI provider integration) is the heaviest API consumer?
+- Has any client actually been rate-limited (`nOverLimit > 0`), not just come close?
+- How much headroom remains against the org's configured limits?
+
+---
+
+## 13. Edge Log Forensic Capture (Voice Engineer Escalation)
+
+**Subject:** One `edgeId` + a call time window
+**Use case:** An audio-quality or one-way-audio escalation where the SIP trace
+(`telephony.get.sip.messages.for.conversation`) and trunk metrics both look clean, so the problem
+is suspected to be at the media/RTP layer. This is an escalation path from Pattern 1 (Single
+Conversation Deep Dive) and from the `trunk-and-edge-health-check` voice-engineer playbook — run
+those first.
+
+**Core question:** *What did the Edge appliance itself log for this call, at the packet level?*
+
+### Dataset Steps (ordered, async job pattern)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `telephony.create.edge.logs.job` | seed → `edgeId` | Requests a log-capture job for the Edge, scoped to a time window |
+| 2 | `telephony.get.edge.logs.job` | `jobId` | Job status and the resulting file list once complete |
+| 3 | `telephony.request.edge.logs.job.upload` | `jobId` + file name | Requests upload/retrieval of the selected capture files |
+
+### Diagnostic Signals
+
+- Job status stuck in `PENDING` beyond a few minutes → Edge is unreachable or under load; check
+  `telephony.get.edge.performance.metrics` first.
+- No capture file covers the incident timestamp → the Edge's log retention window has already
+  rolled past it; request the capture sooner after an escalation is opened.
+- RTP-layer errors in the retrieved logs with a clean SIP trace → confirms a media-path (network,
+  NAT, firewall) issue distinct from call signalling.
 
 ---
 

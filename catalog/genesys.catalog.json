@@ -40342,6 +40342,80 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "campaign-investigation": {
+        "description": "End-to-end investigation of an outbound dialing campaign — configuration, target contact list, connected queue, live diagnostics/pacing, dialer events and dispositions, recent config-change audit history, and the resulting inbound-side conversation analytics. Mirrors Get-GenesysCampaignInvestigation (see docs/INVESTIGATIONS.md §4.4).",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign",
+            "dataset": "outbound.get.campaigns",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "campaignStatus, dialingMode, queueId, contactListId, callerIdNumber, abandonRatePercentage",
+            "description": "Campaign identity, status, dialing mode, connected queue, and the configured abandon-rate threshold"
+          },
+          {
+            "step": "contact-list",
+            "dataset": "outbound.get.contact.lists",
+            "filterBy": "contactListId",
+            "joinKey": "contactListId",
+            "provides": "contactListName, size, columnNames",
+            "description": "Target contact-list identity and size — used to reconcile dialed count against list penetration"
+          },
+          {
+            "step": "queue",
+            "dataset": "routing-queues",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "name, divisionId, mediaSettings, acwSettings",
+            "description": "Connected queue metadata for answer-handling and post-connect routing context"
+          },
+          {
+            "step": "diagnostics",
+            "dataset": "outbound.get.campaign.diagnostics.summary",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "pacing, currentErrorIndicators, health",
+            "description": "Live pacing and health snapshot — the first stop for a \"why is this campaign not dialing / over-pacing\" triage"
+          },
+          {
+            "step": "outbound-events",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "dialerEvent, dispositionCode, contactId, timestamp",
+            "description": "Per-contact dialer events and dispositions in the requested window — the source for reach-rate and abandon-rate reconciliation against the campaign's configured threshold"
+          },
+          {
+            "step": "audit-changes",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=CampaignRule|Campaign, EntityId=campaignId",
+            "joinKey": "campaignId",
+            "provides": "changedProperty, oldValue, newValue, changedBy, changeTime",
+            "description": "Recent configuration changes to the campaign — pacing, caller ID, or contact-list swaps that correlate with a pacing or abandon-rate anomaly"
+          },
+          {
+            "step": "conversation-analytics",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "campaignId",
+            "joinKey": "campaignId",
+            "provides": "conversationId, agentId, tTalk, tHandle, wrapUpCode",
+            "description": "Connected-conversation analytics for the campaign in the window — the seed for per-conversation drilldown via single-conversation-investigation"
+          }
+        ],
+        "joinSequence": "seed (campaign) → contact-list (contactListId) → queue (queueId) → diagnostics (campaignId) → outbound-events (campaignId) → audit-changes (campaignId) → conversation-analytics (campaignId)",
+        "identificationRule": "outbound.get.campaigns[].id is the subject campaignId. abandonRatePercentage on the campaign object is the configured compliance threshold; compare it against the abandon rate derived from outbound-events dispositions to detect drift.",
+        "executiveMetrics": [
+          "contactsDialed",
+          "rightPartyContactRate%",
+          "observedAbandonRate% (derived from outbound-events dispositions, compared to campaign.abandonRatePercentage)",
+          "dispositionCounts (by outcome)",
+          "campaignCompletionPct%",
+          "nConnected (from conversation-analytics)",
+          "tHandle (avg, from conversation-analytics)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

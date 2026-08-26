@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-08-26
+
+### Added
+
+- Added a `campaign-investigation` recipe to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes`, closing the gap where the Campaign
+  Investigation flagship (`Get-GenesysCampaignInvestigation`, documented in
+  `docs/INVESTIGATIONS.md` §4.4 and shipped with sample output under
+  `samples/demo-campaign-investigation/`) had no machine-readable
+  counterpart alongside the other six recipes. The recipe composes
+  `outbound.get.campaigns` (seed) → `outbound.get.contact.lists`
+  (`contactListId`) → `routing-queues` (`queueId`) →
+  `outbound.get.campaign.diagnostics.summary` (`campaignId`) →
+  `outbound.get.events` (`campaignId`) → `audit-logs` (`campaignId`) →
+  `analytics-conversation-details-query` (`campaignId`), with
+  `executiveMetrics` for reach rate, observed vs. configured abandon-rate
+  compliance, and list-penetration reporting. All seven dataset references
+  resolve to existing `datasets` entries in the same catalog file.
+- Added a matching "Campaign / Outbound Investigation" pattern (§10) to
+  `docs/ENDPOINT_COMBINATIONS.md`, renumbering the reference matrix to §11
+  and adding a "Campaign Investigation" column plus four new dataset rows
+  (`outbound.get.campaigns`, `outbound.get.contact.lists`,
+  `outbound.get.campaign.diagnostics.summary`, `outbound.get.events`). The
+  pattern documents the dialer-side vs. inbound-side abandon-rate
+  distinction: a campaign can be SLA-clean on the connected-conversation
+  side (Patterns 2/4) while still drifting out of its configured
+  `abandonRatePercentage` compliance threshold on the dialer side, and the
+  two must be checked independently.
+
 ## 2026-08-15
 
 ### Fixed

@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-27
+
+### Added
+
+- Added an `ai-summary-adoption-and-quality` executive reporting playbook to
+  `catalog/genesys.catalog.json`'s `combinations.executiveReportingPlaybooks`,
+  built on `postAnalyticsSummariesAggregatesQuery` (metrics
+  `nConversationSummaries`, `nConversationSummaryEngagements`,
+  `tConversationSummary`; groupable by `queueId`, `userId`, `mediaType`,
+  `wrapUpCodeSuggestionSelected`, `summaryRating`) with
+  `conversations.get.conversation.summaries` as the single-conversation
+  drilldown. This closes a real gap: the AI-generated post-call summary
+  (reason for contact, resolution, predicted wrapup codes) was already wired
+  into the `single-conversation-investigation` recipe's `ai-summaries` step
+  but had no org-wide adoption/quality rollup and was undocumented in
+  `docs/ENDPOINT_COMBINATIONS.md`.
+- Added a `callback-overflow` step to the `queue-investigation` recipe
+  (`conversations.get.active.callbacks`, client-filtered by queue since the
+  endpoint has no server-side queue parameter) and a corresponding
+  `nPendingCallbacks` executive metric — pending callbacks distinguish a
+  queue deferring load via callback-in-lieu-of-hold from one that is
+  genuinely abandoning callers, a distinction the existing abandon-metrics
+  step alone cannot make.
+- Extended the `queue-saturation-and-staffing-analysis` voice engineer
+  playbook's `enrichWith` list with `conversations.get.active.callbacks` and
+  `getVoicemailQueueMessages` as corroborating overflow signals alongside
+  the existing real-time observation steps.
+- Synced `docs/ENDPOINT_COMBINATIONS.md` with the above: Pattern 1 (Single
+  Conversation Deep Dive) gained an AI Summary step and a new "AI Summary as
+  the One Paragraph Answer" subsection; Pattern 2 (All Conversations in a
+  Queue) and Pattern 5 (Real-Time Operations Monitoring) gained the
+  callback/voicemail overflow rows; the Executive Reporting Rollup pattern
+  (§4, Layer 4) gained the AI summary adoption row and headline metric; the
+  Dataset Combination Reference Matrix (§10) and Metric Glossary gained rows
+  for all newly referenced dataset keys and metrics. A full reference-
+  integrity pass confirmed every `dataset` field across all `combinations`
+  recipes/playbooks resolves to an existing `datasets` or `endpoints` entry
+  in the same catalog file.
+
 ## 2026-08-15
 
 ### Fixed

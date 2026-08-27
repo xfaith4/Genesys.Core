@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-27  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,10 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; the AI Summary Adoption executive playbook (§4, Layer 4)
+maps to the `ai-summary-adoption-and-quality` recipe key. Every `dataset` value in a JSON recipe
+resolves to either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog
+file — there is no third namespace.
 
 ---
 
@@ -62,6 +63,7 @@ there is no third namespace.
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
 | 11 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
+| 12 *(AI Summary enabled)* | `conversations.get.conversation.summaries` | `conversationId` | AI-generated summary text, predicted wrapup codes, and reason-for-contact/resolution — the fastest way to understand what happened without reading a transcript or listening to a recording |
 
 ### Key Joins
 
@@ -86,6 +88,19 @@ analytics.get.single.conversation.analytics.participants[].sessions[].communicat
 - Was the agent rated? What was the QM score?
 - Was the customer surveyed? What was the CSAT result?
 - What intent/attributes did the IVR capture before routing?
+- What was the conversation actually about, in one paragraph, without opening the recording?
+
+### AI Summary as the "One Paragraph" Answer
+
+Step 12 (`conversations.get.conversation.summaries`) is the single highest-density artifact in this
+investigation: a short AI-generated paragraph covering reason for contact and resolution, plus
+`predictedWrapupCodes`. For a supervisor or executive triaging a complaint, reading this one field
+answers "what happened" faster than any other combination of steps in this pattern — it should be
+the first thing surfaced in any UI built on this investigation, with the remaining steps available
+as drill-down evidence. It requires the AI Summary feature to be enabled for the org; an empty
+result is not an error, it means the feature is off or the summary is still generating
+(`status: Pending | Queued | Started | Processing`). See the `ai-summary-adoption-and-quality`
+executive playbook (§4) for org-wide adoption and quality trends of this same feature.
 
 ### Voice Engineer Notes
 
@@ -131,6 +146,8 @@ rates, and wrapup outcomes.
 | 8 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` + wrapUpCode | Wrapup code frequencies (join step 2 for labels) |
 | 9 | `routing-queue-members` | `queueId` | Current membership roster with routing status and presence |
 | 10 | `quality.get.evaluations.query` (queueId filter) | `conversationId` | QM evaluation coverage and scores for conversations in this queue |
+| 11 *(callback enabled)* | `conversations.get.active.callbacks` (client-filtered to this `queueId`) | `queueId` | Pending/connected callback conversations — distinguishes callers who opted into a scheduled callback from true abandons when the queue offers callback-in-lieu-of-hold |
+| 12 *(voicemail-on-queue enabled)* | `getVoicemailQueueMessages` | `queueId` | Voicemail messages left for this queue — a caller opting out of both hold and callback entirely; a stronger overflow signal than abandon rate because it is a channel change, not a hangup |
 
 ### Key Joins
 
@@ -257,6 +274,7 @@ executive review — not a data dump, but the headline KPIs grouped logically.
 | `quality.get.agents.activity` | `userId` | Evaluation coverage rate, average score, score distribution |
 | `quality.get.surveys` | `conversationId` (aggregate) | CSAT/NPS: response rate, average score |
 | `analytics.post.transcripts.aggregates.query` | `queueId`, `userId`, daily | Speech analytics coverage: nSpeechTextAnalyzedConversations, oSentimentScore |
+| `postAnalyticsSummariesAggregatesQuery` | `queueId`, `userId`, `mediaType` | AI Summary adoption: nConversationSummaries, nConversationSummaryEngagements, engagementRate%, avgSummaryRating — see the `ai-summary-adoption-and-quality` playbook |
 
 #### Layer 5 — Infrastructure Health (optional, voice-focused)
 | Dataset Key | Grouping | Metrics |
@@ -280,6 +298,7 @@ Headline metrics (computed, not raw):
   - QM coverage: evaluations / nConnected × 100
   - Average QM score: from quality.get.agents.activity
   - Avg CSAT: from quality.get.surveys
+  - AI summary engagement rate: nConversationSummaryEngagements / nConversationSummaries × 100 (adoption of Copilot/Agent Assist summaries — a low rate with high generation volume is an adoption gap, not a feature outage)
 
 Trend views (daily granularity):
   - Volume by day with channel mix
@@ -323,6 +342,7 @@ agent availability right now, without waiting for a historical analytics job.
 | 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
 | 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
 | 9 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
+| 10 *(callback enabled)* | `conversations.get.active.callbacks` | Org-wide, client-filtered by queue | Currently pending/connected callbacks — a rising count alongside `oWaiting` shows load being deferred rather than answered right now |
 
 ### Polling Note
 
@@ -460,6 +480,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
+| `conversations.get.conversation.summaries` | ○ | | | ○ | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
@@ -469,6 +490,9 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
 | `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
 | `routing-queue-members` | | ● | | | | |
+| `conversations.get.active.callbacks` | | ○ | | | ○ | |
+| `getVoicemailQueueMessages` | | ○ | | | | |
+| `postAnalyticsSummariesAggregatesQuery` | | | | ● | | |
 | `authorization.get.single.division` | | | ● | | | |
 | `authorization.list.division.queues` | | | ● | | | |
 | `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
@@ -519,6 +543,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nConversationSummaries` | AI-generated conversation summaries produced | AI Summary generation volume |
+| `nConversationSummaryEngagements` | Summaries an agent accepted, edited, or copied | AI Summary adoption numerator |
+| `engagementRate%` | `nConversationSummaryEngagements / nConversationSummaries` | AI Summary adoption rate |
+| `nPendingCallbacks` | Active callback conversations not yet connected | Deferred-load indicator (queue-scoped) |
 
 ---
 

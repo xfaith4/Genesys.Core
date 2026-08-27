@@ -40072,9 +40072,18 @@
             "joinKey": "queueId",
             "provides": "evaluationScore per agent and conversation",
             "description": "Quality evaluations for conversations that touched this queue"
+          },
+          {
+            "step": "callback-overflow",
+            "dataset": "conversations.get.active.callbacks",
+            "filterBy": "queueId (client-side filter on each entity's queue.id \u2014 endpoint has no server-side queue filter)",
+            "joinKey": "queueId",
+            "conditional": "Only meaningful when queue-config.mediaSettings.callback is configured; otherwise expect zero rows",
+            "provides": "callback conversationId, scheduled callback time, pending vs connected state",
+            "description": "Active callback-in-lieu-of-hold conversations for this queue \u2014 distinguishes callers who opted into a scheduled callback from true abandons; a queue with high nAbandoned but also high pending callbacks is deferring load, not losing it"
           }
         ],
-        "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution",
+        "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution \u2192 callback-overflow (conditional)",
         "executiveMetrics": [
           "nOffered",
           "nConnected",
@@ -40087,7 +40096,8 @@
           "transferRate%",
           "estWaitTimeSecs",
           "oOnQueueUsers",
-          "oWaiting"
+          "oWaiting",
+          "nPendingCallbacks"
         ]
       },
       "division-investigation": {
@@ -40552,6 +40562,31 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "ai-summary-adoption-and-quality": {
+        "description": "Org-wide adoption and quality of AI-generated conversation summaries (Copilot/Agent Assist post-call summaries) — how many conversations get a usable summary, how often agents engage with it (accept/edit/copy), and how it is rated. Directly measures ROI of the AI summary feature and flags queues where agents are ignoring or discarding it.",
+        "datasetsInOrder": [
+          "postAnalyticsSummariesAggregatesQuery",
+          "conversations.get.conversation.summaries"
+        ],
+        "joinOn": "queueId or userId",
+        "groupBy": [
+          "queueId",
+          "userId",
+          "mediaType",
+          "wrapUpCodeSuggestionSelected",
+          "summaryRating"
+        ],
+        "outputMetrics": [
+          "nConversationSummaries (summaries generated)",
+          "nConversationSummaryEngagements (agent accepted/edited/copied the summary)",
+          "engagementRate% = nConversationSummaryEngagements / nConversationSummaries",
+          "tConversationSummary (avg generation latency)",
+          "wrapUpCodeSuggestionAcceptRate% (from wrapUpCodeSuggestionSelected grouping)",
+          "avgSummaryRating (from summaryRating grouping, where feedback was submitted)"
+        ],
+        "executivePresentation": "AI adoption funnel (generated → engaged → accepted-suggestion) by queue; flag queues/agents with high generation but low engagement as an adoption gap, not a feature failure",
+        "drilldown": "conversations.get.conversation.summaries on a specific conversationId returns the summary text, predicted wrapup codes, and reason-for-contact/resolution fields — use this to read the actual AI summary during a single-conversation-investigation instead of the full transcript"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40627,7 +40662,9 @@
         "enrichWith": [
           "users (to resolve userId to name for supervisor view)",
           "analytics.query.user.aggregates.login.activity (to confirm agents are genuinely on-shift)",
-          "workforce.get.management.unit.adherence (to see if off-queue agents are on a scheduled break)"
+          "workforce.get.management.unit.adherence (to see if off-queue agents are on a scheduled break)",
+          "conversations.get.active.callbacks (client-filtered to this queueId — a growing pending-callback count alongside rising EWT means callers are being deferred rather than answered; distinguishes graceful load-shedding from being overwhelmed)",
+          "getVoicemailQueueMessages (queue-scoped voicemail volume — a spike indicates callers are opting out of both hold and callback; a stronger overflow signal than abandon rate alone because it is a channel change, not a hangup)"
         ]
       },
       "flow-and-ivr-diagnostics": {

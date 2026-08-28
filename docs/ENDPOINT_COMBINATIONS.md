@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-28  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -23,6 +23,11 @@ tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
+**2026-08-28 additions:** the `byoi-conversation-enrichment` recipe gained an `external-contact` step
+(`externalcontacts.get.contact`) resolving `externalContactId` to a CRM identity — see Pattern 6. The
+`flow-and-ivr-performance` executive playbook and `flow-and-ivr-diagnostics` voice engineer playbook
+gained bot-flow turn-level detail and knowledge-base deflection aggregates — see Pattern 10.
+
 ---
 
 ## Contents
@@ -36,7 +41,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Self-Service Deflection Enrichment (Bot Flow + Knowledge)](#10-self-service-deflection-enrichment-bot-flow--knowledge)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -368,6 +374,14 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + | `externalcontacts.get.contact` (`GET /api/v2/externalcontacts/contacts/{contactId}`) | Resolves `participants[].externalContactId` to the actual CRM identity — contact name, title, external organization, and the CRM/case-management record identifiers. This is the final hop from "a conversation happened" to "who it was about"; not every BYOI conversation links a resolved contact, so treat this as a left join |
+
+The `externalcontacts.get.contact` step fans out per participant carrying a non-null `externalContactId`
+(usually the customer-purpose participant). It closes the loop the BYOI guide describes: the provider
+injects the call with an `externalContactId` reference, and this endpoint is how Genesys.Core resolves
+that reference back into a display-ready identity without a second CRM API call. Track its resolution
+rate as an executive metric — a BYOI channel with a low `externalContactId` resolution rate indicates the
+provider integration isn't populating identity linkage correctly.
 
 ### BYOI Conversation in Analytics
 
@@ -442,7 +456,53 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Self-Service Deflection Enrichment (Bot Flow + Knowledge)
+
+**Subject:** Architect flow/bot flow rollup, or a single flow incident  
+**Use case:** The existing `flow-and-ivr-performance` executive playbook and `flow-and-ivr-diagnostics`
+voice engineer playbook measured Architect-flow-level containment (`nFlow`, `nFlowOutcome`,
+`nFlowOutcomeFailed`) but had no visibility into *why* a bot flow failed to contain a caller, and no
+measure of self-service that happens entirely outside a flow — a knowledge article answering a chat or
+search before a conversation ever starts. Two dataset families close that gap:
+
+| Dataset Key | Endpoint | What It Adds |
+|-------------|----------|--------------|
+| `analytics.get.botflow.turn.reporting` | `GET /api/v2/analytics/botflows/{botFlowId}/reportingturns` | Turn-by-turn bot flow detail — recognized intent, confidence, and outcome per conversational turn. Diagnoses recognition failures at the specific prompt/utterance, not just the flow as a whole |
+| `analytics.get.botflow.sessions` | `GET /api/v2/analytics/botflows/{botFlowId}/sessions` | Session list for a bot flow, in reverse-chronological order — used to enumerate affected sessions before pulling turn detail. **The API retains these ~10 days**, so pull promptly after an incident |
+| `analytics.query.knowledge.aggregates` | `POST /api/v2/analytics/knowledge/aggregates/query` | Knowledge base search/view/answer-feedback counts by knowledge base and document — quantifies deflection that happens without ever opening a conversation |
+
+### Key Joins
+
+```
+flows.get.all.flows[].id (where flowType = 'bot')
+  → analytics.get.botflow.sessions.botFlowId
+  → analytics.get.botflow.turn.reporting.botFlowId (turn-level detail for sessions of interest)
+
+analytics.query.knowledge.aggregates.results[].group.knowledgeBaseId
+  → knowledge.get.knowledgebase (label resolution, not currently a catalog dataset — raw endpoint
+    getKnowledgeKnowledgebase)
+```
+
+### Analytical Questions Answered
+
+- Which specific turn in a bot flow has low recognition confidence, and is it degrading over time?
+- Executive rollup: what fraction of self-service is architect-flow containment vs. knowledge-article
+  deflection — i.e., calls that never left the IVR vs. contacts that never started at all?
+- Voice engineer incident response: after a bot flow containment drop, which sessions were affected and
+  what did the failing turns actually say?
+- Is a rising knowledge-base search volume with a falling answer rate on a topic quietly feeding
+  avoidable escalations into a queue?
+
+### Why This Stays Additive, Not a Data Dump
+
+Both additions are deliberately narrow: one turn-level endpoint (not the full bot conversation transcript)
+and one knowledge aggregate query (not per-article raw feedback records). They answer "where is
+self-service breaking down" without requiring a reviewer to read raw bot transcripts or article-by-article
+feedback logs — consistent with the catalog's goal of informative-not-overwhelming output.
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
@@ -454,6 +514,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.conversation.recording.metadata` | ● | | | | | |
 | `conversations.get.conversation.customattributes` | ● | | | | | |
 | `conversations.search.participant.attributes` | ● | | | | | |
+| `externalcontacts.get.contact` | ○ | | | | | |
 | `quality.get.evaluations.query` | ● | ○ | | | | |
 | `quality.get.surveys` | ● | | | ● | | |
 | `telephony.get.sip.messages.for.conversation` | ○ | | | | | |

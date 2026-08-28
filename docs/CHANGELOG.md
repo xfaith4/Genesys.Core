@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-08-28
+
+### Added
+
+- Reviewed the catalog's existing investigation recipes and reporting
+  playbooks against the Genesys Cloud API surface for combinations that
+  enrich an investigation without turning it into a data dump. Found and
+  closed three genuine gaps — endpoint families with real API coverage
+  (`externalcontacts` at 124 raw endpoints, `analytics/botflows` turn/session
+  reporting, and knowledge-base analytics aggregates) that were present in
+  `endpoints` but never composed into a recipe or playbook:
+  - Added `externalcontacts.get.contact` (`GET /api/v2/externalcontacts/contacts/{contactId}`)
+    as a new `external-contact` step in `combinations.investigationRecipes.byoi-conversation-enrichment`,
+    resolving a BYOI conversation's `participants[].externalContactId` to the actual CRM
+    identity — the join point the BYOI conversation-injection flow leaves as a bare ID. Also
+    added an `external-contact resolution rate %` executive metric.
+  - Added `analytics.get.botflow.turn.reporting` (`GET /api/v2/analytics/botflows/{botFlowId}/reportingturns`)
+    and `analytics.get.botflow.sessions` (`GET /api/v2/analytics/botflows/{botFlowId}/sessions`)
+    to `combinations.executiveReportingPlaybooks.flow-and-ivr-performance` and
+    `combinations.voiceEngineerPlaybooks.flow-and-ivr-diagnostics`, giving turn-level bot
+    recognition detail underneath the existing flow-level containment metrics.
+  - Added `analytics.query.knowledge.aggregates` (`POST /api/v2/analytics/knowledge/aggregates/query`)
+    to the same two playbooks as a `knowledgeDeflectionRate%` metric — self-service answers
+    that never became a queued conversation, the counterpart to IVR/bot containment.
+  - Documented all three as Pattern 6 (extended) and new Pattern 10 in
+    `docs/ENDPOINT_COMBINATIONS.md`, with join keys, analytical questions answered, and an
+    explicit note on why each stays narrow (one turn-level endpoint, one aggregate query — not
+    raw transcripts or per-article feedback dumps).
+  - Schema-validated the updated `catalog/genesys.catalog.json` against
+    `catalog/schema/genesys.catalog.schema.json`.
+
 ## 2026-08-15
 
 ### Fixed

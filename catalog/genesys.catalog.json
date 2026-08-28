@@ -39593,6 +39593,54 @@
         "pageSize": "100",
         "pageNumber": "1"
       }
+    },
+    "externalcontacts.get.contact": {
+      "method": "GET",
+      "path": "/api/v2/externalcontacts/contacts/{contactId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getExternalcontactsContact",
+      "tags": [
+        "External Contacts"
+      ],
+      "summary": "External contact identity (name, CRM/external-system identifiers, division) for the contactId referenced by a conversation participant's externalContactId \u2014 the join point back to the source CRM/case-management system."
+    },
+    "analytics.get.botflow.turn.reporting": {
+      "method": "GET",
+      "path": "/api/v2/analytics/botflows/{botFlowId}/reportingturns",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsBotflowReportingturns",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Turn-by-turn bot flow execution detail \u2014 recognized intent, confidence, and outcome per conversational turn. The per-utterance complement to flow-level containment metrics; pinpoints where NLU recognition degrades within a bot flow."
+    },
+    "analytics.get.botflow.sessions": {
+      "method": "GET",
+      "path": "/api/v2/analytics/botflows/{botFlowId}/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "getAnalyticsBotflowSessions",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Bot flow session list in reverse-chronological order \u2014 session-level start/end and outcome for a given botFlowId, used to enumerate sessions before pulling turn-level detail. Results are retained ~10 days by the API."
+    },
+    "analytics.query.knowledge.aggregates": {
+      "method": "POST",
+      "path": "/api/v2/analytics/knowledge/aggregates/query",
+      "itemsPath": "$.results",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "operationId": "postAnalyticsKnowledgeAggregatesQuery",
+      "tags": [
+        "Analytics"
+      ],
+      "summary": "Knowledge base usage aggregates \u2014 search, view, and answer-feedback counts by knowledge base and document. Quantifies self-service deflection: how often callers/chatters found an answer without escalating to a queue."
     }
   },
   "combinations": {
@@ -40334,13 +40382,22 @@
             ],
             "provides": "SIP signalling trace",
             "description": "Reflects the provider's SIP-to-SIP handoff (injection leg), not an inbound PSTN leg — expect a different call-setup pattern than native voice conversations"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "externalContactId",
+            "conditional": "conversation-object.participants[].externalContactId != null",
+            "provides": "contact.name, contact.title, externalOrganization, identifiers (CRM record IDs), division",
+            "description": "Resolves the external-purpose participant's externalContactId to the actual CRM/case identity — the final hop from 'a conversation happened' to 'who it was about'. Requires a per-participant fan-out over any participant carrying an externalContactId; not every BYOI conversation links a resolved contact."
           }
         ],
         "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
         "executiveMetrics": [
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
-          "evaluationScore (BYOI vs. native comparison)"
+          "evaluationScore (BYOI vs. native comparison)",
+          "external-contact resolution rate % (externalContactId present and resolved / BYOI conversations)"
         ]
       }
     },
@@ -40537,7 +40594,9 @@
           "flows.get.all.flows",
           "flows.get.flow.outcomes",
           "flows.get.flow.milestones",
-          "analytics.query.flow.aggregates.execution.metrics"
+          "analytics.query.flow.aggregates.execution.metrics",
+          "analytics.get.botflow.turn.reporting",
+          "analytics.query.knowledge.aggregates"
         ],
         "joinOn": "flowId",
         "groupBy": [
@@ -40549,9 +40608,11 @@
           "nFlowOutcome (successful exits)",
           "nFlowOutcomeFailed (failed exits)",
           "containmentRate% = nFlowOutcome / nFlow",
-          "nFlowMilestone (key-step completion counts)"
+          "nFlowMilestone (key-step completion counts)",
+          "botTurnRecognitionRate% = recognized-intent turns / total bot flow turns (analytics.get.botflow.turn.reporting)",
+          "knowledgeDeflectionRate% = answered knowledge searches / total knowledge searches, from analytics.query.knowledge.aggregates \u2014 self-service answers that never became a queued conversation"
         ],
-        "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+        "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates. Pair with knowledgeDeflectionRate to show the full self-service picture \u2014 flow containment is calls that never left the IVR/bot, knowledge deflection is calls/chats that never started because an article answered the question first."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -40645,11 +40706,14 @@
           "oFlow high with zero queue activity \u2192 calls stuck in flow loop or dead-end branch",
           "Flow outcome = 'Default Exit' > 5% \u2192 unmatched input causing fallthrough to default branch",
           "Bot flow nFlowOutcomeFailed / nFlow > 0.10 \u2192 NLU intent model degradation; retest utterances",
-          "nFlow drop without corresponding queue drop \u2192 calls not reaching the flow (DID routing issue)"
+          "nFlow drop without corresponding queue drop \u2192 calls not reaching the flow (DID routing issue)",
+          "analytics.get.botflow.turn.reporting shows repeated low-confidence recognition on the same turn \u2192 that specific prompt/utterance set needs retraining, not the whole bot flow",
+          "analytics.query.knowledge.aggregates shows rising search volume with flat/falling answer rate on a topic \u2192 knowledge base gap feeding avoidable escalations to the flow/queue"
         ],
         "enrichWith": [
           "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)",
+          "analytics.get.botflow.sessions (to enumerate affected bot flow sessions before pulling turn-level detail \u2014 API retains sessions ~10 days, so pull promptly after an incident)"
         ]
       },
       "recording-compliance-audit": {

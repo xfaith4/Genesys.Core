@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-29
+
+### Added
+
+- Evaluated the Genesys Cloud API Explorer swagger cache (`GenesysCloudAPIEndpoints.json`) against
+  every `operationId` already present in `catalog/genesys.catalog.json`'s `endpoints` map (2,655
+  documented operations vs. 3,102 catalogued keys, accounting for curated dotted-alias duplicates)
+  to find genuinely missing, investigation-relevant endpoints. Of the 30 operations not yet
+  catalogued, most were config-only (Knowledge base article/category/training CRUD, a legacy
+  `/api/v2/presence/definitions` path duplicating the already-catalogued `/api/v2/presencedefinitions`,
+  an outbound email domain search) or already superseded in the catalog (`getUserrecordingMedia` is
+  deprecated in favor of the already-catalogued `getUserrecordingTranscoding`) — these were left out
+  to keep the catalog informative rather than exhaustive.
+- Added `analytics.search.conversation.transcripts`
+  (`POST /api/v2/analytics/conversations/transcripts/query`) as a new catalog dataset/endpoint pair.
+  This closes a real investigation gap: every existing transcript-related dataset
+  (`speechandtextanalytics.get.conversation.communication.transcripturl`, the STA sentiment/topic
+  datasets) requires already knowing a `conversationId`; this endpoint searches transcript text
+  server-side and returns the matching `conversationId`s, scoped by `queueId`, `userId`, and/or a
+  date range — e.g. "which conversations in this queue mentioned a specific complaint this week" or
+  "did this agent read the required disclosure."
+- Wired the new dataset into `combinations.investigationRecipes.queue-investigation` and
+  `.agent-investigation` in `catalog/genesys.catalog.json` as an optional `transcript-keyword-search`
+  step (on-demand, requires Speech and Text Analytics transcription licensing — not part of the
+  default investigation fan-out). Re-ran the recipe reference-integrity check across all seven
+  `investigationRecipes` plus the executive/voice-engineer playbooks; every `dataset` reference
+  still resolves to a real `datasets` or `endpoints` entry.
+- Documented the new endpoint in `docs/ENDPOINT_COMBINATIONS.md` as a new §11
+  ("Transcript Keyword Search — a Cross-Cutting Search Tool"), added it to the Agent/Queue
+  Investigation Extensions tables (§7, §9) and the Dataset Combination Reference Matrix (§10), and
+  explained why it is deliberately excluded from the Executive Reporting Rollup (§4): it is a
+  search tool for chasing down specific conversations after a rollup metric motivates the question,
+  not a rollup metric itself.
+
 ## 2026-08-15
 
 ### Fixed

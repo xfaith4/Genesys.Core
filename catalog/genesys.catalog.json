@@ -685,6 +685,18 @@
         "profile": "default"
       }
     },
+    "analytics.search.conversation.transcripts": {
+      "description": "Keyword/phrase search across conversation transcripts, scoped by queueId, userId, and/or a date range — finds which conversations in a queue or handled by an agent actually contain a given word or phrase, without pulling every transcript individually.",
+      "endpoint": "analytics.search.conversation.transcripts",
+      "itemsPath": "$.conversations",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
     "speechandtextanalytics.get.conversation.communication.transcripturl": {
       "description": "Fetch transcript URL for a specific conversation communication.",
       "endpoint": "speechandtextanalytics.get.conversation.communication.transcripturl",
@@ -2201,6 +2213,20 @@
       "notes": [
         "Query transcript aggregates",
         "phase4"
+      ]
+    },
+    "analytics.search.conversation.transcripts": {
+      "method": "POST",
+      "path": "/api/v2/analytics/conversations/transcripts/query",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "itemsPath": "$.conversations",
+      "notes": [
+        "Search Genesys Speech and Text Analytics transcripts for matching conversations across a queue, agent, or the whole org.",
+        "group: Analytics",
+        "Request body is a TranscriptConversationDetailSearchRequest: types=[\"transcript\"], and one or more query criteria (EXACT / EXACT_PHRASE / PHRASE / DATE_RANGE) combined with AND/OR/NOT, e.g. fields=[\"transcript\"] value=\"cancel my policy\" type=PHRASE, plus fields=[\"queueId\"] or fields=[\"userId\"] to scope the search, and a DATE_RANGE on fields=[\"conversationStart\"].",
+        "Response returns AnalyticsConversationWithoutAttributes summaries (conversationId, queue/participant/session context) for every conversation whose transcript matched — feed each hit's conversationId into the single-conversation deep dive (analytics.get.single.conversation.analytics) for full forensics.",
+        "defaultBody:\n{\n  \"types\": [\"transcript\"],\n  \"query\": [\n    {\n      \"type\": \"PHRASE\",\n      \"fields\": [\"transcript\"],\n      \"value\": \"cancel my policy\"\n    },\n    {\n      \"type\": \"EXACT\",\n      \"fields\": [\"queueId\"],\n      \"value\": \"queue-id-goes-here\",\n      \"operator\": \"AND\"\n    },\n    {\n      \"type\": \"DATE_RANGE\",\n      \"fields\": [\"conversationStart\"],\n      \"startValue\": \"2026-08-01T00:00:00.000Z\",\n      \"endValue\": \"2026-08-29T00:00:00.000Z\",\n      \"dateFormat\": \"yyyy-MM-dd'T'HH:mm:ss.SSSX\",\n      \"operator\": \"AND\"\n    }\n  ],\n  \"pageSize\": 25\n}"
       ]
     },
     "users.get.user.details.with.full.expansion": {
@@ -39796,6 +39822,14 @@
             "description": "All conversations the agent participated in during the window"
           },
           {
+            "step": "transcript-keyword-search",
+            "dataset": "analytics.search.conversation.transcripts",
+            "filterBy": "userId + investigation window + search phrase",
+            "joinKey": "userId",
+            "provides": "conversationId list for this agent's conversations whose transcript matched the search phrase",
+            "description": "Optional, on-demand step (requires Speech and Text Analytics transcription licensing) — used for script-adherence or complaint follow-up, e.g. confirming the agent read a required disclosure or locating the specific call a customer referenced"
+          },
+          {
             "step": "audit-account-changes",
             "dataset": "audit-logs",
             "filterBy": "EntityType=User + EntityId=userId + investigation window",
@@ -40072,6 +40106,14 @@
             "joinKey": "queueId",
             "provides": "evaluationScore per agent and conversation",
             "description": "Quality evaluations for conversations that touched this queue"
+          },
+          {
+            "step": "transcript-keyword-search",
+            "dataset": "analytics.search.conversation.transcripts",
+            "filterBy": "queueId + investigation window + search phrase",
+            "joinKey": "queueId",
+            "provides": "conversationId list for conversations whose transcript matched the search phrase",
+            "description": "Optional, on-demand step (requires Speech and Text Analytics transcription licensing) \u2014 finds every conversation in this queue whose transcript contains a given word or phrase (e.g. a compliance disclosure, a competitor name, or a complaint keyword) without pulling every transcript individually; feed matches back into the conversations step or a single-conversation-investigation for full forensics"
           }
         ],
         "joinSequence": "seed (queue-config) \u2192 members (queueId) \u2192 real-time-observations \u2192 estimated-wait-time \u2192 performance \u2192 sla \u2192 abandons \u2192 transfers \u2192 wrapup-distribution",

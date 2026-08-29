@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-29  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -21,7 +21,8 @@ tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
 `byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+there is no third namespace. The `transcript-keyword-search` step introduced in §11 is wired into
+the `queue-investigation` and `agent-investigation` recipes as an optional step (see §7 and §9).
 
 ---
 
@@ -37,6 +38,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Transcript Keyword Search — a Cross-Cutting Search Tool](#11-transcript-keyword-search--a-cross-cutting-search-tool)
 
 ---
 
@@ -400,10 +402,13 @@ datasets enrich the investigation without replacing any existing step.
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
+| transcriptKeywordSearch | `analytics.search.conversation.transcripts` | `userId` + search phrase | Conversation IDs among this agent's calls whose transcript matched a keyword/phrase — script adherence checks, disclosure verification, locating "the call where the customer mentioned X" |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
 agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+licensed and configured. `transcriptKeywordSearch` is on-demand only (run when a specific phrase
+needs to be located) and requires Speech and Text Analytics transcription to be enabled — it is not
+part of the default investigation fan-out.
 
 ---
 
@@ -439,6 +444,7 @@ complete the picture.
 | transfers | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Transfer rate and type breakdown |
 | wrapupDistribution | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup code frequencies (join wrapupLabels for labels) |
 | conversationDetail | `analytics-conversation-details-query` (queueId filter) | `conversationId` | Individual conversations for case-level review |
+| transcriptKeywordSearch | `analytics.search.conversation.transcripts` (queueId filter) | `conversationId` | Conversation IDs in this queue whose transcript matched a keyword/phrase — see [§11](#11-transcript-keyword-search-a-cross-cutting-search-tool) |
 
 ---
 
@@ -460,6 +466,7 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
+| `analytics.search.conversation.transcripts` | | ○ | | | | ○ |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
@@ -495,6 +502,80 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Transcript Keyword Search — a Cross-Cutting Search Tool
+
+**Subject:** A `queueId`, `userId`, or organisation-wide scope + investigation window + search phrase
+**Endpoint:** `POST /api/v2/analytics/conversations/transcripts/query` (dataset key
+`analytics.search.conversation.transcripts`)
+**Use case:** A voice engineer or QM analyst needs to find *which* conversations contain a specific
+word or phrase — a competitor name, a compliance disclosure, a product defect, a specific customer's
+complaint — before spending time on individual transcript review. Every other dataset in this
+document answers "how did X perform"; this one answers "which conversations actually said Y."
+
+**Core question:** *Which conversations, in this queue / by this agent / across the org, said
+something specific?*
+
+### Why this closes a real gap
+
+Every conversation-level dataset in Patterns 1, 7, and 8 (STA sentiment, transcript URLs, custom
+attributes) requires already knowing the `conversationId`. Until this endpoint, there was no
+catalogued way to go the other direction — from a phrase to the conversations that contain it —
+without iterating every conversation's transcript one at a time via
+`speechandtextanalytics.get.conversation.communication.transcripturl`, which does not scale past a
+handful of calls. `analytics.search.conversation.transcripts` performs the search server-side and
+returns only the matching conversation summaries.
+
+### How It Combines
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.search.conversation.transcripts` | seed → search phrase + `queueId`/`userId`/date range filters | `conversationId` list for every transcript match |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` (per match) | Full segment timing for each matching conversation |
+| 3 | `conversations.get.conversation.recording.metadata` | `conversationId` (per match) | Recording availability for playback of the matched moment |
+| 4 | `quality.get.evaluations.query` | `conversationId` (per match) | Whether the matched conversation was already quality-reviewed |
+
+### Request Shape
+
+The request body is a `TranscriptConversationDetailSearchRequest`: `types: ["transcript"]` plus one
+or more `query` criteria (`EXACT`, `EXACT_PHRASE`, `PHRASE`, `DATE_RANGE`) combined with
+`AND`/`OR`/`NOT`. A phrase search scoped to one queue over one week looks like:
+
+```json
+{
+  "types": ["transcript"],
+  "query": [
+    { "type": "PHRASE", "fields": ["transcript"], "value": "cancel my policy" },
+    { "type": "EXACT", "fields": ["queueId"], "value": "<queueId>", "operator": "AND" },
+    { "type": "DATE_RANGE", "fields": ["conversationStart"], "startValue": "2026-08-01T00:00:00.000Z", "endValue": "2026-08-08T00:00:00.000Z", "operator": "AND" }
+  ]
+}
+```
+
+### Analytical Questions Answered
+
+- Which conversations in this queue mentioned a specific competitor, product, or complaint term this week?
+- Did this agent read the required regulatory disclosure? (search for the disclosure phrase scoped to `userId`)
+- A customer called back referencing "something an agent said" — which of their calls actually said it?
+- How many conversations org-wide mentioned an emerging outage or defect keyword, and which queues did they land in?
+
+### Notes and Limits
+
+- **Requires Speech and Text Analytics transcription** to be enabled for the relevant queues/media
+  types — conversations without a transcript are not searchable this way and simply won't appear in
+  results.
+- This is an **on-demand tool, not a standing pipeline step** — it belongs in the Queue Investigation
+  and Agent Investigation extension tables (§7, §9) as an optional step run when a specific phrase
+  needs to be located, not in the default fan-out for every investigation.
+- For a division-wide search, fan the same request out once per `queueId` in the division (per the
+  "Divisions as Queue Groups" pattern in §2) — the endpoint itself does not accept a `divisionId`
+  filter.
+- This is a search endpoint, not an aggregate — it is deliberately excluded from the Executive
+  Reporting Rollup (§4). Executive reporting stays at the metric-summary altitude; keyword-level
+  transcript search is an investigation tool for when a rollup metric (e.g. a spike in a wrapup code
+  or a sentiment dip) motivates someone to go find the specific calls.
 
 ---
 

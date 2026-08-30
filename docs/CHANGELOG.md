@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-08-30
+
+### Documentation
+
+- Synced `docs/ENDPOINT_COMBINATIONS.md` with `catalog/genesys.catalog.json`'s
+  `combinations` object, which had grown ahead of the human-readable doc:
+  the JSON already carried 7 `investigationRecipes`, 9
+  `executiveReportingPlaybooks`, and 5 `voiceEngineerPlaybooks`, but the
+  markdown only narrated a subset of them in prose.
+  - Added section 10, "Agent Not-Responding / Auto-Answer Root-Cause" —
+    the `agent-not-responding-autoanswer` recipe was present in the catalog
+    with no corresponding doc section. Covers the auto-answer-enabled
+    cohort seed, per-episode NOT_RESPONDING timeline, time-aligned
+    ALERT-without-CONNECT interaction correlation, station-registration
+    root cause, and the config-audit trail, plus its diagnostic signals and
+    derived metrics.
+  - Added section 11, "Named Executive Reporting Playbooks" — a table
+    naming and summarizing all 9 `executiveReportingPlaybooks` keys (only
+    5 of the underlying dataset groupings were previously described, and
+    only as generic "Layers" in section 4, not by their catalog playbook
+    name).
+  - Added section 12, "Named Voice Engineer Diagnostic Playbooks" —
+    documents the 4 `voiceEngineerPlaybooks` keys that had no prose
+    section (`trunk-and-edge-health-check`,
+    `queue-saturation-and-staffing-analysis`, `flow-and-ivr-diagnostics`,
+    `recording-compliance-audit`); the fifth, `single-call-forensics`,
+    already maps to section 1.
+  - Extended the dataset combination reference matrix (renumbered to
+    section 13) with a "Not-Responding RCA" column and two new dataset
+    rows (`users` filtered by `acdAutoAnswer`, `stations.get.stations`).
+  - Re-ran a full reference-integrity check: every backtick-wrapped
+    dataset/endpoint key across the entire document (69 distinct
+    references) resolves to a real `datasets` or `endpoints` entry in
+    `catalog/genesys.catalog.json`, and every markdown table has a
+    consistent column count. No changes were needed in the JSON catalog
+    itself — the gap was documentation lagging the data, not missing or
+    broken endpoints.
+
 ## 2026-08-15
 
 ### Fixed

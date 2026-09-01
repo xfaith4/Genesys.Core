@@ -1184,6 +1184,95 @@
       "redactionProfile": "voice-engineer-sip",
       "validationStatus": "unvalidated"
     },
+    "telephony.siptraces.search": {
+      "description": "SIP metadata search by conversationId and date range — returns SIP record rows matching the filter, including records that lack a conversationId tag. Broader than telephony.get.sip.messages.for.conversation; used as the first step of the PCAP evidence-package flow and for edge/trunk-wide SIP investigations that are not scoped to one conversation.",
+      "endpoint": "getTelephonySiptraces",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "redactionProfile": "voice-engineer-sip",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.siptraces.pcap.download.request": {
+      "description": "Requests a PCAP package for SIP records matching a prior telephony.siptraces.search call — second step of the PCAP evidence-package flow. Returns a downloadId to poll.",
+      "endpoint": "postTelephonySiptracesDownload",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.siptraces.pcap.download.result": {
+      "description": "Polls a PCAP download request for a signed S3 URL — final step of the PCAP evidence-package flow. Requires telephony:pcap:view and telephony:pcap:add permissions.",
+      "endpoint": "getTelephonySiptracesDownloadDownloadId",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "telephony.edge.diagnostic.ping": {
+      "description": "ICMP ping from a specific Edge appliance to a target host/IP — round-trip time and packet loss. Use to correlate audio-quality complaints (jitter, one-way audio) with network path health between the Edge and a carrier/trunk endpoint at the time of a call.",
+      "endpoint": "getTelephonyProvidersEdgeDiagnosticPing",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.edge.diagnostic.tracepath": {
+      "description": "Network path trace (hop-by-hop latency and MTU) from a specific Edge appliance to a target host/IP. Use alongside telephony.edge.diagnostic.ping when packet loss or high RTT is suspected of causing call-quality degradation.",
+      "endpoint": "getTelephonyProvidersEdgeDiagnosticTracepath",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.edge.diagnostic.nslookup": {
+      "description": "DNS resolution check from a specific Edge appliance — confirms the Edge can resolve a carrier/trunk hostname. Use when trunk registration or SIP OPTIONS failures suggest a DNS issue rather than a media-path issue.",
+      "endpoint": "getTelephonyProvidersEdgeDiagnosticNslookup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
+    "telephony.edge.diagnostic.route": {
+      "description": "Routing table entry from a specific Edge appliance for a target host/IP — confirms outbound traffic to a carrier/trunk is using the expected network interface. Use when an Edge has multiple NICs/VLANs and media is exiting the wrong path.",
+      "endpoint": "getTelephonyProvidersEdgeDiagnosticRoute",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "standard",
+      "validationStatus": "unvalidated"
+    },
     "speech.and.text.analytics.get.sentiment.for.conversation": {
       "description": "Sentiment score timeline for a single conversation \u2014 overall, agent, and customer sentiment categories and scores, plus detected topics.",
       "endpoint": "speech.and.text.analytics.get.sentiment.data.for.conversation",
@@ -40580,7 +40669,9 @@
         ],
         "enrichWith": [
           "users (for agent identity given userId from analytics-detail participants)",
-          "quality.get.evaluations.query (for evaluation if one exists)"
+          "quality.get.evaluations.query (for evaluation if one exists)",
+          "telephony.siptraces.search -> telephony.siptraces.pcap.download.request -> telephony.siptraces.pcap.download.result (when the SIP trace alone does not explain the issue and raw packet-level PCAP evidence is needed; requires telephony:pcap:view/add permissions)",
+          "telephony.edge.diagnostic.ping / telephony.edge.diagnostic.tracepath (when audio quality symptoms — jitter, choppy audio, one-way audio — suggest a network path problem between the handling Edge and the carrier, run against the Edge that handled the call and the trunk's remote IP)"
         ]
       },
       "trunk-and-edge-health-check": {
@@ -40602,7 +40693,9 @@
         ],
         "enrichWith": [
           "alerting.get.alerts (check for active telephony alerts)",
-          "alerting.get.rules (confirm alerting thresholds are configured for trunk capacity)"
+          "alerting.get.rules (confirm alerting thresholds are configured for trunk capacity)",
+          "telephony.edge.diagnostic.nslookup (confirm the Edge can resolve the trunk provider hostname when trunk inService=false and SIP OPTIONS is failing)",
+          "telephony.edge.diagnostic.route (confirm outbound traffic to the trunk is using the expected NIC/VLAN on multi-homed Edges)"
         ]
       },
       "queue-saturation-and-staffing-analysis": {

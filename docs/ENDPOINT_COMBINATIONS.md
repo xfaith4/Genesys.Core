@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-01  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -22,6 +22,22 @@ tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
+
+**2026-09-01 review:** cross-checked this document and the catalog's `combinations` section
+against Genesys Cloud's Embeddable Framework, BYOI, and Blueprints documentation, and against
+telephony endpoints already present in `catalog/genesys.catalog.json` under `endpoints` but not
+yet promoted to curated `datasets` or referenced from any playbook. Two gaps were closed:
+(1) the PCAP evidence-package flow (`telephony.siptraces.search` →
+`telephony.siptraces.pcap.download.request` → `.pcap.download.result`) was already implemented in
+`Export-GenesysConversationInvestigationPackage` but absent from the Single Conversation Deep Dive
+and `single-call-forensics` playbook — it is now dataset step 12–13 there; (2) Edge network
+diagnostics (`telephony.edge.diagnostic.ping`/`.tracepath`/`.nslookup`/`.route`) were present as
+raw endpoints only — they are now curated datasets referenced as steps 14–15 of the Single
+Conversation Deep Dive and as `enrichWith` entries on `trunk-and-edge-health-check`. Condensed
+conversation info attributes (`isInternal`, `Group Name`, `Queue ID`) surfaced by the Embeddable
+Framework are now documented under Pattern 6. No changes were made to the executive reporting
+playbooks — the existing KPI layer coverage was found to already match Genesys Cloud's published
+analytics query capabilities with no material gap.
 
 ---
 
@@ -98,6 +114,24 @@ Step 8 (SIP trace) is the definitive source for:
 The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/providers/edges/{edgeId}/metrics`)
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
+
+When the SIP trace alone does not explain the symptom (e.g. audio-quality complaints where signaling
+looks clean but the customer reports choppy or one-way audio), two further, code-verified extensions
+apply — both already implemented by `Export-GenesysConversationInvestigationPackage` (see
+[CONVERSATION_INVESTIGATION_PACKAGE.md](CONVERSATION_INVESTIGATION_PACKAGE.md)) but not previously
+listed here as reusable dataset steps:
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 12 *(escalation only)* | `telephony.siptraces.search` | `conversationId` + `dateStart`/`dateEnd` | Broader SIP metadata search than step 8 — surfaces records that were not tagged with the `conversationId` and is the required first call of the PCAP flow |
+| 13 *(escalation only)* | `telephony.siptraces.pcap.download.request` → `telephony.siptraces.pcap.download.result` | `downloadId` | Requests and polls for a signed S3 URL to a raw `.pcap` capture — packet-level ground truth for one-way audio, jitter, or codec disputes. Requires `telephony:pcap:view` and `telephony:pcap:add` permissions |
+| 14 *(network correlation)* | `telephony.edge.diagnostic.ping` / `telephony.edge.diagnostic.tracepath` | `edgeId` + target host/IP (the trunk's remote endpoint) | Live round-trip time, packet loss, and hop-by-hop path from the handling Edge to the carrier — correlates a specific call's audio symptoms with a network path problem observed *now*, not just at call time |
+| 15 *(trunk registration issues)* | `telephony.edge.diagnostic.nslookup` / `telephony.edge.diagnostic.route` | `edgeId` | Confirms DNS resolution and outbound interface selection when trunk `inService=false` or SIP OPTIONS keep-alives are failing — distinguishes a DNS/routing misconfiguration from a genuine carrier outage |
+
+Steps 12–13 are the same sequence used by the Conversation Investigation Package's PCAP export; steps
+14–15 are point-in-time infrastructure checks (they reflect current Edge state, not the state at call
+time) and should be run promptly after the complaint if the underlying network condition is still
+present.
 
 ### BYOI Indicator
 
@@ -386,6 +420,25 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
 full object returned by the dataset and need no special handling.
 
+The condensed conversation info object also carries three interaction attributes that are useful
+discriminators when triaging BYOI vs. native conversations from an embedded/CTI investigation
+context, and are worth pulling into any custom investigation UI built on top of this dataset:
+
+- `isInternal` — flags whether the call leg is internal (agent-to-agent / on-net) rather than a
+  customer-facing leg. Use this to exclude internal consult/warm-transfer legs before computing
+  customer-facing metrics (talk time, hold time) from participant data.
+- `Group Name` — present on voice interactions associated with a group-ring hunt group; resolves
+  the ring-group label that routed the call, independent of the ACD queue it ultimately landed in.
+  Useful when a complaint references "the group that rang everyone" rather than a named queue.
+- `Queue ID` — the last-selected or default outbound queue for the interaction; on outbound/BYOI
+  calls this can differ from the ACD queue recorded in `conversations.get.conversation.object`,
+  so treat it as a secondary corroborating signal rather than a replacement for the analytics
+  queue assignment.
+
+These three fields are not separately catalogued API endpoints — they are attributes on the
+condensed conversation object itself — so no new dataset entry is required; they are documented
+here so investigators building on the Embeddable Framework know to look for them.
+
 ---
 
 ## 7. Agent Investigation Extensions (Release 1.3)
@@ -488,6 +541,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.flow.observations` | | | | | ● | |
 | `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
 | `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
+| `telephony.siptraces.search` | ○ | | | | | |
+| `telephony.siptraces.pcap.download.request` / `.result` | ○ | | | | | |
+| `telephony.edge.diagnostic.ping` / `.tracepath` | ○ | ○ | | | | |
+| `telephony.edge.diagnostic.nslookup` / `.route` | | ○ | | | | |
 | `alerting.get.alerts` | | | | ○ | ● | |
 | `users.get.user.details.with.full.expansion` | | | | | | ● |
 | `users.get.user.routing.skills` | | | | | | ● |

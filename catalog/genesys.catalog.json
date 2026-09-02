@@ -40242,6 +40242,22 @@
             "description": "Current ACD routing state for one agent — confirms whether NOT_RESPONDING is stalling queue throughput"
           },
           {
+            "step": "active-conversation-drilldown",
+            "dataset": "conversations.get.active.calls",
+            "datasetAlternatives": [
+              "conversations.get.active.chats",
+              "conversations.get.active.emails",
+              "conversations.get.active.callbacks"
+            ],
+            "filterBy": "queueId+mediaType (client-side, from conversation-activity)",
+            "joinKey": "conversationId",
+            "audience": [
+              "supervisor"
+            ],
+            "provides": "the actual conversationIds behind an oWaiting/oAlerting/oLongestWaiting spike, not just the count",
+            "description": "Bridges the aggregate conversation-activity step to case-level review — pick the dataset matching the flagged mediaType (calls/chats/emails/callbacks), filter client-side to the flagged queueId, then hand any conversationId to the single-conversation-investigation recipe. On-click only, not part of the polling loop; prefer these media-type-scoped endpoints over conversations.get.active.conversations (org-wide, unscoped) to avoid a data dump."
+          },
+          {
             "step": "trunk-health",
             "dataset": "telephony.get.trunk.metrics.summary",
             "audience": [

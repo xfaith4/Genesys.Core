@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-02  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -323,6 +323,7 @@ agent availability right now, without waiting for a historical analytics job.
 | 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
 | 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
 | 9 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
+| 10 *(supervisor drilldown)* | `conversations.get.active.calls` / `conversations.get.active.chats` / `conversations.get.active.emails` / `conversations.get.active.callbacks` | queueId + mediaType | The actual `conversationId`s behind an `oWaiting`/`oAlerting`/`oLongestWaiting` spike — bridges into Pattern 1 |
 
 ### Polling Note
 
@@ -333,6 +334,26 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
+
+### Bridging Real-Time Monitoring to Case-Level Review
+
+Step 2 (`analytics.query.conversation.activity.real.time`) tells a supervisor *that* a queue has
+an `oWaiting`/`oAlerting` spike or an alarming `oLongestWaiting`, but not *which* conversations
+those are. To go from the aggregate count to an actionable conversation list without pulling an
+organisation-wide dump, use the media-type-scoped active-conversation endpoints:
+
+- `conversations.get.active.calls` (`GET /api/v2/conversations/calls`)
+- `conversations.get.active.chats` (`GET /api/v2/conversations/chats`)
+- `conversations.get.active.emails` (`GET /api/v2/conversations/emails`)
+- `conversations.get.active.callbacks` (`GET /api/v2/conversations/callbacks`)
+
+Pick the dataset matching the flagged `mediaType`, filter the returned entities client-side to the
+flagged `queueId`, and hand any resulting `conversationId` to Pattern 1 (Single Conversation Deep
+Dive) for a full forensic pass. This is an on-click drilldown, not a polling-loop step — the same
+rule that already applies to `agent-drilldown`/`agent-active-conversations`/`agent-routing-status`.
+Avoid `conversations.get.active.conversations` (`GET /api/v2/conversations`, org-wide and
+unscoped) for this purpose; it works but returns every active conversation in the org and is the
+kind of unbounded pull this document's "informative, not a data dump" goal is meant to prevent.
 
 ---
 
@@ -486,6 +507,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.agent.active.conversations` | | | | | ○ | ○ |
 | `users.get.agent.current.routing.status` | | | | | ○ | ○ |
 | `analytics.query.flow.observations` | | | | | ● | |
+| `conversations.get.active.calls` | | | | | ○ | |
+| `conversations.get.active.chats` | | | | | ○ | |
+| `conversations.get.active.emails` | | | | | ○ | |
+| `conversations.get.active.callbacks` | | | | | ○ | |
 | `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
 | `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
 | `alerting.get.alerts` | | | | ○ | ● | |

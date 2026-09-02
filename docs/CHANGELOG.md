@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-09-02
+
+### Added
+
+- Added an `active-conversation-drilldown` step to the
+  `combinations.investigationRecipes.real-time-operations-monitoring` recipe
+  in `catalog/genesys.catalog.json`, plus a matching "Bridging Real-Time
+  Monitoring to Case-Level Review" subsection and reference-matrix rows in
+  `docs/ENDPOINT_COMBINATIONS.md`. The four media-type-scoped active-
+  conversation datasets (`conversations.get.active.calls/.chats/.emails/
+  .callbacks`) already existed in the catalog (Swagger-derived) but were not
+  referenced by any recipe or playbook — there was no documented path from
+  "this queue has an `oWaiting`/`oAlerting` spike" (Pattern 5, step 2) to
+  "here are the actual `conversationId`s, go run Pattern 1 on one of them."
+  The step is explicitly scoped to a click-through drilldown (media type +
+  queueId filter), not the polling loop, and the org-wide
+  `conversations.get.active.conversations` endpoint is called out as the
+  one to avoid for this purpose to keep the pattern from becoming a data
+  dump.
+
+### Verified
+
+- Re-ran a reference-integrity audit across all `combinations`
+  (`investigationRecipes`, `executiveReportingPlaybooks`,
+  `voiceEngineerPlaybooks`) in `catalog/genesys.catalog.json`: every
+  `dataset` value (`steps[].dataset`, `steps[].datasetAlternatives[]`, and
+  `datasetsInOrder[]`) resolves to an existing `datasets` or `endpoints`
+  entry except the one intentional `(derived)` placeholder in
+  `agent-investigation`. No drift found since the 2026-08-15 fix.
+- Network egress to `developer.genesys.cloud` and `help.genesys.cloud` is
+  blocked in this execution environment, so this pass could not re-fetch
+  the Genesys Developer Center pages directly; findings above are sourced
+  from the bundled Swagger-derived catalog entries and web search snippets
+  rather than a live page fetch. Noted here so a future pass with fetch
+  access knows to re-verify the Embeddable Framework condensed-conversation
+  field list (`queueId`, `groupName`, `isInternal` attributes were found
+  via search but not confirmed against the full page) against
+  `docs/ENDPOINT_COMBINATIONS.md`'s "Embeddable Framework Conversations"
+  section.
+
 ## 2026-08-15
 
 ### Fixed

@@ -38,7 +38,7 @@ Genesys.Core solves this with a **catalog-driven execution engine**: endpoint be
 ### 1 — Import the module
 
 ```powershell
-Set-Location <path-to-Genesys.Core>
+Set-Location ./modules/Genesys.Core/Genesys.Core.psd1
 Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
 Get-Command -Module Genesys.Core   # Invoke-Dataset, Assert-Catalog
 ```
@@ -46,7 +46,7 @@ Get-Command -Module Genesys.Core   # Invoke-Dataset, Assert-Catalog
 ### 2 — Acquire an OAuth token (client credentials)
 
 ```powershell
-$region    = 'mypurecloud.com'           # e.g. usw2.pure.cloud, mypurecloud.de
+$region    = 'usw2.pure.cloud'           # e.g. usw2.pure.cloud, mypurecloud.de
 $baseUri   = "https://api.$($region)"
 $authUrl   = "https://login.$($region)/oauth/token"
 

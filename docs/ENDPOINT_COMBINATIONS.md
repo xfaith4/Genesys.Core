@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-08-24  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,12 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 10 (Customer Journey & External Contact
+Enrichment) maps to `customer-journey-and-external-contact-enrichment`; Pattern 11 (Queue Overflow
+& Deflection) maps to `queue-overflow-and-deflection-analysis`; Pattern 12 (Event-Driven Real-Time
+Monitoring) maps to `realtime-notification-channel-strategy`. Every `dataset` value in a JSON
+recipe resolves to either a curated `datasets` entry or a raw `endpoints` operationId in the same
+catalog file — there is no third namespace.
 
 ---
 
@@ -36,7 +39,10 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Customer Journey & External Contact Enrichment](#10-customer-journey--external-contact-enrichment)
+11. [Queue Overflow & Deflection Analysis](#11-queue-overflow--deflection-analysis)
+12. [Event-Driven Real-Time Monitoring (Notifications API)](#12-event-driven-real-time-monitoring-notifications-api)
+13. [Dataset Combination Reference Matrix](#13-dataset-combination-reference-matrix)
 
 ---
 
@@ -442,7 +448,148 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Customer Journey & External Contact Enrichment
+
+**Subject:** One `conversationId` with a resolvable `externalContactId`  
+**Use case:** A CX strategist or supervisor investigating a conversation wants to know who the
+customer is beyond a bare ANI, and what they were doing online or in-app before they called. This
+turns a phone-only view of a contact into a full-journey view and flags conversations that likely
+represent a self-service failure.
+
+**Core question:** *Who is this customer, what did they try before calling, and did self-service
+fail them?*
+
+**Runs alongside:** [Single Conversation Deep Dive](#1-single-conversation-deep-dive-voice-engineer) —
+add these steps whenever `conversations.get.conversation.object` returns a non-null
+`externalContactId` on the customer participant.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.specific.conversation.details` | seed → `conversationId` | `participants[].externalContactId`, `participants[].purpose` — confirms a CRM match exists |
+| 2 | `getExternalcontactsContact` | `externalContactId` | Name, title, work phone, organization link — CRM identity |
+| 3 | `getExternalcontactsContactNotes` | `externalContactId` | Prior interaction notes left by agents or integrations |
+| 4 | `getExternalcontactsContactJourneySessions` | `externalContactId` | Web/app session IDs Predictive Engagement attributes to this contact |
+| 5 | `getJourneySessionEvents` | `sessionId` | Pageviews and events within each session — what the customer actually did online |
+| 6 | `getJourneySessionOutcomescores` | `sessionId` | Predictive Engagement's scored likelihood the session was working toward a configured outcome |
+| 7 | `getJourneyOutcomes` | — | Resolves `outcomeId` to a human-readable outcome name |
+
+### Key Joins
+
+```
+conversations.get.specific.conversation.details.participants[].externalContactId
+  → getExternalcontactsContact.id
+  → getExternalcontactsContactJourneySessions[].id (sessionId list)
+  → getJourneySessionEvents.sessionId
+  → getJourneySessionOutcomescores.sessionId
+  → getJourneyOutcomes.id (label resolution)
+```
+
+### Diagnostic Signals
+
+- A high outcome score immediately followed by a phone contact in the same window → self-service,
+  IVR, or bot deflection likely failed at the final step; review the session's last events.
+- The same ANI recurs across multiple conversations with no `externalContactId` on any of them →
+  a CRM identity-resolution gap, not a customer-behaviour issue.
+- No journey sessions for a matched contact → a call-only customer, or the web/app deployment
+  snippet is not tagging sessions for this contact.
+
+### Executive Rollup
+
+Aggregated across conversations, this recipe feeds the **customer-journey-attribution** executive
+playbook: `journeyMatchRate%`, `avgSessionsBeforeContact`, and `highOutcomeScoreBeforeContact%` —
+the share of contacts that arrived with a strong signal self-service should have resolved.
+
+---
+
+## 11. Queue Overflow & Deflection Analysis
+
+**Subject:** One `queueId` + time window  
+**Use case:** A supervisor reviewing a queue's abandon rate needs to know how many of those
+"abandoned" contacts were actually deflected to a callback offer or a voicemail box rather than
+truly lost. Raw abandon metrics alone conflate the two.
+
+**Core question:** *Of the contacts that didn't get answered live, how many were deflected versus
+truly lost?*
+
+**Runs alongside:** [All Conversations in a Queue](#2-all-conversations-in-a-queue) — add these
+steps to any queue investigation where callback or voicemail-on-overflow is configured.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics.query.conversation.aggregates.abandon.metrics` | seed → `queueId` | `nAbandoned`, `tAbandon`, `tShortAbandon`, `nOffered` — the baseline this recipe explains |
+| 2 | `conversations.get.active.callbacks` | `queueId` | Callback offers in the window: `conversationId`, scheduled time, status |
+| 3 | `getVoicemailQueueMessages` | `queueId` | Voicemail messages deposited on overflow: count, duration, read status |
+| 4 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` | Wrapup-code distribution — cross-check that deflected contacts wrap up distinctly |
+
+### Derived Metrics
+
+```
+deflectionRate%      = (callbacksAccepted + voicemailsLeft) / nOffered
+trueAbandonRate%     = (nAbandoned - callbacksAccepted - voicemailsLeft) / nOffered
+callbackAcceptanceRate% = callbacksAccepted / callbacksOffered
+```
+
+### Diagnostic Signals
+
+- High `nAbandoned` but also high `deflectionRate%` → overflow paths are working as designed; the
+  true lost-contact rate is lower than the raw abandon metric suggests.
+- Voicemail volume rising with flat callback offers → callback may not be enabled or reachable on
+  this queue; check the queue's media/ACW settings for a configuration gap.
+- Low `callbackAcceptanceRate%` → the callback-offer prompt or timing may be poorly placed in the
+  IVR flow; correlate with the `flow-and-ivr-diagnostics` voice-engineer playbook in
+  `catalog/genesys.catalog.json`.
+
+### Executive Rollup
+
+Feeds the **queue-overflow-and-deflection-kpis** playbook — the corrective lens on the abandon-rate
+KPI card in [Executive Reporting Rollup](#4-executive-reporting-rollup): a stacked bar of truly
+lost vs. callback-deflected vs. voicemail-deflected contacts per queue.
+
+---
+
+## 12. Event-Driven Real-Time Monitoring (Notifications API)
+
+**Subject:** Organisation-wide, topic-scoped (not a single subject)  
+**Use case:** [Real-Time Operations Monitoring](#5-real-time-operations-monitoring) polls
+queue/agent/flow observation endpoints on a 10–30s timer. For a wallboard, alerting pipeline, or
+supervisor UI held open for more than a minute, or covering more than a handful of queues/agents,
+Genesys Cloud's Notifications API pushes each state change over a websocket the instant it
+happens — lower latency and far fewer wasted API calls than polling unchanged state.
+
+**Core question:** *How do I get pushed the same real-time state instead of polling for it?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `notifications.get.available.notification.topics` | seed | Topic template catalog — confirms the exact topic string and any license/permission requirement |
+| 2 | `postNotificationsChannels` | — | Opens a channel; returns `channelId` and a `connectUri` websocket endpoint. Channels expire and must be refreshed. |
+| 3 | `postNotificationsChannelSubscriptions` | `channelId` | Subscribes the channel to specific topics |
+| 4 | `getNotificationsChannelSubscriptions` | `channelId` | Confirms the channel's current subscription list |
+
+### Topics of Interest
+
+| Topic Template | Pushed When |
+|---|---|
+| `v2.routing.queues.{id}.conversations` | A conversation enters, leaves, or changes state in the queue |
+| `v2.analytics.queues.{id}.observations` | Queue real-time-stat deltas (`oWaiting`, `oInteracting`, `oOnQueueUsers`) |
+| `v2.users.{id}.presence` | An agent's system presence changes |
+| `v2.users.{id}.routingStatus` | An agent's ACD routing status changes — the event-driven equivalent of polling for `NOT_RESPONDING` in the `agent-not-responding-autoanswer` recipe in `catalog/genesys.catalog.json` |
+| `v2.analytics.users.{id}.observations` | Per-agent real-time observation deltas |
+
+### Trade-off Note
+
+Use polling for a small number of one-off or infrequent lookups. Prefer notification channels for
+anything long-lived or broad in scope — a channel carries a maximum number of topic subscriptions,
+so a large wallboard fans out across multiple channels grouped by queue or agent cohort.
+
+---
+
+## 13. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
@@ -460,6 +607,12 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
+| `getExternalcontactsContact` | ○ | | | | | |
+| `getExternalcontactsContactNotes` | ○ | | | | | |
+| `getExternalcontactsContactJourneySessions` | ○ | | | ○ | | |
+| `getJourneySessionEvents` | ○ | | | | | |
+| `getJourneySessionOutcomescores` | ○ | | | ○ | | |
+| `getJourneyOutcomes` | ○ | | | ○ | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |
@@ -469,6 +622,8 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
 | `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
 | `routing-queue-members` | | ● | | | | |
+| `conversations.get.active.callbacks` | | ○ | | ○ | | |
+| `getVoicemailQueueMessages` | | ○ | | ○ | | |
 | `authorization.get.single.division` | | | ● | | | |
 | `authorization.list.division.queues` | | | ● | | | |
 | `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
@@ -482,6 +637,10 @@ The matrix below shows which datasets are used across which investigations and r
 | `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
 | `analytics.query.conversation.activity.real.time` | | | | | ● | |
 | `analytics.query.user.observations.real.time.status` | | | | | ● | |
+| `notifications.get.available.notification.topics` | | | | | ● | |
+| `postNotificationsChannels` | | | | | ● | |
+| `postNotificationsChannelSubscriptions` | | | | | ● | |
+| `getNotificationsChannelSubscriptions` | | | | | ● | |
 | `analytics.get.agent.active.status` | | | | | ○ | ○ |
 | `users.get.agent.active.conversations` | | | | | ○ | ○ |
 | `users.get.agent.current.routing.status` | | | | | ○ | ○ |

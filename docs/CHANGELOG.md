@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-08-24
+
+### Added
+
+- Added three new investigation recipes to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes`, closing gaps identified by an audit
+  of the catalog's 3,100+ endpoints against the four core investigation
+  patterns (single conversation, queue, agent, division):
+  - `customer-journey-and-external-contact-enrichment` — joins a
+    conversation's customer to their CRM identity (External Contacts) and
+    pre-contact digital journey (Predictive Engagement sessions, events,
+    and outcome scores), surfacing self-service-failure signals. Runs
+    alongside `single-conversation-investigation`.
+  - `queue-overflow-and-deflection-analysis` — joins queue abandon metrics
+    against callback offers and voicemail-on-overflow volume so a raw
+    abandon rate can be split into truly-lost vs. deflected contacts. Runs
+    alongside `queue-investigation`.
+  - `realtime-notification-channel-strategy` — the event-driven
+    alternative to the polling loop in `real-time-operations-monitoring`,
+    using the Notifications API (`notifications.get.available.notification.topics`,
+    channel creation/subscription endpoints) to push queue and agent state
+    changes over a websocket instead of polling on a timer.
+  `real-time-operations-monitoring.pollingNote` now cross-references the
+  new notification-channel recipe.
+- Added two new rollups to `combinations.executiveReportingPlaybooks`:
+  `customer-journey-attribution` (journey-to-contact conversion metrics)
+  and `queue-overflow-and-deflection-kpis` (deflection-rate correction to
+  the abandon-rate KPI card).
+- Mirrored all five additions in `docs/ENDPOINT_COMBINATIONS.md` as
+  sections 10–12, with new rows in the section 13 (formerly section 10)
+  dataset combination reference matrix. Every new `dataset` reference in
+  both files was checked to resolve to an existing `datasets` or
+  `endpoints` entry in the same catalog file — no new endpoint definitions
+  were required; the recipes compose datasets already present from the
+  Swagger sync (`getExternalcontactsContact*`, `getJourneySession*`,
+  `conversations.get.active.callbacks`, `getVoicemailQueueMessages`,
+  `notifications.*`/`*NotificationsChannel*`).
+
 ## 2026-08-15
 
 ### Fixed

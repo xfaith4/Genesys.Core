@@ -31,7 +31,8 @@ $BaseUri       = "http://localhost:$MockPort"
 $RepoRoot      = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
 $ModulePath    = Join-Path $RepoRoot 'modules/Genesys.Core/Genesys.Core.psd1'
 $ProjectPath   = Join-Path $RepoRoot 'tools/Genesys.MockServer/Genesys.MockServer.csproj'
-$OutputRoot    = Join-Path $env:TEMP "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
+$TempRoot      = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+$OutputRoot    = Join-Path $TempRoot "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
 $ServerProcess = $null
 
 # ─── Server lifecycle helpers ─────────────────────────────────────────────────

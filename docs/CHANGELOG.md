@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-03
+
+### Added
+
+- Extended five `catalog/genesys.catalog.json` investigation recipes
+  (`single-conversation-investigation`, `queue-investigation`,
+  `agent-investigation`, `division-investigation`,
+  `real-time-operations-monitoring`) and the `wfm-adherence-and-occupancy`
+  executive playbook with `enrichWith`/step entries for raw `endpoints`
+  operationIds that were present in the catalog's 3,102-entry raw endpoint
+  surface but not yet referenced by any curated investigation: callback,
+  digital-message, and voicemail conversation detail plus recording
+  annotations (conversation deep-dive); queue voicemail backlog and
+  per-mediaType estimated wait time (queue investigation); org-level group
+  membership and role/subject-grant resolution (division investigation);
+  published agent schedules and per-exception adherence explanations (agent
+  investigation and the WFM playbook); and an org-wide active
+  screen-recording session count (real-time monitoring). These were
+  deliberately scoped as conditional enrichments rather than unconditional
+  steps to keep each investigation informative without becoming a data
+  dump, per the project's stated goal. A reference-integrity audit of all
+  seven `investigationRecipes`, all nine `executiveReportingPlaybooks`, and
+  all five `voiceEngineerPlaybooks` found zero broken `dataset` references
+  (the one `"(derived)"` entry on `agent-investigation.division` is an
+  intentional sentinel documented in `docs/INVESTIGATIONS.md`, not a bug).
+- Documented the same additions in `docs/ENDPOINT_COMBINATIONS.md`
+  (new subsections under the Conversation, Queue, and Division patterns,
+  a new Real-Time Monitoring table row, new Agent Investigation Extension
+  rows, and 13 new rows in the Dataset Combination Reference Matrix).
+
 ## 2026-08-15
 
 ### Fixed

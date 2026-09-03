@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-03  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -106,6 +106,22 @@ the call was injected via the BYOI integration (`POST /api/v2/conversations/prov
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
 
+### Media-Type-Specific Enrichment
+
+The 11 core steps above cover every conversation regardless of media type. Four raw endpoints add
+detail that only applies to a specific `mediaType` and should be pulled conditionally rather than
+unconditionally on every investigation (data-dump avoidance):
+
+| Endpoint | Trigger Condition | What It Adds |
+|----------|-------------------|--------------|
+| `getConversationsCallback` (`GET /conversations/callbacks/{conversationId}`) | `mediaType = callback` | Scheduled callback time, attempt count, callback number |
+| `getConversationsMessage` + `getConversationsMessageDetails` (`GET /conversations/messages/{conversationId}`, `GET /conversations/messages/{messageId}/details`) | `mediaType = message` (digital/messaging) | Full message thread and content beyond the generic conversation object |
+| `getVoicemailMessage` + `getVoicemailMessageMedia` (`GET /voicemail/messages/{messageId}[/media]`) | `mediaType = voicemail` | Voicemail metadata and audio |
+| `getConversationRecordingAnnotations` (`GET /conversations/{conversationId}/recordings/{recordingId}/annotations`) | A recording exists (step 3 returned a `recordingId`) | QM annotation markers placed on the recording — timestamped notes independent of the evaluation form |
+
+These are encoded as the `enrichWith` array on the `single-conversation-investigation` recipe in
+`catalog/genesys.catalog.json`.
+
 ---
 
 ## 2. All Conversations in a Queue
@@ -154,6 +170,19 @@ analytics-conversation-details-query[].conversationId
 - What wrapup codes dominated, and what do they mean?
 - Who were the active agents? What was their routing status during the window?
 - How many conversations were quality-reviewed? What was the average score?
+
+### Additional Enrichment Endpoints
+
+Two conditional endpoints extend the queue picture without being part of the core 10-step pull:
+
+- `getVoicemailQueueMessages` (`GET /voicemail/queues/{queueId}/messages`) — the queue's voicemail
+  backlog, relevant only for queues with voicemail enabled.
+- `getRoutingQueueMediatypeEstimatedwaittime` (`GET /routing/queues/{queueId}/mediatypes/{mediaType}/estimatedwaittime`) —
+  per-`mediaType` EWT, finer-grained than the queue-wide estimated wait time when a queue mixes
+  voice, chat, and email with different EWT profiles.
+
+Both are encoded as `enrichWith` entries on the `queue-investigation` recipe in
+`catalog/genesys.catalog.json`.
 
 ### Divisions as Queue Groups
 
@@ -210,6 +239,23 @@ users.division.analysis.get.users.with.division.info[].id
 - Which agents spent the most time off-queue or in non-productive states?
 - Which agents have been evaluated? Who has the highest/lowest scores?
 - Which agents have received recent coaching? Is coaching correlated with score improvement?
+
+### Group and Role Enrichment
+
+A division answers "which queues and agents belong to this business unit," but two related questions
+need a different pair of endpoints:
+
+- `getGroup` + `getGroupMembers` (`GET /groups/{groupId}[/members]`) — org-level group membership.
+  Some organisations model a team as a Genesys group rather than (or in addition to) a division;
+  pull this when division-agent membership doesn't fully explain a reporting structure.
+- `getAuthorizationRoleUsers` (`GET /authorization/roles/{roleId}/users`) and
+  `getAuthorizationRoleSubjectgrants` (`GET /authorization/roles/{roleId}/subjectgrants`) — resolve
+  "who holds this role" and the exact division-scoped grant record, respectively. These are the
+  authoritative source behind the `division-grants` step (step 4), which returns grant records but
+  not resolved subject/role names.
+
+These are encoded as `enrichWith` entries on the `division-investigation` recipe in
+`catalog/genesys.catalog.json`.
 
 ### Division vs Queue as Investigation Entry Point
 
@@ -323,6 +369,7 @@ agent availability right now, without waiting for a historical analytics job.
 | 7 | `analytics.query.flow.observations` | All flows | oFlow: active Architect flows currently executing |
 | 8 *(telephony NOC)* | `telephony.get.trunk.metrics.summary` | — | Trunk utilisation and error counters |
 | 9 *(telephony NOC)* | `telephony.get.edge.performance.metrics` | One Edge | CPU, memory, active call count on specific Edge |
+| 10 *(voice-engineer/supervisor)* | `getRecordingsScreensessionsDetails` | Organisation-wide | Count of concurrently active screen-recording sessions — a capacity/licensing signal to correlate with `active-alerts` when recordings appear to be missing |
 
 ### Polling Note
 
@@ -400,10 +447,13 @@ datasets enrich the investigation without replacing any existing step.
 | activeConversations | `users.get.agent.active.conversations` | `userId` | In-progress conversations if `currentStatus = INTERACTING` |
 | qualityActivity | `quality.get.agents.activity` | `userId` | Evaluation count, average/highest/lowest scores for the window |
 | coaching | `coaching.get.appointments` | `userId` | Coaching sessions attending/facilitating in the window |
+| voicemailBox | `getVoicemailUserMessages` + `getVoicemailUserMailbox` | `userId` | Agent's personal voicemail box, when the agent holds a voicemail-enabled DID/extension |
+| publishedSchedule | `postWorkforcemanagementManagementunitAgentschedulesSearch` | `userId` (via `managementUnitId`) | Ground truth published shift schedule — "was the agent supposed to be working," distinct from the current-state `adherence` step |
+| adherenceExplanations | `postWorkforcemanagementAgentAdherenceExplanationsQuery` | `userId` | Per-exception adherence explanations — richer than `workforce.get.adherence.bulk`'s current snapshot; use when `adherencePct` is low and a root cause is needed |
 
 **Trigger conditions:** `currentStatus` and `activeConversations` steps are conditional on the
-agent being in an active state at investigation time. `coaching` step is conditional on WFM being
-licensed and configured.
+agent being in an active state at investigation time. `coaching`, `publishedSchedule`, and
+`adherenceExplanations` steps are conditional on WFM being licensed and configured.
 
 ---
 
@@ -495,6 +545,19 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `getConversationsCallback` | ○ | | | | | |
+| `getConversationsMessage` / `getConversationsMessageDetails` | ○ | | | | | |
+| `getConversationRecordingAnnotations` | ○ | | | | | |
+| `getVoicemailMessage` / `getVoicemailMessageMedia` | ○ | | | | | |
+| `getVoicemailQueueMessages` | | ○ | | | | |
+| `getRoutingQueueMediatypeEstimatedwaittime` | | ○ | | | | |
+| `getGroup` / `getGroupMembers` | | | ○ | | | |
+| `getAuthorizationRoleUsers` | | | ○ | | | |
+| `getAuthorizationRoleSubjectgrants` | | | ○ | | | |
+| `getRecordingsScreensessionsDetails` | | | | | ○ | |
+| `getVoicemailUserMessages` / `getVoicemailUserMailbox` | | | | | | ○ |
+| `postWorkforcemanagementManagementunitAgentschedulesSearch` | | | | ○ | | ○ |
+| `postWorkforcemanagementAgentAdherenceExplanationsQuery` | | | | ○ | | ○ |
 
 ---
 

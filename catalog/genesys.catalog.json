@@ -39724,6 +39724,12 @@
           "evaluationScore",
           "csatScore",
           "wrapUpCode"
+        ],
+        "enrichWith": [
+          "getConversationsCallback (callback-type conversations only — scheduled callback time, attempt count, callback number; join on conversationId)",
+          "getConversationsMessage + getConversationsMessageDetails (digital/message-type conversations only — full message thread and content beyond the generic conversation object)",
+          "getConversationRecordingAnnotations (QM annotation markers on an existing recording; join on conversationId+recordingId from recording-metadata)",
+          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)"
         ]
       },
       "agent-investigation": {
@@ -39872,6 +39878,11 @@
           "criticalItemFailCount",
           "coachingSessionCount",
           "presenceUtilisationPct"
+        ],
+        "enrichWith": [
+          "getVoicemailUserMessages + getVoicemailUserMailbox (agent's personal voicemail box; join on userId, relevant when the agent holds a voicemail-enabled DID/extension)",
+          "postWorkforcemanagementManagementunitAgentschedulesSearch (published shift schedule — ground truth for whether the agent was scheduled to work, complementing the current-state adherence step)",
+          "postWorkforcemanagementAgentAdherenceExplanationsQuery (per-exception adherence explanations, richer than workforce.get.adherence.bulk's current snapshot; use when adherencePct is low and root cause is needed)"
         ]
       },
       "agent-not-responding-autoanswer": {
@@ -40088,6 +40099,10 @@
           "estWaitTimeSecs",
           "oOnQueueUsers",
           "oWaiting"
+        ],
+        "enrichWith": [
+          "getVoicemailQueueMessages (queue voicemail backlog; join on queueId, only relevant for queues with voicemail enabled)",
+          "getRoutingQueueMediatypeEstimatedwaittime (per-mediaType EWT — finer-grained than the estimated-wait-time step for queues that mix voice, chat, and email with different EWT profiles)"
         ]
       },
       "division-investigation": {
@@ -40172,6 +40187,11 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
+        ],
+        "enrichWith": [
+          "getGroup + getGroupMembers (org-level group membership — a division-scoped team may also be organised as a Genesys group; use when division-agents membership doesn't fully explain a reporting structure)",
+          "getAuthorizationRoleUsers (resolve which users hold a given role; pair with division-grants to answer who specifically holds a role in this division)",
+          "getAuthorizationRoleSubjectgrants (the exact division+role grant record for a subject — the authoritative source behind the division-grants step)"
         ]
       },
       "real-time-operations-monitoring": {
@@ -40259,6 +40279,16 @@
             ],
             "provides": "CPU, memory, active call count on one Edge",
             "description": "Targeted Edge appliance check when trunk-health or a specific site's calls show resource pressure"
+          },
+          {
+            "step": "screen-recording-capacity",
+            "dataset": "getRecordingsScreensessionsDetails",
+            "audience": [
+              "voice-engineer",
+              "supervisor"
+            ],
+            "provides": "org-wide count of concurrently active screen-recording sessions",
+            "description": "Capacity/licensing signal — correlate against active-alerts when screen-recording SLA or license ceiling is a suspected cause of missing recordings"
           },
           {
             "step": "active-alerts",
@@ -40493,7 +40523,9 @@
           "workforce.get.management.units",
           "workforce.get.management.unit.users",
           "workforce.get.management.unit.adherence",
-          "analytics.query.user.aggregates.login.activity"
+          "analytics.query.user.aggregates.login.activity",
+          "postWorkforcemanagementManagementunitAgentschedulesSearch",
+          "postWorkforcemanagementAgentAdherenceExplanationsQuery"
         ],
         "joinOn": "managementUnitId \u2192 userId",
         "groupBy": [
@@ -40506,7 +40538,9 @@
           "tOffQueueTime",
           "tIdleTime",
           "scheduleVarianceMinutes",
-          "occupancyPct = tInteracting / tOnQueue"
+          "occupancyPct = tInteracting / tOnQueue",
+          "scheduledShiftMinutes (from the published agent schedule)",
+          "adherenceExceptionCount (per-agent exception count from adherence explanations)"
         ],
         "executivePresentation": "Adherence heat map by management unit + individual agent variance table"
       },

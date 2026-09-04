@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-04  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,7 +19,8 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+`byoi-conversation-enrichment` recipe key; Pattern 10 (Auto-Answer / NOT_RESPONDING Root Cause) maps
+to the `agent-not-responding-autoanswer` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
@@ -36,7 +37,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Agent Auto-Answer / NOT_RESPONDING Root Cause](#10-agent-auto-answer--not_responding-root-cause)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -442,59 +444,128 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Agent Auto-Answer / NOT_RESPONDING Root Cause
+
+**Subject:** Optional `userId` (omit to scan the whole auto-answer-enabled cohort) + time window
+**Use case:** Agents report "I never got the call" or a queue shows agents stuck On Queue but never
+connecting — the classic pattern where ACD auto-answer fires, the client alerts, but the media never
+lands, so Genesys Cloud flips the agent to `NOT_RESPONDING`. Supervisors see phantom capacity; voice
+engineers need to tell a per-agent presence/behaviour problem apart from a station/network fault.
+
+**Core question:** *Why do these agents keep dropping into NOT_RESPONDING, and is it the agent, the
+station, or the environment?*
+
+Machine-readable recipe: `combinations.investigationRecipes.agent-not-responding-autoanswer` in
+`catalog/genesys.catalog.json`.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `users` (filtered `acdAutoAnswer = true`) | seed → `id` | The auto-answer-enabled cohort — the population at risk |
+| 2 | `analytics.query.user.aggregates.login.activity` (`routingStatus = NOT_RESPONDING`) | `userId` | Per-agent NOT_RESPONDING total time + episode count — ranks the worst offenders |
+| 3 | `analytics.query.user.details.activity.report` (routing status segments) | `userId` | Per-episode start/end timestamps — the exact windows to correlate against interactions |
+| 4 | `analytics-conversation-details-query` (agent `ALERT` segment with no following `CONNECTED`) | `userId` → `conversationId` | The specific interaction behind each episode — confirmed missed auto-answered call |
+| 5 | `stations.get.stations` | `userId` | Station/WebRTC registration state — the most common physical root cause |
+| 6 | `analytics.query.user.observations.real.time.status` | `userId` | Current presence/routing status — confirms whether the problem is still live |
+| 7 | `audit-logs` (`EntityType=User`, `EntityId=userId`) | `userId` | Account-change audit — did `acdAutoAnswer` or the station assignment change recently? |
+
+### Key Joins
+
+```
+users[acdAutoAnswer=true].id
+  → analytics.query.user.aggregates.login.activity.userId (rank by NOT_RESPONDING occurrence/time)
+  → analytics.query.user.details.activity.report.userId (per-episode segments; NOT_RESPONDING is not
+    server-filterable on this endpoint, so select the segments client-side)
+
+analytics.query.user.details.activity.report[].routingStatusSegments[NOT_RESPONDING].startTime
+  → analytics-conversation-details-query[].participants[].sessions[].segments (time-align an
+    ALERT segment with no subsequent CONNECTED segment to the episode window)
+
+userId → stations.get.stations[].userId (registered=false or no associated station during the
+  episode window is the primary station/network root cause to rule in or out)
+```
+
+### Derived Metrics
+
+- `notRespondingCount` — NOT_RESPONDING segment count per agent in the window
+- `notRespondingTime` — summed `tAgentRoutingStatus[NOT_RESPONDING]` per agent
+- `missedAutoAnswerRate%` — ALERT-without-CONNECT segments / total ACD-offered interactions per agent
+- `episodesWithUnregisteredStation` — NOT_RESPONDING episodes overlapping a `registered=false` station window
+
+### Diagnostic Signals
+
+- `acdAutoAnswer=true` + high `notRespondingCount` → prime suspect for this playbook
+- A NOT_RESPONDING episode aligned to an `ALERT` segment that never reaches `CONNECTED` → confirmed missed auto-answered call
+- `presence = 'On Queue'` but `routingStatus = NOT_RESPONDING` → ghost agent; cross-check station registration
+- Station `registered=false` (or no associated station) during the episode → softphone/WebRTC registration is the root cause; check network/DNS
+- Elevated `missedAutoAnswerRate%` across many agents on one edge/site → environmental (edge, network, DNS), not per-agent
+- `audit-logs` shows `acdAutoAnswer` toggled on shortly before episodes began → recent enablement exposed an unready station/headset setup
+- High `notRespondingCount` with no ALERT-without-CONNECT segments → cause is presence/manual off-queue, not auto-answer; this playbook does not apply
+
+### Enrich With
+
+- `users.get.user.queue.memberships` — confirm the agent was on a queue offering ACD interactions in the window
+- `getUsersAgentuiAgentsAutoanswerAgentIdSettings` — authoritative per-agent auto-answer settings (raw `endpoints` operationId, not yet promoted to a curated dataset); use to confirm the seed flag for one specific agent
+- `telephony.get.sip.message.for.conversation` — SIP-level confirmation that the auto-answered INVITE was never acknowledged by the station
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Auto-Answer RC |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | ○ |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ○ |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | ● |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | ● |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | ○ |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | ○ |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | ● |
+| `stations.get.stations` | | | | | | | ● |
+| `users` (cohort filter `acdAutoAnswer=true`) | | | | | | | ● |
 
 ---
 

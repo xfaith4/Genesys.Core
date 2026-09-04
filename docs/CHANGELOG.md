@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-04
+
+### Fixed
+
+- `docs/ENDPOINT_COMBINATIONS.md` was missing a documented pattern for the
+  `agent-not-responding-autoanswer` recipe that already existed in
+  `catalog/genesys.catalog.json`'s `combinations.investigationRecipes` (the
+  ACD auto-answer / `NOT_RESPONDING` root-cause playbook). Added
+  section 10, "Agent Auto-Answer / NOT_RESPONDING Root Cause", covering the
+  dataset steps, key joins, derived metrics, and diagnostic signals, and
+  renumbered the reference matrix to section 11. Added an `Auto-Answer RC`
+  column to the reference matrix and `stations.get.stations` (previously
+  absent from the matrix) plus a `users` cohort-filter row.
+- Re-audited every `dataset`/`datasetKey`/`datasetsInOrder` reference across
+  `catalog/genesys.catalog.json`'s `combinations` object (134 references
+  across `investigationRecipes`, `executiveReportingPlaybooks`, and
+  `voiceEngineerPlaybooks`) and every backtick-quoted dataset key in
+  `docs/ENDPOINT_COMBINATIONS.md` (47 references). All resolve to either a
+  curated `datasets` entry or a raw `endpoints` operationId — no broken
+  references found this pass.
+
 ## 2026-08-15
 
 ### Fixed

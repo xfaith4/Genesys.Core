@@ -35,3 +35,22 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $config = . ./tests/PesterConfiguration.ps1
           Invoke-Pester -Configuration $config
+
+  accessibility:
+    name: WCAG 2.1 AA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Audit HTML surfaces
+        shell: pwsh
+        run: pwsh -NoProfile -File ./scripts/Invoke-AccessibilityAudit.ps1 -JsonPath ./out/accessibility-audit.json
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-audit
+          path: ./out/accessibility-audit.json
+          if-no-files-found: ignore

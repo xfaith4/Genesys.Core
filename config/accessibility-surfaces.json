@@ -1,0 +1,41 @@
+{
+  "$comment": "Canonical list of shipped HTML surfaces held to WCAG 2.1 Level AA. Paths are repository-relative. Consumed by scripts/Invoke-AccessibilityAudit.ps1 and tests/unit/Accessibility.Wcag21.Tests.ps1.",
+  "conformanceLevel": "AA",
+  "surfaces": [
+    {
+      "path": "apps/OpsConsole/index.html",
+      "name": "Genesys Ops Console",
+      "kind": "operator-console"
+    },
+    {
+      "path": "apps/InvestigationConsole/index.html",
+      "name": "Genesys Investigation Console",
+      "kind": "operator-console"
+    },
+    {
+      "path": "apps/ConversationAnalysis/index.html",
+      "name": "Genesys Conversation Analysis",
+      "kind": "operator-console"
+    },
+    {
+      "path": "catalog/catalog-browser.html",
+      "name": "Dataset Browser",
+      "kind": "reference"
+    },
+    {
+      "path": "docs/architecture.html",
+      "name": "Architecture Map",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/training/genesys-onboarding.html",
+      "name": "Interactive Onboarding",
+      "kind": "documentation"
+    },
+    {
+      "path": "samples/demo-conversation-investigation/demo-conversation-investigation.html",
+      "name": "Conversation Investigation Package (sample export)",
+      "kind": "generated-report"
+    }
+  ]
+}

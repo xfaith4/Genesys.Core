@@ -24,6 +24,13 @@
       --warn:      #c8860a;
       --ok:        #0d9f6e;
       --danger:    #c0392b;
+      /* Text-safe variants. The tokens above are graphical (dots, borders,
+         chart fills) and only need WCAG 2.1 SC 1.4.11's 3:1; these reach the
+         4.5:1 required by SC 1.4.3 on --surface, --surface2 and --bg. */
+      --ok-text:     #087a54;
+      --warn-text:   #8a6300;
+      --danger-text: #c0392b;
+      --accent-text: #087a54;
       --stroke:    #d0dbd4;
       --stroke2:   #b8ccc0;
       --shadow-sm: 0 2px 8px rgba(13,32,26,.08);
@@ -56,16 +63,51 @@
     h2 { font-size: 1rem; font-weight: 600; color: var(--ink2); }
     h3 { font-size: .88rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
     p  { margin: 0; }
-    a  { color: var(--accent); text-decoration: none; }
+    a  { color: var(--accent-text); text-decoration: none; }
     a:hover { text-decoration: underline; }
     code, .mono { font-family: "Cascadia Code","Consolas","IBM Plex Mono",monospace; font-size: .85em; }
 
     /* ─── Utility ───────────────────────────────────────────────── */
     .hide  { display: none !important; }
     .muted { color: var(--muted); }
-    .ok    { color: var(--ok); }
-    .warn  { color: var(--warn); }
-    .danger{ color: var(--danger); }
+    .ok    { color: var(--ok-text); }
+    .warn  { color: var(--warn-text); }
+    .danger{ color: var(--danger-text); }
+
+    /* WCAG 2.1 SC 2.4.7 — visible keyboard focus on every control. */
+    :focus-visible {
+      outline: 3px solid var(--accent2);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    #nav :focus-visible { outline-color: #7ff0c0; }
+
+    /* WCAG 2.1 SC 2.4.1 — keyboard bypass block. */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 400;
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--accent-dk);
+      padding: 12px 18px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .skip-link:focus { left: 0; }
+
+    /* Names available to assistive technology without visual weight. */
+    .visually-hidden {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
     .bold  { font-weight: 600; }
     .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .flex  { display: flex; }
@@ -112,6 +154,7 @@
     }
 
     .nav-logo {
+      margin: 0;
       font-size: 1.12rem;
       font-weight: 700;
       letter-spacing: .02em;
@@ -154,7 +197,7 @@
       white-space: nowrap;
     }
     .nav-btn:hover { background: rgba(255,255,255,.22); }
-    .nav-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .nav-btn.accent { background: var(--accent-dk); border-color: var(--accent-dk); color: #fff; }
     .nav-btn.accent:hover { background: var(--accent-dk); }
 
     .spacer { flex: 1; }
@@ -193,7 +236,7 @@
       font-size: .88rem; font-weight: 600;
       cursor: pointer; border: none; transition: all .18s;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary { background: var(--accent-dk); color: #fff; }
     .btn-primary:hover { background: var(--accent-dk); }
     .btn-secondary { background: var(--surface2); color: var(--ink2); border: 1px solid var(--stroke); }
     .btn-secondary:hover { background: var(--stroke); }
@@ -271,7 +314,6 @@
       font-size: .88rem;
       color: var(--ink);
       background: var(--surface2);
-      outline: none;
       transition: border-color .2s;
     }
     #search-box:focus { border-color: var(--accent); }
@@ -292,11 +334,11 @@
       white-space: nowrap;
     }
     .filter-chip.active {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: var(--accent-dk);
+      border-color: var(--accent-dk);
       color: #fff;
     }
-    .filter-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+    .filter-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent-text); }
 
     #page-size-sel {
       padding: 5px 10px;
@@ -306,7 +348,6 @@
       background: var(--surface2);
       color: var(--ink);
       cursor: pointer;
-      outline: none;
     }
 
     /* ─── Conversation Grid ─────────────────────────────────────── */
@@ -352,9 +393,14 @@
       transition: color .15s;
     }
     #conv-table th:hover { color: var(--ink); }
+    #conv-table th .th-sort {
+      background: none; border: 0; padding: 0; margin: 0;
+      font: inherit; color: inherit; text-transform: inherit;
+      letter-spacing: inherit; cursor: pointer; text-align: inherit;
+    }
     #conv-table th .sort-arrow { display: inline-block; margin-left: 4px; opacity: .4; }
     #conv-table th.sort-asc  .sort-arrow,
-    #conv-table th.sort-desc .sort-arrow { opacity: 1; color: var(--accent); }
+    #conv-table th.sort-desc .sort-arrow { opacity: 1; color: var(--accent-text); }
 
     #conv-table td {
       padding: 8px 12px;
@@ -397,9 +443,9 @@
       cursor: pointer;
       transition: all .15s;
     }
-    .pager-btn:hover:not(:disabled)  { border-color: var(--accent); color: var(--accent); }
+    .pager-btn:hover:not(:disabled)  { border-color: var(--accent); color: var(--accent-text); }
     .pager-btn:disabled               { opacity: .4; cursor: default; }
-    .pager-btn.current                { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    .pager-btn.current                { background: var(--accent-dk); border-color: var(--accent-dk); color: #fff; font-weight: 700; }
 
     /* ─── Drilldown panel ───────────────────────────────────────── */
     #drilldown-overlay {
@@ -455,7 +501,7 @@
       transition: color .15s;
     }
     .dd-tab:hover { color: var(--ink); }
-    .dd-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .dd-tab.active { color: var(--accent-text); border-bottom-color: var(--accent); }
 
     #dd-body { flex: 1; overflow-y: auto; padding: 20px 22px; }
 
@@ -509,7 +555,7 @@
     .seg-alert     { background: #fddada; color: #8b1c1c; }
     .seg-dialing   { background: #e8dcf5; color: #5a2d91; }
     .seg-contacting{ background: #fff3cd; color: #856404; }
-    .seg-other     { background: var(--stroke); color: var(--muted); }
+    .seg-other     { background: var(--stroke); color: #3f4f45; }
 
     /* Attributes */
     .attr-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
@@ -550,7 +596,7 @@
       cursor: pointer;
       transition: background .12s;
     }
-    .ctx-item:hover { background: var(--surface2); color: var(--accent); }
+    .ctx-item:hover { background: var(--surface2); color: var(--accent-text); }
     .ctx-sep { height: 1px; background: var(--stroke); margin: 4px 0; }
 
     /* ─── Toast ─────────────────────────────────────────────────── */
@@ -735,13 +781,13 @@
     }
     .tl-footer strong { color: var(--ink2); }
     .tl-footer .tl-warn-val  { color: var(--danger); font-weight: 700; }
-    .tl-footer .tl-ok-val    { color: var(--ok);     font-weight: 700; }
+    .tl-footer .tl-ok-val    { color: var(--ok-text); font-weight: 700; }
 
     .tl-btn-link {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 4px 12px; border-radius: 6px;
       background: var(--surface2); border: 1px solid var(--stroke);
-      color: var(--accent); font-size: .8rem; font-weight: 600;
+      color: var(--accent-text); font-size: .8rem; font-weight: 600;
       cursor: pointer; text-decoration: none;
       transition: background .15s, border-color .15s;
     }
@@ -784,7 +830,7 @@
       flex-shrink: 0;
     }
     .cp-header h3 { font-size: .82rem; font-weight: 700; color: var(--ink2); text-transform: none; letter-spacing: 0; }
-    .cp-reset { font-size: .75rem; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; }
+    .cp-reset { font-size: .75rem; color: var(--accent-text); cursor: pointer; background: none; border: none; padding: 0; }
     .cp-reset:hover { text-decoration: underline; }
     .cp-list { overflow-y: auto; padding: 6px 0; flex: 1; }
     .cp-section-hdr {
@@ -812,6 +858,8 @@
       padding: 10px 16px; cursor: pointer; user-select: none;
       border-bottom: 1px solid transparent;
       transition: border-color .15s, background .12s;
+      width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0;
+      font: inherit; color: inherit; text-align: left;
     }
     .facet-hdr:hover { background: var(--surface2); }
     #facet-panel.open .facet-hdr { border-bottom-color: var(--stroke); }
@@ -819,7 +867,7 @@
     .facet-arrow { color: var(--muted); font-size: .75rem; transition: transform .2s; margin-left: auto; }
     #facet-panel.open .facet-arrow { transform: rotate(180deg); }
     .facet-active-ct {
-      background: var(--accent); color: #fff;
+      background: var(--accent-dk); color: #fff;
       padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700;
     }
     #facet-body { display: none; padding: 14px 16px 18px; }
@@ -836,31 +884,33 @@
       cursor: pointer; transition: all .14s; white-space: nowrap;
       max-width: 200px; overflow: hidden; text-overflow: ellipsis;
     }
-    .facet-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
-    .facet-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .facet-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent-text); }
+    .facet-chip.active { background: var(--accent-dk); border-color: var(--accent-dk); color: #fff; }
     .facet-chip .chip-ct { opacity: .72; font-size: .7rem; margin-left: 3px; }
     .facet-empty { font-size: .8rem; color: var(--muted); font-style: italic; }
   </style>
 </head>
 <body>
 
+<a class="skip-link" href="#main">Skip to main content</a>
+
 <!-- ═══ PROGRESS BAR ═══ -->
-<div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+<div id="progress-bar-wrap" aria-hidden="true"><div id="progress-bar"></div></div>
 
 <!-- ═══ NAVIGATION ═══ -->
-<nav id="nav">
-  <div class="nav-logo">Genesys <span>Core</span> · Conversation Analysis</div>
-  <div class="nav-sep"></div>
-  <div id="nav-status">
-    <div id="nav-status-dot"></div>
+<nav id="nav" aria-label="Console">
+  <h1 class="nav-logo">Genesys <span>Core</span> · Conversation Analysis</h1>
+  <div class="nav-sep" aria-hidden="true"></div>
+  <p id="nav-status" role="status">
+    <span id="nav-status-dot" aria-hidden="true"></span>
     <span id="nav-status-text">No data loaded</span>
-  </div>
+  </p>
   <div class="spacer"></div>
   <div id="run-info" class="hide"></div>
-  <button class="nav-btn" id="btn-load-new" title="Load a Genesys.Core run artifact (JSONL)">📂 Load Run</button>
-  <button class="nav-btn accent hide" id="btn-export-csv" title="Export filtered results to CSV">⬇ CSV</button>
-  <button class="nav-btn hide" id="btn-export-json" title="Export all loaded records as JSON">⬇ JSON</button>
-  <input type="file" id="file-input" accept=".jsonl,.json" multiple style="display:none" />
+  <button type="button" class="nav-btn" id="btn-load-new" title="Load a Genesys.Core run artifact (JSONL)"><span aria-hidden="true">📂</span> Load Run</button>
+  <button type="button" class="nav-btn accent hide" id="btn-export-csv" title="Export filtered results to CSV"><span aria-hidden="true">⬇</span> CSV</button>
+  <button type="button" class="nav-btn hide" id="btn-export-json" title="Export all loaded records as JSON"><span aria-hidden="true">⬇</span> JSON</button>
+  <input type="file" id="file-input" accept=".jsonl,.json" multiple style="display:none" aria-label="Conversation run artifacts" />
 </nav>
 
 <!-- ═══ MAIN ═══ -->
@@ -869,15 +919,15 @@
 
   <!-- ── Load Zone (shown when no data) ── -->
   <div id="load-zone" role="button" tabindex="0" aria-label="Load conversation data">
-    <div class="lz-icon">📊</div>
+    <div class="lz-icon" aria-hidden="true">📊</div>
     <div class="lz-title">Genesys Conversation Analysis</div>
     <div class="lz-sub">
       Load a Genesys.Core run artifact to explore, filter, and drill down into
       conversation-level analytics at scale.<br>
       Powered by <code>Invoke-Dataset</code> &amp; the Core catalog.
     </div>
-    <button class="btn btn-primary" id="btn-open-file-lz">
-      📂 Open JSONL File(s)
+    <button type="button" class="btn btn-primary" id="btn-open-file-lz">
+      <span aria-hidden="true">📂</span> Open JSONL File(s)
     </button>
     <div class="lz-hint">
       Drop one or more <code>*.jsonl</code> files from a
@@ -893,42 +943,42 @@
     <div id="kpi-strip">
       <div class="kpi-card c-green">
         <div class="kpi-label">Total Conversations</div>
-        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-value" id="kpi-total"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub" id="kpi-total-sub">from run</div>
       </div>
       <div class="kpi-card c-teal">
         <div class="kpi-label">Avg Handle Time</div>
-        <div class="kpi-value" id="kpi-aht">—</div>
+        <div class="kpi-value" id="kpi-aht"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub">hh:mm:ss</div>
       </div>
       <div class="kpi-card c-blue">
         <div class="kpi-label">Avg Talk Time</div>
-        <div class="kpi-value" id="kpi-att">—</div>
+        <div class="kpi-value" id="kpi-att"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub">hh:mm:ss</div>
       </div>
       <div class="kpi-card c-orange">
         <div class="kpi-label">Inbound Rate</div>
-        <div class="kpi-value" id="kpi-inbound">—</div>
+        <div class="kpi-value" id="kpi-inbound"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub" id="kpi-inbound-sub">of voice</div>
       </div>
       <div class="kpi-card c-purple">
         <div class="kpi-label">Voice Conversations</div>
-        <div class="kpi-value" id="kpi-voice">—</div>
+        <div class="kpi-value" id="kpi-voice"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub" id="kpi-voice-sub">media type</div>
       </div>
       <div class="kpi-card c-red">
         <div class="kpi-label">With Holds</div>
-        <div class="kpi-value" id="kpi-holds">—</div>
+        <div class="kpi-value" id="kpi-holds"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub">placed on hold</div>
       </div>
       <div class="kpi-card c-green">
         <div class="kpi-label">Avg MOS Score</div>
-        <div class="kpi-value" id="kpi-mos">—</div>
+        <div class="kpi-value" id="kpi-mos"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub">1–5 quality</div>
       </div>
       <div class="kpi-card c-teal">
         <div class="kpi-label">Queues Seen</div>
-        <div class="kpi-value" id="kpi-queues">—</div>
+        <div class="kpi-value" id="kpi-queues"><span aria-hidden="true">—</span></div>
         <div class="kpi-sub">unique queues</div>
       </div>
     </div>
@@ -941,25 +991,25 @@
           <span class="muted" style="font-size:.8rem" id="chart-vol-sub">local time</span>
         </div>
         <div class="chart-canvas-wrap" style="height:180px">
-          <canvas id="chart-volume"></canvas>
+          <canvas id="chart-volume" role="img" aria-label="Bar chart: conversation volume by hour of day. The underlying rows are listed in the conversation table below."></canvas>
         </div>
       </div>
       <div class="chart-card">
         <div class="chart-header"><h2>Media Type Distribution</h2></div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-media"></canvas>
+          <canvas id="chart-media" role="img" aria-label="Doughnut chart: distribution of conversations by media type."></canvas>
         </div>
       </div>
       <div class="chart-card">
         <div class="chart-header"><h2>Top Queues by Volume</h2></div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-queues"></canvas>
+          <canvas id="chart-queues" role="img" aria-label="Bar chart: top queues by conversation volume."></canvas>
         </div>
       </div>
       <div class="chart-card">
         <div class="chart-header"><h2>Disconnect Reasons</h2></div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-disconnect"></canvas>
+          <canvas id="chart-disconnect" role="img" aria-label="Bar chart: conversation counts by disconnect reason."></canvas>
         </div>
       </div>
       <div class="chart-card">
@@ -968,24 +1018,24 @@
           <span class="muted" style="font-size:.8rem">minutes</span>
         </div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-duration"></canvas>
+          <canvas id="chart-duration" role="img" aria-label="Bar chart: conversation counts by handle-time bucket."></canvas>
         </div>
       </div>
       <div class="chart-card" id="error-chart-card" style="display:none">
         <div class="chart-header"><h2>Error Codes &amp; Phrases</h2></div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-errors"></canvas>
+          <canvas id="chart-errors" role="img" aria-label="Bar chart: conversation counts by error code."></canvas>
         </div>
       </div>
     </div>
 
     <!-- Facet Filter Panel -->
     <div id="facet-panel">
-      <div class="facet-hdr" id="facet-toggle">
+      <button type="button" class="facet-hdr" id="facet-toggle" aria-expanded="false" aria-controls="facet-body">
         <span class="facet-hdr-title">Dimension Filters</span>
         <span id="facet-active-ct" class="facet-active-ct" style="display:none">0</span>
-        <span class="facet-arrow">▼</span>
-      </div>
+        <span class="facet-arrow" aria-hidden="true">▼</span>
+      </button>
       <div id="facet-body">
         <div>
           <div class="facet-sec-label">Divisions</div>
@@ -1008,15 +1058,16 @@
 
     <!-- Toolbar -->
     <div id="toolbar">
+      <label class="visually-hidden" for="search-box">Search conversations</label>
       <input type="text" id="search-box" placeholder="🔍  Search conversation ID, queue, participant…" autocomplete="off" />
-      <div class="filter-group" id="quick-filters">
-        <span class="filter-chip" data-filter="inbound">Inbound</span>
-        <span class="filter-chip" data-filter="outbound">Outbound</span>
-        <span class="filter-chip" data-filter="voice">Voice Only</span>
-        <span class="filter-chip" data-filter="hasMos">Has MOS</span>
-        <span class="filter-chip" data-filter="hasHolds">Has Holds</span>
-        <span class="filter-chip" data-filter="disconnected">Disconnected</span>
-        <span class="filter-chip" data-filter="hasError">Has Error</span>
+      <div class="filter-group" id="quick-filters" role="group" aria-label="Quick filters">
+        <button type="button" class="filter-chip" data-filter="inbound" aria-pressed="false">Inbound</button>
+        <button type="button" class="filter-chip" data-filter="outbound" aria-pressed="false">Outbound</button>
+        <button type="button" class="filter-chip" data-filter="voice" aria-pressed="false">Voice Only</button>
+        <button type="button" class="filter-chip" data-filter="hasMos" aria-pressed="false">Has MOS</button>
+        <button type="button" class="filter-chip" data-filter="hasHolds" aria-pressed="false">Has Holds</button>
+        <button type="button" class="filter-chip" data-filter="disconnected" aria-pressed="false">Disconnected</button>
+        <button type="button" class="filter-chip" data-filter="hasError" aria-pressed="false">Has Error</button>
       </div>
       <div class="spacer"></div>
       <label for="page-size-sel" class="muted" style="font-size:.8rem">Show:</label>
@@ -1026,30 +1077,30 @@
         <option value="100">100</option>
         <option value="250">250</option>
       </select>
-      <button class="btn btn-ghost btn-sm" id="btn-columns">&#9881; Columns</button>
-      <button class="btn btn-ghost btn-sm" id="btn-clear-filters">Clear Filters</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-columns"><span aria-hidden="true">&#9881;</span> Columns</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-clear-filters">Clear Filters</button>
     </div>
 
     <!-- Grid section -->
     <div id="grid-section">
       <div id="grid-header-row">
-        <span id="result-count" class="muted"></span>
+        <span id="result-count" class="muted" role="status"></span>
         <div class="flex gap8">
-          <button class="btn btn-ghost btn-sm" id="btn-export-page">Export Page</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-export-page">Export Page</button>
         </div>
       </div>
       <div id="grid-wrap">
-        <table id="conv-table">
+        <table id="conv-table" data-dynamic-headers="true"><caption class="visually-hidden">Conversation records for the current filter and page. Activate a column header to sort; activate a row to open its detail.</caption>
           <thead id="conv-thead"></thead>
           <tbody id="conv-tbody"></tbody>
         </table>
         <div id="pager">
-          <span id="pager-info"></span>
-          <button class="pager-btn" id="pager-first">«</button>
-          <button class="pager-btn" id="pager-prev">‹</button>
+          <span id="pager-info" role="status"></span>
+          <button type="button" class="pager-btn" id="pager-first" aria-label="First page"><span aria-hidden="true">«</span></button>
+          <button type="button" class="pager-btn" id="pager-prev" aria-label="Previous page"><span aria-hidden="true">‹</span></button>
           <span id="pager-pages" class="flex gap4"></span>
-          <button class="pager-btn" id="pager-next">›</button>
-          <button class="pager-btn" id="pager-last">»</button>
+          <button type="button" class="pager-btn" id="pager-next" aria-label="Next page"><span aria-hidden="true">›</span></button>
+          <button type="button" class="pager-btn" id="pager-last" aria-label="Last page"><span aria-hidden="true">»</span></button>
         </div>
       </div>
     </div>
@@ -1109,20 +1160,20 @@
       <div style="font-size:.78rem;color:#9ecfb6;margin-bottom:3px">Attribute Explorer</div>
       <div style="font-size:1rem;font-weight:700;color:#fff">Filter &amp; Sort by Attributes</div>
     </div>
-    <button id="attr-drill-close" style="background:rgba(255,255,255,.12);border:none;color:#d1f5e6;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">&#x2715;</button>
+    <button type="button" id="attr-drill-close" aria-label="Close attribute explorer" style="background:rgba(255,255,255,.12);border:none;color:#d1f5e6;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center"><span aria-hidden="true">&#x2715;</span></button>
   </div>
   <div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--stroke);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="text" id="attr-search" placeholder="&#128269; Filter by attribute key or value…" style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.85rem;background:var(--surface);color:var(--ink);outline:none" />
-    <select id="attr-sort-key" style="padding:6px 10px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.82rem;background:var(--surface);color:var(--ink)">
+    <label class="visually-hidden" for="attr-search">Filter attributes</label><input type="text" id="attr-search" aria-label="Filter by attribute key or value" placeholder="&#128269; Filter by attribute key or value…" style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.85rem;background:var(--surface);color:var(--ink)" />
+    <select id="attr-sort-key" aria-label="Sort by attribute" style="padding:6px 10px;border:1px solid var(--stroke);border-radius:var(--r-sm);font-size:.82rem;background:var(--surface);color:var(--ink)">
       <option value="">Sort by attribute…</option>
     </select>
-    <button class="btn btn-ghost btn-sm" id="attr-clear">Clear</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="attr-clear">Clear</button>
   </div>
   <div id="attr-drill-body" style="flex:1;overflow-y:auto;padding:0"></div>
 </div>
 
 <!-- ═══ TOAST ═══ -->
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ═══ SCRIPT ═══ -->
 <script>
@@ -2059,11 +2110,14 @@ function renderSortIndicators() {
   $$('#conv-thead th').forEach(th => {
     th.classList.remove('sort-asc','sort-desc');
     const arrow = th.querySelector('.sort-arrow');
+    const sortable = th.hasAttribute('aria-sort');
     if (th.dataset.col === State.sortCol) {
       th.classList.add(State.sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
       if (arrow) arrow.textContent = State.sortDir === 'asc' ? '↑' : '↓';
+      if (sortable) th.setAttribute('aria-sort', State.sortDir === 'asc' ? 'ascending' : 'descending');
     } else {
       if (arrow) arrow.textContent = '↕';
+      if (sortable) th.setAttribute('aria-sort', 'none');
     }
   });
 }
@@ -2709,10 +2763,16 @@ function renderTableHeader() {
     ...COLUMN_DEFS.filter(cd => State.visibleColumns.has(cd.key)),
     ...State.dynamicColumns.filter(dc => State.visibleColumns.has(dc.key)),
   ];
+  // Header cells are scoped and, when sortable, wrap a real button so the sort
+  // is keyboard operable and its state is announced (SC 1.3.1 / 2.1.1 / 4.1.2).
   const ths = visibleCols.map(cd => {
-    const arrow = cd.sortKey ? `<span class="sort-arrow">↕</span>` : '';
     const sortAttr = cd.sortKey ? `data-col="${cd.sortKey}"` : `data-col="${cd.key}"`;
-    return `<th ${sortAttr}>${escHtml(cd.label)} ${arrow}</th>`;
+    if (!cd.sortKey) {
+      return `<th scope="col" ${sortAttr}>${escHtml(cd.label)}</th>`;
+    }
+    const arrow = `<span class="sort-arrow" aria-hidden="true">↕</span>`;
+    return `<th scope="col" aria-sort="none" ${sortAttr}>` +
+           `<button type="button" class="th-sort">${escHtml(cd.label)} ${arrow}</button></th>`;
   });
   $('conv-thead').innerHTML = `<tr>${ths.join('')}</tr>`;
   renderSortIndicators();
@@ -2837,22 +2897,28 @@ function renderFacetPanel() {
     if (!map.size) { wrap.innerHTML = '<span class="facet-empty">None found</span>'; return; }
     // Sort by count desc, limit 30
     const sorted = [...map.entries()].sort((a,b) => b[1]-a[1]).slice(0,30);
+    // Facet chips are toggle buttons: focusable, keyboard operable, and their
+    // pressed state is announced (SC 2.1.1 / 4.1.2).
     wrap.innerHTML = sorted.map(([val, ct]) =>
-      `<span class="facet-chip" data-dim="${dim}" data-val="${escHtml(val)}" title="${escHtml(val)}">
+      `<button type="button" class="facet-chip" data-dim="${dim}" data-val="${escHtml(val)}" title="${escHtml(val)}" aria-pressed="false">
         ${escHtml(val.length > 28 ? val.slice(0,25)+'…' : val)}
         <span class="chip-ct">(${ct})</span>
-      </span>`
+      </button>`
     ).join('');
     // Re-apply active state
     wrap.querySelectorAll('.facet-chip').forEach(chip => {
-      if (State.facetFilters[dim].has(chip.dataset.val)) chip.classList.add('active');
+      const setState = on => {
+        chip.classList.toggle('active', on);
+        chip.setAttribute('aria-pressed', String(on));
+      };
+      setState(State.facetFilters[dim].has(chip.dataset.val));
       chip.addEventListener('click', () => {
         const v = chip.dataset.val;
         const d = chip.dataset.dim;
         if (State.facetFilters[d].has(v)) {
-          State.facetFilters[d].delete(v); chip.classList.remove('active');
+          State.facetFilters[d].delete(v); setState(false);
         } else {
-          State.facetFilters[d].add(v); chip.classList.add('active');
+          State.facetFilters[d].add(v); setState(true);
         }
         updateFacetBadge();
         applyFilters();
@@ -3046,18 +3112,26 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── Quick filters ──
+  // setChipState keeps the visual state and the announced pressed state in
+  // step, so a screen-reader user hears which filters are on (SC 4.1.2).
+  function setChipState(chip, on) {
+    if (!chip) return;
+    chip.classList.toggle('active', on);
+    chip.setAttribute('aria-pressed', String(on));
+  }
+
   $$('.filter-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const f = chip.dataset.filter;
       if (State.activeFilters.has(f)) {
         State.activeFilters.delete(f);
-        chip.classList.remove('active');
+        setChipState(chip, false);
       } else {
         // Inbound/Outbound are mutually exclusive
-        if (f === 'inbound')  { State.activeFilters.delete('outbound'); document.querySelector('[data-filter="outbound"]').classList.remove('active'); }
-        if (f === 'outbound') { State.activeFilters.delete('inbound');  document.querySelector('[data-filter="inbound"]').classList.remove('active'); }
+        if (f === 'inbound')  { State.activeFilters.delete('outbound'); setChipState(document.querySelector('[data-filter="outbound"]'), false); }
+        if (f === 'outbound') { State.activeFilters.delete('inbound');  setChipState(document.querySelector('[data-filter="inbound"]'), false); }
         State.activeFilters.add(f);
-        chip.classList.add('active');
+        setChipState(chip, true);
       }
       applyFilters();
     });
@@ -3065,12 +3139,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('btn-clear-filters').addEventListener('click', () => {
     State.activeFilters.clear();
-    $$('.filter-chip').forEach(c => c.classList.remove('active'));
+    $$('.filter-chip').forEach(c => setChipState(c, false));
     State.searchTerm = '';
     $('search-box').value = '';
     // clear facet filters
     Object.values(State.facetFilters).forEach(s => s.clear());
-    $$('.facet-chip').forEach(c => c.classList.remove('active'));
+    $$('.facet-chip').forEach(c => { c.classList.remove('active'); c.setAttribute('aria-pressed', 'false'); });
     updateFacetBadge();
     applyFilters();
   });
@@ -3216,7 +3290,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Facet panel toggle ──
   $('facet-toggle').addEventListener('click', () => {
-    $('facet-panel').classList.toggle('open');
+    const open = $('facet-panel').classList.toggle('open');
+    $('facet-toggle').setAttribute('aria-expanded', String(open));
   });
 
   // ── Attributes deep-dive ──

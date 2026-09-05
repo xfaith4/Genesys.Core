@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-09-02
+
+### Added
+
+- **WCAG 2.1 Level AA conformance** across all seven shipped HTML surfaces.
+  - `tools/Genesys.Accessibility` — a dependency-free static analyzer
+    (25 rules) exporting `Test-HtmlAccessibility`, `Get-ContrastRatio`,
+    `Get-RelativeLuminance`, `ConvertFrom-CssColor`, and
+    `Get-GenesysAccessibilityRule`. Runs on Windows PowerShell 5.1 and
+    PowerShell 7+ with no Node/npm toolchain.
+  - `scripts/Invoke-AccessibilityAudit.ps1` — audit CLI with an optional JSON
+    report; exits non-zero when violations remain.
+  - `config/accessibility-surfaces.json` — the canonical surface manifest.
+  - `tests/unit/Accessibility.Wcag21.Tests.ps1` — 17 tests covering the
+    analyzer itself, all shipped surfaces, design-token contrast, runtime
+    generated markup, and the PowerShell HTML generators.
+  - `accessibility` job in `.github/workflows/ci.yml`.
+  - `docs/ACCESSIBILITY.md` — conformance statement, rule catalogue, and the
+    manual checklist for criteria requiring a rendered viewport.
+
+### Changed
+
+- Operator consoles (`apps/OpsConsole`, `apps/InvestigationConsole`,
+  `apps/ConversationAnalysis`), `catalog/catalog-browser.html`,
+  `docs/architecture.html`, and `docs/training/genesys-onboarding.html`:
+  added skip links and named `main` landmarks, a single `<h1>` per page,
+  visible `:focus-visible` indicators, WAI-ARIA tab wiring with Arrow/Home/End
+  keyboard navigation, `aria-pressed` on every filter toggle, scoped table
+  headers with captions and `aria-sort`, accessible names on all charts, live
+  regions for status messages, and `aria-hidden` on decorative glyphs.
+  Clickable `div`/`span` controls became real `<button>` elements.
+- Split colour tokens into graphical (`--accent`, `--ok`, `--warn`,
+  `--danger`, held to 3:1 per SC 1.4.11) and text-safe (`--accent-text`,
+  `--ok-text`, `--warn-text`, `--danger-text`, held to 4.5:1 per SC 1.4.3).
+  White text now sits on `--accent-dk` (5.35:1) rather than `--accent`
+  (3.39:1). `catalog/catalog-browser.html` darkened `--text-muted` and
+  lightened the header text colours for the same reason.
+- `ConvertTo-GenesysHtmlTable` now emits `<caption>` and `<th scope="col">`
+  and takes a `-Caption` parameter. Both `Genesys.Ops` package templates and
+  `Export-AuditHtml` in `apps/AuditLogsConsole/App.Export.psm1` now emit a
+  viewport meta, a skip link, a named `main` landmark, and a focus indicator.
+- Regenerated `samples/demo-conversation-investigation/demo-conversation-investigation.html`
+  from the updated generator.
+
+### Fixed
+
+- `docs/architecture.html`: the "HTTP Request Lifecycle with Retry" diagram
+  used `classDef call`, and `call` is a reserved mermaid keyword, so the
+  diagram failed to parse and rendered as an error box. Renamed to
+  `classDef invoke`; all 16 diagrams now render.
+- `apps/ConversationAnalysis/index.html`: removed `outline: none` from the
+  search box, page-size select, and attribute filter, which had suppressed the
+  keyboard focus ring entirely.
+
 ## 2026-08-15
 
 ### Fixed

@@ -200,11 +200,14 @@ function Export-AuditHtml {
     try {
         $writer.WriteLine('<!DOCTYPE html>')
         $writer.WriteLine('<html lang="en"><head><meta charset="utf-8" />')
+        $writer.WriteLine('<meta name="viewport" content="width=device-width, initial-scale=1" />')
         $writer.WriteLine("<title>$(_HtmlEncode -Value $ReportTitle)</title>")
-        $writer.WriteLine('<style>body{font-family:Segoe UI,Arial,sans-serif;margin:24px;color:#1a1a1a}h1,h2{margin:0 0 12px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #d0d7de;padding:6px 8px;vertical-align:top}th{background:#f3f6f9;text-align:left}.meta{margin:12px 0 24px;display:grid;grid-template-columns:220px 1fr;gap:6px 14px}.muted{color:#5f6b7a}.pill{display:inline-block;padding:3px 8px;background:#e8eef5;border-radius:999px;margin-right:6px}</style>')
+        $writer.WriteLine('<style>body{font-family:Segoe UI,Arial,sans-serif;margin:24px;color:#1a1a1a}h1,h2{margin:0 0 12px}table{border-collapse:collapse;width:100%;font-size:12px}caption{text-align:left;font-weight:600;padding:0 0 8px}th,td{border:1px solid #d0d7de;padding:6px 8px;vertical-align:top}th{background:#f3f6f9;text-align:left}.meta{margin:12px 0 24px;display:grid;grid-template-columns:220px 1fr;gap:6px 14px}.muted{color:#5f6b7a}.pill{display:inline-block;padding:3px 8px;background:#e8eef5;border-radius:999px;margin-right:6px}a.skip-link{position:absolute;left:-9999px;top:0;background:#fff;color:#1a1a1a;padding:10px 16px;border:2px solid #1a1a1a}a.skip-link:focus{left:0}:focus-visible{outline:3px solid #0b5cad;outline-offset:2px}</style>')
         $writer.WriteLine('</head><body>')
+        $writer.WriteLine('<a class="skip-link" href="#main-content">Skip to main content</a>')
         $writer.WriteLine("<h1>$(_HtmlEncode -Value $ReportTitle)</h1>")
         $writer.WriteLine("<p class=""muted"">Generated $(_HtmlEncode -Value ([datetime]::UtcNow.ToString('u'))) UTC</p>")
+        $writer.WriteLine('<main id="main-content">')
         $writer.WriteLine('<div class="meta">')
         $writer.WriteLine("<div>Run folder</div><div>$(_HtmlEncode -Value $RunFolder)</div>")
         $writer.WriteLine("<div>Export scope</div><div>$(_HtmlEncode -Value $ViewMode)</div>")
@@ -218,9 +221,11 @@ function Export-AuditHtml {
         $writer.WriteLine('<h2>Results</h2>')
 
         $headerKeys = @((ConvertTo-AuditFlatRow -Record ([pscustomobject]@{})).Keys)
-        $writer.WriteLine('<table><thead><tr>')
+        $writer.WriteLine('<table>')
+        $writer.WriteLine("<caption>Audit records - $(_HtmlEncode -Value $ViewMode)</caption>")
+        $writer.WriteLine('<thead><tr>')
         foreach ($key in $headerKeys) {
-            $writer.WriteLine("<th>$(_HtmlEncode -Value ([string]$key))</th>")
+            $writer.WriteLine("<th scope=""col"">$(_HtmlEncode -Value ([string]$key))</th>")
         }
         $writer.WriteLine('</tr></thead><tbody>')
 
@@ -259,7 +264,7 @@ function Export-AuditHtml {
             }
         }
 
-        $writer.WriteLine('</tbody></table></body></html>')
+        $writer.WriteLine('</tbody></table></main></body></html>')
     }
     finally {
         $writer.Dispose()

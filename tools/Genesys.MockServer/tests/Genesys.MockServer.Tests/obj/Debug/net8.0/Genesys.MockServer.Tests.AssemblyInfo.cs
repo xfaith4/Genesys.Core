@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Genesys.MockServer.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a0310e65c5d2af87b05235c1dc26edfff07682d4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+77b1ad9f7fd9125a628bb635919587b2f2c362a3")]
 [assembly: System.Reflection.AssemblyProductAttribute("Genesys.MockServer.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Genesys.MockServer.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

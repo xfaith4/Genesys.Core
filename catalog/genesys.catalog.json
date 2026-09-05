@@ -40342,6 +40342,95 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "embeddable-framework-digital-engagement-investigation": {
+        "description": "Investigation of a web messaging/webchat conversation carried over the Embeddable Framework, enriched with cobrowse and screen-share session detail. The Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) is the same object shape returned by conversations.get.conversation.object — this recipe adds the digital-engagement features (cobrowse, screen-share, typing) that BYOI/voice recipes do not cover. Used when a customer or agent reports the embedded chat widget misbehaving: cobrowse invite never accepted, screen-share failing to start, or the widget showing stale participant state.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].purpose, participants[].state, participants[].calls[].state/muted/held — the condensed conversation shape the Embeddable Framework widget renders",
+            "description": "Same object shape as the widget's own condensed view; confirms Genesys Cloud's server-side state matches what the customer/agent widget displayed"
+          },
+          {
+            "step": "webdeployment-config",
+            "dataset": "getWebdeploymentsDeployment",
+            "filterBy": "deploymentId (from conversation origin/custom attributes)",
+            "joinKey": "deploymentId",
+            "provides": "allowed features for the deployment — whether cobrowse/screen-share/messenger was enabled for this widget instance",
+            "description": "Confirms the feature was actually enabled in the published configuration at conversation time; a disabled feature is the most common root cause for 'the button did nothing'"
+          },
+          {
+            "step": "cobrowse-sessions",
+            "dataset": "getConversationsCobrowsesessions",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "cobrowse session id(s) associated with the conversation, if any were started",
+            "description": "Empty result with webdeployment-config showing cobrowse enabled indicates the customer/agent never launched cobrowse, not a configuration fault"
+          },
+          {
+            "step": "cobrowse-session-detail",
+            "dataset": "getConversationsCobrowsesession",
+            "joinKey": "cobrowseSessionId",
+            "provides": "session state, recordingState, participant list",
+            "description": "Session stuck in a pending/requesting state indicates the invite was sent but never accepted — check agent-side popup blocking or browser compatibility"
+          },
+          {
+            "step": "cobrowse-participant-wrapup",
+            "dataset": "getConversationsCobrowsesessionParticipantWrapup",
+            "joinKey": "participantId",
+            "provides": "wrapUpCode recorded for the cobrowse participant leg",
+            "description": "Confirms the cobrowse leg was formally closed out rather than abandoned mid-session"
+          },
+          {
+            "step": "screenshare-wrapup",
+            "dataset": "getConversationsScreenshareParticipantCommunicationWrapup",
+            "joinKey": "participantId+communicationId",
+            "provides": "wrapUpCode for the screen-share communication leg, if screen-share was used",
+            "description": "Absent while cobrowse-sessions has data indicates screen-share was declined, unsupported by the browser, or never offered"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "deploymentId, journey/customer context set at conversation start",
+            "description": "Source of the deploymentId used to join webdeployment-config when it is not already known"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "widget-set participant variables (page URL, referrer, journey context)",
+            "description": "Confirms what page/context the customer was on when the widget session started"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores if the digital interaction was reviewed",
+            "description": "Digital-channel evaluations follow the same evaluation pipeline as voice/chat"
+          }
+        ],
+        "joinSequence": "seed (conversation-object) → custom-attributes (deploymentId) → webdeployment-config (deploymentId) → cobrowse-sessions (conversationId) → cobrowse-session-detail (cobrowseSessionId) → cobrowse-participant-wrapup / screenshare-wrapup (participantId)",
+        "diagnosticSignals": [
+          "webdeployment-config shows cobrowse/screen-share disabled but the customer reports seeing the button → stale client cache serving an old published version; check webdeployments configuration versions/draft vs. published",
+          "cobrowse-sessions empty despite feature enabled → widget never launched cobrowse; not a platform fault",
+          "cobrowse-session-detail state stuck pending/requesting → invite sent but never accepted; check agent-side popup blocking or unsupported browser",
+          "cobrowse-participant-wrapup missing while session-detail shows an ended state → session dropped without formal close, investigate network stability on that leg",
+          "screenshare-wrapup absent while cobrowse-sessions has data → screen-share declined or unsupported by the browser; cobrowse and screen-share are independent features"
+        ],
+        "identificationRule": "A conversation carried the Embeddable Framework's condensed view when it originates from a webdeployments deploymentId (surfaced via custom-attributes or conversation.originatingDirection metadata). This is orthogonal to the BYOI externalTag indicator — a conversation can be BYOI-injected and also carry a deploymentId if the provider embeds the widget.",
+        "executiveMetrics": [
+          "cobrowseSessionCount",
+          "screenShareSessionCount",
+          "cobrowseAcceptanceRate% (sessions reaching an active state / sessions requested)",
+          "avgCobrowseDurationSecs"
+        ]
       }
     },
     "executiveReportingPlaybooks": {

@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-05  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,10 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 11 (Embeddable Framework Digital Engagement)
+maps to the `embeddable-framework-digital-engagement-investigation` recipe key. Every `dataset`
+value in a JSON recipe resolves to either a curated `datasets` entry or a raw `endpoints`
+operationId in the same catalog file — there is no third namespace.
 
 ---
 
@@ -37,6 +38,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Embeddable Framework Digital Engagement Investigation](#11-embeddable-framework-digital-engagement-investigation)
 
 ---
 
@@ -447,54 +449,132 @@ complete the picture.
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Digital Engagement |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | ● |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | ● |
+| `conversations.search.participant.attributes` | ● | | | | | | ● |
+| `quality.get.evaluations.query` | ● | ○ | | | | | ● |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `getWebdeploymentsDeployment` | | | | | | | ● |
+| `getConversationsCobrowsesessions` | | | | | | | ● |
+| `getConversationsCobrowsesession` | | | | | | | ● |
+| `getConversationsCobrowsesessionParticipantWrapup` | | | | | | | ○ |
+| `getConversationsScreenshareParticipantCommunicationWrapup` | | | | | | | ○ |
+
+---
+
+## 11. Embeddable Framework Digital Engagement Investigation
+
+**Subject:** One `conversationId` carried over the Embeddable Framework (webchat/messenger widget)
+**Use case:** A customer or agent reports the embedded chat widget misbehaving — a cobrowse invite
+that was never accepted, screen-share that failed to start, or the widget showing stale participant
+state. The [condensed conversation info](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info)
+returned to the widget is the same object shape as `conversations.get.conversation.object`
+(`participants[].purpose`, `participants[].state`, `participants[].calls[].state/muted/held`), so
+this investigation starts from the same seed as the Conversation Deep Dive and layers on the
+digital-engagement features — cobrowse and screen-share — that neither the voice nor BYOI patterns
+cover.
+
+**Core question:** *Did the embedded widget's cobrowse/screen-share features actually run, and if
+not, was it a configuration gap or a session that was never accepted?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | Condensed conversation shape — same fields the widget itself renders |
+| 2 | `conversations.get.conversation.customattributes` | `conversationId` | `deploymentId` and journey/customer context set at conversation start |
+| 3 | `getWebdeploymentsDeployment` | `deploymentId` | Published widget configuration — confirms cobrowse/screen-share/messenger was enabled for this deployment |
+| 4 | `getConversationsCobrowsesessions` | `conversationId` | Cobrowse session id(s) associated with the conversation, if any were started |
+| 5 | `getConversationsCobrowsesession` | `cobrowseSessionId` | Session state, recording state, participant list |
+| 6 | `getConversationsCobrowsesessionParticipantWrapup` | `participantId` | Wrapup code recorded for the cobrowse participant leg |
+| 7 | `getConversationsScreenshareParticipantCommunicationWrapup` | `participantId` + `communicationId` | Wrapup code for the screen-share leg, if screen-share was used |
+| 8 | `conversations.search.participant.attributes` | `conversationId` | Widget-set participant variables (page URL, referrer, journey context) |
+| 9 | `quality.get.evaluations.query` | `conversationId` | QM evaluation scores if the digital interaction was reviewed |
+
+### Key Joins
+
+```
+conversations.get.conversation.object.conversationId
+  → conversations.get.conversation.customattributes.conversationId (deploymentId)
+  → getWebdeploymentsDeployment.deploymentId (feature config at conversation time)
+  → getConversationsCobrowsesessions.conversationId
+  → getConversationsCobrowsesession.cobrowseSessionId
+  → getConversationsCobrowsesessionParticipantWrapup.participantId (left join — session may end without a formal wrapup)
+  → getConversationsScreenshareParticipantCommunicationWrapup.participantId+communicationId (left join — screen-share is optional)
+```
+
+### Analytical Questions Answered
+
+- Did the widget configuration have cobrowse/screen-share enabled at the time of this conversation?
+- Was a cobrowse session started? Was it accepted, or did it stay pending?
+- Was screen-share used independently of cobrowse, and did it complete?
+- What page/journey context was the customer in when the session started?
+- Was this digital interaction quality-reviewed like a voice or chat interaction would be?
+
+### Diagnostic Signals
+
+- Widget configuration shows the feature disabled but the customer reports seeing the button →
+  stale client cache serving an old published version; check `webdeployments` configuration
+  versions (`draft` vs. published).
+- No cobrowse sessions despite the feature being enabled → the widget was never launched by either
+  party; not a platform fault.
+- Cobrowse session stuck in a pending/requesting state → the invite was sent but never accepted;
+  check agent-side popup blocking or browser compatibility.
+- Cobrowse participant wrapup missing while the session shows an ended state → the session dropped
+  without a formal close; investigate network stability on that leg.
+- Screen-share wrapup absent while a cobrowse session exists → screen-share was declined or
+  unsupported by the browser — cobrowse and screen-share are independent features and neither
+  implies the other ran.
+
+### Relationship to BYOI
+
+This pattern is orthogonal to Pattern 6 (BYOI Enrichment): a conversation can be BYOI-injected
+*and* carry a `deploymentId` if the external provider itself embeds the Genesys widget. Check both
+`externalTag` (BYOI) and `deploymentId` (Embeddable Framework) independently rather than assuming
+they are mutually exclusive.
 
 ---
 

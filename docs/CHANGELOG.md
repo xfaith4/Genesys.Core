@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-05
+
+### Added
+
+- Added an `embeddable-framework-digital-engagement-investigation` recipe to
+  `catalog/genesys.catalog.json`'s `combinations.investigationRecipes`,
+  closing a gap the catalog had relative to the Embeddable Framework
+  documentation set: the [condensed conversation info](https://developer.genesys.cloud/platform/embeddable-framework/condensed-conversation-info)
+  shape was already referenced as an aside in the BYOI recipe's
+  `identificationRule`, but nothing in the catalog composed a full
+  investigation for the widget's digital-engagement features. The new
+  recipe seeds on `conversations.get.conversation.object` (the same
+  condensed shape) and layers on `getWebdeploymentsDeployment` (published
+  feature config), `getConversationsCobrowsesessions` /
+  `getConversationsCobrowsesession` (cobrowse session state),
+  `getConversationsCobrowsesessionParticipantWrapup` and
+  `getConversationsScreenshareParticipantCommunicationWrapup` (cobrowse and
+  screen-share leg outcomes), plus the existing custom-attribute,
+  participant-attribute, and evaluation steps. Includes `diagnosticSignals`
+  distinguishing a disabled feature configuration from a session that was
+  simply never accepted, and notes the pattern is orthogonal to BYOI (a
+  conversation can carry both an `externalTag` and a `deploymentId`).
+- Mirrored the new recipe as docs/ENDPOINT_COMBINATIONS.md Section 11
+  (Embeddable Framework Digital Engagement Investigation), added the
+  `Digital Engagement` column and five new dataset rows to the Dataset
+  Combination Reference Matrix, and cross-referenced the recipe key from
+  the document's intro note.
+- Verified via a reference-integrity audit (every `dataset` field across
+  `combinations.investigationRecipes`, `executiveReportingPlaybooks`, and
+  `voiceEngineerPlaybooks` resolves to a real `datasets` or `endpoints`
+  entry) that no other broken references exist in the catalog as of this
+  pass — the one prior break (division-performance) was already fixed on
+  2026-08-15.
+
 ## 2026-08-15
 
 ### Fixed

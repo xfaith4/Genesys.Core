@@ -8,11 +8,18 @@
     <AssemblyName>Genesys.MockServer</AssemblyName>
     <Version>1.0.0</Version>
     <Description>HTTP demo server that mirrors Genesys Cloud API endpoints with static fixture data for Genesys.Core integration testing.</Description>
-  </PropertyGroup>
 
-  <ItemGroup>
-    <!-- Exclude xUnit test project files from the main server build -->
-    <Compile Remove="tests/**/*.cs" />
-  </ItemGroup>
+    <!--
+      The xUnit project sits at tests/Genesys.MockServer.Tests, inside this project's directory, so
+      the Web SDK's default globs sweep it up: **/*.json is Content copied to the output directory,
+      which pulled the test project's own bin/ and obj/ into this project's output. The test project
+      references this one, so its build copied that output straight back - one level deeper each
+      cycle, until paths were too long for Windows or git to open.
+
+      DefaultItemExcludes drops tests/** from every default glob at once (Compile, Content, None,
+      EmbeddedResource); the narrower "Compile Remove" this replaces only covered .cs files.
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>
+  </PropertyGroup>
 
 </Project>

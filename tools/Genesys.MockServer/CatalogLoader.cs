@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace Genesys.MockServer;
 
 /// <summary>
-/// Loads genesys.catalog.json and exposes a lookup map of (METHOD, /path/template) → endpoint key.
+/// Loads genesys.catalog.json and exposes a lookup map of (METHOD, /path/template) to endpoint key.
 /// </summary>
 public sealed class CatalogLoader
 {
@@ -19,6 +19,10 @@ public sealed class CatalogLoader
         var doc = JsonNode.Parse(json) ?? throw new InvalidDataException("Catalog JSON is null.");
         var endpoints = doc["endpoints"]?.AsObject()
             ?? throw new InvalidDataException("Catalog missing 'endpoints' node.");
+
+        Version = doc["version"]?.GetValue<string>() ?? "unknown";
+        GeneratedAt = doc["generatedAt"]?.GetValue<string>() ?? "";
+        Datasets = doc["datasets"]?.DeepClone();
 
         _endpointsByKey = new Dictionary<string, EndpointEntry>(StringComparer.OrdinalIgnoreCase);
 
@@ -38,9 +42,71 @@ public sealed class CatalogLoader
             var notes = ep["notes"]?.AsArray()?.Select(n => n?.GetValue<string>() ?? "").ToList()
                         ?? new List<string>();
 
-            _endpointsByKey[key] = new EndpointEntry(key, method.ToUpperInvariant(), path, itemsPath, pagingProfile, retryProfile, notes);
+            var operationId = ep["operationId"]?.GetValue<string>();
+            var summary = ep["summary"]?.GetValue<string>();
+            var description = ep["description"]?.GetValue<string>();
+            var tags = ep["tags"]?.AsArray()?.Select(t => t?.GetValue<string>() ?? "")
+                         .Where(t => !string.IsNullOrWhiteSpace(t)).ToList()
+                       ?? new List<string>();
+
+            // Curated entries carry their metadata inside notes rather than dedicated fields.
+            var group = notes.FirstOrDefault(n => n.StartsWith("group:", StringComparison.OrdinalIgnoreCase))
+                             ?.Substring("group:".Length).Trim();
+
+            var title = summary;
+            if (string.IsNullOrWhiteSpace(title))
+                title = notes.FirstOrDefault(n =>
+                    !n.Contains(':') ||
+                    (!n.StartsWith("group:", StringComparison.OrdinalIgnoreCase) &&
+                     !n.StartsWith("defaultBody:", StringComparison.OrdinalIgnoreCase) &&
+                     !n.StartsWith("phase", StringComparison.OrdinalIgnoreCase)));
+
+            // defaultBody appears either as a real field or embedded in a note.
+            var defaultBody = ep["defaultBody"];
+            if (defaultBody is null)
+            {
+                var bodyNote = notes.FirstOrDefault(n =>
+                    n.StartsWith("defaultBody:", StringComparison.OrdinalIgnoreCase));
+                if (bodyNote is not null)
+                {
+                    var raw = bodyNote.Substring("defaultBody:".Length).Trim();
+                    try { defaultBody = JsonNode.Parse(raw); }
+                    catch (JsonException) { defaultBody = null; }
+                }
+            }
+
+            var groupName = !string.IsNullOrWhiteSpace(group)
+                ? group
+                : tags.FirstOrDefault() ?? "Uncategorized";
+
+            _endpointsByKey[key] = new EndpointEntry(
+                key,
+                method.ToUpperInvariant(),
+                path,
+                itemsPath,
+                pagingProfile,
+                retryProfile,
+                notes,
+                operationId,
+                title,
+                description,
+                tags,
+                groupName,
+                defaultBody?.DeepClone(),
+                ep["defaultQueryParams"]?.DeepClone(),
+                ep["defaultRouteValues"]?.DeepClone(),
+                notes.Any(n => n.StartsWith("group:", StringComparison.OrdinalIgnoreCase)));
         }
     }
+
+    /// <summary>Catalog schema version.</summary>
+    public string Version { get; }
+
+    /// <summary>Timestamp the catalog was generated.</summary>
+    public string GeneratedAt { get; }
+
+    /// <summary>Raw catalog dataset definitions, surfaced verbatim through the metadata API.</summary>
+    public JsonNode? Datasets { get; }
 
     public IReadOnlyDictionary<string, EndpointEntry> Endpoints => _endpointsByKey;
 
@@ -61,7 +127,7 @@ public sealed class CatalogLoader
 
     /// <summary>
     /// Finds the endpoint entry whose method and path template best match the incoming request path.
-    /// Route parameters like {jobId} are treated as wildcards.
+    /// Route parameters are treated as wildcards.
     /// </summary>
     public EndpointEntry? Match(string method, string requestPath)
     {
@@ -89,6 +155,7 @@ public sealed class CatalogLoader
     }
 }
 
+/// <summary>One endpoint as described by the catalog, enriched with display metadata.</summary>
 public sealed record EndpointEntry(
     string Key,
     string Method,
@@ -96,4 +163,13 @@ public sealed record EndpointEntry(
     string ItemsPath,
     string PagingProfile,
     string RetryProfile,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    string? OperationId = null,
+    string? Title = null,
+    string? Description = null,
+    IReadOnlyList<string>? Tags = null,
+    string Group = "Uncategorized",
+    JsonNode? DefaultBody = null,
+    JsonNode? DefaultQueryParams = null,
+    JsonNode? DefaultRouteValues = null,
+    bool IsCurated = false);

@@ -5,23 +5,23 @@ namespace Genesys.MockServer;
 
 /// <summary>
 /// Loads fixture JSON files from the fixtures directory and serves them as API responses.
-/// Falls back to a generated skeleton when no fixture file exists for an endpoint.
+/// Route handling is driven entirely by <see cref="FixtureCoverage.Rules"/> so that the demo
+/// client's endpoint outline describes exactly what this dispatcher does.
+/// Falls back to a generated skeleton when no rule claims the request.
 /// </summary>
 public sealed class RouteDispatcher
 {
     private readonly string _fixturesRoot;
     private readonly AsyncJobEngine _asyncJobEngine;
-    private readonly PagingEngine _pagingEngine;
     private readonly JsonSerializerOptions _jsonOptions;
 
     // Demo token accepted as a valid bearer
     public const string DemoBearerToken = "demo-bearer-token-genesys-testplatform";
 
-    public RouteDispatcher(string fixturesRoot, AsyncJobEngine asyncJobEngine, PagingEngine pagingEngine)
+    public RouteDispatcher(string fixturesRoot, AsyncJobEngine asyncJobEngine)
     {
         _fixturesRoot = fixturesRoot;
         _asyncJobEngine = asyncJobEngine;
-        _pagingEngine = pagingEngine;
         _jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = false,
@@ -29,18 +29,33 @@ public sealed class RouteDispatcher
         };
     }
 
-    /// <summary>Validates the Authorization header. Returns null if valid, or an error message.</summary>
-    public static string? ValidateAuth(HttpContext ctx)
+    /// <summary>Directory the demo fixtures are read from.</summary>
+    public string FixturesRoot => _fixturesRoot;
+
+    /// <summary>Returns true when the fixture file backing a coverage rule is present on disk.</summary>
+    public bool FixtureExists(string fileName) => File.Exists(Path.Combine(_fixturesRoot, fileName));
+
+    /// <summary>
+    /// Validates the Authorization header. Returns null if valid, or an error message.
+    ///
+    /// Two kinds of bearer are accepted: the fixed demo token, which keeps scripts and the
+    /// PowerShell modules working without an OAuth round trip, and any unexpired token minted by
+    /// the demo authorization server through the PKCE flow.
+    /// </summary>
+    public static string? ValidateAuth(HttpContext ctx, DemoOAuth? oauth = null)
     {
         if (!ctx.Request.Headers.TryGetValue("Authorization", out var authHeader))
             return "Missing Authorization header.";
         var val = authHeader.ToString();
         if (!val.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            return "Authorization must use ******";
+            return "Authorization must use the Bearer scheme.";
+
         var token = val[7..].Trim();
-        if (!string.Equals(token, DemoBearerToken, StringComparison.Ordinal))
-            return $"Unknown bearer token. Use the demo token: {DemoBearerToken}";
-        return null;
+        if (string.Equals(token, DemoBearerToken, StringComparison.Ordinal)) return null;
+        if (oauth is not null && oauth.IsValidAccessToken(token)) return null;
+
+        return "Bearer token is not valid. Obtain one from /oauth/authorize (PKCE) or " +
+               $"/oauth/token, or use the demo token: {DemoBearerToken}";
     }
 
     /// <summary>
@@ -59,126 +74,54 @@ public sealed class RouteDispatcher
         if (pageNumber < 1) pageNumber = 1;
         var cursor = ctx.Request.Query["cursor"].FirstOrDefault();
 
-        // --- Audit log paths ---
-        if (requestPath.Contains("/audits/query/servicemapping", StringComparison.OrdinalIgnoreCase))
-            return await ServeFixtureAsync("audit-logs.servicemapping.json");
+        var rule = FixtureCoverage.Find(method, requestPath);
+        if (rule is null)
+            return GenerateSkeleton(endpointKey, method, requestPath);
 
-        if (requestPath.Contains("/audits/query", StringComparison.OrdinalIgnoreCase) &&
-            requestPath.Contains("/results", StringComparison.OrdinalIgnoreCase))
+        switch (rule.Kind)
         {
-            return await ServePagedFixtureAsync(
-                "audit-logs.results.page1.json", "audit-logs.results.page2.json",
-                pageNumber, "results", requestBaseUrl, requestPath);
-        }
+            case CoverageKind.Fixture:
+                return await ServeFixtureAsync(rule.Fixtures[0]);
 
-        if (method == "GET" && requestPath.Contains("/audits/query/", StringComparison.OrdinalIgnoreCase) &&
-            !requestPath.Contains("/results", StringComparison.OrdinalIgnoreCase))
-        {
-            var jobId = routeValues["transactionId"]?.ToString() ?? "unknown";
-            var state = _asyncJobEngine.PollJob(jobId);
-            return (200, (object)new { state });
-        }
+            case CoverageKind.PagedFixture:
+                return await ServePagedFixtureAsync(
+                    rule.Fixtures[0], rule.Fixtures[1],
+                    pageNumber, rule.ItemsProperty ?? "entities",
+                    requestBaseUrl, requestPath);
 
-        if (method == "POST" && requestPath.EndsWith("/audits/query", StringComparison.OrdinalIgnoreCase))
-        {
-            var txId = _asyncJobEngine.CreateJob(AsyncJobKind.Audit);
-            return (200, (object)new { id = txId });
-        }
+            case CoverageKind.CursorFixture:
+                return await ServeCursorFixtureAsync(
+                    rule.Fixtures[0], rule.Fixtures[1],
+                    rule.ItemsProperty ?? "entities", cursor);
 
-        // --- Analytics conversation details async jobs ---
-        if (requestPath.Contains("/analytics/conversations/details/jobs", StringComparison.OrdinalIgnoreCase) &&
-            requestPath.Contains("/results", StringComparison.OrdinalIgnoreCase))
-        {
-            return await ServePagedCursorFixtureAsync(
-                "analytics-conversation-details.results.page1.json",
-                "analytics-conversation-details.results.page2.json",
-                "conversations", cursor, requestBaseUrl, requestPath);
-        }
-
-        if (method == "GET" && requestPath.Contains("/analytics/conversations/details/jobs/", StringComparison.OrdinalIgnoreCase) &&
-            !requestPath.Contains("/results", StringComparison.OrdinalIgnoreCase))
-        {
-            var jobId = routeValues["jobId"]?.ToString() ?? "unknown";
-            var state = _asyncJobEngine.PollJob(jobId);
-            return (200, (object)new { state });
-        }
-
-        if (method == "POST" && requestPath.EndsWith("/analytics/conversations/details/jobs", StringComparison.OrdinalIgnoreCase))
-        {
-            var jobId = _asyncJobEngine.CreateJob(AsyncJobKind.Analytics);
-            return (200, (object)new { jobId });
-        }
-
-        // --- Analytics conversation details query (direct POST) ---
-        if (method == "POST" && requestPath.Contains("/analytics/conversations/details/query", StringComparison.OrdinalIgnoreCase))
-        {
-            int bodyPage = 1;
-            try
+            case CoverageKind.AsyncSubmit:
             {
-                var body = await ctx.Request.ReadFromJsonAsync<JsonObject>();
-                if (body?.TryGetPropertyValue("pageNumber", out var pn) == true)
-                    int.TryParse(pn?.ToString(), out bodyPage);
+                var newJobId = _asyncJobEngine.CreateJob(rule.AsyncKind);
+                var payload = new JsonObject { [rule.IdProperty ?? "id"] = newJobId };
+                return (200, payload);
             }
-            catch { }
-            return await ServeFixtureAsync("analytics-conversation-details-query.page1.json");
-        }
 
-        // --- Users ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/users"))
-        {
-            return await ServePagedFixtureAsync(
-                "users.page1.json", "users.page2.json",
-                pageNumber, "entities", requestBaseUrl, requestPath);
-        }
-
-        // --- Routing queues ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/routing/queues"))
-        {
-            return await ServePagedFixtureAsync(
-                "routing-queues.page1.json", "routing-queues.page2.json",
-                pageNumber, "entities", requestBaseUrl, requestPath);
-        }
-
-        // --- Active conversations ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/conversations"))
-            return await ServeFixtureAsync("conversations.active.json");
-
-        // --- Speech & text analytics topics ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/speechandtextanalytics/topics"))
-            return await ServeFixtureAsync("speechandtextanalytics.topics.json");
-
-        // --- Conversation recordings ---
-        if (method == "GET" && requestPath.Contains("/conversations/", StringComparison.OrdinalIgnoreCase) &&
-            requestPath.EndsWith("/recordings", StringComparison.OrdinalIgnoreCase))
-            return await ServeFixtureAsync("conversations.recordings.json");
-
-        // --- Authorization roles ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/authorization/roles"))
-            return await ServeFixtureAsync("authorization.roles.json");
-
-        // --- OAuth clients ---
-        if (method == "GET" && IsExactPath(requestPath, "/api/v2/oauth/clients"))
-            return await ServeFixtureAsync("oauth.clients.json");
-
-        // --- GET /api/v2/users/me (connectivity probe) ---
-        if (method == "GET" && requestPath.EndsWith("/users/me", StringComparison.OrdinalIgnoreCase))
-        {
-            return (200, (object)new
+            case CoverageKind.AsyncPoll:
             {
-                id = "demo-user-me-0001",
-                name = "Demo Admin",
-                email = "demo.admin@genesys-testplatform.local",
-                state = "active",
-                selfUri = "/api/v2/users/demo-user-me-0001"
-            });
+                var jobId = routeValues[rule.RouteParam ?? "jobId"]?.ToString() ?? "unknown";
+                var state = _asyncJobEngine.PollJob(jobId);
+                return (200, (object)new JsonObject { ["state"] = state });
+            }
+
+            case CoverageKind.Inline when rule.Id == "users.me":
+                return (200, (object)new JsonObject
+                {
+                    ["id"] = "demo-user-me-0001",
+                    ["name"] = "Demo Admin",
+                    ["email"] = "demo.admin@genesys-testplatform.local",
+                    ["state"] = "active",
+                    ["selfUri"] = "/api/v2/users/demo-user-me-0001"
+                });
+
+            default:
+                return GenerateSkeleton(endpointKey, method, requestPath);
         }
-
-        // --- Fallback: generated skeleton response ---
-        return GenerateSkeleton(endpointKey, method, requestPath);
     }
-
-    private static bool IsExactPath(string requestPath, string expectedPath) =>
-        string.Equals(requestPath.TrimEnd('/'), expectedPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 
     private async Task<(int, object)> ServeFixtureAsync(string fileName)
     {
@@ -214,10 +157,9 @@ public sealed class RouteDispatcher
         return (200, node);
     }
 
-    private async Task<(int, object)> ServePagedCursorFixtureAsync(
+    private async Task<(int, object)> ServeCursorFixtureAsync(
         string page1File, string page2File,
-        string itemsProp, string? cursor,
-        string baseUrl, string path)
+        string itemsProp, string? cursor)
     {
         var fileName = !string.IsNullOrWhiteSpace(cursor) ? page2File : page1File;
         var fixturePath = Path.Combine(_fixturesRoot, fileName);

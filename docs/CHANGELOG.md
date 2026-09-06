@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-09-06 (endpoint-combination catalog audit + roadmap consistency)
+
+### Verified
+
+- Re-audited every dataset reference across all 21 entries in
+  `catalog/genesys.catalog.json`'s `combinations` block (`investigationRecipes`
+  ×7, `executiveReportingPlaybooks` ×9, `voiceEngineerPlaybooks` ×5) against
+  the 111-entry `datasets` map and the 3,389-entry `endpoints` map. Every
+  `dataset`, `datasetsInOrder`, and `enrichWith` value resolves to a real
+  catalog entry (or the documented `(derived)` sentinel for
+  `agent-investigation`'s `division` step) — zero broken references, so the
+  2026-08-15 reference-integrity fix has held through subsequent edits.
+  Confirms the catalog already answers this review's four investigation
+  entry points (single conversation, all conversations in a queue,
+  conversations by a specific agent, and divisions as cross-queue agent
+  groups) plus executive-reporting and voice-engineer rollups; see
+  `docs/ENDPOINT_COMBINATIONS.md` for the human-readable form.
+
+### Fixed
+
+- `docs/ROADMAP.md` still listed Division and Outbound Campaign as unscoped
+  "Next" candidates for a flagship investigation, three months after both
+  shipped (`division-investigation` catalog recipe, 2026-08-15;
+  `Get-GenesysCampaignInvestigation`, 2026-05-15). Marked both complete with
+  pointers to where each lives, and narrowed the open candidate list to Flow
+  — the only one of the original three without a dedicated composer.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

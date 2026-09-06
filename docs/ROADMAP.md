@@ -2,7 +2,7 @@
 
 > Status: Active
 >
-> Last updated: 2026-06-08
+> Last updated: 2026-09-06
 
 ## 1. Product Intent
 
@@ -27,6 +27,31 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] Endpoint-combination catalog audit (2026-09-06): re-walked every
+      `dataset`/`datasetsInOrder`/`enrichWith` reference across all 21 entries
+      in `catalog/genesys.catalog.json`'s `combinations` block (7
+      `investigationRecipes`, 9 `executiveReportingPlaybooks`, 5
+      `voiceEngineerPlaybooks`) against the 111 `datasets` and 3,389
+      `endpoints` catalog entries. Zero broken references found — the
+      2026-08-15 reference-integrity fix and subsequent additions held. This
+      also confirmed the catalog already covers the four investigation entry
+      points singled out for scrutiny (single conversation, all conversations
+      in a queue, conversations by a specific agent, and divisions as
+      cross-queue agent groups) plus rollups for executive reporting and
+      voice-engineer diagnostics — see `docs/ENDPOINT_COMBINATIONS.md` for the
+      human-readable form.
+- [x] Division and Outbound Campaign flagship investigations (2026-08-15 and
+      2026-05-15): closed two of the three candidates named in the "Additional
+      flagship investigations" backlog item below. Division ships as the
+      `division-investigation` recipe in `catalog/genesys.catalog.json`'s
+      `combinations.investigationRecipes` (division → queues → agents →
+      per-agent performance/login-activity → QM/coaching coverage → wrap-up
+      distribution across the division's queues) and as Pattern 3 in
+      `docs/ENDPOINT_COMBINATIONS.md`. Outbound Campaign ships as
+      `Get-GenesysCampaignInvestigation` in `Genesys.Ops`, documented in
+      `docs/INVESTIGATIONS.md` §4.4, with a committed sample under
+      `samples/demo-campaign-investigation/`. Flow remains the one unscoped
+      candidate — see Next, below.
 - [x] WCAG 2.1 Level AA conformance (2026-09-02): all seven shipped HTML
       surfaces (three operator consoles, dataset browser, architecture map,
       onboarding page, and the generated investigation package report) now pass
@@ -119,8 +144,14 @@ the engineering teams that automate against them.
 
 ### Next
 
-- [ ] Scope one additional flagship investigation candidate (Division, Flow, or
-      Outbound Campaign) with a concrete operator use case and fixture contract.
+- [ ] Scope Flow as an additional flagship investigation candidate with a
+      concrete operator use case and fixture contract. Division and Outbound
+      Campaign, the other two candidates originally listed here, have since
+      shipped — see the Completed entry below — leaving Flow as the only
+      unscoped candidate. Flow's building blocks (`analytics.query.flow.observations`,
+      the `flow-and-ivr-diagnostics` and `flow-and-ivr-performance` playbooks in
+      `catalog/genesys.catalog.json`'s `combinations`) already exist; what's
+      missing is a dedicated `Get-GenesysFlowInvestigation` composer.
 
 ### Maintenance
 
@@ -431,9 +462,10 @@ established and proven across all three flagships.
 - [x] Flagship investigation visibility extensions: Agent routing/utilization,
       Conversation survey enrichment, Queue transfer/wrap-up context, and
       committed deterministic demo outputs.
-- [ ] Additional flagship investigations identified during 1.0–1.2
-      (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
-      names a concrete use case.
+- [x] Additional flagship investigations identified during 1.0–1.2 (candidates:
+      Division, Flow, Outbound Campaign): Division and Outbound Campaign
+      shipped — see the Completed entry above. Flow remains open in § 2 Next,
+      unscoped pending a concrete operator use case.
 
 ---
 

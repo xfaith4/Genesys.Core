@@ -1088,7 +1088,10 @@ function Invoke-AccessibilityRule {
     }
 
     # ── CSS rules: A11Y019 focus visibility, A11Y020 contrast ──
-    $cssBlocks = Get-CssRuleBlock -Html $Html -Offsets $offsets
+    # @() matters: a page with no <style> block yields nothing here, which would unwrap to $null
+    # and fail to bind to the [AllowEmptyCollection()] -CssBlocks parameter below. An application
+    # shell whose styles all live in external files is exactly such a page.
+    $cssBlocks = @(Get-CssRuleBlock -Html $Html -Offsets $offsets)
 
     $variables = @{}
     foreach ($block in $cssBlocks) {
@@ -1174,7 +1177,7 @@ function Invoke-AccessibilityRule {
     }
 
     if ($ActiveRules.ContainsKey('A11Y025')) {
-        $nodes = New-DomNodeTree -Markup $markup -Elements $elements
+        $nodes = @(New-DomNodeTree -Markup $markup -Elements $elements)
         foreach ($hit in (Test-DomContrast -Nodes $nodes -CssBlocks $cssBlocks -Variables $variables)) {
             & $add 'A11Y025' $hit.Line $hit.Element $hit.Message
         }

@@ -1,5 +1,305 @@
 # Changelog
 
+## 2026-09-05 (test suite repair)
+
+### Fixed
+
+- **`tests/integration/MockServer.Integration.Tests.ps1` could not run at all.** Its
+  whole `Describe` aborted in `BeforeAll`, taking 13 tests with it. Four separate
+  defects, all pre-existing:
+  - `Start-MockServer` and `Stop-MockServer` were defined at script level. Pester
+    v5 evaluates a file's body during discovery and runs blocks in a separate
+    scope, so they were gone by the time `BeforeAll` called them. Configuration
+    and helpers now live inside `BeforeAll`, assigned with `$script:` so the `It`
+    blocks can still reach them.
+  - The auth header was the literal string `"******"` — real source overwritten
+    by a secret-redaction pass, the same corruption found earlier in
+    `MockServerTests.cs`. Restored to `Bearer $($script:DemoToken)`, from the
+    token the file already declares.
+  - The manifest assertions named `dataset` and `totalItems`. `Invoke-Dataset`
+    writes `datasetKey`, `runId`, `startedAtUtc`, `endedAtUtc`, `gitSha`,
+    `counts` and `warnings`, and always has. Verified against a real run.
+  - `$path | Get-Content` cannot bind: `Get-Content -Path` is
+    `ValueFromPipelineByPropertyName` only, so a bare string from the pipeline
+    raises a parameter-binding error. Pester does not stop on it, so the variable
+    was silently `$null` and the failure read as a missing property rather than a
+    failed read. Now `Get-Content -LiteralPath`.
+
+  That file now passes **13/13**.
+- **The static accessibility analyzer crashed on any page with no inline
+  `<style>` block.** `Get-CssRuleBlock` returns nothing for such a page, which
+  unwraps to `$null` and fails to bind to the `[AllowEmptyCollection()]`
+  `-CssBlocks` parameter. Normalized with `@()`, along with the `-Nodes`
+  argument beside it.
+- **The surface-manifest test swept up vendored and generated files**, demanding
+  WCAG declarations for `node_modules` and `dist`. Discovery now skips
+  `node_modules`, `dist`, `build` and `coverage`.
+- **`scripts/Start-MockServer.ps1` printed unusable instructions** — the same
+  `"******"` corruption, in the help text and in the "quick connect" snippet it
+  tells operators to copy. Both restored.
+- **CI reported green with 14 failing tests.** `tests/PesterConfiguration.ps1`
+  never set `Run.Exit`, so `Invoke-Pester` exited 0 regardless of results. Now
+  set, and verified to exit 0 on a green suite and 1 on a red one.
+
+### Added
+
+- `apps/GenesysDataClient/index.html` is now a declared WCAG surface. React
+  renders the page, so the static analyzer sees only the shell — but the shell
+  still owns the page language, the document title and a zoomable viewport, and
+  those are enforced. The four rules describing the rendered DOM (`A11Y004`,
+  `A11Y006`, `A11Y019`, `A11Y024`) are excluded for this surface and audited
+  instead against the running application by the axe-core gate.
+- Per-surface `excludeRules` in `config/accessibility-surfaces.json`, honoured by
+  both the audit script and the Pester test, plus a guard test requiring every
+  exclusion to carry a written `$excludeReason`. An exclusion is a claim that a
+  rule cannot apply, not a way to silence a finding, so the claim has to be
+  reviewable. The guard was verified to fail when the justification is removed.
+
+### Verified
+
+- Pester **279 passed, 0 failed, 1 skipped** (was 264 passed, 14 failed).
+- Static WCAG audit: **8 surfaces, 0 violations** (was 7).
+
+## 2026-09-05 (build hygiene — recursive output copy)
+
+### Fixed
+
+- **`Genesys.MockServer` copied its own test project into its build output, one
+  level deeper on every build.** The xUnit project lives at
+  `tools/Genesys.MockServer/tests/Genesys.MockServer.Tests`, inside the server
+  project's directory, so the Web SDK's default `Content` glob (`**/*.json`,
+  copied to the output directory) swept up the test project's `bin/` and `obj/`.
+  The test project references the server, so its build copied that output
+  straight back — adding one directory level per cycle. It had reached 12 levels
+  and 648-character paths, past what Windows and git can open:
+
+  ```text
+  error: unable to index file 'tools/Genesys.MockServer/bin/Debug/net8.0/tests/
+  Genesys.MockServer.Tests/bin/Debug/net8.0/...': Filename too long
+  fatal: adding files failed
+  ```
+
+  The project's existing `<Compile Remove="tests/**" />` only covered `.cs`
+  files. It is replaced by
+  `<DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>`,
+  which drops `tests/**` from every default glob at once — `Compile`, `Content`,
+  `None` and `EmbeddedResource`. MSBuild reported 124 `Content` items sourced
+  from `tests/` before the change and 0 after; the server's `bin/` went from 121
+  files to the 7 it should hold, and two further build cycles added none.
+- **`.gitignore` never covered .NET build output**, so 61 generated files were
+  tracked, including the nested copies. `bin/` and `obj/` are now ignored and
+  those files are untracked (`git rm --cached`, so nothing left the working
+  tree). `core.longpaths` is enabled locally so git can operate on what is
+  already committed.
+
+### Added
+
+- `BuildOutputDoesNotRecursivelyNestTheTestProject` — a regression guard that
+  fails at the first level of recursion instead of the twelfth. Verified to fail
+  when the condition is planted and pass when it is not, so it cannot pass
+  vacuously. Path length is measured relative to the output directory, so the
+  assertion does not depend on where the repository is cloned.
+
+### Not fixed
+
+- The nested paths reached **two levels (178 characters)** in committed history,
+  in `dd9b040` and `1ce0f96`. That still clones on Windows, but with little
+  headroom. Removing it would mean rewriting shared history, which has not been
+  requested.
+
+## 2026-09-05 (third pass — authentication)
+
+### Added
+
+- **OAuth 2.0 Authorization Code with PKCE** in the Genesys Data Client
+  (`src/core/auth.ts`, `src/app/AuthProvider.tsx`, `src/features/SignIn.tsx`).
+  One flow serves both destinations: the demo authorization server and a live
+  Genesys org. Only the base URL differs; the client code is identical.
+  - Verifier is 32 random bytes as base64url, challenge is `S256`, matching
+    `modules/Genesys.Auth/Genesys.Auth.psm1` so both consumers work against the
+    same OAuth client registration. The derivation is pinned to the RFC 7636
+    Appendix B worked example by test.
+  - `state` generated per request and checked on return; a mismatch aborts.
+  - The verifier never travels in a URL — it is held in `sessionStorage` across
+    the redirect and cleared on return.
+  - Tokens live in `sessionStorage` (tab-scoped, cleared on close); only
+    non-secret preferences go to `localStorage`.
+  - Automatic refresh ~2 minutes before expiry with the same 30-second margin
+    `Genesys.Auth` uses, plus manual refresh, sign-out and revocation.
+  - The application no longer renders anything before there is a session, and it
+    never displays a whole token — only a short prefix.
+  - Region picker covering the common Genesys regions plus a free-text entry, so
+    a region missing from the list never blocks a sign-in.
+- **Demo authorization server on `Genesys.MockServer`** (`DemoOAuth.cs`,
+  `OAuthApi.cs`), shaped like `login.{region}`: `GET/POST /oauth/authorize`,
+  `POST /oauth/token` (`authorization_code`, `refresh_token`,
+  `client_credentials`), `GET /oauth/userinfo`, `POST /oauth/revoke`.
+  **The identity is fake; the protocol is real.** It verifies
+  `BASE64URL(SHA256(ASCII(code_verifier)))` in constant time, refuses `plain`,
+  refuses a request with no challenge, binds codes to their client and redirect
+  URI, consumes a code on the first redemption attempt even when the verifier was
+  wrong, rotates refresh tokens, and returns RFC 6749 error shapes. Demo mode
+  therefore exercises the client's real PKCE path rather than stubbing it.
+  - The consent screen collects **no credentials** — no username or password
+    field — and says so. It makes the authorization step visible; it does not
+    imitate a sign-in.
+- 26 new tests: 16 client PKCE units, 11 client-against-server integration tests
+  (wrong verifier, code replay, refresh rotation, denial, non-PKCE and `plain`
+  rejection, untrusted `redirect_uri`, revocation), and 13 mock server xUnit
+  tests covering the same ground server-side.
+
+### Changed
+
+- API requests accept either the fixed demo token or any unexpired token minted
+  through the PKCE flow, so existing scripts and the PowerShell modules keep
+  working unchanged.
+- The CoreClient's bearer and API base are now derived from the authenticated
+  session, so signing in or out — or a token refresh — reconfigures every data
+  source without anything else being touched.
+- The accessibility gate now covers the sign-in screen and the demo consent
+  screen: **15 surfaces, 0 violations**.
+
+### Not verified
+
+- The live Genesys path has not been exercised against a real org; no tenant was
+  available. The flow is verified end to end against the demo authorization
+  server, and its parameters match the PowerShell implementation that does run
+  against live orgs.
+
+## 2026-09-05 (second pass)
+
+### Fixed
+
+Second-pass review of the Genesys Data Client. Every item below was reproduced
+before it was changed.
+
+- **CSV exports were not machine-reusable.** Rows were written with display
+  formatting, so timestamps came out locale-formatted (`Feb 14, 2026, 04:00:00 AM`),
+  durations as prose (`14m 27s`) and numbers with thousands separators
+  (`1,234,567`) — none of which parse or aggregate. Added
+  `formatForExport`: CSV now emits ISO 8601 UTC timestamps, durations as raw
+  milliseconds and unformatted numbers, with units stated in the provenance
+  header. Markdown, which is meant to be read, keeps the friendly rendering.
+- **CSV formula injection.** Exported cells beginning with `=`, `+`, `-` or `@`
+  were written verbatim, so Genesys data a person can type (participant names,
+  wrap-up notes) would be evaluated as a formula on open. Such cells are now
+  prefixed with an apostrophe; genuine numbers are left alone so negatives stay
+  numeric.
+- **Expanded rows followed the row position, not the record.** Disclosure state
+  was keyed by array index while sorting and filtering reorder rows in place, so
+  re-sorting left the detail open on whichever record landed in that slot. Keyed
+  by record identity, with a stable React key derived from the record's own id.
+- **Date aggregates rendered as epoch milliseconds.** `min`/`max` over a
+  timestamp field displayed and exported as `1771059600000`. Aggregates now
+  inherit their field's type unless the aggregate is a plain tally.
+- **The Genesys skin's back button kept a private history stack** that desynced
+  from browser back/forward once hash routing existed. It now delegates to the
+  browser.
+- **A panel claimed coverage it never checked.** The explorer's provenance panel
+  rendered a hardcoded green "Demo data" badge for every endpoint. It now shows
+  the catalog key; coverage remains the server's to report.
+- **Saved views could not see new fields.** A view stored before a source gained
+  a field left that field permanently invisible. Column layouts are now
+  reconciled against the current field set on load.
+- **WCAG 2.1 AA violations in the rendered application.** axe-core found
+  insufficient contrast on the avatar, primary buttons, active pills, accent
+  text and muted badges. Introduced solved accent palettes
+  (`src/core/accents.ts`) splitting graphical (`--accent`) from text-safe
+  (`--accent-strong`, `--accent-text`) shades per theme, neutralized
+  accent-tinted backgrounds so ratios no longer depend on the chosen accent,
+  darkened `--ink-3` to clear 4.5:1 on the darkest surface it is used on, and
+  fixed a specificity bug where `:hover` on an active segmented control
+  overrode its label colour. **13 surfaces — both skins, both themes, all five
+  accents — now report 0 violations.**
+
+### Added
+
+- `npm run test:a11y` — a WCAG 2.1 AA gate that drives a real browser and runs
+  axe-core against every skin, theme and accent. The repository's PowerShell
+  analyzer only sees static HTML and cannot audit a React-rendered surface, so
+  this closes that gap. Wired into the `data-client-integration` CI job.
+- `reconcileColumns` for saved-view/field reconciliation, and `formatForExport`
+  for machine-readable serialization.
+
+### Removed
+
+- `tools/Genesys.MockServer/PagingEngine.cs`. `BuildPagedResponse` was never
+  called by any dispatcher path — verified against the committed baseline, so
+  this was pre-existing dead code rather than fallout from the coverage-table
+  refactor. Its DI registration, the unused `RouteDispatcher` constructor
+  dependency and the now-meaningless `MOCK_PAGE_SIZE` environment variable went
+  with it.
+
+### Changed
+
+- Panel boards group consecutive normal panels into a CSS multi-column run, so a
+  short panel beside a tall one no longer leaves dead space. Wide panels still
+  span the full width and reading order is preserved.
+
+## 2026-09-05
+
+### Added
+
+- **Genesys Data Client** (`apps/GenesysDataClient/`) — a customizable data
+  exploration, analysis, reporting and visualization application built on
+  Genesys.Core, with its own isolated Vite + React + TypeScript toolchain.
+  Node stays a dependency of this application only; Genesys.Core itself remains
+  free of any frontend toolchain, and `dist/` is produced by CI rather than
+  committed.
+  - Reusable Data Client primitives in `src/core/contracts.ts`: `DataSource`,
+    `QueryDefinition`, `ViewDefinition`, `ReportDefinition`,
+    `DashboardDefinition`, `ExportDefinition` and `Workspace`.
+  - Engine layer (`src/engine/`): type-aware filtering and sorting, faceting,
+    ad-hoc grouping and aggregation, CSV/JSON/NDJSON/Markdown export with
+    provenance, and persisted workspace state.
+  - Nine data sources covering conversations (full async job lifecycle with
+    cursor paging), conversation segments, active conversations, users, routing
+    queues, audit logs, roles, OAuth clients and speech & text topics.
+  - Two skins: **Genesys**, reproducing the productized unified navigation
+    experience including its fixed layout and light-only theme; and **Atlas**,
+    the same data with the interface under user control — light/dark/system
+    theme, configurable accent and density, movable and collapsible panels,
+    sortable/filterable/reorderable/resizable columns, ad-hoc reports and
+    saved views.
+  - Endpoint explorer that renders the server's endpoint outline live from the
+    discovery API and can run any endpoint in place.
+  - 38 tests: engine units, hash routing, and integration tests that drive every
+    data source over HTTP against a running demo server.
+- **Discovery API on `Genesys.MockServer`** — unauthenticated `/__meta`,
+  `/__meta/groups`, `/__meta/endpoints`, `/__meta/endpoints/{key}`,
+  `/__meta/coverage` and `/__meta/datasets`, so a client can render an accurate
+  outline of what the server can exercise without bundling the 1.6 MB catalog.
+- **`FixtureCoverage`** — a declarative coverage table that is now the single
+  source of truth for which routes the mock server backs with demo data.
+  `RouteDispatcher` executes it and the discovery API reports it, so the client's
+  endpoint outline cannot drift from what the dispatcher actually serves.
+- CORS on the mock server (`MOCK_CORS_ORIGINS`, permissive by default) and
+  optional static hosting of a built Data Client from
+  `apps/GenesysDataClient/dist` (`MOCK_STATIC_ROOT`), with SPA fallback that
+  leaves `/api`, `/__meta` and `/oauth` answering as JSON.
+- 9 mock server tests covering the coverage table and discovery API, including
+  guards against dead coverage rules and missing fixtures.
+
+### Fixed
+
+- **`tools/Genesys.MockServer` tests were failing before this change.** A
+  secret-redaction pass had rewritten real source: the test auth helper sent the
+  literal string `******` as its `Authorization` header, so five tests failed
+  with 401. `RouteDispatcher.ValidateAuth` carried the same corruption in an
+  error message. Restored the `Bearer` scheme in both, and made
+  `Api_endpoint_with_wrong_token_returns_401` exercise the token comparison
+  rather than passing by accident on a malformed scheme. Suite went from
+  10/15 to 15/15 before the new tests were added.
+
+### Changed
+
+- `CatalogLoader` now exposes `operationId`, `summary`, `description`, `tags`,
+  a resolved `Group`, `defaultBody`, `defaultQueryParams` and the catalog
+  `datasets` node, so the discovery API can describe endpoints usefully.
+- `.github/workflows/ci.yml` gained `data-client` (typecheck, tests, build,
+  `dist` artifact) and `data-client-integration` (mock server tests, then the
+  Data Client integration suite against a live mock server) jobs.
+
 ## 2026-09-02
 
 ### Added

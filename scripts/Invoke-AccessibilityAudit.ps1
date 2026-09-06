@@ -53,11 +53,20 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if (-not $PSBoundParameters.ContainsKey('Level')) { $Level = $manifest.conformanceLevel }
 
 $targets = if ($Path) {
-    @($Path | ForEach-Object { [pscustomobject]@{ Name = $_; FullPath = (Resolve-Path -LiteralPath $_).ProviderPath } })
+    # Explicit paths carry no manifest entry, so they get no per-surface exclusions.
+    @($Path | ForEach-Object { [pscustomobject]@{ Name = $_; FullPath = (Resolve-Path -LiteralPath $_).ProviderPath; Exclude = @() } })
 }
 else {
     @($manifest.surfaces | ForEach-Object {
-            [pscustomobject]@{ Name = $_.name; FullPath = (Join-Path $repoRoot $_.path) }
+            [pscustomobject]@{
+                Name     = $_.name
+                FullPath = (Join-Path $repoRoot $_.path)
+                # Rules the surface cannot satisfy by its nature, justified in the manifest's
+                # $excludeReason. Merged with -ExcludeRule rather than replacing it. The key is
+                # optional, so it is tested for: strict mode rejects a blind dereference, and
+                # @($missingProperty) would yield @($null) - a one-element array - regardless.
+                Exclude  = if ($_.PSObject.Properties.Name -contains 'excludeRules') { @($_.excludeRules) } else { @() }
+            }
         })
 }
 
@@ -73,7 +82,8 @@ Write-Host "WCAG 2.1 Level $Level audit - $($targets.Count) surface(s)" -Foregro
 Write-Host ('=' * 72)
 
 foreach ($target in $targets) {
-    $findings = @(Test-HtmlAccessibility -Path $target.FullPath -Level $Level -ExcludeRule $ExcludeRule)
+    $exclusions = @($ExcludeRule) + @($target.Exclude) | Where-Object { $_ } | Select-Object -Unique
+    $findings = @(Test-HtmlAccessibility -Path $target.FullPath -Level $Level -ExcludeRule @($exclusions))
     $relative = $target.FullPath.Replace($repoRoot, '').TrimStart('\', '/') -replace '\\', '/'
 
     if ($findings.Count -eq 0) {

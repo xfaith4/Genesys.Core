@@ -6,10 +6,19 @@ Describe 'WCAG 2.1 Level AA conformance' {
         $manifestPath = Join-Path $script:RepoRoot 'config/accessibility-surfaces.json'
         $script:SurfaceManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         $script:Surfaces = @($script:SurfaceManifest.surfaces | ForEach-Object {
+                # Both keys are optional, so test for them rather than dereferencing blindly:
+                # @($missingProperty) is @($null), a one-element array whose Count is 1.
+                $declared = $_.PSObject.Properties.Name
+
                 [pscustomobject]@{
                     Name     = $_.name
                     Relative = $_.path
                     FullPath = Join-Path $script:RepoRoot $_.path
+                    # Rules a surface cannot satisfy by its nature - an application shell has no
+                    # rendered DOM to inspect. Every exclusion must carry a written justification;
+                    # the 'Surface manifest' context below enforces that.
+                    Exclude  = if ($declared -contains 'excludeRules') { @($_.excludeRules) } else { @() }
+                    Reason   = if ($declared -contains '$excludeReason') { $_.'$excludeReason' } else { $null }
                 }
             })
 
@@ -30,14 +39,28 @@ Describe 'WCAG 2.1 Level AA conformance' {
                 ForEach-Object { Join-Path $script:RepoRoot $_ } |
                 Where-Object { Test-Path -LiteralPath $_ }
 
+            # Only authored, shipped source counts. Dependency trees and build output are neither
+            # written here nor committed: apps/GenesysDataClient vendors node_modules and emits
+            # dist/ from its own index.html, and that index.html is itself a declared surface.
+            $generatedPattern = '(^|/)(node_modules|dist|build|coverage)/'
+
             $onDisk = @(
                 Get-ChildItem -Path $searchRoots -Recurse -File -Include '*.html', '*.htm' |
-                    ForEach-Object { $_.FullName.Substring($script:RepoRoot.Length + 1) -replace '\\', '/' }
+                    ForEach-Object { $_.FullName.Substring($script:RepoRoot.Length + 1) -replace '\\', '/' } |
+                    Where-Object { $_ -notmatch $generatedPattern }
             )
 
             $declared = @($script:Surfaces.Relative)
             $undeclared = @($onDisk | Where-Object { $declared -notcontains $_ })
             $undeclared | Should -BeNullOrEmpty -Because 'every shipped HTML page must be held to the same WCAG bar'
+        }
+
+        It 'justifies every rule it excludes' {
+            # An exclusion is a claim that a rule cannot apply, not a way to silence a real
+            # finding. Requiring a written reason keeps that claim reviewable.
+            foreach ($surface in @($script:Surfaces | Where-Object { $_.Exclude.Count -gt 0 })) {
+                $surface.Reason | Should -Not -BeNullOrEmpty -Because "$($surface.Relative) excludes $($surface.Exclude -join ', ') and must say why in `$excludeReason"
+            }
         }
 
         It 'points at files that exist' {
@@ -177,7 +200,7 @@ Describe 'WCAG 2.1 Level AA conformance' {
         It 'reports zero WCAG 2.1 Level AA violations across every surface' {
             $failures = [System.Collections.Generic.List[string]]::new()
             foreach ($surface in $script:Surfaces) {
-                foreach ($finding in @(Test-HtmlAccessibility -Path $surface.FullPath -Level 'AA')) {
+                foreach ($finding in @(Test-HtmlAccessibility -Path $surface.FullPath -Level 'AA' -ExcludeRule $surface.Exclude)) {
                     $failures.Add(("{0}:{1} [{2}] {3}" -f $surface.Relative, $finding.Line, $finding.RuleId, $finding.Message))
                 }
             }

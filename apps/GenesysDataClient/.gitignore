@@ -1,0 +1,7 @@
+# Frontend toolchain artifacts - never committed.
+# dist/ is produced by CI as a release artifact, per docs/GenesysDataClient.md.
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+coverage/

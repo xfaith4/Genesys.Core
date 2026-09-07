@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-07  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -62,6 +62,8 @@ there is no third namespace.
 | 9 *(STA enabled)* | `conversations.get.speech.text.analytics` | `conversationId` | Sentiment score, detected topics, STA coverage summary |
 | 10 *(STA enabled)* | `speech.and.text.analytics.get.sentiment.for.conversation` | `conversationId` | Sentiment timeline: per-utterance scores, agent vs customer breakdown |
 | 11 *(transcription enabled)* | `speechandtextanalytics.get.conversation.communication.transcripturl` | `conversationId` + `communicationId` | Transcript download URL per communication leg |
+| 12 *(identity-resolved only)* | `externalcontacts.get.contact` | `participants[].externalContactId` | Genesys-side resolved customer identity — name and external system IDs, distinct from raw ANI/DNIS |
+| 13 *(identity-resolved only)* | `externalcontacts.get.contact.journey.segments` | `externalContactId` | Behavioral/marketing segments (e.g. "At Risk", "High Value") the customer qualified for at time of contact |
 
 ### Key Joins
 
@@ -105,6 +107,16 @@ If `conversations.get.conversation.object` returns a non-null `externalTag` or `
 the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+
+### Customer Identity Resolution (Conditional)
+
+Independently of BYOI, `conversations.get.conversation.object` and `conversations.get.specific.conversation.details`
+carry `participants[].externalContactId` whenever Genesys Cloud has matched the caller/chatter to a known
+external contact (a BYOI provider pre-matched them, a webchat/messaging identity resolved, or an agent linked
+the call to a contact manually). When that field is present, steps 12–13 add the Genesys-side customer record
+and journey-segment context — see [§6 Customer Identity & Journey Context](#customer-identity--journey-context-conditional)
+for the full rationale, join keys, and why this stays a single-conversation enrichment rather than an
+executive-rollup metric.
 
 ---
 
@@ -386,6 +398,39 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
 full object returned by the dataset and need no special handling.
 
+### Customer Identity & Journey Context (Conditional)
+
+BYOI providers commonly pre-match the caller to a CRM record before injecting the conversation, and
+the provider's own case/ticket context (custom attributes, step "custom-attributes" above) is only
+half the picture — it says what the *provider* believes about the customer. Genesys Cloud's own
+External Contacts API can independently confirm (or contradict) that identity, and adds journey
+context the provider's payload does not carry.
+
+| Dataset Key | Join Key | What It Adds |
+|-------------|----------|--------------|
+| `externalcontacts.get.contact` | `participants[].externalContactId` | Genesys-side resolved customer identity — name, external system IDs |
+| `externalcontacts.get.organization` | `externalOrganizationId` (from the contact record) | Parent account/company context for B2B BYOI scenarios (e.g. a business customer calling through a partner PBX) |
+| `externalcontacts.get.contact.journey.segments` | `externalContactId` | Marketing/behavioral segments (e.g. "At Risk", "High Value") the customer qualified for at the time of contact |
+| `externalcontacts.get.contact.journey.sessions` | `externalContactId` | Digital sessions (web/app visits) recorded for the contact around the conversation window — what the customer was doing in self-service before this contact |
+| `externalcontacts.get.contact.notes` | `externalContactId` | Free-text case history left by prior agents/integrations against this contact |
+
+**Why this differs from a CRM case ID lookup:** the custom-attributes step tells you what case the
+*provider* thinks this call belongs to. The External Contacts steps tell you who *Genesys Cloud*
+thinks the customer is — useful when the two systems disagree, or when the provider's payload didn't
+carry full context.
+
+**Why this is a single-conversation/BYOI enrichment, not an executive rollup:** the External Contacts
+API is a per-contact lookup with no organization-wide aggregate endpoint. Turning this into a rollup
+metric would mean fanning out one API call per contact across every conversation in a reporting
+window — exactly the "overwhelming data dump" this catalog is designed to avoid. It stays scoped to
+one conversation (or a small, analyst-selected set) at a time. Applied redaction profile:
+`external-contact-identity` (hashes phone/email/address fields, drops social-handle/photo fields,
+preserves journey and organization linkage).
+
+**Conditional trigger:** run only when the seed step (`conversation-object` in this recipe,
+`conversation-base` in the Single Conversation Deep Dive) returns a non-null
+`participants[].externalContactId`. Skip silently otherwise.
+
 ---
 
 ## 7. Agent Investigation Extensions (Release 1.3)
@@ -460,6 +505,11 @@ The matrix below shows which datasets are used across which investigations and r
 | `conversations.get.speech.text.analytics` | ○ | | | | | |
 | `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
 | `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
+| `externalcontacts.get.contact` | ○ | | | | | |
+| `externalcontacts.get.organization` | ○ | | | | | |
+| `externalcontacts.get.contact.journey.segments` | ○ | | | | | |
+| `externalcontacts.get.contact.journey.sessions` | ○ | | | | | |
+| `externalcontacts.get.contact.notes` | ○ | | | | | |
 | `routing.get.single.queue.config` | | ● | | | | |
 | `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
 | `analytics-conversation-details-query` | | ● | | | | ○ |

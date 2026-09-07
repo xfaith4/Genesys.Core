@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-07 (external contact identity & journey enrichment)
+
+### Added
+
+- **External Contacts as an investigation enrichment source.** A catalog review against the
+  Genesys Cloud API surface found 138 `externalcontacts` endpoints with zero references anywhere
+  in the investigation/executive/voice-engineer combination recipes, despite the BYOI integration
+  guide and Embeddable Framework docs both pointing at customer identity as the missing context in
+  a single-conversation investigation. Added five curated datasets: `externalcontacts.get.contact`,
+  `externalcontacts.get.organization`, `externalcontacts.get.contact.journey.segments`,
+  `externalcontacts.get.contact.journey.sessions`, and `externalcontacts.get.contact.notes`, plus
+  the `external-contact-identity` redaction profile (hashes phone/email/address, drops social-handle
+  and image fields).
+- **Wired the new datasets into two existing recipes**, not a new one: `single-conversation-investigation`
+  gained conditional `external-contact` / `external-contact-journey` steps, and
+  `byoi-conversation-enrichment` gained `external-contact` / `external-organization` steps that
+  cross-check Genesys Cloud's own contact match against the BYOI provider's custom-attribute CRM
+  case ID. Both are join-key-conditional on `participants[].externalContactId` being non-null —
+  they skip silently otherwise.
+- **Deliberately scoped this as a per-conversation enrichment, not an executive rollup**, and said so
+  in `docs/ENDPOINT_COMBINATIONS.md` §6: the External Contacts API has no org-wide aggregate
+  endpoint, so a rollup would mean one API call per contact per conversation in the reporting
+  window — the "overwhelming data dump" the catalog is designed to avoid.
+- Updated `docs/ENDPOINT_COMBINATIONS.md` (§1, §6, §10 reference matrix) to document the new steps,
+  join keys, and scope rationale.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

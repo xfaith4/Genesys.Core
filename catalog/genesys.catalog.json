@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-07T13:12:00.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -922,6 +922,69 @@
         "profile": "rateLimitAware"
       }
     },
+    "externalcontacts.get.contact": {
+      "description": "External contact identity record for a customer — resolved CRM/identity fields carried on the conversation's participants[].externalContactId. The authoritative source for who a customer is, beyond the raw ANI/DNIS or BYOI custom attributes.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization": {
+      "description": "External organization record linked to a contact — company/account-level context (name, industry, external system IDs) for B2B investigations.",
+      "endpoint": "getExternalcontactsOrganization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Digital journey sessions (web/app visits) recorded against an external contact prior to or around the conversation — device, channel, and page-view context for the customer's self-service path before reaching an agent.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "description": "Journey segment assignments for an external contact — marketing/behavioral segments the customer qualified for (e.g. 'At Risk', 'High Value') at the time of contact.",
+      "endpoint": "getExternalcontactsContactJourneySegments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Free-text notes recorded against an external contact by prior agents or integrations — case history and prior-contact context for the customer.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
     "analytics.get.agent.active.status": {
       "description": "Real-time active session and routing status for a single agent — live channel assignments and current state.",
       "endpoint": "analytics.get.agent.active.status",
@@ -1564,6 +1627,22 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "external-contact-identity": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts.get.contact, externalcontacts.get.organization, and externalcontacts.get.contact.notes when joined into a Conversation or BYOI investigation. Hashes direct identity fields (still joinable/comparable across runs) and removes social-handle and image fields that add no investigative value, while preserving journey/organization linkage and note timestamps.",
+        "removeFields": [
+          "twitterId",
+          "lineId",
+          "whatsAppId",
+          "facebookId",
+          "photos"
+        ],
+        "hashFields": [
+          "phoneNumbers",
+          "emails",
+          "addresses"
         ]
       }
     }
@@ -43123,6 +43202,26 @@
             "description": "Base conversation object with media type, state, and full participant roster"
           },
           {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "participants[].externalContactId",
+            "conditional": "Only runs when conversation-base returns a non-null participants[].externalContactId (identity-resolved conversations: BYOI, webchat/messaging with contact match, or agent-linked voice calls). Skip silently otherwise — do not fan out to unrelated conversations.",
+            "provides": "resolved customer identity beyond ANI/DNIS — name, external system IDs",
+            "description": "Authoritative customer identity for the participant; complements (does not replace) BYOI custom attributes"
+          },
+          {
+            "step": "external-contact-journey",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "joinKey": "externalContactId",
+            "audience": [
+              "qm-analyst",
+              "voice-engineer"
+            ],
+            "conditional": "Runs only after external-contact resolves a contactId",
+            "provides": "journey segments the customer qualified for at time of contact (e.g. 'At Risk', 'High Value')",
+            "description": "Behavioral/marketing context for why this customer may have been routed or prioritized a particular way"
+          },
+          {
             "step": "participant-wrapup",
             "dataset": "conversations.get.conversation.participant.wrapup",
             "joinKey": "conversationId+participantId",
@@ -43800,6 +43899,22 @@
             "joinKey": "conversationId",
             "provides": "provider-set custom attributes — CRM case ID, intent label, external call ID",
             "description": "Custom attributes set by the BYOI provider at injection time; the primary link back to the external system's case/ticket"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "participants[].externalContactId",
+            "conditional": "Only runs when conversation-object resolves a non-null participants[].externalContactId. Genesys-side identity resolution is common for BYOI providers that pre-match the caller to an existing contact record.",
+            "provides": "Genesys-side resolved identity record for the external participant, distinct from the provider's own custom attributes",
+            "description": "Cross-checks the provider's CRM case ID (custom-attributes step) against Genesys Cloud's own contact match — useful when the two systems disagree on who the customer is"
+          },
+          {
+            "step": "external-organization",
+            "dataset": "externalcontacts.get.organization",
+            "joinKey": "externalOrganizationId",
+            "conditional": "Only runs when external-contact resolves an externalOrganizationId (B2B contacts)",
+            "provides": "account/company-level context for the contact",
+            "description": "Adds the parent organization for B2B BYOI scenarios (e.g. a business customer calling through a partner PBX)"
           },
           {
             "step": "participant-attributes",

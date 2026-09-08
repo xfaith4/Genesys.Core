@@ -1297,6 +1297,94 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "groups.search.groups": {
+      "description": "Search Genesys Cloud Groups by name, member, or id. Groups are ad hoc, cross-queue, cross-division member collections (e.g. \"Tier 2 Escalation\", \"Bilingual Agents\") distinct from Division/queue membership. Seed step for skill- or team-based investigations that span organisational boundaries.",
+      "endpoint": "postGroupsSearch",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "groups.get.single.group": {
+      "description": "Full configuration for a single Group — name, description, group type (official/social), and state. Seed step for group-scoped investigations once a groupId is known.",
+      "endpoint": "getGroup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "groups.get.group.members": {
+      "description": "Roster of a Group's members — individuals, owners, and dynamically-included people (rule-based membership). Drives the userId fan-out for group-scoped performance rollups; a member's queue and division assignments are resolved separately per userId.",
+      "endpoint": "getGroupMembers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "authorization.get.division.grants": {
+      "description": "Role-based access grants for a division — subjectId (user or group), subjectType, roleId, and grant timestamp. Answers \"who can see or manage this division's data\" for compliance- and security-scoped investigations. Complements authorization.get.subject.access.scope, which answers the same question from the agent's side.",
+      "endpoint": "authorization.get.division.grants",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "authorization.get.subject.access.scope": {
+      "description": "Roles and division-scoped grants for a single subject (agent or service account) — the authoritative answer to \"what can this agent see or do, and in which divisions.\" Pairs with authorization.get.division.grants to reconcile the division-side and subject-side views of the same access-control relationship.",
+      "endpoint": "getAuthorizationSubject",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "voicemail.get.user.messages": {
+      "description": "Voicemail messages left for a specific agent's mailbox — caller ANI, duration, read status, and conversationId linkage when the voicemail resulted from an unanswered routed interaction. Missed-call follow-up evidence for agent investigations.",
+      "endpoint": "getVoicemailUserMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "voicemail.get.queue.messages": {
+      "description": "Voicemail messages left in a queue's shared mailbox — relevant when a queue is configured to route overflow or after-hours callers to voicemail instead of abandoning. Complements abandon-metrics: some \"not answered\" outcomes are captured voicemails, not lost contacts.",
+      "endpoint": "getVoicemailQueueMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      }
+    },
+    "conversations.get.conversation.recording.annotations": {
+      "description": "Evaluator- or agent-authored annotations (bookmarks, comments, timestamped markers) on a conversation recording. Enriches a QM/compliance deep dive by pointing directly at the moments in the recording an evaluator flagged, instead of requiring a full listen-through.",
+      "endpoint": "getConversationRecordingAnnotations",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      }
     }
   },
   "profiles": {
@@ -43846,6 +43934,126 @@
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
+        ]
+      },
+      "agent-group-investigation": {
+        "description": "Cross-queue, cross-division analysis scoped to a Genesys Cloud Group rather than a Division. A Group is an ad hoc member collection (e.g. \"Tier 2 Escalation\", \"Bilingual Agents\", \"Night Shift\") that can include agents from multiple divisions and multiple queues at once. Divisions are the RBAC/data-scoping boundary; Groups are the skill- or team-scoping boundary. Use this recipe when the investigation subject is defined by a named team or skill collective rather than by organisational reporting line.",
+        "subjectParam": "groupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "group-detail",
+            "dataset": "groups.get.single.group",
+            "role": "seed",
+            "filterBy": "groupId",
+            "joinKey": "id",
+            "provides": "name, description, type, memberCount",
+            "description": "Group metadata — name, description, and type (official/social)"
+          },
+          {
+            "step": "group-members",
+            "dataset": "groups.get.group.members",
+            "filterBy": "groupId",
+            "joinKey": "groupId",
+            "provides": "userId list with name and email",
+            "description": "All members of the group — individuals, owners, and rule-included people. Drives the userId fan-out below."
+          },
+          {
+            "step": "member-divisions",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from group-members",
+            "joinKey": "id",
+            "provides": "divisionId per member",
+            "description": "Which division each group member belongs to — a group can span several divisions; report this distribution rather than assuming one."
+          },
+          {
+            "step": "member-queue-memberships",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "queueId list per member",
+            "description": "Which queues each group member actually serves — a group can span several queues; use this to enumerate the definitive queue set for the group's conversation volume."
+          },
+          {
+            "step": "member-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per member",
+            "description": "Performance aggregates for the group as a whole and per member over the window"
+          },
+          {
+            "step": "member-quality",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from group-members",
+            "joinKey": "user.id",
+            "provides": "evalCount, avgScore per member",
+            "description": "Quality evaluation coverage and scores for the group's members"
+          }
+        ],
+        "divisionNote": "A Group's membership is independent of Division and queue membership. Report divisionId and queueId distributions explicitly rather than assuming the group maps 1:1 to either — a mismatch (e.g. a 'Bilingual Agents' group spanning three divisions) is itself often the finding.",
+        "executiveMetrics": [
+          "memberCount",
+          "divisionSpread (distinct divisionId count)",
+          "queueSpread (distinct queueId count)",
+          "nConnected (group total)",
+          "tHandle (group avg)",
+          "evalAvgScore"
+        ]
+      },
+      "division-access-security-audit": {
+        "description": "RBAC/compliance audit of a division's access boundary: who has a role grant in the division, and — for a specific agent under review — what their full access scope actually is. Use when the investigation question is about data exposure or permission correctness rather than operational performance (e.g. a compliance reviewer verifying least-privilege after a role change, or an incident review of who could have seen a sensitive conversation).",
+        "subjectParam": "divisionId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "division-detail",
+            "dataset": "authorization.get.single.division",
+            "role": "seed",
+            "filterBy": "divisionId",
+            "joinKey": "id",
+            "provides": "name, description, homeDivision flag",
+            "description": "Division metadata for the audited scope"
+          },
+          {
+            "step": "division-grants",
+            "dataset": "authorization.get.division.grants",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "subjectId, subjectType, roleId, grantMadeAt",
+            "description": "Every role grant that touches this division — the authoritative access list. subjectType distinguishes a directly-granted user from a granted Group (see agent-group-investigation) whose members inherit the grant."
+          },
+          {
+            "step": "grantee-subject-scope",
+            "dataset": "authorization.get.subject.access.scope",
+            "filterBy": "subjectId list from division-grants (subjectType = PC_USER)",
+            "joinKey": "id",
+            "provides": "full role/division grant list per grantee",
+            "description": "For each user-type grantee, their complete access scope — confirms whether the division grant found above is their only elevated access or one of several, which changes the risk read of the finding."
+          },
+          {
+            "step": "division-queues",
+            "dataset": "authorization.list.division.queues",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "queueId list within this division",
+            "description": "What the grant actually exposes — the queues (and by extension the conversations) in scope for this division"
+          },
+          {
+            "step": "audit-trail",
+            "dataset": "audit-logs",
+            "filterBy": "divisionId (service=Authorization)",
+            "joinKey": "divisionId",
+            "provides": "role/grant change events with actor, timestamp, before/after",
+            "description": "Who changed this division's access and when — required to answer 'was this grant intentional and by whom' rather than just 'does this grant exist'"
+          }
+        ],
+        "executiveMetrics": [
+          "grantCount (division total)",
+          "distinctGranteeCount",
+          "groupGrantedSubjectCount (grants via Group membership, not direct)",
+          "queueCount exposed by this division",
+          "grantChangeCount (window, from audit-logs)"
         ]
       }
     },

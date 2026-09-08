@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-08 (investigation catalog: groups, division access, voicemail, recording annotations)
+
+### Added
+
+- Eight new curated `catalog/genesys.catalog.json` datasets closing coverage gaps found while
+  auditing the endpoint-combination catalog against the full Genesys Cloud API surface:
+  `groups.search.groups`, `groups.get.single.group`, `groups.get.group.members`,
+  `authorization.get.division.grants`, `authorization.get.subject.access.scope`,
+  `voicemail.get.user.messages`, `voicemail.get.queue.messages`, and
+  `conversations.get.conversation.recording.annotations`.
+- Two new `combinations.investigationRecipes` entries: `agent-group-investigation` (a Genesys
+  Cloud **Group** — an ad hoc, cross-queue, cross-division team or skill collective — is a
+  distinct grouping construct from Division and needed its own investigation shape) and
+  `division-access-security-audit` (RBAC/compliance audit of who has a role grant in a division
+  and what their full access scope is, for incident review and least-privilege verification).
+- `docs/ENDPOINT_COMBINATIONS.md` sections 10 and 11 documenting both new patterns, a "Division vs
+  Group" clarification in section 3, extension rows for recording annotations (Conversation
+  Investigation), voicemail overflow (Queue Investigation), and agent access scope (Agent
+  Investigation), and reference-matrix rows/columns for all of the above.
+
+### Notes
+
+- All eight new dataset entries validate against `catalog/schema/genesys.catalog.schema.json`
+  and every `dataset` reference in the two new recipes resolves to either an existing curated
+  dataset or a raw `endpoints` operationId already present in the catalog — no dangling
+  references. PowerShell (`pwsh`) is not available in this execution environment, so the Pester
+  catalog-schema suite (`tests/unit/CatalogSchema.Tests.ps1`) could not be run directly; schema
+  conformance was instead verified with the equivalent Python `jsonschema` validator against the
+  same schema file.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-09 (endpoint combination coverage)
+
+### Added
+
+- **Three investigation/reporting patterns closing gaps found against the raw endpoint
+  catalog.** A scheduled review of `catalog/genesys.catalog.json`'s 3,389 raw endpoints against
+  the existing `combinations` recipes found three well-supported dataset families with no
+  documented composition: External Contacts, Teams, and Journey.
+  - `customer-360-contact-history` (new `investigationRecipes` entry) — pivots off the
+    `externalContactId` already surfaced on conversation participants to pull contact profile,
+    identifiers, notes, org relationships, open cases, and full cross-channel conversation
+    history for one customer. Documented as Pattern 11 in `docs/ENDPOINT_COMBINATIONS.md`.
+  - `team-investigation` (new `investigationRecipes` entry) — an alternate agent-group entry
+    point using `/api/v2/teams`, distinct from Division: a team's roster is not required to
+    share a division or queue set, matching a supervisor's direct-reports/shift-crew boundary
+    rather than a business-unit boundary. Documented as Pattern 12.
+  - `digital-journey-conversion-attribution` (new `executiveReportingPlaybooks` entry) —
+    correlates Predictive Engagement journey sessions/outcomes with queue-level conversation
+    aggregates for exec reporting on digital self-service deflection vs. contact generation.
+    Documented as Pattern 13.
+  - Updated the Pattern 10 dataset combination reference matrix and contents list in
+    `docs/ENDPOINT_COMBINATIONS.md` to include the new dataset keys.
+  - No schema or code changes required — `combinations` has no required shape in
+    `catalog/schema/genesys.catalog.schema.json` and is not consumed by any module code, only
+    by documentation/reporting tooling per its `_description`.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

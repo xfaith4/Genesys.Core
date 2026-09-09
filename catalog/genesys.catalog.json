@@ -43847,6 +43847,122 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "customer-360-contact-history": {
+        "description": "Enrichment recipe keyed off a customer's externalContactId to build a Customer 360 view spanning every conversation, note, and organization relationship on file. Runs alongside single-conversation-investigation or byoi-conversation-enrichment whenever a participant carries an externalContactId, and independently for repeat-contact / VIP-customer investigations that start from a known contact rather than a single call.",
+        "subjectParam": "externalContactId",
+        "windowRequired": false,
+        "sourcingNote": "externalContactId is surfaced by conversations.get.conversation.object and analytics.get.single.conversation.analytics under participants[].externalContactId. It is populated for both native external-participant contacts and BYOI-injected conversations (see byoi-conversation-enrichment) — there is no separate lookup required to discover it once a conversationId is known.",
+        "steps": [
+          {
+            "step": "contact-record",
+            "dataset": "getExternalcontactsContact",
+            "role": "seed",
+            "joinKey": "externalContactId",
+            "provides": "name, title, workPhone/cellPhone/email addresses, twitterId, lineId, whatsappId, address, division",
+            "description": "Core contact profile. Confirms the identity behind the conversation's external participant and the division the contact record is scoped to."
+          },
+          {
+            "step": "contact-identifiers",
+            "dataset": "getExternalcontactsContactIdentifiers",
+            "joinKey": "externalContactId",
+            "provides": "alternate identifiers (loyalty ID, CRM ID, custom identifier types) mapped to this contact",
+            "description": "Resolves the contact against external CRM/loyalty identifiers — the join key back to the customer's system of record."
+          },
+          {
+            "step": "contact-notes",
+            "dataset": "getExternalcontactsContactNotes",
+            "joinKey": "externalContactId",
+            "provides": "agent- and system-authored notes with createdDate and createdBy",
+            "description": "Prior context left by agents on previous contacts — read before the current conversation to understand repeat-contact history."
+          },
+          {
+            "step": "organization-relationships",
+            "dataset": "getExternalcontactsOrganizationContacts",
+            "joinKey": "externalOrganizationId (from contact-record.externalOrganization.id)",
+            "provides": "sibling contacts at the same organization, titles, relationship type",
+            "description": "For B2B contacts, surfaces who else at the same account has been in contact — useful for escalations that span multiple stakeholders."
+          },
+          {
+            "step": "case-history",
+            "dataset": "getCasemanagementCasesExternalcontact",
+            "joinKey": "externalContactId",
+            "provides": "open/closed case IDs, case titles, status",
+            "description": "Case Management cases already opened against this contact — prevents duplicate case creation and surfaces unresolved threads."
+          },
+          {
+            "step": "conversation-history",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participants[].externalContactId",
+            "joinKey": "externalContactId",
+            "provides": "every prior conversationId, queueId, mediaType, and outcome for this contact in the query window",
+            "description": "The contact's full interaction history across channels — the definitive answer to 'how many times has this customer called, and about what.'"
+          }
+        ],
+        "identificationRule": "A conversation carries a resolvable customer context whenever conversations.get.conversation.object.participants[].externalContactId is non-null. Absence of an externalContactId means the customer was never matched or promoted to an External Contacts record (see postExternalcontactsContactPromotion) and this recipe has nothing to enrich.",
+        "voiceEngineerHighlights": [
+          "conversation-history repeat-contact count within a short window (e.g. 3+ contacts in 24h) is a strong signal of an unresolved or mis-routed issue worth escalating beyond a single-call fix",
+          "contact-notes left by a prior agent often already document a workaround or known defect — check before re-diagnosing from scratch"
+        ],
+        "executiveMetrics": [
+          "repeatContactRate (contacts with >1 conversation in the reporting window / total contacts)",
+          "avgConversationsPerContact",
+          "caseBacklogPerContact"
+        ]
+      },
+      "team-investigation": {
+        "description": "Cross-queue, cross-division performance rollup scoped to a Genesys Cloud Team (/api/v2/teams) rather than a Division. Teams are a lighter-weight organizational grouping used by supervisors and WFM to cluster agents by reporting line or shift crew — a team's members are not required to share a division or a queue set, so this recipe is the correct entry point when the investigation boundary is 'who reports to this supervisor' rather than 'which business unit owns this data.'",
+        "subjectParam": "teamId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "team-detail",
+            "dataset": "getTeams",
+            "role": "seed",
+            "filterBy": "teamId",
+            "joinKey": "id",
+            "provides": "name, description, division reference, memberCount",
+            "description": "Team metadata, including which division(s) the team's members are drawn from."
+          },
+          {
+            "step": "team-members",
+            "dataset": "getTeamMembers",
+            "joinKey": "teamId",
+            "provides": "userId list with name and state for every member of the team",
+            "description": "Definitive membership roster — drives every per-agent join below. Use postTeamsSearch instead of getTeams when the team is known by name rather than teamId."
+          },
+          {
+            "step": "team-activity",
+            "dataset": "postAnalyticsTeamsActivityQuery",
+            "filterBy": "teamId",
+            "joinKey": "teamId",
+            "provides": "aggregated routing-status time-in-state and on-queue metrics rolled up at the team level",
+            "description": "Team-level activity aggregate — the fastest single call for a supervisor's shift-crew summary, before drilling into individual agents."
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per team member",
+            "description": "Per-agent conversation volume and handle-time for everyone on the team, for ranking within the crew."
+          },
+          {
+            "step": "quality-by-team",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore per team member",
+            "description": "Quality coverage and scores for the team — pairs with agent-performance for a one-screen team scorecard."
+          }
+        ],
+        "teamVsDivisionNote": "Use divisionId (division-investigation) when the boundary is data access / business-unit reporting; use teamId (this recipe) when the boundary is a supervisor's direct reports or a scheduling crew. A team's members can span multiple divisions and queues — team-members is the only reliable source of the roster, do not assume a shared division or queue set.",
+        "executiveMetrics": [
+          "teamHeadcount",
+          "nConnected (team total)",
+          "tHandle (team avg)",
+          "evalAvgScore (team avg)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -44057,6 +44173,30 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "digital-journey-conversion-attribution": {
+        "description": "Correlates Predictive Engagement (Journey) web/app session and outcome data with contact-center conversation aggregates to answer 'what digital activity is driving contact volume, and is it converting.' Used in executive reporting to justify or challenge digital self-service investment and to spot journeys that fail to deflect and instead generate avoidable contacts.",
+        "datasetsInOrder": [
+          "getJourneyOutcomes",
+          "postAnalyticsJourneysAggregatesQuery",
+          "getJourneySession",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "customerCookieId / sessionId carried from the journey session into the conversation via externalevents or action-map-triggered engagement, surfaced on the resulting conversation's custom attributes",
+        "groupBy": [
+          "outcomeId",
+          "queueId",
+          "day"
+        ],
+        "outputMetrics": [
+          "journeySessionCount",
+          "outcomeAchievedRate",
+          "actionMapTriggeredConversationCount",
+          "nOffered (queue, same window)",
+          "conversionRate (outcomeAchieved / journeySessionCount)"
+        ],
+        "executivePresentation": "Funnel view: journey sessions -> outcome achieved -> action map fired -> conversation opened -> resolved. Flag outcomes with high session volume but low resolution rate as self-service candidates.",
+        "caveat": "Journey-to-conversation correlation depends on the customerCookieId or a shared identifier being propagated into the conversation's custom attributes by the triggering action map or web messaging integration; conversations with no journey linkage are out of scope for this playbook, not evidence of a broken funnel."
       }
     },
     "voiceEngineerPlaybooks": {

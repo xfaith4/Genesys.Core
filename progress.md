@@ -1,5 +1,32 @@
 # ConversationAnalyser Reporting Progress
 
+## 2026-09-09 (scheduled catalog review)
+
+- Scheduled task: evaluate catalog endpoints against Genesys Cloud API documentation for
+  high-value combinations across single-conversation, queue, agent, and division-as-cross-queue-
+  group investigations, plus executive rollup metrics. `developer.genesys.cloud`, `help.genesys.
+  cloud`, and `all.docs.genesys.com` are all blocked by this environment's egress proxy, so
+  research relied on WebSearch result snippets plus a direct diff of the existing
+  `combinations.investigationRecipes` / `executiveReportingPlaybooks` / `voiceEngineerPlaybooks`
+  entries against the full 3,389-entry raw `endpoints` catalog.
+- Found the existing investigation/reporting coverage (9 investigation recipes, 9 executive
+  playbooks, 5 voice-engineer playbooks, documented in `docs/ENDPOINT_COMBINATIONS.md`) already
+  thorough for conversation/queue/division/real-time/BYOI scope. Identified three genuinely
+  uncataloged dataset families with no combination recipe: External Contacts
+  (`getExternalcontacts*`), Teams (`/api/v2/teams`), and Journey (`/api/v2/journey`).
+- Added `customer-360-contact-history` and `team-investigation` to `investigationRecipes`, and
+  `digital-journey-conversion-attribution` to `executiveReportingPlaybooks` in
+  `catalog/genesys.catalog.json`. Documented all three as Patterns 11–13 in
+  `docs/ENDPOINT_COMBINATIONS.md`, including the reference-matrix rows, the Team-vs-Division-vs-
+  Queue entry-point comparison table, and the Journey correlation caveat (requires a shared
+  customer/session identifier to be propagated into conversation custom attributes).
+- Verified: `catalog/genesys.catalog.json` still parses as valid JSON; confirmed no module or
+  test code reads `combinations` programmatically (only `catalog/schema/genesys.catalog.schema.
+  json`'s top-level object schema applies, which has no required shape for that key) so this is a
+  documentation-only, non-breaking addition. `pwsh` is not available in this environment, so the
+  PowerShell test suite (`scripts/Invoke-Tests.ps1`) was not run; no `.ps1`/`.psm1` files were
+  touched.
+
 ## 2026-04-17
 
 - Initialized planning files for the Transfer Report final development phase.

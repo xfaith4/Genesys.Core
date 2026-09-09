@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-09  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,12 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 11 (Customer 360) maps to the
+`customer-360-contact-history` recipe key; Pattern 12 (Team Investigation) maps to the
+`team-investigation` recipe key; Pattern 13 (Digital Journey Conversion Attribution) maps to the
+`digital-journey-conversion-attribution` executive playbook key. Every `dataset` value in a JSON
+recipe resolves to either a curated `datasets` entry or a raw `endpoints` operationId in the same
+catalog file — there is no third namespace.
 
 ---
 
@@ -37,6 +40,9 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Customer 360 / External Contact Enrichment](#11-customer-360--external-contact-enrichment)
+12. [Team Investigation (Alternate Agent-Group Entry Point)](#12-team-investigation-alternate-agent-group-entry-point)
+13. [Digital Journey Conversion Attribution (Executive)](#13-digital-journey-conversion-attribution-executive)
 
 ---
 
@@ -495,6 +501,133 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+| `getExternalcontactsContact` | ○ | | | | | |
+| `getExternalcontactsContactIdentifiers` | ○ | | | | | |
+| `getExternalcontactsContactNotes` | ○ | | | | | |
+| `getExternalcontactsOrganizationContacts` | ○ | | | | | |
+| `getCasemanagementCasesExternalcontact` | ○ | | | | | |
+| `getTeams` / `postTeamsSearch` | | | ○ | | | |
+| `getTeamMembers` | | | ○ | | | |
+| `postAnalyticsTeamsActivityQuery` | | | ○ | | | |
+| `getJourneyOutcomes` | | | | ○ | | |
+| `postAnalyticsJourneysAggregatesQuery` | | | | ○ | | |
+| `getJourneySession` | | | | ○ | | |
+
+*Rows above the double rule are unchanged from the original release. The `getExternalcontacts*`
+rows apply as an optional extension of Pattern 1 (Conversation Deep Dive) and stand alone as
+Pattern 11 (Customer 360). The `Team*` rows are an alternate, division-independent grouping used
+by Pattern 12. The `Journey*` rows feed Pattern 13's executive funnel view and are not part of any
+per-conversation, per-queue, or per-agent investigation.*
+
+---
+
+## 11. Customer 360 / External Contact Enrichment
+
+**Subject:** One `externalContactId`
+**Use case:** A voice engineer is chasing a repeat-contact escalation, or an account team needs
+the full picture of one customer's history before a QBR. Every conversation carries an
+`externalContactId` on its external participant once the customer is matched or promoted to an
+External Contacts record — this pattern pivots off that ID instead of a single `conversationId`.
+
+**Core question:** *Who is this customer, and what is their entire history with us?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `getExternalcontactsContact` | seed → `externalContactId` | Name, contact methods (phone/email/social), division |
+| 2 | `getExternalcontactsContactIdentifiers` | `externalContactId` | Alternate CRM/loyalty identifiers mapped to this contact |
+| 3 | `getExternalcontactsContactNotes` | `externalContactId` | Prior agent-authored notes — read before re-diagnosing an issue already documented |
+| 4 | `getExternalcontactsOrganizationContacts` | `externalOrganizationId` | Sibling contacts at the same B2B account |
+| 5 | `getCasemanagementCasesExternalcontact` | `externalContactId` | Open/closed Case Management cases already on file |
+| 6 | `analytics-conversation-details-query` (participant filter) | `externalContactId` | Every prior conversation this contact has had, across channels |
+
+### Where `externalContactId` Comes From
+
+`conversations.get.conversation.object` and `analytics.get.single.conversation.analytics` both
+surface `participants[].externalContactId` — the same field already used to detect BYOI
+provenance in Pattern 6. There is no separate lookup step required once a `conversationId` is in
+hand; this pattern simply continues the join one hop further, from conversation to customer.
+
+### Analytical Questions Answered
+
+- How many times has this customer contacted us, in what window, and about what?
+- Did a previous agent already leave a note explaining the issue or a workaround?
+- Is there an open case already tracking this customer's problem?
+- For B2B accounts, who else at the same organization has been in contact?
+
+### Voice Engineer Note
+
+A repeat-contact count of 3+ within 24 hours for the same `externalContactId` is a strong signal
+of an unresolved or mis-routed issue — escalate beyond a single-call fix rather than closing each
+call independently.
+
+---
+
+## 12. Team Investigation (Alternate Agent-Group Entry Point)
+
+**Subject:** One `teamId` + time window
+**Use case:** A supervisor needs a shift-crew or direct-reports summary. `/api/v2/teams` is a
+lighter-weight organizational grouping than Division — a team's members are not required to share
+a division or a queue set, so this is the correct entry point when the investigation boundary is
+"who reports to this supervisor" rather than "which business unit owns this data."
+
+**Core question:** *How did this supervisor's team perform as a crew?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `getTeams` (or `postTeamsSearch` by name) | seed → `teamId` | Name, description, division reference, member count |
+| 2 | `getTeamMembers` | `teamId` | Definitive `userId` roster for the team |
+| 3 | `postAnalyticsTeamsActivityQuery` | `teamId` | Team-level routing-status time-in-state and on-queue rollup |
+| 4 | `analytics.query.conversation.aggregates.agent.performance` | `userId` list | Per-member nConnected, tHandle, tTalk, tAcw |
+| 5 | `quality.get.agents.activity` | `userId` list | Per-member evaluation count and average score |
+
+### Team vs. Division vs. Queue as Investigation Entry Point
+
+| Start with | When you know | You get |
+|------------|---------------|---------|
+| `teamId` | A specific supervisor's crew or shift roster | Member list (may span divisions/queues) + crew performance |
+| `divisionId` | Business unit or data-access boundary | All queues + all agents + group performance (Pattern 3) |
+| `queueId` | Specific queue complaints | All conversations + SLA + wrapup + member roster (Pattern 2) |
+
+A team's members can span multiple divisions and queues at once — `getTeamMembers` is the only
+reliable source of the roster; do not assume the team shares a division or queue set.
+
+---
+
+## 13. Digital Journey Conversion Attribution (Executive)
+
+**Subject:** Organisation-wide, journey outcome + queue + reporting window
+**Use case:** A VP of Digital or Operations needs to know whether web/app self-service journeys
+are deflecting contacts or generating them, to justify continued investment in Predictive
+Engagement action maps.
+
+**Core question:** *What digital activity is driving contact volume, and is it converting?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Grouping | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `getJourneyOutcomes` | — | Configured outcome definitions (the funnel's named goals) |
+| 2 | `postAnalyticsJourneysAggregatesQuery` | `outcomeId`, daily | Session counts, outcome-achieved rate |
+| 3 | `getJourneySession` | `sessionId` (drilldown) | Full event timeline for a single session flagged for review |
+| 4 | `analytics.query.conversation.aggregates.queue.performance` | `queueId`, same window | `nOffered` for the queues fed by action-map-triggered engagements |
+
+### Correlation Caveat
+
+Journey-to-conversation correlation depends on the customer's `customerCookieId` (or another
+shared identifier) being propagated into the conversation's custom attributes by the triggering
+action map or web messaging integration. A conversation with no journey linkage is out of scope
+for this playbook — it is not evidence the funnel is broken, only that this conversation didn't
+originate from a tracked digital session.
+
+### Executive Presentation
+
+Funnel view: journey sessions → outcome achieved → action map fired → conversation opened →
+resolved. Flag outcomes with high session volume but a low resolution rate as self-service
+candidates — the digital experience is attracting engagement but not closing the loop.
 
 ---
 

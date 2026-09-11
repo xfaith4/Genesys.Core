@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-11T13:10:43.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -43782,7 +43782,7 @@
         ]
       },
       "byoi-conversation-enrichment": {
-        "description": "Enrichment recipe for a conversation injected via the Bring Your Own Instance (BYOI) provider API. Runs alongside single-conversation-investigation to surface external-system provenance — CRM case IDs, external call IDs, and provider SIP-to-SIP handoff — for a conversation that did not originate as an inbound PSTN call.",
+        "description": "Enrichment recipe for a conversation that originated outside native inbound PSTN routing — injected as a voice/agentless conversation object, or delivered through a third-party channel wired up via an Open Messaging integration. Runs alongside single-conversation-investigation to surface external-system provenance: CRM case IDs, external call IDs, and (for voice) the provider's SIP-to-SIP handoff. Note: 'BYOI' (Bring Your Own Interactions) is Genesys's name for a related but distinct capability — batch/near-real-time ingestion of interaction records and agent-state events from an external ACD for Analytics/WFM/QM parity, with no live Genesys call control. Its ingestion endpoint is not yet present in this catalog's endpoint inventory (see identificationRule) and should be confirmed against the live API Explorer before automating against it; this recipe covers the endpoints that ARE verified in-catalog.",
         "subjectParam": "conversationId",
         "windowRequired": false,
         "steps": [
@@ -43841,11 +43841,84 @@
             "description": "Reflects the provider's SIP-to-SIP handoff (injection leg), not an inbound PSTN leg — expect a different call-setup pattern than native voice conversations"
           }
         ],
-        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies an externally-provenanced conversation. Two real, catalog-verified injection surfaces exist: (1) voice/agentless — POST /api/v2/conversations/calls (endpoint key postConversationsCalls) creates a call-type conversation from an external leg, and POST /api/v2/conversations/messages/agentless (postConversationsMessagesAgentless) records a non-interactive digital notification; (2) interactive digital channels via Open Messaging — POST /api/v2/conversations/messaging/integrations/open (postConversationsMessagingIntegrationsOpen) registers the provider integration, then inbound traffic lands via POST /api/v2/conversations/messages/{integrationId}/inbound/open/message (postConversationsMessageInboundOpenMessage), .../inbound/open/event (postConversationsMessageInboundOpenEvent), and .../inbound/open/receipt (postConversationsMessageInboundOpenReceipt) — see the open-messaging-digital-injection-investigation recipe for the full digital-channel trace. The Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same conversation object shape regardless of origin and needs no special-case handling. CAUTION: the previous version of this rule cited 'POST /api/v2/conversations/providers/{providerId}/calls', which does not appear anywhere in this catalog's 3000+ endpoint inventory and could not be corroborated against public Genesys documentation during this pass (direct fetch of developer.genesys.cloud was unavailable) — treat that path as unverified/likely incorrect until confirmed in the live API Explorer.",
         "executiveMetrics": [
-          "externalTag coverage % (BYOI volume vs. native)",
-          "tHandle (BYOI vs. native comparison)",
-          "evaluationScore (BYOI vs. native comparison)"
+          "externalTag coverage % (externally-provenanced volume vs. native)",
+          "tHandle (externally-provenanced vs. native comparison)",
+          "evaluationScore (externally-provenanced vs. native comparison)"
+        ]
+      },
+      "open-messaging-digital-injection-investigation": {
+        "description": "Provenance and delivery trace for a digital conversation delivered through a third-party channel wired up via a Genesys Cloud Open Messaging integration (the verified, in-catalog mechanism for bringing a custom or BYO messaging channel into Genesys queues — SMS gateways, custom chat widgets, proprietary messaging apps). Complements byoi-conversation-enrichment, which is voice/SIP-focused; this recipe is for the digital-channel equivalent, used by integration engineers and digital-channel supervisors investigating a specific injected conversation or auditing which providers are driving digital volume.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "integration-inventory",
+            "dataset": "getConversationsMessagingIntegrationsOpen",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "integrationId, name, webhook/outbound notification config, supported content types",
+            "description": "Enumerates configured Open Messaging integrations; use to resolve which provider handled a given conversation and to scope an audit of all injected-channel volume"
+          },
+          {
+            "step": "integration-detail",
+            "dataset": "getConversationsMessagingIntegrationsOpenIntegrationId",
+            "filterBy": "integrationId",
+            "joinKey": "integrationId",
+            "provides": "full integration configuration — outbound notification webhook URL, supported content",
+            "description": "Detailed config for one integration when narrowing from the inventory to a single provider"
+          },
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "joinKey": "conversationId",
+            "provides": "participants[].purpose, mediaType=message, queue assignment, start/end times",
+            "description": "Base conversation object — same shape as any other conversation regardless of digital-channel origin"
+          },
+          {
+            "step": "message-details",
+            "dataset": "getConversationsMessageDetails",
+            "joinKey": "conversationId (via messageId)",
+            "provides": "full message content, direction, timestamps per message in the conversation",
+            "description": "Message-level detail beyond the conversation object's summary view — useful for reconstructing the exact exchange"
+          },
+          {
+            "step": "cached-media",
+            "dataset": "getConversationsMessagesCachedmedia",
+            "joinKey": "conversationId",
+            "provides": "attachments/media sent through the channel (images, documents)",
+            "description": "Present only when the provider/channel supports media attachments"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "getConversationsMessageParticipantWrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode selected by the handling agent",
+            "description": "Wrapup outcome for the digital conversation, same as any native message conversation"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "queue wait, handle time, ACW segments",
+            "description": "Confirms the injected conversation routed and was handled through the standard ACD pipeline"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores if the conversation was evaluated",
+            "description": "Evaluations proceed normally for injected digital conversations"
+          }
+        ],
+        "identificationRule": "A conversation whose mediaType is 'message' and whose owning integration appears in getConversationsMessagingIntegrationsOpen (as opposed to the first-party apple/facebook/instagram/twitter/whatsapp integration lists) was delivered through a custom Open Messaging provider — the mechanism third parties use to bring their own digital channel into Genesys Cloud. Injection is provider-initiated: the external system POSTs to postConversationsMessageInboundOpenMessage (or ...OpenEvent / ...OpenReceipt for typing/read-receipt signals) using the integrationId from postConversationsMessagingIntegrationsOpen's registration response.",
+        "executiveMetrics": [
+          "conversation volume by integrationId (provider mix)",
+          "tHandle by integrationId",
+          "evaluationScore by integrationId",
+          "attachment/media usage rate"
         ]
       }
     },
@@ -43990,6 +44063,28 @@
           "mediaTypeMix% (voice vs. digital)"
         ],
         "executivePresentation": "Channel mix stacked bar; SLA comparison table by mediaType"
+      },
+      "byoi-and-messaging-integration-coverage": {
+        "description": "Breaks down digital conversation volume by owning messaging integration/provider — first-party (Apple, Facebook, Instagram, Twitter, WhatsApp) vs. custom Open Messaging integrations (the mechanism third parties use to bring their own channel into Genesys Cloud). Answers 'which external provider is driving our digital volume, and is it performing on par with native channels?' — the executive-rollup counterpart to the open-messaging-digital-injection-investigation recipe.",
+        "datasetsInOrder": [
+          "getConversationsMessagingIntegrations",
+          "getConversationsMessagingIntegrationsOpen",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "integrationId → conversation group (mediaType=message)",
+        "groupBy": [
+          "integrationId",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "nConnected by integrationId",
+          "tHandle by integrationId",
+          "evaluationScore by integrationId",
+          "customIntegrationShare% (Open Messaging volume vs. first-party channel volume)"
+        ],
+        "executivePresentation": "Provider mix donut chart; handle-time/quality comparison table, custom-integration vs. first-party channels",
+        "caveat": "analytics.query.conversation.aggregates.digital.channels groups by mediaType, not integrationId directly — resolving per-provider volume requires joining conversation-level records (conversations.get.conversation.object) to their owning integration, then aggregating; this is a fan-out from the aggregate query, not a single-call rollup."
       },
       "wfm-adherence-and-occupancy": {
         "description": "Workforce adherence and occupancy — scheduled vs. actual on-queue time. Used for WFM reports, staffing adjustment decisions, and payroll validation.",

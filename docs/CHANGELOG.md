@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-09-11 (endpoint combination review)
+
+### Fixed
+
+- **`combinations.investigationRecipes.byoi-conversation-enrichment` cited an endpoint that does
+  not exist.** Its `identificationRule` claimed injection occurs via
+  `POST /api/v2/conversations/providers/{providerId}/calls` — that path is absent from all 3389
+  entries in `catalog/genesys.catalog.json`'s `endpoints` map and could not be corroborated against
+  public Genesys documentation (`developer.genesys.cloud` and `help.genesys.cloud` were both
+  blocked by the network egress proxy in this environment, so the live API Explorer could not be
+  checked either). Also corrected "Bring Your Own Instance" → the real Genesys product name,
+  "Bring Your Own Interactions" — which turns out to be a distinct, separate capability (batch/
+  near-real-time interaction-record and agent-state ingestion from an external ACD for Analytics/
+  WFM/QM parity, no live call control) whose own ingestion endpoint is likewise not present in this
+  catalog and should be verified before anything is built against it.
+  `docs/ENDPOINT_COMBINATIONS.md` §6 carries the same correction plus a terminology note.
+
+### Added
+
+- **`open-messaging-digital-injection-investigation`** investigation recipe and
+  **`byoi-and-messaging-integration-coverage`** executive playbook, added to the `combinations`
+  section of `catalog/genesys.catalog.json` (and as new §6b / an extension to Pattern 4 in
+  `docs/ENDPOINT_COMBINATIONS.md`). These document the conversation-injection mechanism that *is*
+  verified in-catalog: a third party registering an Open Messaging integration
+  (`postConversationsMessagingIntegrationsOpen`) and delivering interactive digital conversations
+  through it (`postConversationsMessageInboundOpenMessage`/`...OpenEvent`/`...OpenReceipt`) —
+  Genesys Cloud's actual documented way to bring a custom channel into native queues and agent
+  handling, as distinct from the first-party Apple/Facebook/Instagram/Twitter/WhatsApp integration
+  families. Every dataset/endpoint key referenced by both new recipes was checked against the
+  catalog's own `endpoints`/`datasets` maps before being added.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

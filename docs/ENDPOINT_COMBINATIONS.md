@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-11  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -18,10 +18,29 @@ as a structured recipe in `catalog/genesys.catalog.json` under `combinations.inv
 recipes carry the same step/joinKey/dataset shape as this document plus `executiveMetrics` and
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
-`real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`real-time-operations-monitoring` recipe key; Pattern 6 (Conversation-Injection Enrichment) maps to
+the `byoi-conversation-enrichment` and `open-messaging-digital-injection-investigation` recipe
+keys; the executive rollup for the latter is `byoi-and-messaging-integration-coverage`. Every
+`dataset` value in a JSON recipe resolves to either a curated `datasets` entry or a raw `endpoints`
+operationId in the same catalog file — there is no third namespace.
+
+**Terminology note (2026-09-11 pass):** Genesys's own "Bring Your Own Interactions" (BYOI) product
+name refers specifically to *batch/near-real-time ingestion of interaction records and agent-state
+events from an external ACD* for Analytics/WFM/QM reporting parity — it does not give Genesys live
+call control, and its ingestion endpoint is not present anywhere in this catalog's 3000+ endpoint
+inventory. A previous pass of this document and the JSON catalog conflated that capability with a
+fabricated endpoint, `POST /api/v2/conversations/providers/{providerId}/calls`, which does not
+exist in the catalog and could not be corroborated against public Genesys documentation in this
+pass either (outbound access to `developer.genesys.cloud` and `help.genesys.cloud` was blocked in
+this execution environment, so it could not be checked against the live API Explorer — treat it as
+unverified). What *is* verified in-catalog, and is what Pattern 6 below actually documents, are two
+real mechanisms for a conversation that did not arrive as a native inbound PSTN call: creating a
+voice/agentless conversation object directly (`POST /api/v2/conversations/calls`,
+`POST /api/v2/conversations/messages/agentless`), and delivering an interactive digital
+conversation through a custom **Open Messaging** integration (`POST /api/v2/conversations/messaging/integrations/open`
+to register the provider, then `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message`
+for inbound traffic) — the latter is Genesys Cloud's actual, documented way for a third party to
+"bring their own" channel into native queues and agent handling.
 
 ---
 
@@ -32,7 +51,8 @@ there is no third namespace.
 3. [Division / Agent Group Investigation](#3-division--agent-group-investigation)
 4. [Executive Reporting Rollup](#4-executive-reporting-rollup)
 5. [Real-Time Operations Monitoring](#5-real-time-operations-monitoring)
-6. [BYOI External Conversation Enrichment](#6-byoi-external-conversation-enrichment)
+6. [Externally-Provenanced Conversation Enrichment (Voice/Agentless Injection)](#6-externally-provenanced-conversation-enrichment-voiceagentless-injection)
+6b. [Open Messaging Digital-Channel Injection Investigation](#6b-open-messaging-digital-channel-injection-investigation)
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
@@ -336,17 +356,31 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 ---
 
-## 6. BYOI External Conversation Enrichment
+## 6. Externally-Provenanced Conversation Enrichment (Voice/Agentless Injection)
 
-**Subject:** One `conversationId` that was injected via BYOI  
+**Subject:** One `conversationId` that did not originate as a native inbound PSTN call  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider) and was created in Genesys Cloud as a voice or agentless conversation
+object — `POST /api/v2/conversations/calls` (endpoint key `postConversationsCalls`) for a call-type
+conversation, or `POST /api/v2/conversations/messages/agentless` (`postConversationsMessagesAgentless`)
+for a non-interactive digital notification. The conversation appears in Genesys analytics and
+recordings, but context lives in the external system. (For an interactive digital channel brought in
+via a custom integration, see Pattern 6b below instead.)
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
-### How to Identify a BYOI Conversation
+> **Terminology correction:** Genesys's own "Bring Your Own Interactions" (BYOI) product name refers
+> to a distinct capability — batch/near-real-time ingestion of interaction records and agent-state
+> events from an external ACD for Analytics/WFM/QM reporting parity, with no live Genesys call
+> control. Its ingestion endpoint does not appear anywhere in this catalog's endpoint inventory and
+> could not be verified against public documentation in this pass (`developer.genesys.cloud` and
+> `help.genesys.cloud` were both unreachable from this execution environment). A prior version of
+> this section cited `POST /api/v2/conversations/providers/{providerId}/calls` as "the" BYOI
+> injection endpoint; that path does not exist in this catalog and is unverified — do not automate
+> against it without confirming it in the live API Explorer first. This section now documents only
+> the endpoints that are actually present and verified in `catalog/genesys.catalog.json`.
+
+### How to Identify an Externally-Provenanced Conversation
 
 In step 1 of the Conversation Investigation, `conversations.get.conversation.object` returns:
 
@@ -360,23 +394,23 @@ In step 1 of the Conversation Investigation, `conversations.get.conversation.obj
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` is the definitive indicator.
 
-### Additional Steps for BYOI Conversations
+### Additional Steps
 
 | Step | Dataset Key | What It Adds |
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
 
-### BYOI Conversation in Analytics
+### In Analytics
 
-BYOI conversations flow through the same Architect flows, queue routing, and analytics pipeline
+These conversations flow through the same Architect flows, queue routing, and analytics pipeline
 as native Genesys conversations. The following datasets apply identically:
 - `analytics.get.single.conversation.analytics` — segment timing is accurate
 - `conversations.get.conversation.recording.metadata` — recordings exist if enabled
 - `quality.get.evaluations.query` — evaluations proceed normally
-- `telephony.get.sip.messages.for.conversation` — reflects the BYOI SIP-to-SIP handoff, not a PSTN leg
+- `telephony.get.sip.messages.for.conversation` — reflects the injected SIP-to-SIP handoff, not a PSTN leg
 
 ### Embeddable Framework Conversations
 
@@ -384,7 +418,62 @@ Conversations visible to agents via the Embeddable Framework return the same obj
 `conversations.get.conversation.object`. The condensed view used by the embedded client includes:
 `participants[].purpose`, `participants[].state`, `participants[].calls[].state`,
 `participants[].calls[].muted`, `participants[].calls[].held`. These fields are present in the
-full object returned by the dataset and need no special handling.
+full object returned by the dataset and need no special handling, regardless of the conversation's
+origin.
+
+---
+
+## 6b. Open Messaging Digital-Channel Injection Investigation
+
+**Subject:** One `conversationId` delivered through a third-party channel wired up via an **Open
+Messaging** integration  
+**Use case:** Genesys Cloud's actual, documented mechanism for a third party to "bring their own"
+interactive digital channel (a custom SMS gateway, a proprietary chat widget, an in-house messaging
+app) into native queues and agent handling — as opposed to the first-party Apple/Facebook/Instagram/
+Twitter/WhatsApp integrations, which use their own dedicated endpoint families. An integration
+engineer or digital-channel supervisor needs to trace one injected conversation end-to-end, or audit
+which providers are driving digital volume.
+
+**Core question:** *Which external provider delivered this conversation, and how did it perform once
+inside Genesys Cloud?*
+
+### Setup and Injection Endpoints
+
+| Step | Endpoint Key | Method + Path | Role |
+|------|-------------|----------------|------|
+| 1 | `postConversationsMessagingIntegrationsOpen` | `POST /api/v2/conversations/messaging/integrations/open` | Registers the provider integration; response includes the `integrationId` the provider uses on every subsequent inbound call |
+| 2 | `getConversationsMessagingIntegrationsOpen` | `GET /api/v2/conversations/messaging/integrations/open` | Lists all configured Open Messaging integrations — the inventory seed for a provider-mix audit |
+| 3 | `getConversationsMessagingIntegrationsOpenIntegrationId` | `GET /api/v2/conversations/messaging/integrations/open/{integrationId}` | Full config for one integration |
+| 4 | `postConversationsMessageInboundOpenMessage` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message` | Provider-initiated: delivers an inbound message, creating or continuing the conversation |
+| 5 | `postConversationsMessageInboundOpenEvent` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/event` | Provider-initiated: typing indicators and similar signals |
+| 6 | `postConversationsMessageInboundOpenReceipt` | `POST /api/v2/conversations/messages/{integrationId}/inbound/open/receipt` | Provider-initiated: delivery/read receipts |
+
+### Investigation Steps (per conversation)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | `mediaType=message`, participants, queue assignment |
+| 2 | `getConversationsMessageDetails` | `messageId` | Full message content and direction per message |
+| 3 | `getConversationsMessagesCachedmedia` | `conversationId` | Attachments sent through the channel, if the provider supports media |
+| 4 | `getConversationsMessageParticipantWrapup` | `conversationId` + `participantId` | Agent's wrapup outcome |
+| 5 | `analytics.get.single.conversation.analytics` | `conversationId` | Queue wait, handle time, ACW |
+| 6 | `quality.get.evaluations.query` | `conversationId` | QM evaluation score if evaluated |
+
+### Identifying the Owning Provider
+
+A conversation whose `mediaType` is `message` and whose owning integration appears in
+`getConversationsMessagingIntegrationsOpen` (rather than the first-party apple/facebook/instagram/
+twitter/whatsapp integration lists) was delivered through a custom Open Messaging provider.
+
+### Executive Rollup
+
+For volume/quality comparison across providers, see the `byoi-and-messaging-integration-coverage`
+playbook in Pattern 4's JSON counterpart: conversation volume, handle time, and evaluation score
+grouped by `integrationId`, contrasted against first-party channel volume.
+
+**Machine-readable counterpart:** `combinations.investigationRecipes.open-messaging-digital-injection-investigation`
+and `combinations.executiveReportingPlaybooks.byoi-and-messaging-integration-coverage` in
+`catalog/genesys.catalog.json`.
 
 ---
 
@@ -445,7 +534,11 @@ complete the picture.
 ## 10. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
-`●` = used, `○` = optional/conditional, blank = not applicable.
+`●` = used, `○` = optional/conditional, blank = not applicable. Patterns 6 and 6b (externally-
+provenanced and Open Messaging conversation enrichment) have their own dedicated tables in those
+sections rather than columns here, since they key off endpoint operationIds
+(`postConversationsCalls`, `postConversationsMessagingIntegrationsOpen`, etc.) rather than the
+curated `datasets` entries this matrix otherwise tracks.
 
 | Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|

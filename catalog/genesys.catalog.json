@@ -1158,6 +1158,21 @@
       "validationStatus": "unvalidated",
       "endpoint": "analytics.create.conversation.details.job.large.query"
     },
+    "taskmanagement.query.workitems": {
+      "description": "Task Management work items (digital/back-office work — cases, tickets) using async job submit/poll/results flow, filtered by queue, division, status, or date range. Enables queue- and division-scoped investigation of non-conversational work alongside the existing voice/chat/email investigations.",
+      "endpoint": "taskmanagement.create.workitems.query.job",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "workitems_query_jobs"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "workitems_query_jobs"
+      },
+      "validationStatus": "unvalidated"
+    },
     "analytics.get.single.conversation.analytics": {
       "description": "Full analytics detail for a single conversation — all participants, sessions, and segment-level timing (IVR, ACD wait, talk, hold, ACW) in one call.",
       "endpoint": "analytics.get.single.conversation.analytics",
@@ -1359,6 +1374,10 @@
         "type": "transactionResults",
         "transactionIdPath": "$.jobId"
       },
+      "workitems_query_jobs": {
+        "type": "transactionResults",
+        "transactionIdPath": "$.id"
+      },
       "nextUri_conversations": {
         "type": "nextUri",
         "nextUriPath": "$.nextUri"
@@ -1433,6 +1452,24 @@
         ],
         "statusEndpointRef": "getUsageQueryExecutionIdResults",
         "resultsEndpointRef": "getUsageQueryExecutionIdResults"
+      },
+      "workitems_query_jobs": {
+        "transactionIdPath": "$.id",
+        "pollIntervalSeconds": 2.0,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStates": [
+          "Fulfilled",
+          "Failed"
+        ],
+        "successStates": [
+          "Fulfilled"
+        ],
+        "submittedEventType": "taskmanagement.job.submitted",
+        "pollEventType": "taskmanagement.job.poll",
+        "jobLabel": "Task Management work items query job",
+        "statusEndpointRef": "taskmanagement.get.workitems.query.job.status",
+        "resultsEndpointRef": "taskmanagement.get.workitems.query.job.results"
       }
     },
     "redaction": {
@@ -43098,6 +43135,117 @@
       ],
       "summary": "Starts importing the uploaded time-off limit values",
       "description": "Call after uploading the time-off limit values data to the url supplied by the /import/uploadurl route"
+    },
+    "voicemail.get.queue.messages": {
+      "method": "GET",
+      "path": "/api/v2/voicemail/queues/{queueId}/messages",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "notes": [
+        "List voicemail messages left for a queue — reveals calls that were routed to voicemail instead of being answered or counted as a bare abandon.",
+        "Use alongside analytics.query.conversation.aggregates.abandon.metrics in the Queue Investigation and executive abandon-rate rollups to separate true abandons (caller hung up) from voicemail fallback (caller left a message).",
+        "group: Voicemail"
+      ]
+    },
+    "analytics.get.botflow.sessions": {
+      "method": "GET",
+      "path": "/api/v2/analytics/botflows/{botFlowId}/sessions",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Bot Flow (digital/voice conversational-AI bot) sessions in reverse chronological order — session-level containment and outcome for a specific bot flow.",
+        "Complements Architect flows.get.flow.outcomes / flows.get.flow.milestones when self-service is implemented as a Bot Flow rather than (or in addition to) a classic Architect inbound flow.",
+        "group: Analytics"
+      ]
+    },
+    "analytics.get.botflow.divisions.reportingturns": {
+      "method": "GET",
+      "path": "/api/v2/analytics/botflows/{botFlowId}/divisions/reportingturns",
+      "itemsPath": "$.entities",
+      "pagingProfile": "nextUri_default",
+      "retryProfile": "default",
+      "notes": [
+        "Division-aware turn-by-turn detail for a bot flow session — each customer utterance/action and the bot's response, grouped by session.",
+        "Definitive source for diagnosing self-service containment failures: repeated no-match/no-input turns immediately before an escalation to a queue.",
+        "group: Analytics"
+      ]
+    },
+    "taskmanagement.create.workitems.query.job": {
+      "method": "POST",
+      "path": "/api/v2/taskmanagement/workitems/query/jobs",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Submit an async query job for Task Management work items — digital/back-office work such as cases, tickets, and outbound follow-ups — filtered by queue, division, status, or date range.",
+        "Task Management work queues are queues in the same operational sense as ACD queues; this is the entry point for a queue/division investigation over non-conversational (digital) work.",
+        "group: Task Management"
+      ]
+    },
+    "taskmanagement.get.workitems.query.job.status": {
+      "method": "GET",
+      "path": "/api/v2/taskmanagement/workitems/query/jobs/{jobId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Poll status of a work items query job submitted via taskmanagement.create.workitems.query.job.",
+        "group: Task Management"
+      ]
+    },
+    "taskmanagement.get.workitems.query.job.results": {
+      "method": "GET",
+      "path": "/api/v2/taskmanagement/workitems/query/jobs/{jobId}/results",
+      "itemsPath": "$.results",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "defaultQueryParams": {
+        "jobId": "job-id-goes-here"
+      },
+      "notes": [
+        "Retrieve results for a completed work items query job — work item id, type, status/statusCategory, priority, queue, division, assignee, and lifecycle dates (created/due/closed).",
+        "Exact result pagination shape is unconfirmed pending live validation — see validationStatus on the taskmanagement.query.workitems dataset.",
+        "group: Task Management"
+      ]
+    },
+    "taskmanagement.get.workitem": {
+      "method": "GET",
+      "path": "/api/v2/taskmanagement/workitems/{workitemId}",
+      "itemsPath": "$",
+      "pagingProfile": "none",
+      "retryProfile": "default",
+      "notes": [
+        "Full detail for a single work item — schema-defined custom attributes, current assignment, and status.",
+        "group: Task Management"
+      ]
+    },
+    "taskmanagement.get.workitem.history": {
+      "method": "GET",
+      "path": "/api/v2/taskmanagement/workitems/{workitemId}/history",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "notes": [
+        "Change history for a single work item — status transitions, reassignments, and attribute changes with timestamps and actor.",
+        "Digital-work equivalent of audit-logs for one item; fetch on demand for a specific work item drilldown, not fanned out across a whole queue.",
+        "group: Task Management"
+      ]
+    },
+    "taskmanagement.get.workitem.wrapups": {
+      "method": "GET",
+      "path": "/api/v2/taskmanagement/workitems/{workitemId}/wrapups",
+      "itemsPath": "$.entities",
+      "pagingProfile": "pageNumber_default",
+      "retryProfile": "default",
+      "notes": [
+        "Wrap-up codes recorded by every user who worked the item — the digital-work equivalent of conversation wrap-up codes.",
+        "group: Task Management"
+      ]
     }
   },
   "combinations": {
@@ -43563,6 +43711,18 @@
             "description": "Wrapup code frequency — reveals call reason distribution and potential mis-classification"
           },
           {
+            "step": "voicemail-fallback",
+            "dataset": "voicemail.get.queue.messages",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "audience": [
+              "executive",
+              "voice-engineer"
+            ],
+            "provides": "voicemail message count and timestamps for calls routed to voicemail instead of an agent",
+            "description": "Conditional — only meaningful for queues with a voicemail policy configured. Reconciles the abandon count against voicemail fallback so an abandon-rate KPI is not inflated by callers who chose to leave a message rather than wait."
+          },
+          {
             "step": "conversations",
             "dataset": "analytics.query.conversation.details.by.queue",
             "filterBy": "queueId",
@@ -43579,7 +43739,7 @@
             "description": "Quality evaluations for conversations that touched this queue"
           }
         ],
-        "joinSequence": "seed (queue-config) → members (queueId) → real-time-observations → estimated-wait-time → performance → sla → abandons → transfers → wrapup-distribution",
+        "joinSequence": "seed (queue-config) → members (queueId) → real-time-observations → estimated-wait-time → performance → sla → abandons → transfers → wrapup-distribution → voicemail-fallback (conditional)",
         "executiveMetrics": [
           "nOffered",
           "nConnected",
@@ -43592,7 +43752,8 @@
           "transferRate%",
           "estWaitTimeSecs",
           "oOnQueueUsers",
-          "oWaiting"
+          "oWaiting",
+          "nVoicemail"
         ]
       },
       "division-investigation": {
@@ -43847,6 +44008,63 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "digital-work-investigation": {
+        "description": "Investigation of digital/back-office work handled through Task Management work items (cases, tickets, outbound follow-ups) — the non-conversational counterpart to the Queue and Division investigations. A Task Management work queue is a queue in the same operational sense as an ACD queue: it has membership, a division, and throughput/SLA characteristics, so this recipe mirrors the shape of queue-investigation rather than introducing a new mental model.",
+        "subjectParam": "queueId or divisionId (Task Management work queue/division, not an ACD queue)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "workitems",
+            "dataset": "taskmanagement.query.workitems",
+            "role": "seed",
+            "joinKey": "queueId or divisionId",
+            "provides": "work item id, type, status/statusCategory, priority, queue, division, assignee, dateCreated, dateDue, dateClosed",
+            "description": "Async query job over work items scoped to the subject queue or division and the requested window; the seed list for every other step"
+          },
+          {
+            "step": "assignee-identity",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "joinKey": "assignee.id",
+            "provides": "assignee name, division, and location for each work item's current owner",
+            "description": "Resolves the numeric assignee id on each work item to a named agent and their division — links digital work back to the same division/agent-group model used by the voice Division Investigation"
+          },
+          {
+            "step": "wrapups",
+            "dataset": "taskmanagement.get.workitem.wrapups",
+            "joinKey": "workitemId",
+            "audience": [
+              "voice-engineer",
+              "executive"
+            ],
+            "provides": "wrap-up code(s) recorded by every user who worked the item",
+            "description": "Conditional, on-demand per work item — the digital-work equivalent of conversation wrap-up codes; do not fan out across an entire queue by default, only for flagged/aged items"
+          },
+          {
+            "step": "history",
+            "dataset": "taskmanagement.get.workitem.history",
+            "joinKey": "workitemId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "status transitions, reassignments, and attribute changes with timestamps and actor",
+            "description": "Conditional, on-demand per work item — used for root-cause on a specific stuck or reassigned item, not run for every item in the queue"
+          }
+        ],
+        "joinSequence": "seed (workitems) → assignee-identity (assignee.id) → wrapups (workitemId, on-demand) → history (workitemId, on-demand)",
+        "voiceEngineerHighlights": [
+          "A work item with dateDue in the past and statusCategory still Open is an SLA breach — equivalent to nOverSla for conversations",
+          "history on a single stuck item reveals reassignment loops the same way a SIP trace reveals call-setup loops"
+        ],
+        "executiveMetrics": [
+          "nWorkitemsCreated",
+          "nWorkitemsClosed",
+          "backlogCount = nWorkitemsCreated - nWorkitemsClosed (open at window end)",
+          "avgCycleTimeHours = mean(dateClosed - dateCreated) for items closed in the window",
+          "nOverdue = count(dateDue < now AND statusCategory != Closed)",
+          "throughputByAssignee = nWorkitemsClosed grouped by assignee.id"
+        ],
+        "validationStatus": "unvalidated — Task Management endpoints are catalog-registered but not yet exercised against a live org; treat field names (statusCategory, dateDue, assignee.id) as best-effort pending Track A live validation"
       }
     },
     "executiveReportingPlaybooks": {
@@ -44057,6 +44275,30 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "digital-work-throughput-and-cycle-time": {
+        "description": "Digital/back-office work throughput and SLA health from Task Management work items — the non-conversational counterpart to service-level-and-abandon-kpis. Closes the executive reporting gap where every other playbook covers voice/chat/email conversations but the organisation also runs case/ticket work through Task Management queues.",
+        "datasetsInOrder": [
+          "taskmanagement.query.workitems"
+        ],
+        "joinOn": "queueId or divisionId",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "workitemType",
+          "assignee.id"
+        ],
+        "granularity": "P1D or P1W",
+        "outputMetrics": [
+          "nWorkitemsCreated",
+          "nWorkitemsClosed",
+          "backlogCount = nWorkitemsCreated - nWorkitemsClosed (open at period end)",
+          "avgCycleTimeHours = mean(dateClosed - dateCreated) for items closed in the period",
+          "overdueRate% = nOverdue / nWorkitemsCreated",
+          "throughputByAssignee = nWorkitemsClosed grouped by assignee.id"
+        ],
+        "executivePresentation": "Backlog trend line + cycle-time distribution; throughput leaderboard by assignee/division for workforce planning alongside voice AHT",
+        "validationStatus": "unvalidated — pending Track A live validation of the Task Management query-job endpoints"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -44142,7 +44384,9 @@
           "flows.get.flow.outcomes",
           "flows.get.flow.milestones",
           "analytics.query.flow.aggregates.execution.metrics",
-          "analytics.query.flow.observations"
+          "analytics.query.flow.observations",
+          "analytics.get.botflow.sessions",
+          "analytics.get.botflow.divisions.reportingturns"
         ],
         "diagnosticSignals": [
           "nFlowOutcomeFailed spike → IVR routing error, missing menu option, or backend API timeout",
@@ -44150,11 +44394,14 @@
           "oFlow high with zero queue activity → calls stuck in flow loop or dead-end branch",
           "Flow outcome = 'Default Exit' > 5% → unmatched input causing fallthrough to default branch",
           "Bot flow nFlowOutcomeFailed / nFlow > 0.10 → NLU intent model degradation; retest utterances",
-          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)"
+          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)",
+          "Repeated no-match/no-input turns (from botflow.divisions.reportingturns) immediately before session end → intent model gap for that utterance; candidate for retraining"
         ],
         "enrichWith": [
           "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)",
+          "analytics.get.botflow.sessions (session-level containment/outcome when self-service is a Bot Flow rather than a classic Architect inbound flow)",
+          "analytics.get.botflow.divisions.reportingturns (turn-by-turn utterance/response detail for a specific failing session)"
         ]
       },
       "recording-compliance-audit": {

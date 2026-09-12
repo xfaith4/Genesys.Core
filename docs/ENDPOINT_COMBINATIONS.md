@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-12  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,11 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 10 (Digital Work / Task Management
+Investigation) maps to the `digital-work-investigation` recipe key, with its executive rollup
+encoded as the `digital-work-throughput-and-cycle-time` playbook. Every `dataset` value in a JSON
+recipe resolves to either a curated `datasets` entry or a raw `endpoints` operationId in the same
+catalog file — there is no third namespace.
 
 ---
 
@@ -36,7 +38,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Digital Work / Task Management Investigation](#10-digital-work--task-management-investigation)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -131,6 +134,7 @@ rates, and wrapup outcomes.
 | 8 | `analytics.query.conversation.aggregates.wrapup.distribution` | `queueId` + wrapUpCode | Wrapup code frequencies (join step 2 for labels) |
 | 9 | `routing-queue-members` | `queueId` | Current membership roster with routing status and presence |
 | 10 | `quality.get.evaluations.query` (queueId filter) | `conversationId` | QM evaluation coverage and scores for conversations in this queue |
+| 11 *(voicemail-enabled queues)* | `voicemail.get.queue.messages` | `queueId` | Voicemail messages left for the queue — separates true abandons from callers who chose to leave a message |
 
 ### Key Joins
 
@@ -154,6 +158,17 @@ analytics-conversation-details-query[].conversationId
 - What wrapup codes dominated, and what do they mean?
 - Who were the active agents? What was their routing status during the window?
 - How many conversations were quality-reviewed? What was the average score?
+- Of the calls that did not connect, how many were true abandons vs. voicemail fallback?
+
+### Voicemail Fallback vs. True Abandon
+
+`nAbandoned` from `analytics.query.conversation.aggregates.abandon.metrics` counts every
+conversation that disconnected before reaching an agent — it does not distinguish a caller who
+hung up from one who was routed to the queue's voicemail box and left a message. For any queue
+with a voicemail policy configured, pull `voicemail.get.queue.messages` for the same window and
+treat its message count as a component of `nAbandoned`, not an additional loss. An executive
+abandon-rate KPI that ignores this will overstate lost contacts for queues where voicemail is an
+accepted, working fallback.
 
 ### Divisions as Queue Groups
 
@@ -334,6 +349,18 @@ should be polled at the rate appropriate for the display (typically 10–30 seco
 The `analytics.get.agent.active.status` endpoint returns a single agent's live state and is
 intended for targeted drilldown (supervisor clicks on an agent in the wall board).
 
+### Bot Flow Diagnostics (Self-Service Containment)
+
+`analytics.query.flow.observations` (row 7) reports active executions for classic Architect
+flows only. When self-service is implemented as a **Bot Flow** (digital or voice conversational
+AI), diagnose containment separately with:
+
+- `analytics.get.botflow.sessions` — session-level containment/outcome for a specific bot flow.
+- `analytics.get.botflow.divisions.reportingturns` — turn-by-turn utterance/response detail for
+  one session, the bot-flow equivalent of a SIP trace for diagnosing exactly where a self-service
+  conversation broke down (repeated no-match/no-input turns immediately before an escalation to a
+  queue is the clearest signal of an intent-model gap).
+
 ---
 
 ## 6. BYOI External Conversation Enrichment
@@ -442,59 +469,135 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Digital Work / Task Management Investigation
+
+**Subject:** One Task Management work queue `queueId` or `divisionId` + time window
+**Use case:** Every investigation pattern above covers voice/chat/email **conversations**. Many
+contact centres also run back-office and digital case work — complaint tickets, fulfillment
+follow-ups, correspondence — through Genesys Cloud **Task Management** work items, which have
+their own queues, divisions, assignees, priorities, and due dates. A workforce analyst or
+operations lead needs the same "how did this queue/division perform" answer for that work as
+they get for voice.
+
+**Core question:** *How much digital/back-office work moved through this queue or division, how
+fast, and is any of it overdue?*
+
+This pattern deliberately mirrors [Pattern 2](#2-all-conversations-in-a-queue) and
+[Pattern 3](#3-division--agent-group-investigation) rather than introducing a new mental model —
+a Task Management work queue is a queue in the same operational sense as an ACD queue.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `taskmanagement.query.workitems` (async job; queueId/divisionId/window filter) | seed → `queueId` or `divisionId` | Work item id, type, status/statusCategory, priority, queue, division, assignee, dateCreated, dateDue, dateClosed |
+| 2 | `users.division.analysis.get.users.with.division.info` | `assignee.id` | Resolves each work item's assignee to a named agent and division |
+| 3 *(on-demand, per flagged item)* | `taskmanagement.get.workitem.wrapups` | `workitemId` | Wrap-up code(s) recorded by everyone who worked the item — the digital-work equivalent of a conversation wrap-up code |
+| 4 *(on-demand, per stuck item)* | `taskmanagement.get.workitem.history` | `workitemId` | Status transitions, reassignments, and attribute changes with timestamps and actor — the digital-work equivalent of `audit-logs` for a single item |
+
+### Key Joins
+
+```
+taskmanagement.query.workitems[].assignee.id
+  → users.division.analysis.get.users.with.division.info.id (agent identity + division)
+
+taskmanagement.query.workitems[].workitemId
+  → taskmanagement.get.workitem.wrapups.workitemId (on-demand)
+  → taskmanagement.get.workitem.history.workitemId (on-demand)
+```
+
+### Analytical Questions Answered
+
+- How many work items were created and closed in this queue/division in the window?
+- What is the current backlog (created minus closed, still open)?
+- What is the average cycle time from creation to close?
+- How many items are overdue (`dateDue` in the past, not yet closed) — the digital equivalent of `nOverSla`?
+- Which assignees closed the most work? Is throughput concentrated or evenly spread?
+- For a specific stuck or reassigned item, what happened and who touched it?
+
+### Executive Rollup: Digital Work Throughput and Cycle Time
+
+Because every other executive playbook in this catalog is conversation-shaped, digital/back-office
+throughput needs its own headline metrics rather than being forced into `nOffered`/`nConnected`:
+
+```
+backlogCount        = nWorkitemsCreated - nWorkitemsClosed   (open at period end)
+avgCycleTimeHours   = mean(dateClosed - dateCreated)         (items closed in the period)
+overdueRate%        = nOverdue / nWorkitemsCreated           (dateDue < now AND not Closed)
+throughputByAssignee = nWorkitemsClosed grouped by assignee.id
+```
+
+Present alongside the voice AHT/SLA cards, not merged into them — digital case work and voice
+handle time are not comparable units, but backlog and overdue rate are exactly the kind of
+single-number health check an executive rollup exists to surface.
+
+**Validation status:** the Task Management query-job endpoints are catalog-registered
+(`taskmanagement.create.workitems.query.job` → `taskmanagement.get.workitems.query.job.status` →
+`taskmanagement.get.workitems.query.job.results`) but not yet exercised against a live org.
+Field names above (`statusCategory`, `dateDue`, `assignee.id`) are best-effort pending Track A
+live validation, consistent with how every other unvalidated dataset in this catalog is flagged.
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Digital Work Investigation |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | |
+| `conversations.search.participant.attributes` | ● | | | | | | |
+| `quality.get.evaluations.query` | ● | ○ | | | | | |
+| `quality.get.surveys` | ● | | | ● | | | |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | |
+| `routing-queue-members` | | ● | | | | | |
+| `authorization.get.single.division` | | | ● | | | | |
+| `authorization.list.division.queues` | | | ● | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | ● |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | |
+| `coaching.get.appointments` | | | ● | | | ○ | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | |
+| `analytics.query.flow.observations` | | | | | ● | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | |
+| `alerting.get.alerts` | | | | ○ | ● | | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | |
+| `users.get.user.routing.skills` | | | | | | ● | |
+| `users.get.user.queue.memberships` | | | | | | ● | |
+| `users.get.bulk.user.presences` | | | | | | ● | |
+| `routing.get.user.utilization` | | | | | | ○ | |
+| `audit-logs` | | | | | | ● | |
+| `voicemail.get.queue.messages` | | ○ | | ○ | | | |
+| `analytics.get.botflow.sessions` | | | | ○ | | | |
+| `analytics.get.botflow.divisions.reportingturns` | | | | | | | |
+| `taskmanagement.query.workitems` | | | | | | | ● |
+| `taskmanagement.get.workitem.wrapups` | | | | | | | ○ |
+| `taskmanagement.get.workitem.history` | | | | | | | ○ |
 
 ---
 
@@ -519,6 +622,12 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `nVoicemail` | Voicemail messages left for a queue in the window | Abandon-rate reconciliation |
+| `nWorkitemsCreated` | Task Management work items created in the window | Digital-work volume |
+| `nWorkitemsClosed` | Task Management work items closed in the window | Digital-work throughput |
+| `backlogCount` | `nWorkitemsCreated - nWorkitemsClosed`, open at period end | Digital-work backlog |
+| `avgCycleTimeHours` | Mean time from work item creation to close | Digital-work AHT equivalent |
+| `nOverdue` | Work items with `dateDue` in the past and not yet closed | Digital-work SLA misses |
 
 ---
 

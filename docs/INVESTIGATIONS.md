@@ -233,6 +233,27 @@ fields carried over by user records embedded under each membership entry.
 | conversationAnalytics | `analytics-conversation-details-query` (campaign/window body filter) | `campaignId` | Conversation analytics rows tied to the campaign in the requested window |
 | outboundAbandons | `(derived)` | `campaignId` | Derived abandon-focused evidence extracted from outbound events |
 
+### 4.5 Digital work investigation _(catalog recipe added 2026-09-12 — composer not yet built)_
+
+**Proposed cmdlet:** `Get-GenesysDigitalWorkInvestigation -QueueId <x> -Since <window>`
+**InvestigationKey:** `digital-work-investigation`
+
+The non-conversational counterpart to the Queue and Division investigations, covering Task
+Management work items (digital/back-office work — cases, tickets, follow-ups) by work queue or
+division. Full step/join/metric design lives in
+[`ENDPOINT_COMBINATIONS.md` § 10](ENDPOINT_COMBINATIONS.md#10-digital-work--task-management-investigation)
+and as the `digital-work-investigation` recipe in `catalog/genesys.catalog.json`. Unlike the four
+investigations above, this one exists today only as a catalog recipe: the datasets and combination
+are defined and schema-validated, but no `Invoke-Investigation`-based `Genesys.Ops` cmdlet consumes
+it yet, and its seed dataset (`taskmanagement.query.workitems`) is unvalidated pending Track A.
+
+| Step | DatasetKey | JoinOn | Purpose |
+| --- | --- | --- | --- |
+| workitems | `taskmanagement.query.workitems` | seed | Work item id, type, status/statusCategory, priority, queue, division, assignee, lifecycle dates |
+| assigneeIdentity | `users.division.analysis.get.users.with.division.info` | `assignee.id` | Resolves each work item's assignee to a named agent and division |
+| wrapups | `taskmanagement.get.workitem.wrapups` | `workitemId` | Wrap-up code(s) per item, on-demand for flagged items |
+| history | `taskmanagement.get.workitem.history` | `workitemId` | Status/reassignment history per item, on-demand for stuck items |
+
 ## 5. Sample outputs
 
 Deterministic sample outputs are committed for review and demos:

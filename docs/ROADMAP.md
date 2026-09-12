@@ -431,9 +431,28 @@ established and proven across all three flagships.
 - [x] Flagship investigation visibility extensions: Agent routing/utilization,
       Conversation survey enrichment, Queue transfer/wrap-up context, and
       committed deterministic demo outputs.
+- [x] Catalog-level combination review (2026-09-12): added the
+      `digital-work-investigation` recipe and
+      `digital-work-throughput-and-cycle-time` executive playbook covering
+      Task Management work items (digital/back-office queues) as the
+      non-conversational counterpart to Queue/Division investigation; added a
+      `voicemail-fallback` step to `queue-investigation` so abandon-rate KPIs
+      reconcile against voicemail messages; added Bot Flow session/turn
+      endpoints to `flow-and-ivr-diagnostics`. Catalog-only — no
+      `Genesys.Ops` cmdlet or PowerShell composer exists yet for the new
+      `digital-work-investigation` recipe; see the item below.
+- [ ] Ops cmdlet for the Digital Work investigation
+      (`Get-GenesysDigitalWorkInvestigation`) implementing the
+      `digital-work-investigation` catalog recipe added 2026-09-12, following
+      the `Invoke-Investigation` composer contract used by the Agent/
+      Conversation/Queue flagships. Gated on Track A live validation of the
+      Task Management query-job endpoints (see
+      `docs/ENDPOINT_COMBINATIONS.md#10-digital-work--task-management-investigation`).
 - [ ] Additional flagship investigations identified during 1.0–1.2
-      (candidates: Division, Flow, Outbound Campaign) — only if a stakeholder
-      names a concrete use case.
+      (candidates: Flow, Outbound Campaign) — only if a stakeholder names a
+      concrete use case. Division and Digital Work are now covered by
+      catalog recipes (see above); Outbound Campaign already has a
+      composer-shaped design in `docs/INVESTIGATIONS.md` §4.4.
 
 ---
 

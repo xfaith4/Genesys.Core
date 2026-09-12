@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-12 (catalog — digital work investigation, voicemail and bot-flow enrichment)
+
+### Added
+
+- **New curated catalog endpoints** in `catalog/genesys.catalog.json`: `voicemail.get.queue.messages`,
+  `analytics.get.botflow.sessions`, `analytics.get.botflow.divisions.reportingturns`, and the
+  Task Management work-item surface (`taskmanagement.create.workitems.query.job`,
+  `taskmanagement.get.workitems.query.job.status`, `taskmanagement.get.workitems.query.job.results`,
+  `taskmanagement.get.workitem`, `taskmanagement.get.workitem.history`,
+  `taskmanagement.get.workitem.wrapups`). All raw endpoints already existed in the auto-mirrored
+  catalog; these are the hand-curated, paging/retry-annotated aliases used by combination recipes.
+- **New `taskmanagement.query.workitems` dataset** and `workitems_query_jobs` transaction/paging
+  profiles, following the same async submit/poll/results shape as `audit-logs` and
+  `analytics-conversation-details`. Marked `validationStatus: unvalidated` pending Track A live
+  validation, consistent with every other not-yet-exercised dataset in the catalog.
+- **New `digital-work-investigation` investigation recipe** and **`digital-work-throughput-and-cycle-time`
+  executive playbook** — the non-conversational counterpart to the Queue and Division investigations,
+  covering Task Management work items (cases/tickets/back-office work) by queue or division:
+  backlog, cycle time, overdue rate, and per-assignee throughput.
+- **`voicemail-fallback` step added to the `queue-investigation` recipe** — reconciles
+  `nAbandoned` against voicemail messages left for the queue so abandon-rate KPIs are not
+  overstated for queues with a working voicemail fallback.
+- **Bot Flow diagnostics added to the `flow-and-ivr-diagnostics` playbook** —
+  `analytics.get.botflow.sessions` and `analytics.get.botflow.divisions.reportingturns` for
+  self-service containment root-cause when the flow is a Bot Flow rather than a classic
+  Architect inbound flow.
+- **`docs/ENDPOINT_COMBINATIONS.md`** gained a new numbered Pattern 10 (Digital Work / Task
+  Management Investigation), a voicemail-fallback subsection under Pattern 2, a bot-flow
+  diagnostics subsection under Pattern 5, an eighth column (`Digital Work Investigation`) and six
+  new rows in the dataset combination reference matrix, and six new metric glossary entries
+  (`nVoicemail`, `nWorkitemsCreated`, `nWorkitemsClosed`, `backlogCount`, `avgCycleTimeHours`,
+  `nOverdue`).
+
+Schema-validated (`catalog/schema/genesys.catalog.schema.json`) and cross-checked so every
+`dataset`/`datasetsInOrder` reference in `combinations` resolves to a real `datasets` or
+`endpoints` key — no dangling references introduced.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

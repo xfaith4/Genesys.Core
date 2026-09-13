@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-13  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,7 +19,11 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+`byoi-conversation-enrichment` recipe key; Pattern 10 maps to `skill-coverage-gap-analysis`;
+Pattern 11 maps to `alert-root-cause-drilldown`; Pattern 12 maps to
+`digital-engagement-journey-correlation`; Pattern 13 maps to the executive playbook
+`coaching-effectiveness-and-score-trend`; Pattern 14 maps to the voice-engineer playbook
+`integration-and-api-throttling-diagnostics`. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
@@ -36,7 +40,12 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Skill Coverage Gap Analysis](#10-skill-coverage-gap-analysis)
+11. [Alert Root-Cause Drilldown](#11-alert-root-cause-drilldown)
+12. [Digital Engagement / Journey Correlation](#12-digital-engagement--journey-correlation)
+13. [Coaching Effectiveness Rollup (Executive)](#13-coaching-effectiveness-rollup-executive)
+14. [Integration & API Throttling Diagnostics (BYOI)](#14-integration--api-throttling-diagnostics-byoi)
+15. [Dataset Combination Reference Matrix](#15-dataset-combination-reference-matrix)
 
 ---
 
@@ -442,59 +451,276 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Skill Coverage Gap Analysis
+
+**Subject:** One `skillId` (or an org-wide sweep with no filter) + time window
+**Use case:** A staffing analyst suspects a skill-based routing queue is understaffed for a
+particular skill, but skills are assigned to agents independently of queue or division — an
+agent's skill set follows them everywhere they're eligible to route. A single-queue or
+single-division view cannot see the whole picture; this pattern can.
+
+**Core question:** *Do we have enough qualified agents for this skill, relative to how often it's requested — and is that true in every division, or just on average?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing.get.all.routing.skills` | seed → `skillId` | Skill catalog — id/name, org-wide or scoped to one skill |
+| 2 | `routing.get.skill.groups` | `skillIds[]` contains `skillId` | Skill group membership and `memberDivisionIds` — the first division-level signal |
+| 3 | `users` | fan-out source | Active agent roster to check for skill assignment |
+| 4 | `users.get.user.routing.skills` | `userId` (fan-out) | Per-agent skill id, proficiency, `state` (active/inactive) |
+| 5 | `analytics-conversation-details-query` | window + `requestedRoutingSkillIds` contains `skillId` | Demand-side volume — conversations that actually requested this skill, with outcome |
+| 6 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` (from step 5) | Confirms whether the gap is producing real pain (abandons, long waits) on the affected queues |
+| 7 | `users.division.analysis.get.users.with.division.info` | `userId` (from step 4) | Breaks the qualified-agent count out by division |
+
+### Key Joins
+
+```
+routing.get.all.routing.skills.id
+  → routing.get.skill.groups[].skillIds[] (group-level rollup)
+  → users.get.user.routing.skills[].id (per-agent qualification, fan-out over all users)
+
+analytics-conversation-details-query[].requestedRoutingSkillIds[]
+  → routing.get.all.routing.skills.id (demand-side volume for the coverage ratio denominator)
+
+users.get.user.routing.skills[].userId
+  → users.division.analysis.get.users.with.division.info[].id (division breakout)
+```
+
+### Analytical Questions Answered
+
+- How many active, qualified agents exist for this skill, org-wide and per division?
+- How much conversation volume actually requests this skill in the window?
+- Is the coverage ratio (qualified agents ÷ skill-request volume) declining over successive windows?
+- Are the queues that route on this skill showing rising abandons or wait times — i.e. is the gap material, not just theoretical?
+- Is a skill adequately staffed org-wide but critically short in one specific division's agent pool?
+
+### Why This Isn't Just Queue Investigation
+
+Genesys Cloud does not attach a fixed skill requirement to a queue's configuration — skills are
+requested per-conversation (via Architect flow or routing rule) and matched against whichever
+agents currently hold that skill, regardless of queue or division membership. `queue-investigation`
+answers "how did this queue perform"; this pattern answers "do we have the people," which is a
+staffing question that can only be answered by looking at the skill and its agent population
+directly, then cross-referencing the queues and divisions that happen to depend on it.
+
+---
+
+## 11. Alert Root-Cause Drilldown
+
+**Subject:** One `alertId` (a currently firing platform alert)
+**Use case:** Real-Time Operations Monitoring (Pattern 5) surfaces that an alert is firing, but an
+alert list alone just says *something* crossed a line. A NOC analyst or supervisor needs to know
+which line, on which resource, and whether it's a spike or a sustained condition before deciding
+whether to act.
+
+**Core question:** *This alert fired — what actually breached, on what, and is it still happening?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `alerting.get.alerts` | seed → `alertId` | `ruleId`, `resourceId`, `resourceType`, `triggeredTime`, current value |
+| 2 | `alerting.get.rules` | `ruleId` | The metric name, comparison operator, and threshold that was actually breached |
+| 3a *(resourceType=queue)* | `analytics.query.queue.observations.real.time.stats` | `queueId` | Live `oWaiting`/`oInteracting`/`oOnQueueUsers` for the alerting queue |
+| 3b *(resourceType=edge/trunk)* | `telephony.get.edge.performance.metrics` | `edgeId` | CPU, memory, active call count on the alerting Edge |
+| 3c *(resourceType=user)* | `analytics.query.user.observations.real.time.status` | `userId` | Current presence/routing status for the alerting agent |
+| 4 | `analytics.query.conversation.aggregates.queue.performance` | `queueId`, short trailing window | Distinguishes a transient spike from a sustained trend |
+
+### Branch Rule
+
+`resourceType` on the alert instance selects **exactly one** of steps 3a/3b/3c — never fan out to
+all three. This is the pattern that keeps an alert drilldown from turning into a full data dump:
+resolve the resource type first, then pull only the metrics relevant to that resource class.
+
+### Analytical Questions Answered
+
+- Which metric and threshold actually fired — not just "an alert is active"?
+- Is the breach still current, or has the underlying condition already cleared?
+- Is this a momentary spike (self-resolving) or a sustained condition needing a staffing/config change?
+- What follow-up investigation applies? (Route to `queue-investigation`, `trunk-and-edge-health-check`, or `agent-investigation` once the resource is identified.)
+
+### Composition Note
+
+This pattern is deliberately a *bridge*, not a terminus — it exists to hand off to the right deep
+dive (Patterns 2, 5, 7, or the voice-engineer trunk/edge playbook) once the alerting resource and
+metric are known, rather than duplicating those investigations' own steps.
+
+---
+
+## 12. Digital Engagement / Journey Correlation
+
+**Subject:** One `conversationId` (a digital — chat/message — conversation)
+**Use case:** A digital channel analyst wants to know whether a web messaging conversation came
+from a customer-initiated chat or from a Predictive Engagement action map (a proactive offer
+triggered by journey behaviour), and whether that offer actually led to a good outcome. This is the
+Embeddable Framework / journey counterpart to BYOI enrichment (Pattern 6): BYOI explains
+conversations injected from an *external* system, this explains digital conversations originated by
+an *on-site* journey trigger rather than the customer opening chat unprompted.
+
+**Core question:** *Did this digital conversation come from a proactive engagement, which campaign, and did it work?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `conversations.get.conversation.object` | seed → `conversationId` | `mediaType`, `participants[].purpose`, `originatingDirection` — confirms this is a digital conversation |
+| 2 | `conversations.get.conversation.customattributes` | `conversationId` | Action-map/campaign attributes set at engagement time (e.g. originating action map id, trigger page) |
+| 3 | `journey.get.action.maps` | action-map id from step 2 | Action map name, trigger condition, target segment, offered action — the human-readable campaign definition |
+| 4 | `conversations.search.participant.attributes` | `conversationId` | Architect flow variables captured during the digital session (bot handoff, intent capture) |
+| 5 | `analytics.get.single.conversation.analytics` | `conversationId` | Segment timing — wait, handle, disconnect type |
+| 6 | `quality.get.surveys` | `conversationId` | Post-chat CSAT/NPS if triggered |
+
+### Identifying an Action-Map-Originated Conversation
+
+A conversation is action-map-originated when `conversations.get.conversation.customattributes`
+carries an action-map/journey attribute key; its absence means the conversation was customer-
+initiated (organic). **Always compare the two populations** — reporting only on triggered
+conversations overstates the program's apparent volume and hides its true conversion rate.
+
+### Analytical Questions Answered
+
+- Was this digital conversation customer-initiated or proactively triggered by a journey action map?
+- Which action map, and what trigger condition produced it?
+- Do action-map-originated conversations have better or worse CSAT and handle time than organic ones?
+- What's the actual conversion rate (offers extended vs. conversations that resulted from step 3's target segment)?
+
+### Embeddable Framework Note
+
+The Embeddable Framework's condensed conversation view (used by the web widget) is the same object
+shape returned by `conversations.get.conversation.object` — `participants[].purpose`,
+`participants[].state`, `participants[].calls[].state/muted/held` — so no separate dataset or
+transformation is needed to reconcile widget-side state with the server-side conversation record.
+
+---
+
+## 13. Coaching Effectiveness Rollup (Executive)
+
+**Subject:** Organisation or division, reporting window (monthly/quarterly)
+**Use case:** A QM/WFM director needs to justify (or cut) a coaching program budget. Reporting that
+"N coaching sessions happened" answers nothing an executive cares about; this playbook answers
+whether coaching measurably moved quality scores.
+
+**Core question:** *Did coaching actually improve scores, and by how much compared to agents who weren't coached?*
+
+### Dataset Steps (ordered)
+
+| Dataset Key | Role |
+|-------------|------|
+| `coaching.get.appointments` | Completed coaching sessions per agent, with date |
+| `quality.get.evaluations.query` | Individual evaluation scores, dated — split into a pre-coaching and post-coaching trailing window per agent |
+| `quality.get.agents.activity` | Per-agent evaluation count/average/high/low for the reporting window |
+| `analytics.query.conversation.aggregates.agent.performance` | `tHandle` per agent, for the same before/after comparison |
+
+### Output Metrics
+
+- `coachingSessionCount` (completed, in window)
+- `evalAvgScore` — 30-day trailing average **before** an agent's first completed coaching session
+- `evalAvgScore` — 30-day trailing average **after** an agent's last completed coaching session
+- `scoreDelta` (after − before) and `tHandle` delta, per coached agent
+- **Coached cohort** score delta vs. **uncoached cohort** score delta over the same period — the actual causal comparison
+
+### Executive Presentation
+
+A two-cohort comparison (coached vs. not-coached this period) with score-delta bars, plus a
+per-agent before/after sparkline *for the coached cohort only*. Deliberately excludes a full
+per-agent history table for every agent in the org — that would be the data dump this catalog is
+designed to avoid; the coached-cohort delta is the number that answers the executive's question.
+
+---
+
+## 14. Integration & API Throttling Diagnostics (BYOI)
+
+**Subject:** One OAuth client (a BYOI provider integration or other custom integration)
+**Use case:** A BYOI provider integration starts failing to inject conversations, or conversations
+appear to drop silently. The instinctive first check is the SIP/media path, but a `429` on
+`POST /api/v2/conversations/providers/{providerId}/calls` looks identical to a dropped call from
+the provider's point of view. This playbook checks the API control plane before the media plane.
+
+**Core question:** *Is the integration actually broken, or is it being rate-limited (or mis-scoped) at the API layer?*
+
+### Dataset Steps (ordered)
+
+| Dataset Key | Role |
+|-------------|------|
+| `oauth.get.clients` | Confirms the integration's OAuth client exists and has the expected scopes (missing scope → `403`, not throttling) |
+| `usage.get.api.usage.by.client` | Per-client call volume — sustained near the rate ceiling in the incident window is the throttling signal |
+| `usage.get.api.usage.organization.summary` | Org-wide usage — rules out a noisy-neighbor client saturating the shared limit |
+| `analytics.query.rate.limit.aggregates` | `nOverLimit` — confirms actual `429`s occurred in the incident window, not just proximity to the ceiling |
+| `oauth.get.client.usage.query.results` | Confirms the integration is still calling the API at all (empty results → the problem is upstream of Genesys Cloud) |
+
+### Diagnostic Signals
+
+- Sustained near-ceiling usage on the integration's client, correlated in time with reported missing/delayed conversations → throttling is the root cause.
+- Org-wide usage near cap while the integration's own client is well under its limit → a different client is the actual cause; look elsewhere before touching the integration.
+- Client missing the conversations/BYOI scope → misconfigured authorization, not a capacity problem.
+- No usage recorded for the client at all → the integration has stopped calling out; the fault is on the provider's side of the handoff, not in Genesys Cloud.
+
+### Enrich With
+
+- `alerting.get.alerts` — an organization API-limit alert firing in the same window corroborates the diagnosis.
+- `conversations.get.active.conversations` — confirms whether injected conversations are actually landing during the suspected throttling window.
+
+---
+
+## 15. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.
 
-| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `conversations.get.conversation.object` | ● | | | | | |
-| `analytics.get.single.conversation.analytics` | ● | | | | | |
-| `conversations.get.conversation.recording.metadata` | ● | | | | | |
-| `conversations.get.conversation.customattributes` | ● | | | | | |
-| `conversations.search.participant.attributes` | ● | | | | | |
-| `quality.get.evaluations.query` | ● | ○ | | | | |
-| `quality.get.surveys` | ● | | | ● | | |
-| `telephony.get.sip.messages.for.conversation` | ○ | | | | | |
-| `conversations.get.speech.text.analytics` | ○ | | | | | |
-| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | |
-| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | |
-| `routing.get.single.queue.config` | | ● | | | | |
-| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | |
-| `analytics-conversation-details-query` | | ● | | | | ○ |
-| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | |
-| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | |
-| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | |
-| `routing-queue-members` | | ● | | | | |
-| `authorization.get.single.division` | | | ● | | | |
-| `authorization.list.division.queues` | | | ● | | | |
-| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● |
-| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● |
-| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● |
-| `analytics.query.user.details.activity.report` | | | ● | | | ● |
-| `quality.get.agents.activity` | | | ● | ● | | ○ |
-| `coaching.get.appointments` | | | ● | | | ○ |
-| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | |
-| `analytics.post.transcripts.aggregates.query` | | | | ● | | |
-| `analytics.query.queue.observations.real.time.stats` | | | | | ● | |
-| `analytics.query.conversation.activity.real.time` | | | | | ● | |
-| `analytics.query.user.observations.real.time.status` | | | | | ● | |
-| `analytics.get.agent.active.status` | | | | | ○ | ○ |
-| `users.get.agent.active.conversations` | | | | | ○ | ○ |
-| `users.get.agent.current.routing.status` | | | | | ○ | ○ |
-| `analytics.query.flow.observations` | | | | | ● | |
-| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | |
-| `telephony.get.edge.performance.metrics` | ○ | | | | ● | |
-| `alerting.get.alerts` | | | | ○ | ● | |
-| `users.get.user.details.with.full.expansion` | | | | | | ● |
-| `users.get.user.routing.skills` | | | | | | ● |
-| `users.get.user.queue.memberships` | | | | | | ● |
-| `users.get.bulk.user.presences` | | | | | | ● |
-| `routing.get.user.utilization` | | | | | | ○ |
-| `audit-logs` | | | | | | ● |
+| Dataset Key | Conversation Deep Dive | Queue Investigation | Division Investigation | Executive Rollup | Real-Time Monitoring | Agent Investigation | Skill Coverage | Alert Drilldown | Digital Engagement |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `conversations.get.conversation.object` | ● | | | | | | | | ● |
+| `analytics.get.single.conversation.analytics` | ● | | | | | | | | ● |
+| `conversations.get.conversation.recording.metadata` | ● | | | | | | | | |
+| `conversations.get.conversation.customattributes` | ● | | | | | | | | ● |
+| `conversations.search.participant.attributes` | ● | | | | | | | | ● |
+| `quality.get.evaluations.query` | ● | ○ | | | | | | | |
+| `quality.get.surveys` | ● | | | ● | | | | | ● |
+| `telephony.get.sip.messages.for.conversation` | ○ | | | | | | | | |
+| `conversations.get.speech.text.analytics` | ○ | | | | | | | | |
+| `speech.and.text.analytics.get.sentiment.for.conversation` | ○ | | | | | | | | |
+| `speechandtextanalytics.get.conversation.communication.transcripturl` | ○ | | | | | | | | |
+| `routing.get.single.queue.config` | | ● | | | | | | | |
+| `routing.get.queue.wrapup.codes.by.queue` | | ● | | | | | | | |
+| `analytics-conversation-details-query` | | ● | | | | ○ | ● | | |
+| `analytics.query.conversation.aggregates.queue.performance` | | ● | | ● | | | ● | ● | |
+| `analytics.query.conversation.aggregates.abandon.metrics` | | ● | | ● | | | | | |
+| `analytics.query.queue.aggregates.service.level` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.transfer.metrics` | | ● | | ● | | | | | |
+| `analytics.query.conversation.aggregates.wrapup.distribution` | | ● | ● | ● | | | | | |
+| `routing-queue-members` | | ● | | | | | | | |
+| `authorization.get.single.division` | | | ● | | | | | | |
+| `authorization.list.division.queues` | | | ● | | | | | | |
+| `users.division.analysis.get.users.with.division.info` | | | ● | | | ● | ● | | |
+| `analytics.query.conversation.aggregates.agent.performance` | | | ● | ● | | ● | | | |
+| `analytics.query.user.aggregates.login.activity` | | | ● | ● | | ● | | | |
+| `analytics.query.user.details.activity.report` | | | ● | | | ● | | | |
+| `quality.get.agents.activity` | | | ● | ● | | ○ | | | |
+| `coaching.get.appointments` | | | ● | | | ○ | | | |
+| `analytics.query.conversation.aggregates.digital.channels` | | | | ● | | | | | |
+| `analytics.post.transcripts.aggregates.query` | | | | ● | | | | | |
+| `analytics.query.queue.observations.real.time.stats` | | | | | ● | | | ● | |
+| `analytics.query.conversation.activity.real.time` | | | | | ● | | | | |
+| `analytics.query.user.observations.real.time.status` | | | | | ● | | | ● | |
+| `analytics.get.agent.active.status` | | | | | ○ | ○ | | | |
+| `users.get.agent.active.conversations` | | | | | ○ | ○ | | | |
+| `users.get.agent.current.routing.status` | | | | | ○ | ○ | | | |
+| `analytics.query.flow.observations` | | | | | ● | | | | |
+| `telephony.get.trunk.metrics.summary` | | | | ○ | ● | | | | |
+| `telephony.get.edge.performance.metrics` | ○ | | | | ● | | | ● | |
+| `alerting.get.alerts` | | | | ○ | ● | | | ● | |
+| `alerting.get.rules` | | | | | | | | ● | |
+| `users.get.user.details.with.full.expansion` | | | | | | ● | | | |
+| `users.get.user.routing.skills` | | | | | | ● | ● | | |
+| `users.get.user.queue.memberships` | | | | | | ● | | | |
+| `users.get.bulk.user.presences` | | | | | | ● | | | |
+| `routing.get.user.utilization` | | | | | | ○ | | | |
+| `audit-logs` | | | | | | ● | | | |
+| `routing.get.all.routing.skills` | | | | | | | ● | | |
+| `routing.get.skill.groups` | | | | | | | ● | | |
+| `users` | | | | | | | ● | | |
+| `journey.get.action.maps` | | | | | | | | | ● |
 
 ---
 
@@ -519,6 +745,9 @@ The matrix below shows which datasets are used across which investigations and r
 | `tSystemPresence` | Time in each system presence | Available, Busy, Away, Offline |
 | `oSentimentScore` | Aggregate sentiment score (STA) | Voice-of-customer indicator |
 | `nSpeechTextAnalyzedConversations` | Conversations with STA analysis | STA coverage |
+| `coverageRatio` | Qualified agents ÷ skill-request volume, for one routing skill | Skill staffing gap indicator |
+| `scoreDelta` | Post-coaching avg eval score − pre-coaching avg eval score, per agent | Coaching program ROI |
+| `nOverLimit` | Count of API calls that exceeded the org/client rate limit in a window | Integration throttling root cause |
 
 ---
 

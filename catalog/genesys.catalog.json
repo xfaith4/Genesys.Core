@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-13T13:08:14.8794970Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -43847,6 +43847,196 @@
           "tHandle (BYOI vs. native comparison)",
           "evaluationScore (BYOI vs. native comparison)"
         ]
+      },
+      "skill-coverage-gap-analysis": {
+        "description": "Cross-queue, cross-division staffing gap analysis for skill-based routing. Skills are assigned to agents independently of queue or division membership, so a skill shortage is invisible to a single-queue or single-division investigation — an agent's skills follow them across every queue and division they serve. Use this recipe to find skills where qualified-agent supply cannot cover requested-skill demand.",
+        "subjectParam": "skillId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "skill-catalog",
+            "dataset": "routing.get.all.routing.skills",
+            "role": "seed",
+            "filterBy": "skillId (optional; omit for org-wide sweep)",
+            "joinKey": "id",
+            "provides": "skill id and name catalog",
+            "description": "The full set of routing skills configured in the org, or a single skill when scoped"
+          },
+          {
+            "step": "skill-groups",
+            "dataset": "routing.get.skill.groups",
+            "joinKey": "skillIds[] contains skillId",
+            "provides": "skill group membership counts and memberDivisionIds",
+            "description": "Skill groups aggregate related skills and are themselves division-scoped — the first place a division-level skill gap becomes visible"
+          },
+          {
+            "step": "agent-roster",
+            "dataset": "users",
+            "role": "fan-out source",
+            "provides": "userId list of active agents to check for skill assignment",
+            "description": "Base population for the per-agent skill fan-out below; filter to active/non-inactive users"
+          },
+          {
+            "step": "agent-skill-assignment",
+            "dataset": "users.get.user.routing.skills",
+            "filterBy": "userId (fan-out over agent-roster)",
+            "joinKey": "userId",
+            "provides": "per-agent skill id, proficiency, and state",
+            "description": "Qualified-agent count for the target skill is the number of agents whose routing skills include skillId with state=active"
+          },
+          {
+            "step": "conversation-demand",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "window + requestedRoutingSkillIds contains skillId",
+            "joinKey": "conversationId",
+            "provides": "conversations that requested this skill, their queueId, and outcome (answered/abandoned/transferred)",
+            "description": "Demand-side signal — conversation session records carry requestedRoutingSkillIds; volume here is the denominator for coverage ratio"
+          },
+          {
+            "step": "queue-performance-for-affected-queues",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId list derived from conversation-demand",
+            "joinKey": "queueId",
+            "provides": "nOffered, nAbandoned, tHandle for queues that route on this skill",
+            "description": "Confirms whether skill scarcity is actually producing queue-level pain (abandons, long waits) or is a latent gap with no material impact yet"
+          },
+          {
+            "step": "division-crosscut",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from agent-skill-assignment",
+            "joinKey": "userId",
+            "provides": "divisionId per qualified agent",
+            "description": "Breaks the qualified-agent count out by division — a skill can be adequately staffed org-wide but critically short in one division's agent pool"
+          }
+        ],
+        "identificationRule": "Coverage ratio = count(agents with this skill, state=active) / count(conversations requesting this skill in window). A ratio trending down over successive windows while nAbandoned rises for the affected queues is the actionable signal — not the raw agent count alone.",
+        "executiveMetrics": [
+          "qualifiedAgentCount (by skill, by division)",
+          "skillRequestVolume (nConversations requesting skillId)",
+          "coverageRatio (qualifiedAgentCount / skillRequestVolume)",
+          "abandonRate% for skill-affected queues",
+          "divisionsBelowCoverageThreshold (count)"
+        ]
+      },
+      "alert-root-cause-drilldown": {
+        "description": "Turns a firing platform alert into an actionable diagnosis by resolving the alert to its rule definition and then to the live metric that breached threshold. Designed to sit on top of real-time-operations-monitoring: an alert list by itself just says something crossed a line, this recipe says which line, on which resource, and what to check next.",
+        "subjectParam": "alertId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "firing-alert",
+            "dataset": "alerting.get.alerts",
+            "role": "seed",
+            "filterBy": "alertId",
+            "joinKey": "id",
+            "provides": "ruleId, resourceId, resourceType, triggeredTime, currentValue",
+            "description": "The alert instance — identifies which rule fired and against which resource"
+          },
+          {
+            "step": "rule-definition",
+            "dataset": "alerting.get.rules",
+            "filterBy": "ruleId",
+            "joinKey": "id",
+            "provides": "metric name, comparison operator, threshold value, notification targets",
+            "description": "Explains why the alert fired — the exact metric and threshold that was breached, not just that something was 'bad'"
+          },
+          {
+            "step": "resource-drilldown-queue",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "filterBy": "resourceId (when resourceType=queue)",
+            "joinKey": "queueId",
+            "provides": "current oWaiting, oInteracting, oOnQueueUsers for the alerting queue",
+            "description": "Confirms the breach is still live and quantifies current severity — branch taken only when the alert's resourceType is a queue"
+          },
+          {
+            "step": "resource-drilldown-edge-trunk",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "filterBy": "resourceId (when resourceType=edge or trunk)",
+            "joinKey": "edgeId",
+            "provides": "CPU, memory, active call count on the alerting Edge appliance",
+            "description": "Branch taken only when the alert's resourceType is telephony infrastructure; pair with telephony.get.trunk.metrics.summary for trunk-scoped alerts"
+          },
+          {
+            "step": "resource-drilldown-user",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "filterBy": "resourceId (when resourceType=user)",
+            "joinKey": "userId",
+            "provides": "current presence and routing status for the alerting agent",
+            "description": "Branch taken only when the alert's resourceType is a user (e.g. adherence or long-not-responding alerts)"
+          },
+          {
+            "step": "recent-trend-confirmation",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "resourceId, short trailing window (e.g. last 1-4 hours)",
+            "joinKey": "queueId",
+            "provides": "whether the breach is a spike or a sustained trend",
+            "description": "Distinguishes a transient blip (self-resolving) from a sustained condition (needs staffing/config action) — the difference that keeps this from being a data dump"
+          }
+        ],
+        "identificationRule": "resourceType on the alert instance determines which drilldown branch applies — route to exactly one of resource-drilldown-queue / resource-drilldown-edge-trunk / resource-drilldown-user, never all three. This recipe composes with queue-investigation, trunk-and-edge-health-check, or agent-investigation for the follow-up deep dive once the resource is identified.",
+        "executiveMetrics": [
+          "alertsFired (count, by rule, by resourceType)",
+          "meanTimeToAcknowledge (if alert history retained)",
+          "sustainedVsTransientRatio",
+          "alertsWithNoConfiguredRule (coverage gap — metric breaches not currently alerted on)"
+        ]
+      },
+      "digital-engagement-journey-correlation": {
+        "description": "Correlates a web messaging/chat conversation with the Predictive Engagement action map that produced it, for investigating proactive-offer effectiveness and Embeddable Framework widget behaviour. Complements byoi-conversation-enrichment: BYOI explains conversations injected from an external telephony/CRM system, this recipe explains digital conversations originated by an on-site journey trigger rather than a customer-initiated chat.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType, participants[].purpose, originatingDirection",
+            "description": "Confirms this is a digital (message/chat) conversation and identifies the customer participant; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state) is the same object shape surfaced to the web widget"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "action-map/campaign attributes set at engagement time (e.g. originating action map id, trigger page URL)",
+            "description": "The primary link from the conversation back to the proactive engagement that started it, when one exists"
+          },
+          {
+            "step": "action-map-catalog",
+            "dataset": "journey.get.action.maps",
+            "joinKey": "attributes action-map id -> action map id",
+            "provides": "action map name, trigger conditions, target segment, offered action (webchat/webMessagingOffer/architectFlow)",
+            "description": "Resolves the id captured in custom attributes to a human-readable campaign definition — what condition on the customer's journey caused this conversation to be offered"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "Architect flow variables captured during the digital session",
+            "description": "Same shape as voice IVR variables — useful when the engagement handed off into a bot or Architect flow before reaching an agent"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing — wait, handle, disconnect type for the digital session",
+            "description": "Digital conversations still flow through queue/ACW segments identically to voice; use for handle-time comparison against organic (non-triggered) chats"
+          },
+          {
+            "step": "post-chat-survey",
+            "dataset": "quality.get.surveys",
+            "joinKey": "conversationId",
+            "provides": "CSAT/NPS if a post-chat survey was triggered",
+            "description": "Outcome measure for whether the proactive engagement led to a satisfactory interaction"
+          }
+        ],
+        "identificationRule": "A conversation is action-map-originated when conversations.get.conversation.customattributes contains an action-map/journey attribute key; absence of that key means the digital conversation was customer-initiated (organic) rather than proactively triggered. Compare the two populations rather than reporting only on triggered conversations.",
+        "executiveMetrics": [
+          "actionMapAttributedConversationVolume vs. organicDigitalVolume",
+          "conversionRate (offers extended vs. accepted, from action map data)",
+          "avgCsat (triggered vs. organic)",
+          "tHandle (triggered vs. organic)"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -44057,6 +44247,30 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "coaching-effectiveness-and-score-trend": {
+        "description": "Measures whether coaching activity actually moves quality scores, rather than just reporting that coaching happened. Answers the question a QM/WFM director actually asks before renewing a coaching program: did it work?",
+        "datasetsInOrder": [
+          "coaching.get.appointments",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "analytics.query.conversation.aggregates.agent.performance"
+        ],
+        "joinOn": "userId",
+        "groupBy": [
+          "userId",
+          "divisionId",
+          "coachingAppointmentStatus"
+        ],
+        "outputMetrics": [
+          "coachingSessionCount (completed, in window)",
+          "evalAvgScore (30-day trailing average before first completed coaching session)",
+          "evalAvgScore (30-day trailing average after last completed coaching session)",
+          "scoreDelta (after - before)",
+          "tHandle delta (after - before)",
+          "coachedCohortScoreDelta vs. uncoachedCohortScoreDelta"
+        ],
+        "executivePresentation": "Two-cohort comparison (coached vs. not-coached agents this period) with score-delta bars; per-agent before/after sparkline for the coached cohort only, to keep the view to a single decision-relevant page rather than every agent's full history"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -44176,6 +44390,27 @@
         "enrichWith": [
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
+        ]
+      },
+      "integration-and-api-throttling-diagnostics": {
+        "description": "Diagnoses a BYOI or other custom integration that has started failing or dropping conversations, by checking whether its OAuth client is being rate-limited rather than assuming an application bug. A voice engineer's first instinct on a BYOI provider outage is to check the SIP/media path; this playbook checks the API control plane first, since a 429 on POST /api/v2/conversations/providers/{providerId}/calls looks like a dropped call from the provider's side.",
+        "datasetsInOrder": [
+          "oauth.get.clients",
+          "usage.get.api.usage.by.client",
+          "usage.get.api.usage.organization.summary",
+          "analytics.query.rate.limit.aggregates",
+          "oauth.get.client.usage.query.results"
+        ],
+        "diagnosticSignals": [
+          "usage.get.api.usage.by.client sustained near the per-client rate ceiling for the integration's OAuth client id during the incident window → conversation injection calls are being throttled with HTTP 429, not silently dropped by the provider",
+          "analytics.query.rate.limit.aggregates nOverLimit > 0 in the incident window, correlated by time to reported missing/delayed conversations → confirms throttling as root cause rather than coincidence",
+          "usage.get.api.usage.organization.summary showing overall org usage near cap even when the integration's own client is well under its limit → a noisy-neighbor client, not the integration, is the actual cause",
+          "oauth.get.clients showing the integration's client missing the expected conversations/BYOI scope → failures are 403 authorization errors being misread as throttling",
+          "oauth.get.client.usage.query.results absent or empty for the client → the integration has stopped calling the API entirely (upstream/network issue on the provider's side, not a Genesys Cloud limit)"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (organization API-limit alert firing in the same window)",
+          "conversations.get.active.conversations (confirm whether injected conversations are actually landing in Genesys Cloud during the suspected throttling window)"
         ]
       }
     }

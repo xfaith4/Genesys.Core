@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-09-13 (endpoint combination catalog expansion)
+
+### Added
+
+- Added five new combinations to `catalog/genesys.catalog.json`'s `combinations`
+  section, filling gaps left by the existing seven investigation recipes, nine
+  executive playbooks, and five voice-engineer playbooks — every referenced
+  `dataset` value verified to resolve to an existing `datasets` or `endpoints`
+  entry in the same catalog file:
+  - `investigationRecipes.skill-coverage-gap-analysis` — cross-queue,
+    cross-division staffing gap analysis for skill-based routing. Skills follow
+    an agent across every queue and division they serve, so a shortage is
+    invisible to a single-queue or single-division view; this recipe computes
+    a coverage ratio (qualified agents ÷ skill-request volume) and breaks it
+    out by division.
+  - `investigationRecipes.alert-root-cause-drilldown` — resolves a firing
+    `alerting.get.alerts` entry to its `alerting.get.rules` threshold
+    definition, then branches to exactly one resource-specific drilldown
+    (queue / edge-trunk / user) based on the alert's `resourceType`, so a
+    real-time alert becomes an actionable diagnosis instead of a raw list.
+  - `investigationRecipes.digital-engagement-journey-correlation` — the
+    Embeddable Framework / Predictive Engagement counterpart to
+    `byoi-conversation-enrichment`: correlates a digital conversation's
+    custom attributes with `journey.get.action.maps` to identify whether it
+    was customer-initiated or proactively triggered, and compares outcomes
+    between the two populations. First use of the previously-orphaned
+    `journey.get.action.maps` dataset in any recipe.
+  - `executiveReportingPlaybooks.coaching-effectiveness-and-score-trend` —
+    measures whether coaching sessions actually move quality scores (coached
+    vs. uncoached cohort score delta), rather than only reporting session
+    counts.
+  - `voiceEngineerPlaybooks.integration-and-api-throttling-diagnostics` —
+    checks the API control plane (`oauth.get.clients`, `usage.get.api.usage.*`,
+    `analytics.query.rate.limit.aggregates`) before assuming a BYOI provider
+    outage is a SIP/media fault, since a `429` on the conversation-injection
+    endpoint looks identical to a dropped call from the provider's side.
+- Documented all five as sections 10–14 in `docs/ENDPOINT_COMBINATIONS.md`,
+  renumbered the dataset reference matrix to section 15, added three matrix
+  columns (Skill Coverage / Alert Drilldown / Digital Engagement) and the new
+  dataset rows they introduce, and extended the metric glossary with
+  `coverageRatio`, `scoreDelta`, and `nOverLimit`.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

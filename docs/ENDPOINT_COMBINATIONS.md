@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-14  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,9 +19,10 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
-either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+`byoi-conversation-enrichment` recipe key; Pattern 11 (Division / Business-Unit Executive Rollup)
+maps to the `division-and-business-unit-rollup` key under `executiveReportingPlaybooks`. Every
+`dataset` value in a JSON recipe resolves to either a curated `datasets` entry or a raw
+`endpoints` operationId in the same catalog file — there is no third namespace.
 
 ---
 
@@ -37,6 +38,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Division / Business-Unit Executive Rollup](#11-division--business-unit-executive-rollup)
 
 ---
 
@@ -102,7 +104,9 @@ resource pressure during the conversation window.
 ### BYOI Indicator
 
 If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
+the conversation was injected via a BYOI integration — see [Section 6](#6-byoi-external-conversation-enrichment)
+for the actual injection mechanism (Open Messaging for digital channels; SIP/BYOC for voice — there
+is no single generic injection endpoint).
 Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
 The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
 
@@ -340,9 +344,31 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider, or a custom messaging channel) and was injected into Genesys Cloud
+via a Bring-Your-Own-Instance integration. The conversation appears in Genesys analytics and
+recordings, but context lives in the external system.
+
+**Correction (2026-09-14):** an earlier revision of this document cited a single generic
+`POST /api/v2/conversations/providers/{providerId}/calls` injection endpoint. That path does not
+exist in the Genesys Cloud API (verified against the bundled OpenAPI spec — see
+`GenesysCloudAPIEndpoints.json` → `openapi-cache-*` → `paths`, 1,768 entries, none matching). There
+is no single generic injection endpoint; the real mechanism is media-type-specific:
+
+- **Digital/message BYOI** (chat, SMS, social, custom channels) goes through the **Open Messaging**
+  inbound endpoints, all already present in `catalog/genesys.catalog.json` as raw `endpoints`:
+  - `POST /api/v2/conversations/messages/inbound/open` — starts a new inbound conversation
+  - `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message` — subsequent
+    inbound messages on an existing conversation
+  - `POST /api/v2/conversations/messages/{integrationId}/inbound/open/event` — typing indicators
+  - `POST /api/v2/conversations/messages/{integrationId}/inbound/open/receipt` — delivery/read
+    receipts
+  - `GET /api/v2/conversations/messages/{conversationId}` (`getConversationsMessage`) is the
+    read-side counterpart used by the new `digital-message-envelope` investigation step below.
+- **Voice BYOI** has no REST injection call at all. The external system delivers the call over
+  SIP through a BYOC Cloud/Carrier trunk or an on-prem Edge; the call simply arrives already
+  routed through Architect like any inbound PSTN call. The definitive evidence of a voice BYOI
+  leg is therefore the SIP trace (`telephony.get.sip.messages.for.conversation`), not a
+  request/response API call.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
@@ -368,6 +394,7 @@ A non-null `externalTag` is the definitive BYOI indicator.
 |------|-------------|--------------|
 | + | `conversations.get.conversation.customattributes` | Provider-set custom attributes: CRM case ID, intent label, external call ID |
 | + | `conversations.search.participant.attributes` | IVR/Architect variables set during the injected conversation flow |
+| + *(digital/message media only)* | `getConversationsMessage` (`GET /api/v2/conversations/messages/{conversationId}`) | Provider/messaging envelope: `fromAddress`, `toAddress`, `messageType`, and the originating Open Messaging integration — the digital-channel counterpart to the SIP trace for voice |
 
 ### BYOI Conversation in Analytics
 
@@ -495,6 +522,81 @@ The matrix below shows which datasets are used across which investigations and r
 | `users.get.bulk.user.presences` | | | | | | ● |
 | `routing.get.user.utilization` | | | | | | ○ |
 | `audit-logs` | | | | | | ● |
+
+---
+
+## 11. Division / Business-Unit Executive Rollup
+
+**Subject:** All divisions (or a filtered subset) + reporting window  
+**Use case:** A VP or Director needs the headline scorecard sliced by business unit or
+territory — not by queue. A division is a grouping over agents (and the queues they serve) that
+is **orthogonal to queue membership**: an agent's division assignment does not change as they
+move between queues, and a single division can own queues across multiple functional areas
+(sales, support, retention) and media types. This is the correct grouping key whenever the
+question is "how did *this business unit* do?" rather than "how did *this queue* do?" — the
+Executive Reporting Rollup in Section 4 above is queue-first; this section is division-first and
+answers the same headline questions rolled up one level higher, so a report can show one row per
+business unit instead of one row per queue.
+
+**Core question:** *How did each business unit / territory perform this period, and which one
+needs attention?*
+
+**Machine-readable counterpart:** `combinations.executiveReportingPlaybooks.division-and-business-unit-rollup`
+in `catalog/genesys.catalog.json`.
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `authorization.get.all.divisions` | seed | All division names/IDs to report against |
+| 2 | `authorization.search.division.objects` (objectType=QUEUE) | `divisionId` | Queue IDs per division — drives the queue-level fan-out |
+| 3 | `users.division.analysis.get.users.with.division.info` | `divisionId` | Agent headcount per division |
+| 4 | `analytics.query.conversation.aggregates.division.performance` | `divisionId` | Division-level volume/handle-time rollup — the primary KPI source, already grouped by division |
+| 5 | `analytics.query.conversation.aggregates.queue.performance` | `queueId` (from step 2) | Per-queue detail for drilldown when a division is flagged as an outlier |
+| 6 | `analytics.query.user.aggregates.performance.metrics` | `userId` (from step 3) | Per-agent productivity, rolled up to division average |
+| 7 | `quality.get.agents.activity` | `userId` (from step 3) | QM evaluation coverage/score, rolled up to division average |
+
+### Key Joins
+
+```
+authorization.get.all.divisions[].id
+  → analytics.query.conversation.aggregates.division.performance[].group.divisionId (direct rollup — no queue fan-out needed for headline metrics)
+  → authorization.search.division.objects[].id (queue membership, for drilldown only)
+  → users.division.analysis.get.users.with.division.info[].id (headcount + agent-level joins)
+```
+
+### Why not just group the queue-performance rollup by division client-side?
+
+`analytics.query.conversation.aggregates.queue.performance` does not carry `divisionId` in its
+group dimensions — it groups by `queueId`. Client-side rollup would require resolving every
+`queueId` to its `divisionId` via `authorization.search.division.objects` first, then summing.
+`analytics.query.conversation.aggregates.division.performance` groups by `divisionId` natively and
+should be preferred for the headline number; use the queue-performance dataset only for the
+per-queue drilldown once a division has been flagged as an outlier.
+
+### Alternate Queue Enumeration
+
+`GET /api/v2/routing/queues/divisionviews` (`getRoutingQueuesDivisionviews`) is a queue-domain-native
+alternative to `authorization.search.division.objects` for resolving the queue list of a division.
+Prefer it when the caller holds `routing:queue:view` but not `authorization:division:view` — it
+returns the same queue-to-division membership from the routing API's own perspective.
+
+### Analytical Questions Answered
+
+- Which business unit/territory handled the most volume this period?
+- Which division has the worst abandon rate, and does that trace to one queue or all of them?
+- How does headcount compare to volume across divisions (understaffing signal)?
+- Which division has the lowest average QM score, and is that concentrated in one queue?
+
+### Executive Presentation Pattern
+
+```
+One row per division, sorted by volume or abandon rate:
+  Division | nOffered | nConnected | Abandon % | AHT | Headcount | Avg QM Score
+
+Drilldown (only for flagged divisions):
+  Division → queue-performance breakdown (Section 4 pattern) for that division's queues only
+```
 
 ---
 

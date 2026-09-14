@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-09-14 (endpoint combination review — BYOI correction, division rollup)
+
+### Fixed
+
+- **`byoi-conversation-enrichment` cited a non-existent endpoint.** Both
+  `docs/ENDPOINT_COMBINATIONS.md` and the `identificationRule` in
+  `catalog/genesys.catalog.json` described BYOI injection as a single
+  `POST /api/v2/conversations/providers/{providerId}/calls` call. That path is
+  not present anywhere in the bundled OpenAPI spec (`GenesysCloudAPIEndpoints.json`,
+  1,768 paths checked). Corrected to describe the two real, media-type-specific
+  paths: Open Messaging inbound endpoints (`.../messages/inbound/open`,
+  `.../inbound/open/message`, `/event`, `/receipt` — all already catalogued) for
+  digital/message channels, and SIP delivery through a BYOC trunk/Edge for voice
+  (no REST injection call exists for voice at all — the SIP trace is the
+  evidence, not a request/response pair).
+
+### Added
+
+- **`digital-message-envelope` step** added to the `byoi-conversation-enrichment`
+  investigation recipe, using the already-catalogued `getConversationsMessage`
+  endpoint to surface the Open Messaging provider envelope for digital/message
+  BYOI conversations — the digital-channel counterpart to the existing SIP-trace
+  step for voice.
+- **`division-and-business-unit-rollup` executive reporting playbook** — a
+  division-first (not queue-first) headline scorecard. Divisions are an
+  orthogonal grouping over agents and their queues: an agent's division
+  assignment does not change as they move between queues, and one division can
+  own queues spanning multiple functional areas and media types. The new
+  playbook uses `analytics.query.conversation.aggregates.division.performance`
+  (which groups natively by `divisionId`) for the headline rollup, and only
+  fans out to per-queue detail for divisions flagged as outliers. Documented as
+  new Section 11 in `docs/ENDPOINT_COMBINATIONS.md`, with
+  `getRoutingQueuesDivisionviews` noted as an alternate queue-enumeration path
+  for callers without `authorization:division:view` scope.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

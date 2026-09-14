@@ -43809,6 +43809,17 @@
             "description": "Flow-set values for the injected conversation — identical shape to native conversations, no BYOI-specific handling needed"
           },
           {
+            "step": "digital-message-envelope",
+            "dataset": "getConversationsMessage",
+            "joinKey": "conversationId",
+            "audience": [
+              "digital-analyst"
+            ],
+            "condition": "conversations.get.conversation.object.participants[].messages non-empty (message-media BYOI conversation, not voice)",
+            "provides": "provider/messaging metadata — fromAddress, toAddress, messageType, provider-specific envelope",
+            "description": "Digital-channel counterpart to the SIP trace step — confirms the Open Messaging integration that originated the conversation and its addressing, for chat/SMS/social BYOI conversations"
+          },
+          {
             "step": "analytics-detail",
             "dataset": "analytics.get.single.conversation.analytics",
             "joinKey": "conversationId",
@@ -43841,7 +43852,7 @@
             "description": "Reflects the provider's SIP-to-SIP handoff (injection leg), not an inbound PSTN leg — expect a different call-setup pattern than native voice conversations"
           }
         ],
-        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. There is no single generic \"inject a call\" REST endpoint — the injection path depends on media type. Digital/message BYOI (chat, SMS, social, custom channels) is injected through the Open Messaging inbound endpoints: POST /api/v2/conversations/messages/inbound/open (new conversation), POST /api/v2/conversations/messages/{integrationId}/inbound/open/message (subsequent messages), plus the paired /inbound/open/event and /inbound/open/receipt endpoints for typing/read-receipt signalling. Voice BYOI has no REST injection call at all — the external system delivers the call over SIP through a BYOC Cloud/Carrier trunk or Edge, so the definitive evidence for a voice BYOI leg is the SIP trace (telephony.get.sip.messages.for.conversation), not a request/response pair. The Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape for both paths and needs no BYOI-specific handling.",
         "executiveMetrics": [
           "externalTag coverage % (BYOI volume vs. native)",
           "tHandle (BYOI vs. native comparison)",
@@ -44057,6 +44068,34 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "division-and-business-unit-rollup": {
+        "description": "Cross-queue performance and quality rollup grouped by division. Divisions are an orthogonal grouping to queues — an agent's division assignment does not change as they move between queues, so this is the correct join key for territory, region, or business-unit executive reporting when a business unit spans multiple queues and media types.",
+        "datasetsInOrder": [
+          "authorization.get.all.divisions",
+          "authorization.search.division.objects",
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.conversation.aggregates.division.performance",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.user.aggregates.performance.metrics",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "divisionId (queue and user rows resolved to divisionId via division-queues/division-agents membership)",
+        "groupBy": [
+          "divisionId",
+          "mediaType",
+          "day"
+        ],
+        "outputMetrics": [
+          "nOffered / nConnected / nAbandoned (division total, summed across member queues)",
+          "tHandle (avg, weighted by nConnected)",
+          "abandon rate = nAbandoned / nOffered",
+          "headcount (distinct userId in users.division.analysis.get.users.with.division.info)",
+          "evalAvgScore (division average via quality.get.agents.activity)",
+          "queueCount (distinct queueId from division-queues membership)"
+        ],
+        "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
+        "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope."
       }
     },
     "voiceEngineerPlaybooks": {

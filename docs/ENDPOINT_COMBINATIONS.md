@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-15  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -37,6 +37,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Roster Efficiency, AI-Assist Effectiveness, Config-Change Audit, and Evaluation-Form Coverage](#11-roster-efficiency-ai-assist-effectiveness-config-change-audit-and-evaluation-form-coverage)
 
 ---
 
@@ -497,6 +498,82 @@ The matrix below shows which datasets are used across which investigations and r
 
 ---
 
+## 11. Roster Efficiency, AI-Assist Effectiveness, Config-Change Audit, and Evaluation-Form Coverage
+
+Four gaps surfaced by auditing which curated `datasets` entries were never referenced by any
+recipe or playbook in `catalog/genesys.catalog.json`. Each fills a real hole rather than
+duplicating existing coverage — see the JSON recipes for full step/join detail; this section is
+the narrative summary. All four are added as `validationStatus: reference-only`, consistent with
+the rest of the September 2026 reconciliation below.
+
+### 11.1 Bulk Team Presence Snapshot (`bulk-team-presence-snapshot`)
+
+**Subject:** A roster of `userId`s (a queue's members, a division's agents, a supervisor's team)
+**Core question:** *Who on this roster is actually available right now, in plain language?*
+
+`analytics.query.user.observations.real.time.status` (used by Real-Time Operations Monitoring,
+Pattern 5) returns per-agent `oUserPresence` as a raw presence UUID. Nothing in the catalog
+resolved that UUID to a label, and nothing batched the lookup across a roster — so a wallboard for
+a 50-agent team either shipped unresolved UUIDs or made 50 sequential presence calls. This recipe
+closes both gaps in one pass:
+
+1. `users.get.bulk.user.presences` — one batched call for the whole roster (`GET
+   /api/v2/users/presences/purecloud/bulk`) instead of N single-user calls.
+2. `presence.get.system.presence.definitions` — resolves the fixed system presence set (Available,
+   Away, Busy, Offline, …).
+3. `presence.get.organization.presence.definitions` — resolves custom org-defined presences
+   (Lunch, Training, Outage, …), which a system-only lookup silently drops.
+
+**Use it under:** Real-Time Operations Monitoring's agent-real-time step, and the membership
+steps of Queue/Division/Team Investigation, whenever the roster is larger than a handful of
+agents.
+
+### 11.2 AI/Bot Assist Suggestion Effectiveness (`ai-bot-assist-suggestion-effectiveness`)
+
+**Subject:** One `conversationId`, rolled up across a queue or agent cohort
+**Core question:** *Is Agent Assist / Predictive Engagement suggestion delivery actually shortening
+handle time, or is it noise agents ignore?*
+
+Nothing in the catalog previously touched `conversations.get.conversation.suggestions` or
+`conversations.get.conversation.suggestion.detail` (`GET
+/api/v2/conversations/{conversationId}/suggestions[/{suggestionId}]`). This recipe joins suggestion
+delivery and usage against the same conversation's segment timing
+(`analytics.get.single.conversation.analytics`), QM score, and CSAT — so "AI is helping" becomes an
+evidenced handle-time delta and usage rate per queue/cohort, not a vendor-reported adoption
+percentage. Empty suggestion results are expected (Assist not configured for that flow) and are not
+an error condition.
+
+### 11.3 Configuration Change Audit Trail (`configuration-change-audit-trail`)
+
+**Subject:** One configuration object (`queueId`, `flowId`, …) + a date range around a suspected change
+**Core question:** *What changed, who changed it, and does the performance shift line up with the
+change timestamp?*
+
+Queue Investigation and Flow/IVR Diagnostics show *what happened to performance* but never *why it
+changed*. This recipe is the root-cause complement: it discovers valid audit filter vocabulary via
+`audits.get.service.mapping` (`GET /api/v2/audits/query/servicemapping`), pulls the actual
+before/after property changes via the existing `audit-logs` submit/poll/results dataset, and pairs
+the change timestamp against `analytics.query.conversation.aggregates.queue.performance` and
+`analytics.query.queue.aggregates.service.level` day-over-day either side of the change. A metric
+shift that begins exactly on the audit event's date is strong evidence of cause; a shift that
+predates the change rules it out. Run this before escalating an unexplained regression as a
+platform defect.
+
+### 11.4 Evaluation Form Coverage & Calibration (`evaluation-form-coverage-and-calibration`)
+
+**Subject:** Organisation-wide, reporting window
+**Core question:** *Which evaluation forms are actually being used, and do evaluators score
+consistently against the same form?*
+
+`quality.get.published.evaluation.forms` was never referenced despite being the only source for
+the form catalog itself. Joined against `quality.get.evaluations.query` (usage count per form) and
+`quality.get.agents.activity` (score distribution), this playbook surfaces `staleFormFlag` (a
+published form with zero evaluations this period — a silent process gap) and evaluator score
+variance against the org average for the same form (a calibration signal), neither of which
+`quality-and-csat-summary` or `coaching-effectiveness-and-score-trend` currently compute.
+
+---
+
 ## Appendix: Metric Glossary
 
 | Metric | Meaning | Typical Use |
@@ -537,6 +614,21 @@ preserved in [recent proposals](reconciliation/recent-proposals.json).
 The accepted references expand operational alerts, callback/overflow investigation,
 customer/team context, skill coverage, coaching outcomes and business-unit reporting.
 Validate joins, metric denominators, permissions and endpoint behavior before implementation.
+
+### 2026-09-15 pass — unused-dataset gap audit
+
+Every curated `datasets` entry was cross-referenced against `combinations` to find datasets never
+used by any recipe or playbook. Four genuinely new, non-duplicative combinations came out of that
+audit and were added directly to `catalog/genesys.catalog.json` (`validationStatus:
+reference-only`, same convention as the rest of this reconciliation): `bulk-team-presence-snapshot`
+and `ai-bot-assist-suggestion-effectiveness` and `configuration-change-audit-trail` under
+`investigationRecipes`, and `evaluation-form-coverage-and-calibration` under
+`executiveReportingPlaybooks`. See [§11](#11-roster-efficiency-ai-assist-effectiveness-config-change-audit-and-evaluation-form-coverage)
+for the narrative summary. Remaining unused datasets (organization/OAuth/usage limits, active
+live-conversation snapshots by media type, `analytics.get.multiple.conversations.by.ids` batch
+lookup, `users.search.users.by.name.or.email` as an alternate investigation entry point) were
+judged to be either low-value as standalone recipes or better suited as an efficiency footnote on
+an existing recipe than a new one, and were left for a future pass rather than added speculatively.
 
 ### Open Messaging correction
 

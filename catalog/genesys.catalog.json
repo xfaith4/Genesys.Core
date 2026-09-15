@@ -44552,6 +44552,160 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "bulk-team-presence-snapshot": {
+        "description": "Batch presence roll-call for a roster of agents (a queue's members, a division's agents, or a supervisor's team) resolved from raw presence UUIDs into human-readable labels in a single pass, instead of one presence lookup per agent. Designed to sit underneath the agent-real-time step of real-time-operations-monitoring and the membership steps of queue-investigation, division-investigation and team-investigation whenever more than a handful of agents need a live status view — it is the efficiency and readability layer, not a new source of truth.",
+        "subjectParam": "userIds (roster supplied by an upstream recipe — queue-investigation members step, division-investigation division-agents step, or a supervisor's team roster)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "bulk-presence",
+            "dataset": "users.get.bulk.user.presences",
+            "role": "seed",
+            "joinKey": "userId",
+            "provides": "presence.id (systemPresence or organizationPresence UUID), presence.source, modifiedDate per user",
+            "description": "One batched call for the whole roster instead of N single-user presence calls — this is the change that keeps a 50-agent team view from becoming N sequential API round trips."
+          },
+          {
+            "step": "system-presence-labels",
+            "dataset": "presence.get.system.presence.definitions",
+            "joinKey": "presence.id",
+            "provides": "Fixed system presence labels: Available, Away, Busy, Break, Meeting, Training, Offline",
+            "description": "Resolves the built-in Genesys Cloud presence set. Required before any label can be shown on a wallboard or in a report — the raw presence UUID means nothing to a supervisor."
+          },
+          {
+            "step": "org-presence-labels",
+            "dataset": "presence.get.organization.presence.definitions",
+            "joinKey": "presence.id",
+            "provides": "Custom org-defined presence labels (e.g. Lunch, 1:1, Outage, Project Work)",
+            "description": "Left join against the same presence.id — many organizations define custom presences beyond the system set, and a lookup that only checks system-presence-labels will render those as blank or 'Unknown'."
+          }
+        ],
+        "analyticalQuestions": [
+          "How many agents on this roster are actually available right now, in plain language, without a spreadsheet of UUIDs?",
+          "During a queue's SLA miss, how many staffed agents were in a non-productive custom presence (Break, Lunch, Meeting) rather than off queue entirely?",
+          "Is a custom presence being used as an unofficial 'hidden' off-queue state that isn't reflected in routing status?"
+        ],
+        "enrichesRecipes": [
+          "real-time-operations-monitoring (decodes the agent-real-time step's oUserPresence for an entire wallboard, not just one drilldown target)",
+          "queue-investigation (decodes the members step's roster in one batch instead of per-agent lookups)",
+          "division-investigation / team-investigation (decodes the division-agents / team roster step)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "ai-bot-assist-suggestion-effectiveness": {
+        "description": "Measures whether Agent Assist / Predictive Engagement suggestions surfaced during a conversation were actually useful — correlating suggestion volume and content against handle time, QM score and CSAT for the same conversation. Answers the executive-relevant question 'is the AI assist feature paying for itself' at the level of individual evidence rather than a vendor-reported adoption percentage. Runs per conversation and rolls up across a queue or agent cohort using the same conversationId list produced by queue-investigation or agent-investigation.",
+        "subjectParam": "conversationId (single) or a conversationId list from queue-investigation / agent-investigation for cohort rollup",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-seed",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants, mediaType, queue, agent — confirms the conversation is in scope for assist correlation",
+            "description": "Standard conversation seed shared with the single-conversation-investigation recipe."
+          },
+          {
+            "step": "suggestions",
+            "dataset": "conversations.get.conversation.suggestions",
+            "joinKey": "conversationId",
+            "provides": "List of suggestions surfaced to the agent during the conversation, with type and timestamp",
+            "description": "Empty result means Agent Assist was not active or fired zero suggestions for this conversation — a legitimate and common outcome, not an error."
+          },
+          {
+            "step": "suggestion-detail",
+            "dataset": "conversations.get.conversation.suggestion.detail",
+            "filterBy": "suggestionId (fan out over the suggestions step's results)",
+            "joinKey": "suggestionId",
+            "provides": "Suggestion content, confidence score, source (knowledge article / macro / response), and whether the agent used or dismissed it",
+            "description": "Only worth fetching per-suggestion detail for conversations with a non-empty suggestions list — do not fan this out over every conversation in a queue."
+          },
+          {
+            "step": "segment-timing",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "tHandle, tTalk, tAcw for the same conversation",
+            "description": "The outcome variable — compare handle time distribution for conversations with accepted suggestions against conversations with none, for the same queue/agent/media type."
+          },
+          {
+            "step": "quality-outcome",
+            "dataset": "quality.get.evaluations.query",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation score, if evaluated (left join — most conversations are not evaluated)",
+            "description": "Secondary outcome signal; low sample size in most tenants so treat as directional, not statistically definitive without a large enough evaluated cohort."
+          },
+          {
+            "step": "survey-outcome",
+            "dataset": "quality.get.surveys",
+            "joinKey": "conversationId",
+            "provides": "CSAT/NPS result, if the customer was surveyed (left join)",
+            "description": "Tertiary outcome signal for the same reason as quality-outcome."
+          }
+        ],
+        "analyticalQuestions": [
+          "Do conversations where the agent used a suggestion have measurably shorter handle time than comparable conversations with no suggestions?",
+          "What fraction of surfaced suggestions are ever used versus dismissed, and does that rate vary by suggestion source (knowledge article vs macro)?",
+          "Is suggestion volume concentrated in a few queues/flows, or spread evenly — where is the assist feature actually configured to fire?"
+        ],
+        "executiveRelevance": "Feeds an AI/assist ROI narrative that goes beyond a vendor adoption percentage: actual handle-time delta and usage rate, evidenced conversation by conversation, aggregated to a queue or cohort level for the executive rollup.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "configuration-change-audit-trail": {
+        "description": "Answers 'what changed, and who changed it' when a queue, routing rule, flow, or wrapup code set suddenly behaves differently. Pairs the audit log for a configuration object with the performance metrics for the same object across the change boundary, so a reported regression ('SLA dropped after Tuesday') can be tied to a specific edit rather than treated as an unexplained anomaly. This is the root-cause complement to queue-investigation and flow-and-ivr-diagnostics — those show what happened to performance, this shows why it changed.",
+        "subjectParam": "entityId (queueId, flowId, or other configuration object id) + a date range spanning the suspected change",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "service-catalog",
+            "dataset": "audits.get.service.mapping",
+            "role": "seed",
+            "provides": "Valid serviceName/entityType values to filter the audit query by (e.g. Routing, ArchitectFlow, PresenceManagement, Telephony)",
+            "description": "Run once per investigation type, not per entity — discovers what the audit-logs filter vocabulary actually is instead of guessing service names."
+          },
+          {
+            "step": "audit-events",
+            "dataset": "audit-logs",
+            "filterBy": "serviceName (from service-catalog) + entityId + date range",
+            "joinKey": "entityId",
+            "provides": "Who changed the object, when, and the before/after property values (action, entityType, propertyChanges)",
+            "description": "Uses the catalog's existing submit/poll/results audit transaction flow (same as the audit-logs step already used by agent-investigation). Narrow the date range tightly around the suspected change — audit queries are transactional and slow to broaden."
+          },
+          {
+            "step": "current-config",
+            "dataset": "routing-queues",
+            "filterBy": "id = entityId",
+            "joinKey": "id",
+            "provides": "The object's current configuration, to diff against the pre-change property values in audit-events",
+            "description": "Substitute the appropriate current-state dataset for the entity type under investigation (routing-queues for a queue, flows.get.all.flows for a flow)."
+          },
+          {
+            "step": "performance-before-after",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId, daily granularity spanning the change date",
+            "joinKey": "queueId",
+            "provides": "Day-over-day nOffered/tHandle/nConnected either side of the change timestamp",
+            "description": "The confirmation step — a metric shift that begins exactly on the audit event's timestamp is strong evidence of cause; a shift that predates the change is not explained by it."
+          },
+          {
+            "step": "sla-before-after",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "queueId, daily granularity spanning the change date",
+            "joinKey": "queueId",
+            "provides": "oServiceLevel and nOverSla either side of the change timestamp",
+            "description": "Pairs with performance-before-after when the reported symptom is specifically an SLA miss rather than a volume/AHT change."
+          }
+        ],
+        "analyticalQuestions": [
+          "Who changed this queue's SLA target, ACW timeout, or routing method, and when — down to the user and property value?",
+          "Does the performance/SLA metric shift begin on the same day as the config change, or does it predate it (ruling the change out as the cause)?",
+          "Was the change made by an expected administrator during a change window, or does it look like an unreviewed edit?"
+        ],
+        "voiceEngineerNotes": "Config drift is one of the most common causes of a sudden, otherwise-unexplained metric shift and is routinely missed because queue-investigation and flow-and-ivr-diagnostics only look at outcomes, not configuration history. Run this recipe before escalating an unexplained regression as a platform defect.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44917,6 +45071,28 @@
         ],
         "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "evaluation-form-coverage-and-calibration": {
+        "description": "Which evaluation forms are actually in use, how evenly coverage is spread across agents, and whether evaluators score consistently against the same form (calibration variance). Fills the gap left by quality-and-csat-summary and coaching-effectiveness-and-score-trend, neither of which resolves the evaluation form catalog itself — so a form retired or silently abandoned by evaluators is otherwise invisible in the rollup.",
+        "datasetsInOrder": [
+          "quality.get.published.evaluation.forms",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "formId (evaluations.query results carry the evaluationForm.id used)",
+        "groupBy": [
+          "formId",
+          "evaluatorId"
+        ],
+        "outputMetrics": [
+          "formUsageCount (evaluations per published form, per period)",
+          "formCoveragePct% (agents evaluated / total agents on the floor)",
+          "evaluatorScoreVariance (stddev of scores given by each evaluator against the same form, a calibration signal)",
+          "staleFormFlag (published forms with zero evaluations in the reporting period)"
+        ],
+        "executivePresentation": "Form usage bar chart (evaluations per form) + evaluator calibration table (one row per evaluator, score variance against the org average for the same form) + a short 'forms not used this period' callout list.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }

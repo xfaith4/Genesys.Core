@@ -49,12 +49,42 @@ Open in any modern browser (Chrome, Edge, Firefox, Safari).
 
 ### 3 — Load the run data
 
-- Click **📂 Load Run** (or the drop zone)
-- Navigate to `out/analytics-conversation-details/<runId>/data/`
-- Select **all `*.jsonl` files** (Ctrl+A) and click Open
-- Optionally also select `manifest.json` from the run folder root
+- Click **📂 Load Run** or drop files onto the load zone.
+- Navigate to `out/<datasetKey>/<runId>/data/`.
+- Select the conversation data file(s), usually `analytics-conversation-details.jsonl` or `analytics-conversation-details-query.jsonl`.
+- Do not select `events.jsonl`, `api-calls.log`, `summary.json`, or `index.jsonl`; those are diagnostics/supporting artifacts, not conversation records.
+- `manifest.json` is optional. It only supplies run metadata in the header; the page works with the data JSONL alone.
 
 The tool indexes and renders results immediately — no server round-trip.
+
+### Exact Artifact Shape
+
+The web page expects one JSON object per line, where each object is a Genesys
+conversation detail record. The supported Core datasets already write this
+format:
+
+| Core dataset | File to load |
+| --- | --- |
+| `analytics-conversation-details` | `out/analytics-conversation-details/<runId>/data/analytics-conversation-details.jsonl` |
+| `analytics-conversation-details-query` | `out/analytics-conversation-details-query/<runId>/data/analytics-conversation-details-query.jsonl` |
+
+The page can also read a raw JSON array of conversation records, or a raw
+Genesys wrapper object with a `conversations` array, but the supported workflow
+is to load the Core-produced `data/*.jsonl` file.
+
+### Recommended Extraction Helper
+
+From the repository root:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Get-ConversationAnalysis.ps1 `
+  -Region 'usw2.pure.cloud' `
+  -LookbackHours 24
+```
+
+The script prints the run folder, manifest path, and data folder. Open
+`apps/ConversationAnalysis/index.html`, click **Load Run**, and select the
+`*.jsonl` file from the printed data folder.
 
 ---
 

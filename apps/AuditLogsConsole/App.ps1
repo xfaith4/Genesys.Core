@@ -40,6 +40,7 @@ $resolvedSettings = [ordered]@{
     OutputRoot     = Resolve-AppPath -BasePath $appRoot -RelativePath $settings.OutputRelativePath
     DatasetKeys    = $settings.DatasetKeys
     Preview        = $settings.Preview
+    OAuth          = $settings.OAuth
     Ui             = $settings.Ui
 }
 
@@ -96,6 +97,13 @@ $script:Window.Add_Closing({
     }
     if ($null -ne $script:State.RunPowerShell) {
         try { $script:State.RunPowerShell.Dispose() } catch { }
+    }
+    if ($null -ne $script:State.AuthCancel) {
+        try { $script:State.AuthCancel.Cancel() } catch { }
+        try { $script:State.AuthCancel.Dispose() } catch { }
+    }
+    if ($null -ne $script:State.AuthPowerShell) {
+        try { $script:State.AuthPowerShell.Dispose() } catch { }
     }
 })
 

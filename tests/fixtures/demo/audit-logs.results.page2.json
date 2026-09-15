@@ -1,0 +1,162 @@
+{
+  "results": [
+    {
+      "id": "audit-r011",
+      "timestamp": "2026-02-23T08:00:00.000Z",
+      "serviceName": "architect",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0003-0003-0003-aabbccddeeff",
+      "userEmail": "carol.dev@corp.example.com",
+      "userName": "Carol Dev",
+      "remoteIp": "10.0.2.11",
+      "context": {
+        "entityId": "flowid-0011-0011-aabbccddeeff",
+        "entityName": "Chat Routing Flow",
+        "type": "InboundChatFlow"
+      }
+    },
+    {
+      "id": "audit-r012",
+      "timestamp": "2026-02-23T09:15:00.000Z",
+      "serviceName": "routing",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "queueid-0003-0003-0003-aabbccddeeff",
+        "entityName": "Chat Support",
+        "type": "Queue",
+        "changes": [
+          { "field": "memberCount", "before": "6", "after": "8" }
+        ]
+      }
+    },
+    {
+      "id": "audit-r013",
+      "timestamp": "2026-02-24T10:00:00.000Z",
+      "serviceName": "analytics",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "dashid-0013-0013-aabbccddeeff",
+        "entityName": "Daily Metrics Dashboard",
+        "type": "Dashboard"
+      }
+    },
+    {
+      "id": "audit-r014",
+      "timestamp": "2026-02-24T11:30:00.000Z",
+      "serviceName": "quality",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0002-0002-0002-aabbccddeeff",
+      "userEmail": "bob.qm@corp.example.com",
+      "userName": "Bob QM",
+      "remoteIp": "10.0.1.55",
+      "context": {
+        "entityId": "calibid-0014-0014-aabbccddeeff",
+        "entityName": "Weekly Calibration",
+        "type": "Calibration"
+      }
+    },
+    {
+      "id": "audit-r015",
+      "timestamp": "2026-02-25T08:45:00.000Z",
+      "serviceName": "platform",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0004-0004-0004-aabbccddeeff",
+      "userEmail": "svc.automation@corp.example.com",
+      "userName": "Automation Service",
+      "remoteIp": "10.0.3.200",
+      "context": {
+        "entityId": "intgid-0015-0015-aabbccddeeff",
+        "entityName": "CRM Integration",
+        "type": "Integration"
+      }
+    },
+    {
+      "id": "audit-r016",
+      "timestamp": "2026-02-25T14:00:00.000Z",
+      "serviceName": "routing",
+      "action": "DELETE",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "wrapid-0016-0016-aabbccddeeff",
+        "entityName": "Old Wrap-up Code",
+        "type": "WrapUpCode"
+      }
+    },
+    {
+      "id": "audit-r017",
+      "timestamp": "2026-02-26T09:00:00.000Z",
+      "serviceName": "architect",
+      "action": "VIEW",
+      "userId": "a1b2c3d4-0003-0003-0003-aabbccddeeff",
+      "userEmail": "carol.dev@corp.example.com",
+      "userName": "Carol Dev",
+      "remoteIp": "10.0.2.11",
+      "context": {
+        "entityId": "flowid-0003-0003-0003-aabbccddeeff",
+        "entityName": "Inbound Main IVR",
+        "type": "InboundCallFlow"
+      }
+    },
+    {
+      "id": "audit-r018",
+      "timestamp": "2026-02-26T15:30:00.000Z",
+      "serviceName": "recording",
+      "action": "UPDATE",
+      "userId": "a1b2c3d4-0002-0002-0002-aabbccddeeff",
+      "userEmail": "bob.qm@corp.example.com",
+      "userName": "Bob QM",
+      "remoteIp": "10.0.1.55",
+      "context": {
+        "entityId": "recpid-0018-0018-aabbccddeeff",
+        "entityName": "Recording Retention Policy",
+        "type": "RetentionPolicy",
+        "changes": [
+          { "field": "retentionDays", "before": "90", "after": "365" }
+        ]
+      }
+    },
+    {
+      "id": "audit-r019",
+      "timestamp": "2026-02-27T10:00:00.000Z",
+      "serviceName": "analytics",
+      "action": "CREATE",
+      "userId": "a1b2c3d4-0005-0005-0005-aabbccddeeff",
+      "userEmail": "dan.supervisor@corp.example.com",
+      "userName": "Dan Supervisor",
+      "remoteIp": "10.0.1.88",
+      "context": {
+        "entityId": "repid-0019-0019-aabbccddeeff",
+        "entityName": "Queue Performance Report",
+        "type": "Report"
+      }
+    },
+    {
+      "id": "audit-r020",
+      "timestamp": "2026-02-28T08:00:00.000Z",
+      "serviceName": "platform",
+      "action": "VIEW",
+      "userId": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "userEmail": "jane.admin@corp.example.com",
+      "userName": "Jane Admin",
+      "remoteIp": "10.0.1.42",
+      "context": {
+        "entityId": "orgid-0020-0020-aabbccddeeff",
+        "entityName": "Corp Example Organization",
+        "type": "Organization"
+      }
+    }
+  ],
+  "nextUri": null,
+  "totalHits": 20
+}

@@ -1,0 +1,180 @@
+{
+  "investigationKey": "campaign-investigation",
+  "runId": "demo-run",
+  "subjectType": "campaign",
+  "subjectId": "campaign-demo-1",
+  "window": {
+    "since": "2026-05-01T00:00:00.0000000Z",
+    "until": "2026-05-12T00:00:00.0000000Z"
+  },
+  "datasetsInvoked": [
+    {
+      "stepName": "campaign",
+      "datasetKey": "outbound.get.campaigns",
+      "runId": "demo-campaign",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": true,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "contactList",
+      "datasetKey": "outbound.get.contact.lists",
+      "runId": "demo-contactList",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "queue",
+      "datasetKey": "routing.get.single.queue.config",
+      "runId": "demo-queue",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "diagnostics",
+      "datasetKey": "outbound.get.campaign.diagnostics.summary",
+      "runId": "demo-diagnostics",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "outboundEvents",
+      "datasetKey": "outbound.get.events",
+      "runId": "demo-outboundEvents",
+      "validationStatus": "unvalidated",
+      "recordCount": 4,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "auditChanges",
+      "datasetKey": "audit-logs",
+      "runId": "demo-auditChanges",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "conversationAnalytics",
+      "datasetKey": "analytics-conversation-details-query",
+      "runId": "demo-conversationAnalytics",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    },
+    {
+      "stepName": "outboundAbandons",
+      "datasetKey": "outbound.get.events",
+      "runId": "demo-outboundAbandons",
+      "validationStatus": "unvalidated",
+      "recordCount": 1,
+      "required": false,
+      "status": "ok",
+      "errorMessage": null
+    }
+  ],
+  "joinPlan": [
+    {
+      "stepName": "campaign",
+      "leftSource": null,
+      "leftKey": null,
+      "rightKey": "id",
+      "joinKind": "Seed"
+    },
+    {
+      "stepName": "contactList",
+      "leftSource": "identity",
+      "leftKey": "campaign.contactListId",
+      "rightKey": "id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "queue",
+      "leftSource": "identity",
+      "leftKey": "campaign.queueId",
+      "rightKey": "id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "diagnostics",
+      "leftSource": "identity",
+      "leftKey": "campaign.id",
+      "rightKey": "campaignId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "outboundEvents",
+      "leftSource": "identity",
+      "leftKey": "campaign.id",
+      "rightKey": "campaignId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "auditChanges",
+      "leftSource": "identity",
+      "leftKey": "campaign.id",
+      "rightKey": "entity.id",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "conversationAnalytics",
+      "leftSource": "identity",
+      "leftKey": "campaign.id",
+      "rightKey": "participants.campaignId",
+      "joinKind": "Left"
+    },
+    {
+      "stepName": "outboundAbandons",
+      "leftSource": "identity",
+      "leftKey": "campaign.id",
+      "rightKey": "campaignId",
+      "joinKind": "Left"
+    }
+  ],
+  "redactionProfile": {
+    "datasets": {
+      "outbound.get.campaigns": null,
+      "outbound.get.contact.lists": null,
+      "routing.get.single.queue.config": "standard",
+      "outbound.get.campaign.diagnostics.summary": "standard",
+      "outbound.get.events": null,
+      "audit-logs": "agent-investigation-audit",
+      "analytics-conversation-details-query": "agent-investigation-conversations"
+    },
+    "composerOverrides": []
+  },
+  "outputArtifacts": {
+    "manifestPath": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/manifest.json",
+    "eventsPath": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/events.jsonl",
+    "summaryPath": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/summary.json",
+    "dataPaths": {
+      "campaign": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/campaign.jsonl",
+      "contactList": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/contactList.jsonl",
+      "queue": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/queue.jsonl",
+      "diagnostics": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/diagnostics.jsonl",
+      "outboundEvents": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/outboundEvents.jsonl",
+      "auditChanges": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/auditChanges.jsonl",
+      "conversationAnalytics": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/conversationAnalytics.jsonl",
+      "outboundAbandons": "/tmp/campaign-demo-23762c887dad4909ad22fda416e9a12d/campaign-investigation/demo-run/data/outboundAbandons.jsonl"
+    }
+  },
+  "startedAt": "2026-05-15T04:12:05.1131939Z",
+  "finishedAt": "2026-05-15T04:12:05.3996119Z",
+  "composerVersion": "1.0.0"
+}

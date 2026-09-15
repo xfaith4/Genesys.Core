@@ -1,6 +1,8 @@
 # Output directories (runtime artifacts - never committed)
 out/
 out-*/
+.agents/
+.claude/
 
 # Generated files
 generated/
@@ -13,6 +15,9 @@ generated/
 *.dll
 *.pdb
 *.cache
+
+# Vendored runtime dependency shipped with the Conversation Analyzer
+!apps/ConversationAnalyser/lib/System.Data.SQLite.dll
 
 # Temporary files
 tmp/

@@ -101,6 +101,62 @@ Describe 'Analytics conversation details dataset' {
         {
             Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker
         } | Should -Throw "*Analytics conversation details job ended in state 'FAILED'.*"
+
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'analytics-conversation-details') -Directory | Select-Object -First 1
+        $apiLogPath = Join-Path -Path $runFolder.FullName -ChildPath 'api-calls.log'
+        Test-Path -Path $apiLogPath | Should -BeTrue
+        @(Get-Content -Path $apiLogPath | ForEach-Object { $_ | ConvertFrom-Json }).Count | Should -Be 2
+    }
+
+    It 'writes an empty JSONL file when the async conversation details job returns zero conversations' {
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-empty-full'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-empty' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-empty') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-empty/results') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @(); cursor = $null } }
+            }
+
+            throw "Unexpected request: $($method) $($uri)"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
+
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'analytics-conversation-details') -Directory | Select-Object -First 1
+        $dataPath = Join-Path -Path $runFolder.FullName -ChildPath 'data/analytics-conversation-details.jsonl'
+        Test-Path -Path $dataPath | Should -BeTrue
+        (Get-Item -Path $dataPath).Length | Should -Be 0
+
+        $summary = Get-Content -Path (Join-Path $runFolder.FullName 'summary.json') -Raw | ConvertFrom-Json
+        $summary.totals.totalConversations | Should -Be 0
+        $summary.zeroResults | Should -BeTrue
+        $summary.dataFile | Should -Be $dataPath
+        $summary.request.bodySource | Should -Be 'assembled dataset parameters'
+        $summary.request.interval | Should -Not -BeNullOrEmpty
+        $summary.request.conversationFilterCount | Should -Be 0
+        $summary.request.segmentFilterCount | Should -Be 0
+
+        $events = @(Get-Content -Path (Join-Path $runFolder.FullName 'events.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        $requestEvent = @($events | Where-Object { $_.eventType -eq 'analytics.conversationDetails.request' })
+        $requestEvent.Count | Should -Be 1
+        $zeroEvent = @($events | Where-Object { $_.eventType -eq 'analytics.conversationDetails.zeroResults' })
+        $zeroEvent.Count | Should -Be 1
+        $zeroEvent[0].payload.dataFile | Should -Be $dataPath
+
+        $manifest = Get-Content -Path (Join-Path $runFolder.FullName 'manifest.json') -Raw | ConvertFrom-Json
+        $manifest.counts.itemCount | Should -Be 0
+        @($manifest.warnings).Count | Should -Be 1
+        [string]$manifest.warnings[0] | Should -Match 'zero conversations'
     }
 
     It 'sends segmentFilters when QueueIds DatasetParameter is provided' {
@@ -212,6 +268,44 @@ Describe 'Analytics conversation details dataset' {
         ($script:capturedBodyDiv.conversationFilters[0].predicates | Where-Object { $_.value -eq 'div-id-2' }) | Should -Not -BeNullOrEmpty
     }
 
+    It 'sends user segment filters and media conversation filters from DatasetParameters' {
+        $outputRoot  = Join-Path -Path $TestDrive -ChildPath 'out-user-media-filter'
+        $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'
+
+        $script:capturedBodyUserMedia = $null
+        $requestInvoker = {
+            param($request)
+            $uri    = [string]$request.Uri
+            $method = [string]$request.Method
+
+            if ($method -eq 'POST' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs') {
+                $script:capturedBodyUserMedia = $request.Body | ConvertFrom-Json
+                return [pscustomobject]@{ Result = [pscustomobject]@{ jobId = 'job-umf' } }
+            }
+            if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/jobs/job-umf') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+            }
+            if ($method -eq 'GET' -and $uri -like '*/jobs/job-umf/results*') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @([pscustomobject]@{ conversationId = 'umf-conv' }); cursor = $null } }
+            }
+            throw "Unexpected: $method $uri"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details' -CatalogPath $catalogPath `
+            -OutputRoot $outputRoot -BaseUri 'https://api.test.local' `
+            -RequestInvoker $requestInvoker `
+            -DatasetParameters @{ UserIds = @('user-id-1', 'user-id-2'); MediaTypes = @('voice') } | Out-Null
+
+        $script:capturedBodyUserMedia | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.segmentFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.segmentFilters[0].predicates.Count | Should -Be 2
+        $script:capturedBodyUserMedia.segmentFilters[0].predicates[0].dimension | Should -Be 'userId'
+        ($script:capturedBodyUserMedia.segmentFilters[0].predicates | Where-Object { $_.value -eq 'user-id-1' }) | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.conversationFilters | Should -Not -BeNullOrEmpty
+        $script:capturedBodyUserMedia.conversationFilters[0].predicates[0].dimension | Should -Be 'mediaType'
+        $script:capturedBodyUserMedia.conversationFilters[0].predicates[0].value | Should -Be 'voice'
+    }
+
     It 'runs analytics-conversation-details-query with body paging via generic dispatch' {
         $catalogPath = Join-Path -Path $TestDrive -ChildPath 'query.catalog.json'
         $catalog = [ordered]@{
@@ -289,6 +383,74 @@ Describe 'Analytics conversation details dataset' {
         $records[1].conversationId | Should -Be 'qconv-2'
         $script:queryPageCount | Should -Be 2
     }
+
+    It 'writes an empty JSONL file when analytics-conversation-details-query returns zero conversations' {
+        $catalogPath = Join-Path -Path $TestDrive -ChildPath 'query-empty.catalog.json'
+        $catalog = [ordered]@{
+            version  = '1.0.0'
+            datasets = [ordered]@{
+                'analytics-conversation-details-query' = [ordered]@{
+                    endpoint  = 'analytics.conversation.details.query'
+                    itemsPath = '$.conversations'
+                    paging    = [ordered]@{ profile = 'analytics_details_query' }
+                    retry     = [ordered]@{ profile = 'default' }
+                }
+            }
+            profiles = [ordered]@{
+                paging = [ordered]@{
+                    analytics_details_query = [ordered]@{
+                        type          = 'bodyPaging'
+                        totalHitsPath = '$.totalHits'
+                    }
+                }
+                retry  = [ordered]@{
+                    default = [ordered]@{
+                        mode              = 'rateLimitAware'
+                        maxRetries        = 1
+                        baseDelaySeconds  = 0
+                        maxDelaySeconds   = 0
+                        jitterSeconds     = 0
+                        retryOnStatusCodes = @(429)
+                        retryOnMethods    = @('GET', 'POST')
+                    }
+                }
+            }
+            endpoints = [ordered]@{
+                'analytics.conversation.details.query' = [ordered]@{
+                    method       = 'POST'
+                    path         = '/api/v2/analytics/conversations/details/query'
+                    pagingProfile = 'analytics_details_query'
+                    retryProfile  = 'default'
+                    itemsPath    = '$.conversations'
+                }
+            }
+        }
+        $catalog | ConvertTo-Json -Depth 100 | Set-Content -Path $catalogPath
+
+        $outputRoot = Join-Path -Path $TestDrive -ChildPath 'out-empty-query'
+        $requestInvoker = {
+            param($request)
+            if ($request.Method -eq 'POST' -and $request.Uri -eq 'https://api.test.local/api/v2/analytics/conversations/details/query') {
+                return [pscustomobject]@{ Result = [pscustomobject]@{
+                    conversations = @()
+                    totalHits = 0
+                } }
+            }
+
+            throw "Unexpected request: $($request.Method) $($request.Uri)"
+        }
+
+        Invoke-Dataset -Dataset 'analytics-conversation-details-query' -CatalogPath $catalogPath -OutputRoot $outputRoot -BaseUri 'https://api.test.local' -RequestInvoker $requestInvoker | Out-Null
+
+        $runFolder = Get-ChildItem -Path (Join-Path $outputRoot 'analytics-conversation-details-query') -Directory | Select-Object -First 1
+        $dataPath = Join-Path -Path $runFolder.FullName -ChildPath 'data/analytics-conversation-details-query.jsonl'
+        Test-Path -Path $dataPath | Should -BeTrue
+        (Get-Item -Path $dataPath).Length | Should -Be 0
+
+        $summary = Get-Content -Path (Join-Path $runFolder.FullName 'summary.json') -Raw | ConvertFrom-Json
+        $summary.totals.totalRecords | Should -Be 0
+
+        $manifest = Get-Content -Path (Join-Path $runFolder.FullName 'manifest.json') -Raw | ConvertFrom-Json
+        $manifest.counts.itemCount | Should -Be 0
+    }
 }
-
-

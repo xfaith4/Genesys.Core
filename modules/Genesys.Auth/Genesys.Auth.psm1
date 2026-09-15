@@ -2,7 +2,7 @@
 Set-StrictMode -Version Latest
 
 # Gate E: All auth logic isolated here. Invoke-RestMethod only against login.{region} OAuth endpoints.
-# No /api/v2/ literal is present in this file.
+# No platform API path literals are present in this file.
 
 Add-Type -AssemblyName System.Security
 

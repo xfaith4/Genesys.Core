@@ -1,0 +1,110 @@
+{
+  "conversations": [
+    {
+      "conversationId": "conv-e004-email-inbound",
+      "conversationStart": "2026-02-19T11:00:00.000Z",
+      "conversationEnd": "2026-02-19T11:38:45.000Z",
+      "originatingDirection": "inbound",
+      "divisionIds": ["div-digital-0002-aabbccddeeff"],
+      "participants": [
+        {
+          "participantId": "part-e004-customer",
+          "participantName": "Customer",
+          "purpose": "customer",
+          "sessions": [
+            {
+              "sessionId": "sess-e004-customer",
+              "mediaType": "email",
+              "direction": "inbound",
+              "segments": [
+                {
+                  "segmentStart": "2026-02-19T11:00:00.000Z",
+                  "segmentEnd": "2026-02-19T11:38:45.000Z",
+                  "segmentType": "interact",
+                  "disconnectType": "client",
+                  "durationMs": 2325000
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "participantId": "part-e004-agent",
+          "participantName": "Eve Email",
+          "purpose": "agent",
+          "userId": "user-agent-0005-eve",
+          "sessions": [
+            {
+              "sessionId": "sess-e004-agent",
+              "mediaType": "email",
+              "direction": "inbound",
+              "queueId": "queueid-0005-0005-0005-aabbccddeeff",
+              "segments": [
+                {
+                  "segmentStart": "2026-02-19T11:05:00.000Z",
+                  "segmentEnd": "2026-02-19T11:38:45.000Z",
+                  "segmentType": "interact",
+                  "durationMs": 2025000
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conversationId": "conv-v005-voice-abandoned",
+      "conversationStart": "2026-02-20T08:45:00.000Z",
+      "conversationEnd": "2026-02-20T08:47:22.000Z",
+      "originatingDirection": "inbound",
+      "divisionIds": ["div-main-0001-aabbccddeeff"],
+      "participants": [
+        {
+          "participantId": "part-v005-customer",
+          "participantName": "Customer",
+          "purpose": "customer",
+          "sessions": [
+            {
+              "sessionId": "sess-v005-customer",
+              "mediaType": "voice",
+              "direction": "inbound",
+              "dnis": "+18005551000",
+              "ani": "+14155550202",
+              "segments": [
+                {
+                  "segmentStart": "2026-02-20T08:45:00.000Z",
+                  "segmentEnd": "2026-02-20T08:47:22.000Z",
+                  "segmentType": "alert",
+                  "disconnectType": "client",
+                  "durationMs": 142000
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "participantId": "part-v005-acd",
+          "participantName": "Tier-1 Support",
+          "purpose": "acd",
+          "sessions": [
+            {
+              "sessionId": "sess-v005-acd",
+              "mediaType": "voice",
+              "direction": "inbound",
+              "queueId": "queueid-0001-0001-0001-aabbccddeeff",
+              "segments": [
+                {
+                  "segmentStart": "2026-02-20T08:45:00.000Z",
+                  "segmentEnd": "2026-02-20T08:47:22.000Z",
+                  "segmentType": "alert",
+                  "durationMs": 142000
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cursor": null
+}

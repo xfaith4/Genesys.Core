@@ -1,0 +1,74 @@
+contract_name: DashboardWidgetContract
+contract_version: 1.0
+phase: dashboard_design
+
+objective: >
+  Define one dashboard widget that answers a specific operational question
+  using confirmed telemetry.
+
+inputs_required:
+  - name: operational_question
+    required: true
+    source: dashboard_design_request
+    validation_rule: must be a concrete operations question
+  - name: data_source
+    required: true
+    source: evidence_contract
+    validation_rule: must be confirmed or explicitly marked candidate
+  - name: metric_or_log_filter
+    required: true
+    source: evidence_contract
+    validation_rule: must use confirmed metric/log fields
+  - name: evidence_reference
+    required: true
+    source: discovery_output
+    validation_rule: must trace to descriptor, log sample, existing metric, or official docs
+
+allowed_actions:
+  - propose widget title
+  - propose chart type
+  - propose grouping labels
+  - explain interpretation
+  - mark widget as confirmed or candidate
+
+forbidden_actions:
+  - use unverified metric types
+  - use session_id as a metric label
+  - use request_id as a metric label
+  - use conversation_id as a metric label
+  - create widgets that do not answer an operational question
+
+deliverables:
+  - name: widget_spec
+    format: table row
+    required: true
+
+evidence_requirements:
+  - claim: metric exists
+    acceptable_sources:
+      - gcloud monitoring metrics descriptors list
+      - existing dashboard JSON
+      - official Google metric descriptor documentation
+  - claim: log field exists
+    acceptable_sources:
+      - gcloud logging read sample output
+
+quality_gates:
+  proceed_if:
+    - metric_or_log_filter is confirmed
+    - grouping labels are low-cardinality
+    - widget answers a named operational question
+  block_if:
+    - metric name is guessed
+    - log payload field is guessed
+    - widget depends on dynamic identifiers
+
+risk_controls:
+  - avoid high-cardinality labels
+  - mark candidate widgets clearly
+  - prefer rates, ratios, and percentiles over raw event spam
+
+open_questions:
+  - Are business hours known?
+  - Is traffic baseline known?
+  - Are centralized logs available from this project?

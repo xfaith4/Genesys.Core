@@ -1,7 +1,7 @@
 # Code Review and Hardening Summary
 
 **Date:** February 18, 2026
-**Repository:** xfaith4/Genesys.Core
+**Repository:** Genesys.Core
 **Branch:** copilot/perform-code-review-harden
 
 ## Executive Summary
@@ -13,6 +13,13 @@ This PR successfully completes a comprehensive code review and hardening of the 
 - 29 passing tests covering all core functionality
 - 2 network-related failures (expected in sandboxed CI environment)
 - 1 skipped test (requires swagger file generation)
+
+## ConversationAnalyzer Empty Full-Run Review - May 13, 2026
+
+- Reviewed the blank `data/analytics-conversation-details.jsonl` case and confirmed this file is intentionally zero bytes when the async job completes but the results endpoint returns zero `conversations`.
+- Hardened `analytics-conversation-details` full-run artifacts so zero-result runs now include request-shape diagnostics in `summary.json`, explicit `analytics.conversationDetails.request` and `analytics.conversationDetails.zeroResults` events in `events.jsonl`, and a manifest warning.
+- Added regression coverage to assert the blank JSONL contract remains intact while the diagnostic surfaces are present.
+- Validation: parser checks passed for `modules/Genesys.Core/Private/Datasets.ps1` and `tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1`; `Invoke-Pester -Path ./tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1 -Output Normal` passed 9 tests.
 
 ## Changes Overview
 
@@ -330,4 +337,3 @@ This PR successfully addresses all requirements from the problem statement:
 **Overall Status:** ✅ APPROVED FOR MERGE
 
 All changes are minimal, surgical, and follow the existing patterns. Test coverage is excellent (91% pass rate). Documentation is comprehensive. The codebase is production-ready.
-

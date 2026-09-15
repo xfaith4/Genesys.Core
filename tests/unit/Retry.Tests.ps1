@@ -1,7 +1,6 @@
 Describe 'Invoke-WithRetry' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
     }
 
     It 'parses Retry-After header seconds for 429 responses' {

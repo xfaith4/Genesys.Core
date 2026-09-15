@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Genesys Ops Console — Powered by Genesys.Core</title>
+
+  <!-- Chart.js from CDN (only external dependency) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:        #f0f4f1;
+      --surface:   #ffffff;
+      --surface2:  #f8faf9;
+      --ink:       #13201a;
+      --ink2:      #2a3d34;
+      --muted:     #5b6b62;
+      --accent:    #0d9f6e;
+      --accent-dk: #087a54;
+      --accent2:   #006d77;
+      --accent3:   #e05d2b;
+      --warn:      #c8860a;
+      --ok:        #0d9f6e;
+      --danger:    #c0392b;
+      --stroke:    #d0dbd4;
+      --stroke2:   #b8ccc0;
+      --shadow-sm: 0 2px 8px rgba(13,32,26,.08);
+      --shadow-md: 0 6px 20px rgba(13,32,26,.10);
+      --shadow-lg: 0 12px 40px rgba(13,32,26,.14);
+      --r-xs:  6px;
+      --r-sm:  10px;
+      --r-md:  16px;
+      --r-lg:  22px;
+      --r-xl:  30px;
+    }
+
+    /* ─── Reset / Base ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 420px at 8% -8%, #d2ecdf 0%, transparent 60%),
+        radial-gradient(1200px 440px at 92% 0%,  #cce6ec 0%, transparent 65%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    h1,h2,h3 { margin: 0; line-height: 1.2; }
+    h2 { font-size: 1rem; font-weight: 600; color: var(--ink2); }
+    h3 { font-size: .88rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    p  { margin: 0; }
+
+    /* ─── Utility ───────────────────────────────────────────────── */
+    .hide  { display: none !important; }
+    .muted { color: var(--muted); }
+    .ok    { color: var(--ok); }
+    .warn  { color: var(--warn); }
+    .danger{ color: var(--danger); }
+    .bold  { font-weight: 600; }
+    .mono  { font-family: "Cascadia Code","Consolas","IBM Plex Mono",monospace; font-size: .85em; }
+    .flex  { display: flex; }
+    .gap8  { gap: 8px; }
+    .gap12 { gap: 12px; }
+    .gap16 { gap: 16px; }
+    .align-center { align-items: center; }
+    .wrap  { flex-wrap: wrap; }
+    .grow  { flex: 1 1 0; }
+
+    .pill {
+      display: inline-block; padding: 2px 9px;
+      border-radius: 999px; font-size: .78rem; font-weight: 600;
+      line-height: 1.6;
+    }
+    .pill-green  { background: #d1f5e6; color: #0b7a51; }
+    .pill-amber  { background: #fef3cd; color: #8a6300; }
+    .pill-red    { background: #fddada; color: #8b1c1c; }
+    .pill-blue   { background: #cce8f0; color: #005f6e; }
+    .pill-gray   { background: #e2eae4; color: #4a5c50; }
+    .pill-orange { background: #fde8d0; color: #9a4200; }
+    .pill-purple { background: #e8dcf5; color: #5a2d91; }
+
+    /* ─── Scrollbars ────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--stroke2); border-radius: 3px; }
+
+    /* ─── Navigation ────────────────────────────────────────────── */
+    #nav {
+      background: linear-gradient(110deg, #11382a 0%, #0f2f34 60%, #154e3a 100%);
+      color: #f3fff8;
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.22);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+
+    .nav-logo {
+      font-size: 1.12rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .nav-logo span { color: #5fe8b0; }
+
+    .nav-sep { width: 1px; height: 28px; background: rgba(255,255,255,.15); flex-shrink: 0; }
+    .spacer  { flex: 1; }
+
+    #nav-status {
+      font-size: .82rem;
+      color: #b2ddc8;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    #nav-status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #aaa;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    #nav-status-dot.ready   { background: #4cd99e; box-shadow: 0 0 6px #4cd99e; }
+    #nav-status-dot.loading { background: #f9c84e; box-shadow: 0 0 6px #f9c84e; animation: pulse .9s infinite; }
+    #nav-status-dot.error   { background: #f05e5e; box-shadow: 0 0 6px #f05e5e; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    .nav-btn {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.18);
+      color: #e8fff4;
+      border-radius: var(--r-sm);
+      padding: 5px 13px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .18s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,.22); }
+
+    /* ─── Tab bar ───────────────────────────────────────────────── */
+    #tab-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--stroke);
+      display: flex;
+      overflow-x: auto;
+      box-shadow: var(--shadow-sm);
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    #tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+      padding: 13px 18px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      border: none;
+      border-bottom: 3px solid transparent;
+      background: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .18s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .tab-btn:hover { color: var(--ink); background: var(--surface2); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--stroke2);
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .tab-dot.loaded { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+
+    /* ─── Main content ──────────────────────────────────────────── */
+    #main { padding: 22px 24px 48px; }
+
+    .tab-pane { display: none; flex-direction: column; gap: 20px; }
+    .tab-pane.active { display: flex; }
+
+    /* ─── Load zone ─────────────────────────────────────────────── */
+    .load-zone {
+      background: var(--surface);
+      border: 2px dashed var(--stroke2);
+      border-radius: var(--r-lg);
+      padding: 48px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      max-width: 640px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .load-zone:hover, .load-zone.drag-over {
+      border-color: var(--accent);
+      background: #f0fbf6;
+    }
+    .lz-icon  { font-size: 2.8rem; margin-bottom: 14px; }
+    .lz-title { font-size: 1rem; font-weight: 700; color: var(--ink2); margin-bottom: 8px; }
+    .lz-sub   { color: var(--muted); font-size: .88rem; line-height: 1.6; max-width: 500px; margin: 0 auto 16px; }
+    .lz-cmd   {
+      background: #1a2e24; color: #5fe8b0;
+      font-family: "Cascadia Code","Consolas","IBM Plex Mono",monospace;
+      font-size: .78rem;
+      padding: 10px 16px; border-radius: var(--r-sm);
+      text-align: left; margin: 0 auto 18px;
+      max-width: 580px; overflow-x: auto;
+      white-space: pre; display: block;
+    }
+    .lz-hint  { color: var(--muted); font-size: .8rem; margin-top: 14px; }
+
+    /* ─── Buttons ───────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: var(--r-sm);
+      font-size: .88rem; font-weight: 600;
+      cursor: pointer; border: none; transition: all .18s;
+    }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dk); }
+    .btn-secondary { background: var(--surface2); color: var(--ink2); border: 1px solid var(--stroke); }
+    .btn-secondary:hover { background: var(--stroke); }
+    .btn-sm   { padding: 5px 12px; font-size: .8rem; }
+    .btn-xs   { padding: 3px 9px;  font-size: .76rem; }
+
+    /* ─── KPI Strip ─────────────────────────────────────────────── */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      gap: 14px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+      border-top: 3px solid var(--stroke);
+      transition: box-shadow .2s;
+    }
+    .kpi-card:hover { box-shadow: var(--shadow-md); }
+    .kpi-card.c-green  { border-top-color: var(--accent); }
+    .kpi-card.c-teal   { border-top-color: var(--accent2); }
+    .kpi-card.c-orange { border-top-color: #e07d2b; }
+    .kpi-card.c-red    { border-top-color: var(--danger); }
+    .kpi-card.c-amber  { border-top-color: var(--warn); }
+    .kpi-card.c-blue   { border-top-color: #2879cb; }
+    .kpi-card.c-purple { border-top-color: #7e4ccb; }
+
+    .kpi-label { font-size: .74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+    .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--ink); line-height: 1.1; }
+    .kpi-sub   { font-size: .75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ─── Charts ────────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 860px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .chart-card.wide { grid-column: 1 / -1; }
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .chart-canvas-wrap { position: relative; height: 220px; }
+    .chart-canvas-wrap.tall { height: 280px; }
+
+    /* ─── Tables ────────────────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .table-card-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--stroke);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface2);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .83rem;
+    }
+    .data-table thead {
+      background: var(--surface2);
+      border-bottom: 2px solid var(--stroke);
+    }
+    .data-table th {
+      padding: 9px 12px;
+      text-align: left;
+      font-size: .76rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .data-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--stroke);
+      color: var(--ink2);
+      vertical-align: middle;
+    }
+    .data-table tbody tr:hover { background: #f0fbf6; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table .empty-row td {
+      text-align: center; padding: 24px;
+      color: var(--muted); font-style: italic;
+    }
+
+    /* ─── Info panels ───────────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .info-panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .info-panel-title {
+      font-size: .78rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px;
+    }
+    .kv-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--stroke);
+      font-size: .85rem;
+      gap: 8px;
+    }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-key { color: var(--muted); flex-shrink: 0; }
+    .kv-val { font-weight: 600; color: var(--ink); text-align: right; }
+
+    /* ─── Info box ──────────────────────────────────────────────── */
+    .info-box {
+      background: var(--surface2);
+      border-radius: var(--r-sm);
+      padding: 12px 16px;
+      border-left: 3px solid var(--accent);
+      font-size: .85rem;
+      color: var(--ink2);
+      line-height: 1.6;
+    }
+    .info-box.warn   { border-left-color: var(--warn);   background: #fffbf0; }
+    .info-box.danger { border-left-color: var(--danger); background: #fff9f9; }
+
+    /* ─── Alerts list ───────────────────────────────────────────── */
+    .alert-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; }
+    .alert-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--r-sm);
+      background: var(--surface2);
+      border-left: 3px solid var(--stroke2);
+    }
+    .alert-item.HIGH   { border-left-color: var(--danger); background: #fff9f9; }
+    .alert-item.MEDIUM { border-left-color: var(--warn);   background: #fffbf0; }
+    .alert-item.LOW    { border-left-color: var(--ok);     background: #f0fbf6; }
+    .alert-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .alert-body { flex: 1; }
+    .alert-title { font-weight: 600; color: var(--ink); font-size: .85rem; margin-bottom: 1px; }
+    .alert-meta  { font-size: .76rem; color: var(--muted); }
+
+    /* ─── Filter bar ────────────────────────────────────────────── */
+    .filter-bar {
+      background: var(--surface);
+      border-radius: var(--r-sm);
+      padding: 10px 14px;
+      box-shadow: var(--shadow-sm);
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .search-input {
+      padding: 6px 11px;
+      border: 1px solid var(--stroke);
+      border-radius: var(--r-sm);
+      font-size: .85rem;
+      color: var(--ink);
+      background: var(--surface2);
+      outline: none;
+      transition: border-color .2s;
+      min-width: 180px;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    .filter-chip {
+      padding: 4px 11px;
+      border: 1px solid var(--stroke);
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--surface2);
+      cursor: pointer;
+      transition: all .15s;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .filter-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+    /* ─── Rank badge ────────────────────────────────────────────── */
+    .rank     { font-size: .74rem; font-weight: 700; color: var(--muted); padding: 2px 6px; background: var(--surface2); border-radius: 4px; display: inline-block; min-width: 26px; text-align: center; }
+    .rank-1   { background: #fff3cc; color: #7a5800; }
+    .rank-2   { background: #e8e8f0; color: #3d3d5c; }
+    .rank-3   { background: #f5e8dc; color: #7a3800; }
+
+    /* ─── Health dot ────────────────────────────────────────────── */
+    .health-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+    .h-GREEN { background: var(--ok);     box-shadow: 0 0 5px var(--ok); }
+    .h-AMBER { background: var(--warn);   box-shadow: 0 0 5px var(--warn); }
+    .h-RED   { background: var(--danger); box-shadow: 0 0 5px var(--danger); }
+
+    /* ─── Toast ─────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--ink); color: #fff;
+      padding: 11px 18px;
+      border-radius: var(--r-sm);
+      font-size: .85rem;
+      box-shadow: var(--shadow-lg);
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      max-width: 360px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ─── Responsive tweaks ─────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #nav { padding: 0 16px; gap: 10px; }
+      #main { padding: 14px 12px 40px; }
+      .load-zone { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ Navigation ════════════════════════════════════════════ -->
+  <header id="nav">
+    <div class="nav-logo">Genesys <span>Ops</span>Console</div>
+    <div class="nav-sep"></div>
+    <div id="nav-status">
+      <div id="nav-status-dot"></div>
+      <span id="nav-status-text">No data loaded</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="nav-btn" onclick="loadDemo()" title="Load sample data across all dashboards">📊 Demo Data</button>
+    <button class="nav-btn" onclick="clearAll()"  title="Clear all loaded data">🗑 Clear</button>
+  </header>
+
+  <!-- ═══ Tab bar ════════════════════════════════════════════════ -->
+  <div id="tab-bar">
+    <button class="tab-btn active"  data-tab="overview"      onclick="switchTab('overview')">
+      <span class="tab-dot" id="dot-overview"></span>🏠 Overview
+    </button>
+    <button class="tab-btn" data-tab="queue-health"  onclick="switchTab('queue-health')">
+      <span class="tab-dot" id="dot-queue-health"></span>🏥 Queue Health
+    </button>
+    <button class="tab-btn" data-tab="abandon"       onclick="switchTab('abandon')">
+      <span class="tab-dot" id="dot-abandon"></span>📉 Abandon Rates
+    </button>
+    <button class="tab-btn" data-tab="agent-quality" onclick="switchTab('agent-quality')">
+      <span class="tab-dot" id="dot-agent-quality"></span>👤 Agent Quality
+    </button>
+    <button class="tab-btn" data-tab="edge"          onclick="switchTab('edge')">
+      <span class="tab-dot" id="dot-edge"></span>🌐 Edge &amp; Trunks
+    </button>
+    <button class="tab-btn" data-tab="audit"         onclick="switchTab('audit')">
+      <span class="tab-dot" id="dot-audit"></span>🔔 Change Audit
+    </button>
+  </div>
+
+  <!-- ═══ Main content ══════════════════════════════════════════ -->
+  <main id="main">
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Overview                                              -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane active" id="pane-overview">
+
+      <div class="load-zone" id="lz-overview">
+        <div class="lz-icon">📊</div>
+        <div class="lz-title">Load Operations Report</div>
+        <div class="lz-sub">
+          Drop your <code>ops-report.json</code> here, or click Browse.<br>
+          Generate it with:
+        </div>
+        <code class="lz-cmd">Invoke-GenesysOperationsReport -OutputPath "ops-report.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('ops-report')">📂 Browse for File…</button>
+        <input type="file" id="file-ops-report" accept=".json" style="display:none"
+               onchange="handleFileInput('ops-report',this)">
+        <div class="lz-hint">Or click <strong>Demo Data</strong> above to see a sample dashboard instantly.</div>
+      </div>
+
+      <div id="dash-overview" class="hide">
+        <div class="kpi-strip" id="kpis-overview"></div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header"><h2>Service Level Status</h2></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-overview-sla"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><h2>WebRTC Disconnects by Error Code</h2></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-overview-webrtc"></canvas></div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-panel">
+            <div class="info-panel-title">🌐 Edge &amp; Trunk Health</div>
+            <div id="info-edge"></div>
+          </div>
+          <div class="info-panel">
+            <div class="info-panel-title">📞 Contact Centre</div>
+            <div id="info-cc"></div>
+          </div>
+          <div class="info-panel">
+            <div class="info-panel-title">🏢 Organisation</div>
+            <div id="info-org"></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-card-header">
+            <h2>🔔 Active Alerts</h2>
+            <span id="badge-alerts" class="pill pill-gray"></span>
+          </div>
+          <div id="list-alerts" class="alert-list"></div>
+        </div>
+      </div>
+
+    </div><!-- /pane-overview -->
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Queue Health                                          -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane" id="pane-queue-health">
+
+      <div class="load-zone" id="lz-queue-health">
+        <div class="lz-icon">🏥</div>
+        <div class="lz-title">Load Queue Health Snapshot</div>
+        <div class="lz-sub">Drop your <code>queue-health.json</code> here, or click Browse.</div>
+        <code class="lz-cmd">Get-GenesysQueueHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "queue-health.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('queue-health')">📂 Browse for File…</button>
+        <input type="file" id="file-queue-health" accept=".json" style="display:none"
+               onchange="handleFileInput('queue-health',this)">
+      </div>
+
+      <div id="dash-queue-health" class="hide">
+        <div class="kpi-strip" id="kpis-queue-health"></div>
+
+        <div class="chart-card wide">
+          <div class="chart-header"><h2>Queue Service Level (30-second target %)</h2></div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-qh-sla"></canvas></div>
+        </div>
+
+        <div class="filter-bar">
+          <input type="text" class="search-input" id="search-qh" placeholder="Search queue name…"
+                 oninput="renderQueueHealthTable()">
+          <button class="filter-chip active" id="chip-qh-ALL"    onclick="setQhFilter('ALL')">All</button>
+          <button class="filter-chip"        id="chip-qh-GREEN"  onclick="setQhFilter('GREEN')" style="color:var(--ok)">🟢 Green</button>
+          <button class="filter-chip"        id="chip-qh-AMBER"  onclick="setQhFilter('AMBER')" style="color:var(--warn)">🟡 Amber</button>
+          <button class="filter-chip"        id="chip-qh-RED"    onclick="setQhFilter('RED')"   style="color:var(--danger)">🔴 Red</button>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead><tr>
+              <th>Queue</th><th>Media</th><th>Status</th>
+              <th title="Contacts currently waiting">⏳ Waiting</th>
+              <th title="Agents currently interacting">🗣 Interacting</th>
+              <th title="Agents on-queue">👥 On Queue</th>
+              <th>SLA 30s %</th>
+              <th>Offered</th>
+            </tr></thead>
+            <tbody id="tbody-qh"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /pane-queue-health -->
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Abandon Rates                                         -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane" id="pane-abandon">
+
+      <div class="load-zone" id="lz-abandon">
+        <div class="lz-icon">📉</div>
+        <div class="lz-title">Load Abandon Rate Dashboard</div>
+        <div class="lz-sub">Drop your <code>abandon-dashboard.json</code> here, or click Browse.</div>
+        <code class="lz-cmd">Get-GenesysAbandonRateDashboard | ConvertTo-Json -Depth 5 | Set-Content "abandon-dashboard.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('abandon')">📂 Browse for File…</button>
+        <input type="file" id="file-abandon" accept=".json" style="display:none"
+               onchange="handleFileInput('abandon',this)">
+      </div>
+
+      <div id="dash-abandon" class="hide">
+        <div class="kpi-strip" id="kpis-abandon"></div>
+
+        <div class="chart-card wide">
+          <div class="chart-header"><h2>Abandon Rate by Queue (%)</h2>
+            <span class="muted" style="font-size:.78rem">sorted highest → lowest · red &gt;10%, amber 5–10%, green &lt;5%</span>
+          </div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-abandon-bar"></canvas></div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-card-header"><h2>Queue Abandon Detail</h2></div>
+          <table class="data-table">
+            <thead><tr>
+              <th>Queue</th><th>Media</th>
+              <th>Offered</th><th>Abandoned</th>
+              <th>Abandon Rate</th><th>Avg Abandon (s)</th>
+              <th title="Real-time waiting count">⏳ Waiting (rt)</th>
+            </tr></thead>
+            <tbody id="tbody-abandon"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /pane-abandon -->
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Agent Quality                                         -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane" id="pane-agent-quality">
+
+      <div class="load-zone" id="lz-agent-quality">
+        <div class="lz-icon">👤</div>
+        <div class="lz-title">Load Agent Quality Snapshot</div>
+        <div class="lz-sub">Drop your <code>agent-quality.json</code> here, or click Browse.</div>
+        <code class="lz-cmd">Get-GenesysAgentQualitySnapshot | ConvertTo-Json -Depth 5 | Set-Content "agent-quality.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('agent-quality')">📂 Browse for File…</button>
+        <input type="file" id="file-agent-quality" accept=".json" style="display:none"
+               onchange="handleFileInput('agent-quality',this)">
+      </div>
+
+      <div id="dash-agent-quality" class="hide">
+        <div class="kpi-strip" id="kpis-agent-quality"></div>
+
+        <div class="chart-card wide">
+          <div class="chart-header"><h2>Top Agents — Handle Time vs ACW (highest first)</h2></div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-aq-bar"></canvas></div>
+        </div>
+
+        <div class="filter-bar">
+          <input type="text" class="search-input" id="search-aq" placeholder="Search agent name / ID…"
+                 oninput="renderAgentTable()">
+          <select class="search-input" id="sort-aq" style="min-width:auto" onchange="renderAgentTable()">
+            <option value="AvgHandleSec">Sort: Avg Handle Time ↓</option>
+            <option value="ConversationsHandled">Sort: Conversations ↓</option>
+            <option value="AvgAcwSec">Sort: Avg ACW ↓</option>
+            <option value="AvgTalkSec">Sort: Avg Talk Time ↓</option>
+          </select>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead><tr>
+              <th>#</th><th>Agent</th><th>Conversations</th>
+              <th>Avg Handle (s)</th><th>Avg Talk (s)</th><th>Avg ACW (s)</th>
+            </tr></thead>
+            <tbody id="tbody-aq"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /pane-agent-quality -->
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Edge & Trunks                                         -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane" id="pane-edge">
+
+      <div class="load-zone" id="lz-edge">
+        <div class="lz-icon">🌐</div>
+        <div class="lz-title">Load Edge Health Snapshot</div>
+        <div class="lz-sub">Drop your <code>edge-health.json</code> here, or click Browse.</div>
+        <code class="lz-cmd">Get-GenesysEdgeHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "edge-health.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('edge')">📂 Browse for File…</button>
+        <input type="file" id="file-edge" accept=".json" style="display:none"
+               onchange="handleFileInput('edge',this)">
+      </div>
+
+      <div id="dash-edge" class="hide">
+        <div class="kpi-strip" id="kpis-edge"></div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header"><h2>Edge Appliance Status</h2></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-edge-donut"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><h2>SIP Trunk Status</h2></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-trunk-donut"></canvas></div>
+          </div>
+        </div>
+
+        <div id="edge-offline-panel"></div>
+      </div>
+
+    </div><!-- /pane-edge -->
+
+    <!-- ────────────────────────────────────────────────────────── -->
+    <!-- Tab: Change Audit                                          -->
+    <!-- ────────────────────────────────────────────────────────── -->
+    <div class="tab-pane" id="pane-audit">
+
+      <div class="load-zone" id="lz-audit">
+        <div class="lz-icon">🔔</div>
+        <div class="lz-title">Load Change Audit Feed</div>
+        <div class="lz-sub">Drop your <code>change-audit.json</code> here, or click Browse.</div>
+        <code class="lz-cmd">Get-GenesysChangeAuditFeed | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"</code>
+        <button class="btn btn-primary" onclick="triggerLoad('audit')">📂 Browse for File…</button>
+        <input type="file" id="file-audit" accept=".json" style="display:none"
+               onchange="handleFileInput('audit',this)">
+      </div>
+
+      <div id="dash-audit" class="hide">
+        <div class="kpi-strip" id="kpis-audit"></div>
+
+        <div class="filter-bar">
+          <input type="text" class="search-input" id="search-audit"
+                 placeholder="Search summary, actor, action, entity…"
+                 oninput="renderAuditTable()">
+          <button class="filter-chip active" id="chip-audit-ALL"    onclick="setAuditFilter('ALL')">All</button>
+          <button class="filter-chip"        id="chip-audit-HIGH"   onclick="setAuditFilter('HIGH')"   style="color:var(--danger)">🔴 High</button>
+          <button class="filter-chip"        id="chip-audit-MEDIUM" onclick="setAuditFilter('MEDIUM')" style="color:var(--warn)">🟡 Medium</button>
+          <button class="filter-chip"        id="chip-audit-LOW"    onclick="setAuditFilter('LOW')"    style="color:var(--ok)">🟢 Low</button>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead><tr>
+              <th>Time</th><th>Risk</th><th>Entity Type</th>
+              <th>Action</th><th>Actor</th><th>Summary</th>
+            </tr></thead>
+            <tbody id="tbody-audit"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /pane-audit -->
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<!-- ═══ Application Script ════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── State ────────────────────────────────────────────────────────
+const S = {
+  opsReport:       null,
+  queueHealth:     null,
+  abandonDashboard:null,
+  agentQuality:    null,
+  edgeHealth:      null,
+  changeAudit:     null,
+};
+
+const charts = {};
+let qhFilter    = 'ALL';
+let auditFilter = 'ALL';
+
+// ─── Business-rule thresholds (centralised) ───────────────────────
+const THRESHOLDS = {
+  // Queue waiting counts (contacts in queue)
+  WAITING_HIGH:  10,   // RED  — oWaiting > 10
+  WAITING_WARN:   5,   // AMBER — oWaiting >= 5
+
+  // SLA 30-second compliance %
+  SLA_TARGET:    80,   // below this = AMBER in charts
+  SLA_DANGER:    70,   // below this = RED  in charts
+
+  // Abandon rate %
+  ABANDON_HIGH:  10,   // RED  — highlight queues > 10%
+  ABANDON_WARN:   5,   // AMBER — highlight queues > 5%
+
+  // ACW (after-call work) in seconds
+  ACW_HIGH:     120,   // RED  — avg ACW > 2 min
+  ACW_WARN:      60,   // AMBER — avg ACW > 1 min
+
+  // Demo data time offsets (milliseconds)
+  ONE_HOUR_MS:        3_600_000,
+  TWO_HOURS_MS:       7_200_000,
+  THREE_HOURS_MS:    10_800_000,
+  FOUR_HOURS_MS:     14_400_000,
+  FIVE_HOURS_MS:     18_000_000,
+  SIX_HOURS_MS:      21_600_000,
+  ONE_DAY_MS:        86_400_000,
+  TWO_DAYS_MS:      172_800_000,
+  THREE_DAYS_MS:    259_200_000,
+};
+
+// ─── Tab switching ────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-pane')
+    .forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
+}
+
+// ─── File loading ─────────────────────────────────────────────────
+function triggerLoad(type) {
+  document.getElementById('file-' + type).click();
+}
+
+function handleFileInput(type, input) {
+  const file = input.files[0];
+  if (!file) return;
+  readFile(file, type);
+  input.value = '';
+}
+
+function readFile(file, type) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      let data = JSON.parse(e.target.result);
+      // PowerShell ConvertTo-Json wraps arrays in { "value": [...] } for some versions
+      if (data && !Array.isArray(data) && Array.isArray(data.value)) data = data.value;
+      processData(type, data);
+    } catch (err) {
+      toast('❌ Invalid JSON: ' + err.message, true);
+    }
+  };
+  r.readAsText(file);
+}
+
+// Set up drag-and-drop on every load zone
+document.addEventListener('DOMContentLoaded', () => {
+  const zones = [
+    ['lz-overview',      'ops-report'],
+    ['lz-queue-health',  'queue-health'],
+    ['lz-abandon',       'abandon'],
+    ['lz-agent-quality', 'agent-quality'],
+    ['lz-edge',          'edge'],
+    ['lz-audit',         'audit'],
+  ];
+  zones.forEach(([id, type]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', ()  => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) readFile(f, type);
+    });
+    // Clicking the zone (but not the Browse button) also opens the picker
+    el.addEventListener('click', e => {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') triggerLoad(type);
+    });
+  });
+});
+
+// ─── Data routing ─────────────────────────────────────────────────
+const TYPE_MAP = {
+  'ops-report':    ['opsReport',        'overview'],
+  'queue-health':  ['queueHealth',      'queue-health'],
+  'abandon':       ['abandonDashboard', 'abandon'],
+  'agent-quality': ['agentQuality',     'agent-quality'],
+  'edge':          ['edgeHealth',       'edge'],
+  'audit':         ['changeAudit',      'audit'],
+};
+
+function processData(type, data) {
+  const entry = TYPE_MAP[type];
+  if (!entry) return;
+  const [stateKey, tabKey] = entry;
+  S[stateKey] = data;
+  document.getElementById('dot-' + tabKey)?.classList.add('loaded');
+  updateNavStatus();
+  ({
+    'ops-report':    renderOverview,
+    'queue-health':  renderQueueHealth,
+    'abandon':       renderAbandonment,
+    'agent-quality': renderAgentQuality,
+    'edge':          renderEdgeHealth,
+    'audit':         renderAudit,
+  })[type]?.();
+  toast('✅ ' + LABELS[type] + ' loaded');
+}
+
+const LABELS = {
+  'ops-report':    'Operations Report',
+  'queue-health':  'Queue Health Snapshot',
+  'abandon':       'Abandon Rate Dashboard',
+  'agent-quality': 'Agent Quality Snapshot',
+  'edge':          'Edge Health Snapshot',
+  'audit':         'Change Audit Feed',
+};
+
+// ─── Nav status ───────────────────────────────────────────────────
+function updateNavStatus() {
+  const n = Object.values(S).filter(Boolean).length;
+  const dot = document.getElementById('nav-status-dot');
+  const txt = document.getElementById('nav-status-text');
+  dot.className = n > 0 ? 'ready' : '';
+  txt.textContent = n > 0
+    ? n + ' dataset' + (n !== 1 ? 's' : '') + ' loaded'
+    : 'No data loaded';
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────
+const esc = s => s == null ? '' :
+  String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const fmt = (v, d = 1) =>
+  v === null || v === undefined ? '—' :
+  typeof v === 'number' ? v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) :
+  String(v);
+
+const fmtDate = d => {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleString(undefined, { dateStyle:'short', timeStyle:'short' }); }
+  catch { return String(d); }
+};
+
+function destroyChart(id) {
+  if (charts[id]) { try { charts[id].destroy(); } catch {} delete charts[id]; }
+}
+
+function kpiCard(label, value, sub, color) {
+  return `<div class="kpi-card ${color || ''}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    ${sub ? '<div class="kpi-sub">' + sub + '</div>' : ''}
+  </div>`;
+}
+
+function kvRow(k, v, cls) {
+  return `<div class="kv-row"><span class="kv-key">${k}</span><span class="kv-val ${cls||''}">${v}</span></div>`;
+}
+
+function showHide(dashId, lzId, show) {
+  document.getElementById(dashId)?.classList.toggle('hide', !show);
+  document.getElementById(lzId)?.classList.toggle('hide',  show);
+}
+
+let toastTimer;
+function toast(msg, isErr) {
+  const el = document.getElementById('toast');
+  el.style.background = isErr ? 'var(--danger)' : 'var(--ink)';
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ─── OVERVIEW — Invoke-GenesysOperationsReport ────────────────────
+function renderOverview() {
+  const d = S.opsReport;
+  if (!d) return;
+  showHide('dash-overview', 'lz-overview', true);
+
+  const ar = d.AbandonRate   || {};
+  const sl = d.ServiceLevel  || {};
+  const eh = d.EdgeHealth    || {};
+  const aa = d.ActiveAlerts  || {};
+  const wr = d.WebRtcDisconnects || {};
+
+  const arPct = ar.AverageAbandonPct;
+  const slPct = sl.AverageSL30Pct;
+
+  document.getElementById('kpis-overview').innerHTML = [
+    kpiCard('Avg Abandon Rate',
+      arPct != null ? fmt(arPct) + '%' : '—',
+      (ar.QueuesAbove10Pct || 0) + ` queue(s) above ${THRESHOLDS.ABANDON_HIGH}%`,
+      arPct > THRESHOLDS.ABANDON_HIGH ? 'c-red' : arPct > THRESHOLDS.ABANDON_WARN ? 'c-amber' : 'c-green'),
+    kpiCard('Avg SLA (30 s)',
+      slPct != null ? fmt(slPct) + '%' : '—',
+      (sl.QueuesBelowTarget || 0) + ` queue(s) below ${THRESHOLDS.SLA_TARGET}% target`,
+      slPct < THRESHOLDS.SLA_DANGER ? 'c-red' : slPct < THRESHOLDS.SLA_TARGET ? 'c-amber' : 'c-green'),
+    kpiCard('Edges Online',
+      (eh.EdgesOnline ?? '—') + ' / ' + (eh.EdgesTotal ?? '—'),
+      (eh.EdgesOffline || 0) > 0 ? (eh.EdgesOffline) + ' offline' : 'All healthy',
+      (eh.EdgesOffline || 0) > 0 ? 'c-red' : 'c-green'),
+    kpiCard('Trunks Active',
+      (eh.TrunksActive ?? '—') + ' / ' + (eh.TrunksTotal ?? '—'),
+      (eh.TrunksInactive || 0) > 0 ? (eh.TrunksInactive) + ' inactive' : 'All active',
+      (eh.TrunksInactive || 0) > 0 ? 'c-orange' : 'c-green'),
+    kpiCard('Active Alerts',
+      aa.Count ?? 0, 'threshold breaches',
+      (aa.Count || 0) > 0 ? 'c-red' : 'c-green'),
+    kpiCard('WebRTC Errors',
+      wr.TotalErrorEvents ?? 0, 'disconnect error events',
+      (wr.TotalErrorEvents || 0) > 0 ? 'c-orange' : 'c-green'),
+  ].join('');
+
+  // SLA donut — the ops report provides queue counts relative to target, not absolute totals.
+  // We estimate "above target" as the non-negative remainder from QueuesBelowTarget.
+  // For precise totals, load queue-health.json on the Queue Health tab.
+  destroyChart('overview-sla');
+  const slBelow = sl.QueuesBelowTarget || 0;
+  // Use QueuesBelowTarget + a reasonable "above" estimate based on available data
+  const slAbove = Math.max(1, 10 - slBelow); // fallback estimate if total not available
+  charts['overview-sla'] = new Chart(
+    document.getElementById('chart-overview-sla').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: [`Queues ≥ ${THRESHOLDS.SLA_TARGET}% SLA`, `Queues < ${THRESHOLDS.SLA_TARGET}% SLA`],
+        datasets: [{
+          data: [slAbove, slBelow],
+          backgroundColor: ['#0d9f6e', '#c0392b'],
+          borderWidth: 2, borderColor: '#fff',
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      },
+    });
+
+  // WebRTC bar
+  destroyChart('overview-webrtc');
+  const codes = (wr.ByErrorCode || []).slice(0, 8);
+  charts['overview-webrtc'] = new Chart(
+    document.getElementById('chart-overview-webrtc').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: codes.map(x => esc(x.Name || 'unknown')),
+        datasets: [{ label: 'Events', data: codes.map(x => x.Count || 0),
+          backgroundColor: '#e05d2b', borderRadius: 4 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#e8eeea' } },
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        },
+      },
+    });
+
+  // Info panels
+  document.getElementById('info-edge').innerHTML = [
+    kvRow('Edges Total',    eh.EdgesTotal  ?? '—'),
+    kvRow('Edges Online',   eh.EdgesOnline ?? '—', (eh.EdgesOnline === eh.EdgesTotal) ? 'ok' : 'warn'),
+    kvRow('Edges Offline',  eh.EdgesOffline ?? '—', (eh.EdgesOffline || 0) > 0 ? 'danger' : 'ok'),
+    kvRow('Trunks Total',   eh.TrunksTotal  ?? '—'),
+    kvRow('Trunks Active',  eh.TrunksActive ?? '—', (eh.TrunksActive === eh.TrunksTotal) ? 'ok' : 'warn'),
+    kvRow('Snapshot',       fmtDate(eh.Timestamp)),
+  ].join('');
+
+  const cc = d.ContactCentre || {};
+  document.getElementById('info-cc').innerHTML = [
+    kvRow('Agents Online',        cc.AgentsOnline       ?? '—'),
+    kvRow('Active Conversations', cc.ActiveConversations ?? '—'),
+    kvRow('Total Queues',         cc.TotalQueues         ?? '—'),
+    kvRow('Total Agents',         cc.TotalAgents         ?? '—'),
+    kvRow('Active Calls',         cc.ActiveCalls         ?? '—'),
+  ].join('');
+
+  const org = d.Organisation || {};
+  document.getElementById('info-org').innerHTML = [
+    kvRow('Name',        esc(org.Name || '—')),
+    kvRow('Org ID',      org.Id ? `<span class="mono" style="font-size:.76rem">${esc(org.Id)}</span>` : '—'),
+    kvRow('Report Time', fmtDate(d.GeneratedAt)),
+  ].join('');
+
+  // Alerts
+  const alerts = aa.Alerts || [];
+  const cnt = aa.Count || 0;
+  document.getElementById('badge-alerts').textContent = cnt + ' alert' + (cnt !== 1 ? 's' : '');
+  document.getElementById('badge-alerts').className = 'pill ' + (cnt > 0 ? 'pill-red' : 'pill-green');
+  document.getElementById('list-alerts').innerHTML = alerts.length
+    ? alerts.map(name => `
+        <div class="alert-item">
+          <div class="alert-icon">🔔</div>
+          <div class="alert-body"><div class="alert-title">${esc(name)}</div></div>
+        </div>`).join('')
+    : '<div style="padding:18px 16px; color:var(--muted); text-align:center">✅ No active alerts</div>';
+}
+
+// ─── QUEUE HEALTH — Get-GenesysQueueHealthSnapshot ───────────────
+function renderQueueHealth() {
+  const rows = S.queueHealth;
+  if (!rows || !rows.length) return;
+  showHide('dash-queue-health', 'lz-queue-health', true);
+
+  const total = rows.length;
+  const green = rows.filter(r => r.HealthStatus === 'GREEN').length;
+  const amber = rows.filter(r => r.HealthStatus === 'AMBER').length;
+  const red   = rows.filter(r => r.HealthStatus === 'RED').length;
+  const slRows = rows.filter(r => r.ServiceLevel30Pct != null);
+  const avgSl  = slRows.length
+    ? slRows.reduce((a, b) => a + b.ServiceLevel30Pct, 0) / slRows.length
+    : null;
+
+  document.getElementById('kpis-queue-health').innerHTML = [
+    kpiCard('Queues Monitored', total, 'across all media types', 'c-blue'),
+    kpiCard('🟢 Green',  green, 'SL ≥ 80% &amp; low wait',    'c-green'),
+    kpiCard('🟡 Amber',  amber, 'SL 60–80% or moderate wait', amber > 0 ? 'c-amber' : ''),
+    kpiCard('🔴 Red',    red,   'SL < 60% or high wait',      red   > 0 ? 'c-red'   : ''),
+    kpiCard('Avg SLA 30s', avgSl != null ? fmt(avgSl) + '%' : '—', 'across all queues',
+      avgSl < THRESHOLDS.SLA_DANGER ? 'c-red' : avgSl < THRESHOLDS.SLA_TARGET ? 'c-amber' : 'c-green'),
+  ].join('');
+
+  // SLA bar chart (top 15 by SLA, descending)
+  const sorted = [...rows].sort((a, b) => (b.ServiceLevel30Pct ?? -1) - (a.ServiceLevel30Pct ?? -1)).slice(0, 15);
+  destroyChart('qh-sla');
+  charts['qh-sla'] = new Chart(
+    document.getElementById('chart-qh-sla').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(r => esc(r.QueueName || (r.QueueId || '?').slice(0, 14))),
+        datasets: [{
+          label: 'SLA 30s %',
+          data: sorted.map(r => r.ServiceLevel30Pct ?? null),
+          backgroundColor: sorted.map(r => {
+            const sl = r.ServiceLevel30Pct;
+            if (sl == null)                       return '#b8ccc0';
+            if (sl >= THRESHOLDS.SLA_TARGET)      return '#0d9f6e';
+            if (sl >= THRESHOLDS.SLA_DANGER)      return '#c8860a';
+            return '#c0392b';
+          }),
+          borderRadius: 5,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          annotation: {},
+        },
+        scales: {
+          y: { beginAtZero: true, max: 100, grid: { color: '#e8eeea' },
+               ticks: { callback: v => v + '%' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 40 } },
+        },
+      },
+    });
+
+  renderQueueHealthTable();
+}
+
+function setQhFilter(val) {
+  qhFilter = val;
+  ['ALL','GREEN','AMBER','RED'].forEach(v => {
+    document.getElementById('chip-qh-' + v)?.classList.toggle('active', v === val);
+  });
+  renderQueueHealthTable();
+}
+
+function renderQueueHealthTable() {
+  const rows = S.queueHealth;
+  if (!rows) return;
+  const search = (document.getElementById('search-qh')?.value || '').toLowerCase();
+  const filtered = rows.filter(r => {
+    const okF = qhFilter === 'ALL' || r.HealthStatus === qhFilter;
+    const okS = !search ||
+      (r.QueueName || '').toLowerCase().includes(search) ||
+      (r.QueueId   || '').toLowerCase().includes(search);
+    return okF && okS;
+  });
+
+  document.getElementById('tbody-qh').innerHTML = filtered.length
+    ? filtered.map(r => {
+        const st  = r.HealthStatus || 'UNKNOWN';
+        const pc  = st === 'GREEN' ? 'pill-green' : st === 'AMBER' ? 'pill-amber' : 'pill-red';
+        const sl  = r.ServiceLevel30Pct;
+        const slD = sl != null ? fmt(sl) + '%' : '—';
+        const slC = sl == null ? '' : sl >= THRESHOLDS.SLA_TARGET ? 'ok bold' : sl >= THRESHOLDS.SLA_DANGER ? 'warn bold' : 'danger bold';
+        const wC  = (r.oWaiting || 0) > THRESHOLDS.WAITING_HIGH ? 'danger bold' : (r.oWaiting || 0) >= THRESHOLDS.WAITING_WARN ? 'warn bold' : '';
+        return `<tr>
+          <td class="bold">${esc(r.QueueName || (r.QueueId || '—').slice(0,18))}</td>
+          <td><span class="pill pill-gray">${esc(r.MediaType || '—')}</span></td>
+          <td><span class="health-dot h-${st}"></span><span class="pill ${pc}">${st}</span></td>
+          <td class="${wC}">${r.oWaiting      ?? '—'}</td>
+          <td>${r.oInteracting  ?? '—'}</td>
+          <td>${r.oOnQueueUsers ?? '—'}</td>
+          <td class="${slC}">${slD}</td>
+          <td>${r.nOffered      ?? '—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr class="empty-row"><td colspan="8">No queues match the current filter.</td></tr>';
+}
+
+// ─── ABANDON RATES — Get-GenesysAbandonRateDashboard ─────────────
+function renderAbandonment() {
+  const rows = S.abandonDashboard;
+  if (!rows || !rows.length) return;
+  showHide('dash-abandon', 'lz-abandon', true);
+
+  const offered   = rows.reduce((a, b) => a + (b.nOffered   || 0), 0);
+  const abandoned = rows.reduce((a, b) => a + (b.nAbandoned || 0), 0);
+  const avgRate   = rows.reduce((a, b) => a + (b.AbandonRate || 0), 0) / rows.length;
+  const high      = rows.filter(r => (r.AbandonRate || 0) > THRESHOLDS.ABANDON_HIGH).length;
+
+  document.getElementById('kpis-abandon').innerHTML = [
+    kpiCard('Total Offered',   offered.toLocaleString(),   'contacts in window', 'c-blue'),
+    kpiCard('Total Abandoned', abandoned.toLocaleString(), 'contacts who left',
+      (abandoned / Math.max(1, offered)) * 100 > THRESHOLDS.ABANDON_HIGH ? 'c-red' : 'c-orange'),
+    kpiCard('Avg Abandon Rate', fmt(avgRate) + '%', 'across all queues',
+      avgRate > THRESHOLDS.ABANDON_HIGH ? 'c-red' : avgRate > THRESHOLDS.ABANDON_WARN ? 'c-amber' : 'c-green'),
+    kpiCard(`Queues > ${THRESHOLDS.ABANDON_HIGH}%`, high, 'high abandon', high > 0 ? 'c-red' : 'c-green'),
+  ].join('');
+
+  const sorted = [...rows].sort((a, b) => (b.AbandonRate || 0) - (a.AbandonRate || 0)).slice(0, 15);
+  destroyChart('abandon-bar');
+  charts['abandon-bar'] = new Chart(
+    document.getElementById('chart-abandon-bar').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(r => esc(r.QueueName || (r.QueueId || '?').slice(0, 14))),
+        datasets: [{
+          label: 'Abandon %',
+          data: sorted.map(r => r.AbandonRate || 0),
+          backgroundColor: sorted.map(r => {
+            const a = r.AbandonRate || 0;
+            return a > THRESHOLDS.ABANDON_HIGH ? '#c0392b' : a > THRESHOLDS.ABANDON_WARN ? '#c8860a' : '#0d9f6e';
+          }),
+          borderRadius: 5,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, grid: { color: '#e8eeea' }, ticks: { callback: v => v + '%' } },
+          y: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        },
+      },
+    });
+
+  document.getElementById('tbody-abandon').innerHTML = sorted.map(r => {
+    const rate = r.AbandonRate || 0;
+    const rc   = rate > THRESHOLDS.ABANDON_HIGH ? 'danger bold' : rate > THRESHOLDS.ABANDON_WARN ? 'warn bold' : 'ok';
+    return `<tr>
+      <td class="bold">${esc(r.QueueName || (r.QueueId || '—').slice(0,18))}</td>
+      <td><span class="pill pill-gray">${esc(r.MediaType || '—')}</span></td>
+      <td>${r.nOffered   ?? '—'}</td>
+      <td>${r.nAbandoned ?? '—'}</td>
+      <td class="${rc}">${fmt(r.AbandonRate)}%</td>
+      <td>${r.AvgAbandonSec != null ? r.AvgAbandonSec + 's' : '—'}</td>
+      <td>${r.oWaiting  != null ? r.oWaiting  : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── AGENT QUALITY — Get-GenesysAgentQualitySnapshot ─────────────
+function renderAgentQuality() {
+  const rows = S.agentQuality;
+  if (!rows || !rows.length) return;
+  showHide('dash-agent-quality', 'lz-agent-quality', true);
+
+  const total     = rows.length;
+  const convs     = rows.reduce((a, b) => a + (b.ConversationsHandled || 0), 0);
+  const avgHandle = rows.reduce((a, b) => a + (b.AvgHandleSec || 0), 0) / total;
+  const avgTalk   = rows.reduce((a, b) => a + (b.AvgTalkSec   || 0), 0) / total;
+  const avgAcw    = rows.reduce((a, b) => a + (b.AvgAcwSec    || 0), 0) / total;
+
+  document.getElementById('kpis-agent-quality').innerHTML = [
+    kpiCard('Total Agents',        total,                   'with handled conversations', 'c-blue'),
+    kpiCard('Total Conversations', convs.toLocaleString(),  'handled in window',          'c-teal'),
+    kpiCard('Avg Handle Time',     fmt(avgHandle, 0) + 's', 'across all agents',          'c-orange'),
+    kpiCard('Avg Talk Time',       fmt(avgTalk,   0) + 's', 'across all agents',          'c-green'),
+    kpiCard('Avg ACW',             fmt(avgAcw,    0) + 's', 'after-call work',
+      avgAcw > THRESHOLDS.ACW_HIGH ? 'c-red' : avgAcw > THRESHOLDS.ACW_WARN ? 'c-amber' : ''),
+  ].join('');
+
+  // Top 12 handle time bar chart
+  const top12 = [...rows]
+    .sort((a, b) => (b.AvgHandleSec || 0) - (a.AvgHandleSec || 0))
+    .slice(0, 12);
+  destroyChart('aq-bar');
+  charts['aq-bar'] = new Chart(
+    document.getElementById('chart-aq-bar').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: top12.map(r => esc(r.AgentName || (r.UserId || '?').slice(0, 16))),
+        datasets: [
+          { label: 'Avg Handle (s)', data: top12.map(r => r.AvgHandleSec || 0), backgroundColor: '#0d9f6e', borderRadius: 3 },
+          { label: 'Avg ACW (s)',    data: top12.map(r => r.AvgAcwSec    || 0), backgroundColor: '#c8860a', borderRadius: 3 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#e8eeea' }, ticks: { callback: v => v + 's' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 40 } },
+        },
+      },
+    });
+
+  renderAgentTable();
+}
+
+function renderAgentTable() {
+  const rows = S.agentQuality;
+  if (!rows) return;
+  const search  = (document.getElementById('search-aq')?.value || '').toLowerCase();
+  const sortKey = document.getElementById('sort-aq')?.value || 'AvgHandleSec';
+  const filtered = [...rows]
+    .filter(r => !search ||
+      (r.AgentName || '').toLowerCase().includes(search) ||
+      (r.UserId    || '').toLowerCase().includes(search))
+    .sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
+
+  document.getElementById('tbody-aq').innerHTML = filtered.length
+    ? filtered.map((r, i) => {
+        const rc = i === 0 ? 'rank rank-1' : i === 1 ? 'rank rank-2' : i === 2 ? 'rank rank-3' : 'rank';
+        const acwC = (r.AvgAcwSec || 0) > THRESHOLDS.ACW_HIGH ? 'danger' : (r.AvgAcwSec || 0) > THRESHOLDS.ACW_WARN ? 'warn' : '';
+        return `<tr>
+          <td><span class="${rc}">${i + 1}</span></td>
+          <td class="mono" style="font-size:.8rem">${esc(r.AgentName || r.UserId || '—')}</td>
+          <td>${r.ConversationsHandled ?? '—'}</td>
+          <td class="bold">${r.AvgHandleSec != null ? r.AvgHandleSec + 's' : '—'}</td>
+          <td>${r.AvgTalkSec  != null ? r.AvgTalkSec  + 's' : '—'}</td>
+          <td class="${acwC}">${r.AvgAcwSec != null ? r.AvgAcwSec + 's' : '—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr class="empty-row"><td colspan="6">No matching agents.</td></tr>';
+}
+
+// ─── EDGE HEALTH — Get-GenesysEdgeHealthSnapshot ──────────────────
+function renderEdgeHealth() {
+  const d = S.edgeHealth;
+  if (!d) return;
+  showHide('dash-edge', 'lz-edge', true);
+
+  document.getElementById('kpis-edge').innerHTML = [
+    kpiCard('Edges Online',
+      (d.EdgesOnline  ?? '—') + ' / ' + (d.EdgesTotal  ?? '—'),
+      'appliances',
+      (d.EdgesOffline  || 0) > 0 ? 'c-red'    : 'c-green'),
+    kpiCard('Edges Offline',
+      d.EdgesOffline  ?? 0, 'requiring attention',
+      (d.EdgesOffline  || 0) > 0 ? 'c-red'    : 'c-green'),
+    kpiCard('Trunks Active',
+      (d.TrunksActive ?? '—') + ' / ' + (d.TrunksTotal ?? '—'),
+      'SIP trunks',
+      (d.TrunksInactive || 0) > 0 ? 'c-orange' : 'c-green'),
+    kpiCard('Trunks Inactive',
+      d.TrunksInactive ?? 0, 'not registered',
+      (d.TrunksInactive || 0) > 0 ? 'c-orange' : 'c-green'),
+    kpiCard('Snapshot Time', fmtDate(d.Timestamp), 'data captured at', 'c-teal'),
+  ].join('');
+
+  const mkDonut = (id, online, offline, l1, l2, c1, c2) => {
+    destroyChart(id);
+    charts[id] = new Chart(document.getElementById('chart-' + id).getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: [l1, l2],
+        datasets: [{ data: [online || 0, offline || 0],
+          backgroundColor: [c1, c2], borderWidth: 2, borderColor: '#fff' }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      },
+    });
+  };
+
+  mkDonut('edge-donut',  d.EdgesOnline,  d.EdgesOffline,  'Online',  'Offline', '#0d9f6e', '#c0392b');
+  mkDonut('trunk-donut', d.TrunksActive, d.TrunksInactive,'Active',  'Inactive','#006d77', '#e07d2b');
+
+  const offline = d.OfflineEdgeNames || [];
+  document.getElementById('edge-offline-panel').innerHTML = offline.length
+    ? `<div class="info-box danger">⚠️ <strong>Offline Edge${offline.length > 1 ? 's' : ''} (${offline.length}):</strong> ${offline.map(n => esc(n)).join(', ')}</div>`
+    : '<div class="info-box">✅ All edge appliances are reporting <strong>ONLINE</strong></div>';
+}
+
+// ─── CHANGE AUDIT — Get-GenesysChangeAuditFeed ────────────────────
+function renderAudit() {
+  const rows = S.changeAudit;
+  if (!rows || !rows.length) return;
+  showHide('dash-audit', 'lz-audit', true);
+
+  const high   = rows.filter(r => r.Risk === 'HIGH').length;
+  const medium = rows.filter(r => r.Risk === 'MEDIUM').length;
+  const low    = rows.filter(r => r.Risk === 'LOW').length;
+
+  document.getElementById('kpis-audit').innerHTML = [
+    kpiCard('Total Events',    rows.length, 'change events in window',  'c-blue'),
+    kpiCard('🔴 High Risk',   high,        'require governance review',  high   > 0 ? 'c-red'   : 'c-green'),
+    kpiCard('🟡 Medium Risk', medium,      'worth noting',               medium > 0 ? 'c-amber' : ''),
+    kpiCard('🟢 Low Risk',    low,         'routine changes',            'c-green'),
+  ].join('');
+
+  renderAuditTable();
+}
+
+function setAuditFilter(val) {
+  auditFilter = val;
+  ['ALL','HIGH','MEDIUM','LOW'].forEach(v => {
+    document.getElementById('chip-audit-' + v)?.classList.toggle('active', v === val);
+  });
+  renderAuditTable();
+}
+
+function renderAuditTable() {
+  const rows = S.changeAudit;
+  if (!rows) return;
+  const search = (document.getElementById('search-audit')?.value || '').toLowerCase();
+  const filtered = rows.filter(r => {
+    const okF = auditFilter === 'ALL' || r.Risk === auditFilter;
+    const okS = !search ||
+      (r.Summary    || '').toLowerCase().includes(search) ||
+      (r.Actor      || '').toLowerCase().includes(search) ||
+      (r.Action     || '').toLowerCase().includes(search) ||
+      (r.EntityType || '').toLowerCase().includes(search);
+    return okF && okS;
+  });
+
+  document.getElementById('tbody-audit').innerHTML = filtered.length
+    ? filtered.map(r => {
+        const risk = r.Risk || 'LOW';
+        const pc   = risk === 'HIGH' ? 'pill-red' : risk === 'MEDIUM' ? 'pill-amber' : 'pill-green';
+        return `<tr>
+          <td class="mono" style="font-size:.78rem; white-space:nowrap">${fmtDate(r.Timestamp)}</td>
+          <td><span class="pill ${pc}">${esc(risk)}</span></td>
+          <td>${esc(r.EntityType || r.ServiceName || '—')}</td>
+          <td>${esc(r.Action     || '—')}</td>
+          <td class="mono" style="font-size:.78rem">${esc(r.Actor  || r.UserId || '—')}</td>
+          <td>${esc(r.Summary    || '—')}</td>
+        </tr>`;
+      }).join('')
+    : '<tr class="empty-row"><td colspan="6">No matching events.</td></tr>';
+}
+
+// ─── Demo data ────────────────────────────────────────────────────
+function loadDemo() {
+  const now = Date.now();
+
+  processData('ops-report', {
+    GeneratedAt:  new Date(now).toISOString(),
+    Organisation: { Name: 'Acme Contact Centre', Id: 'acme-org-001-demo' },
+    ContactCentre: {
+      AgentsOnline: 42, ActiveConversations: 28,
+      TotalQueues: 9, TotalAgents: 87, ActiveCalls: 21,
+    },
+    AbandonRate:  { AverageAbandonPct: 6.3, QueuesAbove10Pct: 2 },
+    ServiceLevel: { AverageSL30Pct: 76.5, QueuesBelowTarget: 3 },
+    EdgeHealth:   {
+      Timestamp: new Date(now).toISOString(),
+      EdgesTotal: 4, EdgesOnline: 3, EdgesOffline: 1,
+      TrunksTotal: 8, TrunksActive: 7, TrunksInactive: 1,
+      OfflineEdgeNames: ['EdgeSite-Glasgow'],
+    },
+    ActiveAlerts: {
+      Count: 3,
+      Alerts: [
+        'Queue SLA Breach — Billing Support',
+        'Agent ACW Anomaly — J. Smith',
+        'High Abandon Rate — Technical Support',
+      ],
+    },
+    WebRtcDisconnects: {
+      TotalErrorEvents: 14,
+      ByErrorCode: [
+        { Name: 'ICE_FAILED',       Count: 6 },
+        { Name: 'STUN_TIMEOUT',     Count: 4 },
+        { Name: 'RTP_TIMEOUT',      Count: 3 },
+        { Name: 'TURN_UNREACHABLE', Count: 1 },
+      ],
+    },
+  });
+
+  processData('queue-health', [
+    { QueueId: 'q-001', QueueName: 'General Enquiries',  MediaType: 'voice', oWaiting: 2,  oInteracting: 8,  oOnQueueUsers: 10, ServiceLevel30Pct: 88.5, nOffered: 142, HealthStatus: 'GREEN' },
+    { QueueId: 'q-002', QueueName: 'Technical Support',  MediaType: 'voice', oWaiting: 12, oInteracting: 6,  oOnQueueUsers:  7, ServiceLevel30Pct: 54.2, nOffered:  98, HealthStatus: 'RED'   },
+    { QueueId: 'q-003', QueueName: 'Billing',            MediaType: 'voice', oWaiting: 4,  oInteracting: 5,  oOnQueueUsers:  6, ServiceLevel30Pct: 72.1, nOffered:  75, HealthStatus: 'AMBER' },
+    { QueueId: 'q-004', QueueName: 'Sales',              MediaType: 'voice', oWaiting: 1,  oInteracting: 4,  oOnQueueUsers:  5, ServiceLevel30Pct: 92.3, nOffered:  61, HealthStatus: 'GREEN' },
+    { QueueId: 'q-005', QueueName: 'Complaints',         MediaType: 'voice', oWaiting: 8,  oInteracting: 3,  oOnQueueUsers:  4, ServiceLevel30Pct: 61.0, nOffered:  45, HealthStatus: 'AMBER' },
+    { QueueId: 'q-006', QueueName: 'General Enquiries',  MediaType: 'chat',  oWaiting: 2,  oInteracting: 3,  oOnQueueUsers:  3, ServiceLevel30Pct: 95.0, nOffered:  38, HealthStatus: 'GREEN' },
+    { QueueId: 'q-007', QueueName: 'Technical Support',  MediaType: 'email', oWaiting: 5,  oInteracting: 2,  oOnQueueUsers:  2, ServiceLevel30Pct: null,   nOffered:  22, HealthStatus: 'AMBER' },
+    { QueueId: 'q-008', QueueName: 'Collections',        MediaType: 'voice', oWaiting: 0,  oInteracting: 2,  oOnQueueUsers:  3, ServiceLevel30Pct: 99.0, nOffered:  18, HealthStatus: 'GREEN' },
+  ]);
+
+  processData('abandon', [
+    { QueueId: 'q-001', QueueName: 'General Enquiries', MediaType: 'voice', nOffered: 142, nAbandoned:  8, AbandonRate:  5.6, AvgAbandonSec:  38, oWaiting: 2  },
+    { QueueId: 'q-002', QueueName: 'Technical Support', MediaType: 'voice', nOffered:  98, nAbandoned: 16, AbandonRate: 16.3, AvgAbandonSec:  92, oWaiting: 12 },
+    { QueueId: 'q-003', QueueName: 'Billing',           MediaType: 'voice', nOffered:  75, nAbandoned:  5, AbandonRate:  6.7, AvgAbandonSec:  45, oWaiting: 4  },
+    { QueueId: 'q-004', QueueName: 'Sales',             MediaType: 'voice', nOffered:  61, nAbandoned:  2, AbandonRate:  3.3, AvgAbandonSec:  22, oWaiting: 1  },
+    { QueueId: 'q-005', QueueName: 'Complaints',        MediaType: 'voice', nOffered:  45, nAbandoned:  7, AbandonRate: 15.6, AvgAbandonSec:  78, oWaiting: 8  },
+    { QueueId: 'q-006', QueueName: 'General Enquiries', MediaType: 'chat',  nOffered:  38, nAbandoned:  1, AbandonRate:  2.6, AvgAbandonSec:  12, oWaiting: 2  },
+    { QueueId: 'q-008', QueueName: 'Collections',       MediaType: 'voice', nOffered:  18, nAbandoned:  0, AbandonRate:  0.0, AvgAbandonSec: null, oWaiting: 0 },
+  ]);
+
+  processData('agent-quality', [
+    { UserId: 'usr-001', AgentName: 'Alice Johnson',  ConversationsHandled: 42, AvgHandleSec: 248, AvgTalkSec: 215, AvgAcwSec: 33 },
+    { UserId: 'usr-002', AgentName: 'Bob Smith',      ConversationsHandled: 38, AvgHandleSec: 312, AvgTalkSec: 270, AvgAcwSec: 42 },
+    { UserId: 'usr-003', AgentName: 'Carol White',    ConversationsHandled: 51, AvgHandleSec: 198, AvgTalkSec: 175, AvgAcwSec: 23 },
+    { UserId: 'usr-004', AgentName: 'Dave Brown',     ConversationsHandled: 28, AvgHandleSec: 445, AvgTalkSec: 380, AvgAcwSec: 65 },
+    { UserId: 'usr-005', AgentName: 'Eve Davis',      ConversationsHandled: 35, AvgHandleSec: 287, AvgTalkSec: 250, AvgAcwSec: 37 },
+    { UserId: 'usr-006', AgentName: 'Frank Wilson',   ConversationsHandled: 44, AvgHandleSec: 221, AvgTalkSec: 198, AvgAcwSec: 23 },
+    { UserId: 'usr-007', AgentName: 'Grace Lee',      ConversationsHandled: 19, AvgHandleSec: 389, AvgTalkSec: 320, AvgAcwSec: 69 },
+    { UserId: 'usr-008', AgentName: 'Henry Martin',   ConversationsHandled: 47, AvgHandleSec: 235, AvgTalkSec: 210, AvgAcwSec: 25 },
+    { UserId: 'usr-009', AgentName: 'Iris Clarke',    ConversationsHandled: 33, AvgHandleSec: 268, AvgTalkSec: 233, AvgAcwSec: 35 },
+    { UserId: 'usr-010', AgentName: 'Jack Turner',    ConversationsHandled: 22, AvgHandleSec: 320, AvgTalkSec: 280, AvgAcwSec: 40 },
+  ]);
+
+  processData('edge', {
+    Timestamp:       new Date(now).toISOString(),
+    EdgesTotal:      4,
+    EdgesOnline:     3,
+    EdgesOffline:    1,
+    TrunksTotal:     8,
+    TrunksActive:    7,
+    TrunksInactive:  1,
+    OfflineEdgeNames: ['EdgeSite-Glasgow'],
+  });
+
+  processData('audit', [
+    { Timestamp: new Date(now - THRESHOLDS.ONE_HOUR_MS).toISOString(),    Risk: 'HIGH',   EntityType: 'FLOW',         Action: 'UPDATE_FLOW',         Actor: 'admin@acme.com',       Summary: "IVR flow 'Billing IVR' modified — transfer destination changed"      },
+    { Timestamp: new Date(now - THRESHOLDS.TWO_HOURS_MS).toISOString(),   Risk: 'HIGH',   EntityType: 'USER',         Action: 'ROLE_ASSIGN',         Actor: 'it-admin@acme.com',    Summary: "Admin role assigned to bob.smith@acme.com"                           },
+    { Timestamp: new Date(now - THRESHOLDS.THREE_HOURS_MS).toISOString(), Risk: 'MEDIUM', EntityType: 'QUEUE',        Action: 'UPDATE_QUEUE',        Actor: 'supervisor@acme.com',  Summary: "Queue 'Technical Support' wrap-up timeout changed 30s → 60s"        },
+    { Timestamp: new Date(now - THRESHOLDS.FOUR_HOURS_MS).toISOString(),  Risk: 'MEDIUM', EntityType: 'OAUTH_CLIENT', Action: 'CREATE_CLIENT',       Actor: 'qa-manager@acme.com',  Summary: "New OAuth client 'Analytics Integration' created"                    },
+    { Timestamp: new Date(now - THRESHOLDS.FIVE_HOURS_MS).toISOString(),  Risk: 'LOW',    EntityType: 'QUEUE',        Action: 'UPDATE_QUEUE',        Actor: 'supervisor@acme.com',  Summary: "Queue 'Sales' out-of-hours message updated"                          },
+    { Timestamp: new Date(now - THRESHOLDS.SIX_HOURS_MS).toISOString(),   Risk: 'LOW',    EntityType: 'USER',         Action: 'UPDATE_USER',         Actor: 'admin@acme.com',       Summary: "Agent carol.white@acme.com skill 'Spanish' added"                    },
+    { Timestamp: new Date(now - THRESHOLDS.ONE_DAY_MS).toISOString(),     Risk: 'HIGH',   EntityType: 'OAUTH_CLIENT', Action: 'REVOKE_CREDENTIAL',   Actor: 'admin@acme.com',       Summary: "OAuth client 'Reporting App' credential rotated"                     },
+    { Timestamp: new Date(now - THRESHOLDS.TWO_DAYS_MS).toISOString(),    Risk: 'MEDIUM', EntityType: 'FLOW',         Action: 'CREATE_FLOW',         Actor: 'developer@acme.com',   Summary: "New IVR flow 'Callback Handler v2' published"                        },
+    { Timestamp: new Date(now - THRESHOLDS.THREE_DAYS_MS).toISOString(),  Risk: 'LOW',    EntityType: 'ROUTING_SKILL',Action: 'CREATE_ROUTING_SKILL', Actor: 'admin@acme.com',       Summary: "Routing skill 'Mandarin Support' created"                            },
+  ]);
+
+  toast('📊 Demo data loaded across all 6 dashboards');
+}
+
+// ─── Clear all ────────────────────────────────────────────────────
+function clearAll() {
+  Object.keys(S).forEach(k => S[k] = null);
+  Object.keys(charts).forEach(k => { try { charts[k].destroy(); } catch {} delete charts[k]; });
+  qhFilter    = 'ALL';
+  auditFilter = 'ALL';
+
+  // Reset load zones / dashboards
+  [
+    ['dash-overview',      'lz-overview'],
+    ['dash-queue-health',  'lz-queue-health'],
+    ['dash-abandon',       'lz-abandon'],
+    ['dash-agent-quality', 'lz-agent-quality'],
+    ['dash-edge',          'lz-edge'],
+    ['dash-audit',         'lz-audit'],
+  ].forEach(([d, l]) => showHide(d, l, false));
+
+  // Reset tab dots
+  document.querySelectorAll('.tab-dot').forEach(d => d.classList.remove('loaded'));
+
+  // Reset filter chips
+  ['qh','audit'].forEach(prefix => {
+    document.querySelectorAll(`[id^="chip-${prefix}-"]`).forEach(c => c.classList.remove('active'));
+    document.getElementById(`chip-${prefix}-ALL`)?.classList.add('active');
+  });
+
+  updateNavStatus();
+  toast('🗑 All data cleared');
+}
+</script>
+</body>
+</html>

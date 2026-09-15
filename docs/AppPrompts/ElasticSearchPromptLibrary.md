@@ -1,10 +1,8 @@
-Got it — you’re on **Elasticsearch 9.2.4** and **Kibana 9.2.4** (traditional build). That’s plenty modern for a “Prompt Registry” done the clean way. 👍
-
-Below is a **deployment-ready plan** tuned for Kibana usage patterns (Controls + Discover + drilldowns) and for “Ops people” who need to find-and-copy fast.
+# Deployment-ready plan** tuned for Kibana usage patterns (Controls + Discover + drilldowns) and for “Ops people”
 
 ---
 
-# 1) Minimal index design that works well in Kibana 9.2.4
+## Minimal index design that works well in Kibana 9.2.4
 
 ## Index name
 
@@ -38,7 +36,7 @@ PUT ai-prompts-ops-v1
 
       "prompt_id": { "type": "keyword" },
       "version":   { "type": "keyword" },
-      "status":    { "type": "keyword" }, 
+      "status":    { "type": "keyword" },
       "owner":     { "type": "keyword" },
 
       "title": {
@@ -84,7 +82,7 @@ PUT ai-prompts-ops-v1
 
 ---
 
-# 2) Prompt document contract (so ingestion stays easy)
+## 2 Prompt document contract (so ingestion stays easy)
 
 ### Required fields (MVP)
 

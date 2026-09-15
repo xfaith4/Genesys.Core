@@ -106,6 +106,28 @@ function Connect-AuditSession {
     return Connect-GenesysCloud -AccessToken $effectiveToken -Region $effectiveRegion
 }
 
+function Connect-AuditSessionPkce {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ClientId,
+        [string]$Region = 'usw2.pure.cloud',
+        [string]$RedirectUri = 'http://localhost:8085/callback',
+        [System.Threading.CancellationToken]$CancellationToken = [System.Threading.CancellationToken]::None
+    )
+
+    _RequireInitialized
+
+    $effectiveRegion = [string]$Region
+    if ($effectiveRegion -match '^https?://api\.') {
+        $effectiveRegion = $effectiveRegion -replace '^https?://api\.', ''
+    }
+    elseif ($effectiveRegion -match '^api\.') {
+        $effectiveRegion = $effectiveRegion -replace '^api\.', ''
+    }
+
+    return Connect-GenesysCloudPkce -ClientId $ClientId -Region $effectiveRegion -RedirectUri $RedirectUri -CancellationToken $CancellationToken
+}
+
 function Get-AuditSession {
     [CmdletBinding()]
     param()
@@ -115,6 +137,37 @@ function Get-AuditSession {
     }
 
     return Get-GenesysAuthContext
+}
+
+function Get-AuditFilterOptions {
+    [CmdletBinding()]
+    param()
+
+    _RequireInitialized
+
+    $session = Get-AuditSession
+    if ($null -eq $session) {
+        throw 'No active Genesys session. Connect first.'
+    }
+
+    $mappings = @(Get-AuditServiceMapping -CatalogPath $script:CoreState.CatalogPath -BaseUri $session.BaseUri -Headers $session.Headers)
+    $actionsByService = [ordered]@{}
+
+    foreach ($mapping in $mappings) {
+        $serviceName = [string]$mapping.ServiceName
+        if ([string]::IsNullOrWhiteSpace($serviceName)) {
+            continue
+        }
+
+        $actionsByService[$serviceName] = @($mapping.Actions | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    }
+
+    return [pscustomobject]@{
+        ServiceNames     = @($mappings | ForEach-Object { [string]$_.ServiceName } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        Actions          = @($mappings | ForEach-Object { @($_.Actions) } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        ActionsByService = $actionsByService
+        ServiceMappings  = $mappings
+    }
 }
 
 function _Split-FilterValues {
@@ -146,8 +199,8 @@ function New-AuditDatasetParameters {
 
     $startUtc = [datetime]$QuerySpec.StartUtc
     $endUtc   = [datetime]$QuerySpec.EndUtc
-    if ($endUtc -lt $startUtc) {
-        throw 'End time must be greater than or equal to start time.'
+    if ($endUtc -le $startUtc) {
+        throw 'End time must be after start time.'
     }
 
     $notes = New-Object System.Collections.Generic.List[string]
@@ -159,20 +212,35 @@ function New-AuditDatasetParameters {
             $notes.Add("Preview window clamped to the most recent $maxHours hours for faster operator feedback.")
         }
     }
+    else {
+        # The Genesys audit query endpoint enforces a 30-day maximum window. Reject anything beyond
+        # that here so the user gets an inline message instead of a 400 from the API.
+        $windowDays = ($endUtc - $startUtc).TotalDays
+        if ($windowDays -gt 30) {
+            throw "Full extract window is $([Math]::Round($windowDays, 1)) days. The Genesys audit query endpoint accepts a maximum of 30 days; narrow the range and retry."
+        }
+    }
 
     $datasetParameters = [ordered]@{
         StartUtc = $startUtc.ToString('o')
         EndUtc   = $endUtc.ToString('o')
     }
 
-    $serviceNames = _Split-FilterValues -Value $QuerySpec.Service
+    $serviceNames = @(_Split-FilterValues -Value $QuerySpec.Service)
     if ($serviceNames.Count -gt 0) {
         $datasetParameters.ServiceNames = $serviceNames
     }
 
-    $actions = _Split-FilterValues -Value $QuerySpec.Action
+    $actions = @(_Split-FilterValues -Value $QuerySpec.Action)
     if ($actions.Count -gt 0) {
         $datasetParameters.Actions = $actions
+
+        $entityTypes = @(_Split-FilterValues -Value $QuerySpec.Entity)
+        if ($entityTypes.Count -eq 0) {
+            throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
+        }
+
+        $datasetParameters.EntityTypes = $entityTypes
     }
 
     return [pscustomobject]@{
@@ -199,6 +267,9 @@ function _StartAuditRun {
 
     $resolved = New-AuditDatasetParameters -QuerySpec $QuerySpec -Mode $Mode
     $datasetKey = if ($Mode -eq 'Preview') { $script:CoreState.DatasetKeys.Preview } else { $script:CoreState.DatasetKeys.Full }
+    if ($QuerySpec.ContainsKey('DatasetKey') -and -not [string]::IsNullOrWhiteSpace([string]$QuerySpec.DatasetKey)) {
+        $datasetKey = [string]$QuerySpec.DatasetKey
+    }
 
     $invokeParams = @{
         Dataset           = $datasetKey
@@ -474,7 +545,7 @@ function Get-RunDiagnosticsText {
 
 Export-ModuleMember -Function `
     Initialize-CoreIntegration, Get-CoreIntegrationState, Test-CoreIntegrationReady, `
-    Connect-AuditSession, Get-AuditSession, New-AuditDatasetParameters, `
+    Connect-AuditSession, Connect-AuditSessionPkce, Get-AuditSession, Get-AuditFilterOptions, New-AuditDatasetParameters, `
     Start-AuditPreviewRun, Start-AuditFullRun, `
     Get-RecentRuns, Get-RunManifest, Get-RunSummary, Get-RunRequestMetadata, Save-RunRequestMetadata, `
     Get-RunEventTail, Get-RunStatus, Get-RunDiagnosticsText

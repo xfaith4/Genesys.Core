@@ -1,0 +1,63 @@
+{
+  "entities": [
+    {
+      "id": "oauth-client-0001",
+      "name": "CRM Integration Client",
+      "description": "OAuth client for CRM system integration",
+      "accessTokenValiditySeconds": 86400,
+      "authorizedGrantTypes": ["CLIENT-CREDENTIALS"],
+      "registeredRedirectUri": [],
+      "secret": "[REDACTED]",
+      "roleIds": ["role-0002-agent"],
+      "dateCreated": "2024-01-15T10:00:00.000Z",
+      "dateModified": "2026-01-01T00:00:00.000Z",
+      "createdBy": {
+        "id": "user-admin-0007-grace",
+        "name": "Grace Admin",
+        "selfUri": "/api/v2/users/user-admin-0007-grace"
+      },
+      "selfUri": "/api/v2/oauth/clients/oauth-client-0001"
+    },
+    {
+      "id": "oauth-client-0002",
+      "name": "Analytics Dashboard Client",
+      "description": "OAuth client for analytics dashboard reporting",
+      "accessTokenValiditySeconds": 3600,
+      "authorizedGrantTypes": ["CODE"],
+      "registeredRedirectUri": ["https://analytics.corp.example.com/callback"],
+      "secret": "[REDACTED]",
+      "roleIds": ["role-0004-readonly"],
+      "dateCreated": "2024-06-01T09:00:00.000Z",
+      "dateModified": "2026-01-01T00:00:00.000Z",
+      "createdBy": {
+        "id": "user-admin-0007-grace",
+        "name": "Grace Admin",
+        "selfUri": "/api/v2/users/user-admin-0007-grace"
+      },
+      "selfUri": "/api/v2/oauth/clients/oauth-client-0002"
+    },
+    {
+      "id": "oauth-client-0003",
+      "name": "Workforce Management Client",
+      "description": "OAuth client for WFM scheduling system",
+      "accessTokenValiditySeconds": 86400,
+      "authorizedGrantTypes": ["CLIENT-CREDENTIALS"],
+      "registeredRedirectUri": [],
+      "secret": "[REDACTED]",
+      "roleIds": ["role-0001-admin"],
+      "dateCreated": "2024-09-01T08:00:00.000Z",
+      "dateModified": "2026-01-01T00:00:00.000Z",
+      "createdBy": {
+        "id": "user-admin-0007-grace",
+        "name": "Grace Admin",
+        "selfUri": "/api/v2/users/user-admin-0007-grace"
+      },
+      "selfUri": "/api/v2/oauth/clients/oauth-client-0003"
+    }
+  ],
+  "nextUri": null,
+  "pageNumber": 1,
+  "pageSize": 25,
+  "total": 3,
+  "pageCount": 1
+}

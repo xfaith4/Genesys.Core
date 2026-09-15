@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "deprecated": true,
-  "message": "This schema file is deprecated. Canonical schema is catalog/schema/genesys.catalog.schema.json.",
-  "canonicalPath": "catalog/schema/genesys.catalog.schema.json"
-}

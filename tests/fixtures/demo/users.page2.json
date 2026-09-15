@@ -1,0 +1,157 @@
+{
+  "entities": [
+    {
+      "id": "user-agent-0005-eve",
+      "name": "Eve Email",
+      "email": "eve.email@corp.example.com",
+      "username": "eve.email@corp.example.com",
+      "state": "inactive",
+      "department": "Digital Support",
+      "title": "Email Agent",
+      "acdAutoAnswer": false,
+      "presence": null,
+      "routingStatus": null,
+      "groups": [],
+      "skills": [],
+      "selfUri": "/api/v2/users/user-agent-0005-eve"
+    },
+    {
+      "id": "user-supv-0006-frank",
+      "name": "Frank Supervisor",
+      "email": "frank.supervisor@corp.example.com",
+      "username": "frank.supervisor@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Team Supervisor",
+      "acdAutoAnswer": false,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "IDLE",
+        "userId": "user-supv-0006-frank",
+        "startTime": "2026-02-14T08:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [],
+      "selfUri": "/api/v2/users/user-supv-0006-frank"
+    },
+    {
+      "id": "user-admin-0007-grace",
+      "name": "Grace Admin",
+      "email": "grace.admin@corp.example.com",
+      "username": "grace.admin@corp.example.com",
+      "state": "active",
+      "department": "IT Operations",
+      "title": "Platform Administrator",
+      "acdAutoAnswer": false,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": null,
+      "groups": [],
+      "skills": [],
+      "selfUri": "/api/v2/users/user-admin-0007-grace"
+    },
+    {
+      "id": "user-agent-0008-henry",
+      "name": "Henry Voice",
+      "email": "henry.voice@corp.example.com",
+      "username": "henry.voice@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Voice Agent",
+      "acdAutoAnswer": true,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0004-offline",
+          "systemPresence": "OFFLINE",
+          "name": "Offline"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "NOT_RESPONDING",
+        "userId": "user-agent-0008-henry",
+        "startTime": "2026-02-14T16:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 3.5 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0008-henry"
+    },
+    {
+      "id": "user-agent-0009-iris",
+      "name": "Iris Callback",
+      "email": "iris.callback@corp.example.com",
+      "username": "iris.callback@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Callback Specialist",
+      "acdAutoAnswer": true,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "IDLE",
+        "userId": "user-agent-0009-iris",
+        "startTime": "2026-02-14T07:30:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 4.0 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0009-iris"
+    },
+    {
+      "id": "user-agent-0010-jake",
+      "name": "Jake Trainee",
+      "email": "jake.trainee@corp.example.com",
+      "username": "jake.trainee@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Trainee Agent",
+      "acdAutoAnswer": true,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "IDLE",
+        "userId": "user-agent-0010-jake",
+        "startTime": "2026-02-14T09:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 2.0 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0010-jake"
+    }
+  ],
+  "nextUri": null,
+  "pageNumber": 2,
+  "pageSize": 25,
+  "total": 10,
+  "pageCount": 3,
+  "selfUri": "/api/v2/users?pageNumber=2&pageSize=25"
+}

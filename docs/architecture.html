@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Genesys.Core — Architecture Map</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --bg2:     #161b22;
+      --bg3:     #21262d;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --text2:   #8b949e;
+      --accent:  #7c3aed;
+      --accent2: #a78bfa;
+      --green:   #3fb950;
+      --blue:    #58a6ff;
+      --orange:  #f0883e;
+      --red:     #f85149;
+      --yellow:  #d29922;
+      --teal:    #2dd4bf;
+    }
+    [data-theme="light"] {
+      --bg:      #f6f8fa;
+      --bg2:     #ffffff;
+      --bg3:     #f0f2f4;
+      --border:  #d0d7de;
+      --text:    #1f2328;
+      --text2:   #656d76;
+      --accent:  #7c3aed;
+      --accent2: #6d28d9;
+      --green:   #1a7f37;
+      --blue:    #0969da;
+      --orange:  #bc4c00;
+      --red:     #cf222e;
+      --yellow:  #9a6700;
+      --teal:    #0d7377;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .header-left h1 { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+    .header-left .sub { font-size: 0.75rem; color: var(--text2); margin-top: 1px; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: var(--border); }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 195px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding: 10px 0;
+    }
+    .nav-group {
+      padding: 10px 14px 4px;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text2);
+      font-weight: 600;
+    }
+    .nav-item {
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: var(--text2);
+      border-left: 2px solid transparent;
+      transition: all 0.12s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active {
+      background: var(--bg3);
+      color: var(--accent2);
+      border-left-color: var(--accent);
+      font-weight: 500;
+    }
+    .nav-icon { font-size: 0.9rem; width: 16px; text-align: center; }
+
+    /* ── Main content ── */
+    main { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+    section { display: none; }
+    section.active { display: block; }
+
+    .sec-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 5px; }
+    .sec-desc {
+      color: var(--text2);
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      line-height: 1.6;
+      max-width: 720px;
+    }
+
+    .diagram-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      overflow: auto;
+    }
+    .card-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 14px;
+    }
+
+    /* Mermaid SVG override for dark mode */
+    [data-theme="dark"] .mermaid svg {
+      background: transparent !important;
+    }
+
+    /* ── Legend ── */
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .leg { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text2); }
+    .leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ── File Index ── */
+    .file-tree {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
+    }
+    .ft-folder {
+      color: var(--yellow);
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    .ft-folder:hover { color: var(--orange); }
+    .ft-children {
+      padding-left: 18px;
+      border-left: 1px solid var(--border);
+      margin-left: 6px;
+    }
+    .ft-file { color: var(--text2); }
+    .ft-file a { color: var(--blue); text-decoration: none; }
+    .ft-file a:hover { text-decoration: underline; color: var(--accent2); }
+    .ft-fn { color: var(--green); font-size: 0.72rem; margin-left: 8px; font-style: italic; }
+    .ft-badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+    .badge-pub { background: #3fb95022; color: #3fb950; }
+    .badge-priv { background: #58a6ff22; color: #58a6ff; }
+    .badge-entry { background: #f0883e33; color: #f0883e; }
+
+    /* ── Callout boxes ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: var(--bg3);
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.82rem;
+      color: var(--text2);
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+    .callout strong { color: var(--text); }
+
+    /* ── Two-column layout ── */
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="header-left">
+    <h1>Genesys.Core — Architecture Map</h1>
+    <div class="sub">PowerShell module call graph &amp; execution flows · 67 PS1 files · 3 modules</div>
+  </div>
+  <div class="header-right">
+    <button class="btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ══ SIDEBAR ══ -->
+<aside>
+  <div class="nav-group">Architecture</div>
+  <div class="nav-item active" data-target="overview"><span class="nav-icon">🗺</span>System Overview</div>
+  <div class="nav-item" data-target="modules"><span class="nav-icon">📦</span>Module Structure</div>
+
+  <div class="nav-group">Execution Flows</div>
+  <div class="nav-item" data-target="dataset-flow"><span class="nav-icon">▶</span>Dataset Execution</div>
+  <div class="nav-item" data-target="paging"><span class="nav-icon">📄</span>Paging Strategies</div>
+  <div class="nav-item" data-target="retry"><span class="nav-icon">🔄</span>Retry &amp; HTTP</div>
+  <div class="nav-item" data-target="async"><span class="nav-icon">⏳</span>Async Jobs</div>
+
+  <div class="nav-group">Cross-cutting</div>
+  <div class="nav-item" data-target="auth"><span class="nav-icon">🔐</span>Authentication</div>
+  <div class="nav-item" data-target="output"><span class="nav-icon">💾</span>Run Output</div>
+  <div class="nav-item" data-target="catalog"><span class="nav-icon">📋</span>Catalog &amp; Config</div>
+
+  <div class="nav-group">Reference</div>
+  <div class="nav-item" data-target="file-index"><span class="nav-icon">📂</span>File Index</div>
+</aside>
+
+<!-- ══ MAIN CONTENT ══ -->
+<main>
+
+<!-- ─────────────────── OVERVIEW ─────────────────── -->
+<section id="overview" class="active">
+  <div class="sec-title">System Overview</div>
+  <div class="sec-desc">
+    End-to-end view of the three-module ecosystem. Callers authenticate via <strong>Genesys.Auth</strong>,
+    invoke datasets through <strong>Genesys.Core</strong>, and receive results either directly or through the
+    <strong>Genesys.Ops</strong> high-level cmdlets. Each path flows through catalog resolution, paging dispatch,
+    HTTP retries, field redaction, and JSONL output.
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#7c3aed"></div>Caller</div>
+    <div class="leg"><div class="leg-dot" style="background:#b45309"></div>Auth</div>
+    <div class="leg"><div class="leg-dot" style="background:#1d4ed8"></div>Core Orchestration</div>
+    <div class="leg"><div class="leg-dot" style="background:#0f766e"></div>Dataset Handlers</div>
+    <div class="leg"><div class="leg-dot" style="background:#0369a1"></div>Paging</div>
+    <div class="leg"><div class="leg-dot" style="background:#166534"></div>HTTP / Retry</div>
+    <div class="leg"><div class="leg-dot" style="background:#9f1239"></div>Output</div>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Full System — End to End</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef caller  fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef auth    fill:#b45309,stroke:#a16207,color:#fff
+    classDef core    fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef dataset fill:#0f766e,stroke:#0d6b62,color:#fff
+    classDef paging  fill:#0369a1,stroke:#0284c7,color:#fff
+    classDef http    fill:#166534,stroke:#15803d,color:#fff
+    classDef output  fill:#9f1239,stroke:#be123c,color:#fff
+    classDef ext     fill:#374151,stroke:#4b5563,color:#e5e7eb
+
+    USER["👤 Script / User"]:::caller
+    OPS["Genesys.Ops\n100+ high-level cmdlets\ne.g. Get-GenesysUser"]:::caller
+
+    subgraph AUTH_MOD["🔐 Genesys.Auth"]
+        direction LR
+        A1["Connect-GenesysCloud\nBearer token"]:::auth
+        A2["Connect-GenesysCloudApp\nClient Credentials"]:::auth
+        A3["Connect-GenesysCloudPkce\nPKCE OAuth2"]:::auth
+        HDRS["Stored Headers\nAuthorization: Bearer …\nDPAPI-protected on disk"]:::auth
+    end
+
+    subgraph CORE_MOD["⚙️ Genesys.Core"]
+        direction TB
+        ID["Invoke-Dataset\n📍 Entry Point"]:::core
+        RC["Resolve-Catalog\nLoad + validate catalog.json"]:::core
+        NRC["New-RunContext\nCreate run folder + IDs"]:::core
+
+        subgraph DS_LAYER["📦 Dataset Layer"]
+            REG["Dataset Registry\nRoute by dataset key"]:::dataset
+            D1["Invoke-AuditLogsDataset"]:::dataset
+            D2["Invoke-AnalyticsConversationDetailsDataset"]:::dataset
+            D3["Invoke-UsersDataset"]:::dataset
+            D4["Invoke-RoutingQueuesDataset"]:::dataset
+            D5["Invoke-SimpleCollectionDataset\nGeneric fallback"]:::dataset
+        end
+
+        ICE["Invoke-CoreEndpoint\nPaging Profile Dispatcher"]:::paging
+
+        subgraph PAG_LAYER["📄 Paging Strategies"]
+            direction LR
+            P1["nextUri\nLink-based"]:::paging
+            P2["pageNumber\nOffset"]:::paging
+            P3["bodyPaging\nPOST body page#"]:::paging
+            P4["cursor\nCursor token"]:::paging
+            P5["transactionResults\nAsync job"]:::paging
+            P6["none\nSingle request"]:::paging
+        end
+
+        IRWR["Invoke-RequestWithRetry"]:::http
+        IWR["Invoke-WithRetry\nExponential Backoff + Jitter"]:::http
+        IGR["Invoke-GcRequest\nHTTP call + URI redaction"]:::http
+
+        subgraph OUT_LAYER["💾 Output Layer"]
+            direction LR
+            PRD["Protect-RecordData\nRecursive field redaction"]:::output
+            WJ["Write-Jsonl\ndata/*.jsonl"]:::output
+            WM["Write-Manifest\nmanifest.json"]:::output
+            WRE["Write-RunEvent\nevents.jsonl"]:::output
+        end
+    end
+
+    API[("☁️ Genesys Cloud\nREST API")]:::ext
+
+    USER --> ID
+    USER --> OPS
+    OPS --> ID
+    A1 & A2 & A3 --> HDRS
+    HDRS -. "headers param" .-> ID
+    ID --> RC
+    ID --> NRC
+    ID --> REG
+    REG --> D1 & D2 & D3 & D4 & D5
+    D1 & D2 & D3 & D4 & D5 --> ICE
+    ICE --> P1 & P2 & P3 & P4 & P5 & P6
+    P1 & P2 & P3 & P4 & P5 & P6 --> IRWR
+    IRWR --> IWR --> IGR --> API
+    API --> PRD --> WJ --> WM
+    ID --> WRE
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── MODULE STRUCTURE ─────────────────── -->
+<section id="modules">
+  <div class="sec-title">Module Structure</div>
+  <div class="sec-desc">
+    Three PowerShell modules with clear separation of concerns. <strong>Genesys.Auth</strong> handles
+    token lifecycle. <strong>Genesys.Core</strong> is the data-extraction engine with 3 public and ~25 private
+    functions. <strong>Genesys.Ops</strong> wraps Core with 100+ domain-specific cmdlets.
+  </div>
+
+  <div class="cols">
+    <div class="diagram-card">
+      <div class="card-title">Module Dependencies</div>
+      <pre class="mermaid">
+flowchart LR
+    classDef mod fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef pub fill:#0f766e,stroke:#0d6b62,color:#fff
+    classDef priv fill:#374151,stroke:#4b5563,color:#e5e7eb
+
+    subgraph GA["Genesys.Auth\n9 exported functions"]
+        direction TB
+        GA1["Connect-GenesysCloud"]:::pub
+        GA2["Connect-GenesysCloudApp"]:::pub
+        GA3["Connect-GenesysCloudPkce"]:::pub
+        GA4["Get-GenesysAuthContext"]:::pub
+        GA5["Get-StoredHeaders"]:::pub
+        GA6["Test-GenesysConnection"]:::pub
+    end
+
+    subgraph GC["Genesys.Core\n3 exported functions"]
+        direction TB
+        GC1["Invoke-Dataset ★"]:::pub
+        GC2["Assert-Catalog"]:::pub
+        GC3["Get-AuditServiceMapping"]:::pub
+        GCP["~25 Private Functions"]:::priv
+        GC1 --> GCP
+    end
+
+    subgraph GO["Genesys.Ops\n100+ exported functions"]
+        direction TB
+        GO1["Get-GenesysUser"]:::pub
+        GO2["Get-GenesysQueue"]:::pub
+        GO3["Invoke-GenesysDataset\n(internal bridge)"]:::priv
+        GON["... 97 more cmdlets"]:::priv
+    end
+
+    GA --> GC
+    GC --> GO
+    GA --> GO
+      </pre>
+    </div>
+
+    <div class="diagram-card">
+      <div class="card-title">Genesys.Core Private Subsystems</div>
+      <pre class="mermaid">
+flowchart TD
+    classDef sub fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+
+    CORE["Invoke-Dataset\nPublic Entry"]
+
+    subgraph CAT["Catalog/"]
+        RC["Resolve-Catalog"]
+    end
+    subgraph DS["Datasets/"]
+        DR["DatasetRegistry"]
+        DS1["Invoke-*Dataset x5"]
+        RDR["Resolve-DatasetRuntime"]
+    end
+    subgraph HTTP["Http/"]
+        JEU["Join-EndpointUri"]
+    end
+    subgraph PAG["Paging/"]
+        P1["Invoke-PagingNextUri"]
+        P2["Invoke-PagingPageNumber"]
+        P3["Invoke-PagingBodyPaging"]
+        P4["Invoke-PagingCursor"]
+    end
+    subgraph RETRY["Retry/"]
+        R1["Invoke-WithRetry"]
+        R2["Invoke-RequestWithRetry"]
+        R3["Resolve-RetryRuntimeSettings"]
+    end
+    subgraph ASYNC["Async/"]
+        AS1["Invoke-AsyncJob"]
+        AS2["Invoke-AuditTransaction"]
+    end
+    subgraph RUN["Run/"]
+        RU1["New-RunContext"]
+        RU2["Write-RunEvent"]
+        RU3["Write-Manifest"]
+        RU4["Write-Jsonl"]
+    end
+    subgraph REDACT["Redaction/"]
+        RD1["Protect-RecordData"]
+    end
+
+    CORE --> CAT & DS & RUN
+    DS --> HTTP & PAG & ASYNC
+    PAG --> RETRY
+    ASYNC --> RETRY
+    RETRY --> RD1
+      </pre>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── DATASET FLOW ─────────────────── -->
+<section id="dataset-flow">
+  <div class="sec-title">Dataset Execution Flow</div>
+  <div class="sec-desc">
+    The full step-by-step lifecycle of a single <code>Invoke-Dataset</code> call. Steps 1–3 set up the
+    run context; step 4 dispatches to the appropriate dataset handler; steps 5–8 page through results,
+    redact, and write output; step 9 finalises the manifest.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Invoke-Dataset — Complete Execution Path</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef step   fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef decide fill:#854d0e,stroke:#a16207,color:#fff
+    classDef io     fill:#9f1239,stroke:#be123c,color:#fff
+    classDef http   fill:#166534,stroke:#15803d,color:#fff
+
+    START(["Invoke-Dataset called\nDataset · BaseUri · Headers · OutputRoot"])
+
+    S1["1. Resolve-Catalog\nLoad catalog.json, validate schema\nReturn catalog object"]:::step
+    S2["2. New-RunContext\nCreate out/dataset/runId/data/\nReturn RunContext object"]:::step
+    S3["3. Write-RunEvent: run.started"]:::io
+
+    LOOKUP{"4. Dataset Registry\nLookup handler by key"}:::decide
+
+    H1["Invoke-AuditLogsDataset\naudit-logs"]:::step
+    H2["Invoke-AnalyticsDataset\nanalytics-conversation-details"]:::step
+    H3["Invoke-UsersDataset\nusers"]:::step
+    H4["Invoke-RoutingQueuesDataset\nrouting-queues"]:::step
+    H5["Invoke-SimpleCollectionDataset\ncatalog-defined dataset"]:::step
+
+    S4["5. Resolve-DatasetRuntime\nBuild endpoint URI\nJoin-EndpointUri: template substitution"]:::step
+
+    S5["6. Invoke-CoreEndpoint\nDispatch to paging handler\nbased on catalog paging profile"]:::step
+
+    PAGE{"Paging\nprofile?"}:::decide
+    PP1["Invoke-PagingNextUri"]:::step
+    PP2["Invoke-PagingPageNumber"]:::step
+    PP3["Invoke-PagingBodyPaging"]:::step
+    PP4["Invoke-PagingCursor"]:::step
+    PP5["Invoke-AsyncJob\ntransactionResults"]:::step
+    PP6["Single request\nnone"]:::step
+
+    HTTP["Invoke-RequestWithRetry\nInvoke-WithRetry\nInvoke-GcRequest\nInvoke-RestMethod"]:::http
+    API[("Genesys Cloud API")]
+
+    ITEMS["Extract items\nfrom catalog itemsPath\ne.g. .entities or .results"]:::step
+
+    MORE{"More pages?"}:::decide
+    NEXT["Advance page\nnextUri / pageNum / cursor"]:::step
+
+    REDACT["7. Protect-RecordData\nRedact sensitive fields\ntoken, email, phone, ssn"]:::step
+    WRITE["8. Write-Jsonl\nAppend to data/output.jsonl"]:::io
+    EVENT["Write-RunEvent: paging.progress"]:::io
+
+    MANIFEST["9. Write-Manifest\nCounts, warnings, gitSha\nmanifest.json"]:::io
+    END(["Return RunContext"])
+
+    START --> S1 --> S2 --> S3 --> LOOKUP
+    LOOKUP -->|"audit-logs"| H1
+    LOOKUP -->|"analytics"| H2
+    LOOKUP -->|"users"| H3
+    LOOKUP -->|"routing-queues"| H4
+    LOOKUP -->|"catalog-defined"| H5
+    H1 --> S4
+    H2 --> S4
+    H3 --> S4
+    H4 --> S4
+    H5 --> S4
+    S4 --> S5 --> PAGE
+    PAGE -->|"nextUri"| PP1
+    PAGE -->|"pageNumber"| PP2
+    PAGE -->|"bodyPaging"| PP3
+    PAGE -->|"cursor"| PP4
+    PAGE -->|"transactionResults"| PP5
+    PAGE -->|"none"| PP6
+    PP1 --> HTTP
+    PP2 --> HTTP
+    PP3 --> HTTP
+    PP4 --> HTTP
+    PP5 --> HTTP
+    PP6 --> HTTP
+    HTTP --> API
+    API -->|"JSON response"| ITEMS --> MORE
+    MORE -->|"yes"| NEXT --> HTTP
+    MORE -->|"no"| REDACT --> WRITE --> EVENT
+    WRITE --> MANIFEST --> END
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── PAGING ─────────────────── -->
+<section id="paging">
+  <div class="sec-title">Paging Strategies</div>
+  <div class="sec-desc">
+    <code>Invoke-CoreEndpoint</code> switches on the <code>paging.profile</code> field from the catalog endpoint
+    spec. Each strategy handles a different Genesys Cloud API convention. All strategies share the same
+    HTTP + retry layer underneath.
+  </div>
+
+  <div class="callout">
+    <strong>Profile Resolution:</strong> The <code>paging.profile</code> key in the catalog resolves to a
+    named profile object (e.g. <code>nextUri</code>) which provides runtime settings like
+    <code>nextUriPath</code>, <code>pageParam</code>, <code>maxPages</code>, and <code>itemsPath</code>.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">All Six Paging Profiles — Side by Side</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef head  fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef step  fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+    classDef stop  fill:#7f1d1d,stroke:#991b1b,color:#fff
+    classDef api   fill:#374151,stroke:#4b5563,color:#e5e7eb
+
+    subgraph NU["nextUri — Link-based"]
+        direction TB
+        NU1["GET or POST\ninitial URI"]:::step
+        NU2["Extract items\nfrom $.entities etc"]:::step
+        NU3{"$.pageInfo\n.nextUri exists?"}:::head
+        NU4["Request nextUri\nverbatim"]:::step
+        NU5(["Done"]):::stop
+        NU1 --> NU2 --> NU3
+        NU3 -->|yes| NU4 --> NU2
+        NU3 -->|no| NU5
+    end
+
+    subgraph PN["pageNumber — Offset"]
+        direction TB
+        PN1["GET/POST\npageNumber=1"]:::step
+        PN2["Extract items"]:::step
+        PN3{"items.count\n> 0 AND\npage < maxPages?"}:::head
+        PN4["Increment\npageNumber"]:::step
+        PN5(["Done"]):::stop
+        PN1 --> PN2 --> PN3
+        PN3 -->|yes| PN4 --> PN1
+        PN3 -->|no| PN5
+    end
+
+    subgraph BP["bodyPaging — POST body"]
+        direction TB
+        BP1["POST\nbody.pageNumber=1"]:::step
+        BP2["Extract items\n+ totalHits"]:::step
+        BP3{"page * size\n< totalHits?"}:::head
+        BP4["Increment\nbody.pageNumber"]:::step
+        BP5(["Done"]):::stop
+        BP1 --> BP2 --> BP3
+        BP3 -->|yes| BP4 --> BP1
+        BP3 -->|no| BP5
+    end
+
+    subgraph CU["cursor — Cursor token"]
+        direction TB
+        CU1["GET/POST\ncursor= empty"]:::step
+        CU2["Extract items"]:::step
+        CU3{"nextCursor\nin response?"}:::head
+        CU4["Set cursor=\nnextCursor"]:::step
+        CU5(["Done"]):::stop
+        CU1 --> CU2 --> CU3
+        CU3 -->|yes| CU4 --> CU1
+        CU3 -->|no| CU5
+    end
+
+    subgraph AJ["transactionResults — Async"]
+        direction TB
+        AJ1["POST Submit\nreturn jobId"]:::step
+        AJ2["GET Status\njobId/status"]:::step
+        AJ3{"state ==\nSUCCEEDED?"}:::head
+        AJ4["GET Results\njobId/results\n+ apply paging"]:::step
+        AJ5(["Done"]):::stop
+        AJF(["FAIL/CANCEL\nthrow"]):::stop
+        AJ1 --> AJ2 --> AJ3
+        AJ3 -->|"polling\nbackoff"| AJ2
+        AJ3 -->|succeeded| AJ4 --> AJ5
+        AJ3 -->|failed| AJF
+    end
+
+    subgraph NP["none — Single request"]
+        direction TB
+        NP1["GET or POST"]:::step
+        NP2["Extract items"]:::step
+        NP3(["Done"]):::stop
+        NP1 --> NP2 --> NP3
+    end
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Dataset → Paging Profile Mapping</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef ds fill:#0f766e,stroke:#0d6b62,color:#fff
+    classDef pg fill:#0369a1,stroke:#0284c7,color:#fff
+
+    AU["audit-logs"]:::ds --> TR["transactionResults"]:::pg
+    AN["analytics-conversation-details"]:::ds --> TR
+    US["users"]:::ds --> NU["nextUri"]:::pg
+    RQ["routing-queues"]:::ds --> NU
+    SC["SimpleCollection\n(catalog-driven)"]:::ds --> ANY["Profile from\ncatalog spec"]:::pg
+    ANY --> NU & PN["pageNumber"]:::pg & BP["bodyPaging"]:::pg & CU["cursor"]:::pg & NP["none"]:::pg
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── RETRY & HTTP ─────────────────── -->
+<section id="retry">
+  <div class="sec-title">Retry &amp; HTTP Layer</div>
+  <div class="sec-desc">
+    Every paging iteration goes through <code>Invoke-RequestWithRetry → Invoke-WithRetry → Invoke-GcRequest → Invoke-RestMethod</code>.
+    The retry engine applies exponential backoff with jitter and honours <code>Retry-After</code> headers.
+    URI query parameters containing secrets are redacted before logging.
+  </div>
+
+  <div class="callout">
+    <strong>Backoff formula:</strong>
+    <code>delay = Min(baseDelay × 2^attempt + Random(0, jitter), maxDelay)</code>
+    · Default: base=1s · max=60s · jitter=0–0.25s · maxRetries=3 · retryOn=[429]
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">HTTP Request Lifecycle with Retry</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef call   fill:#166534,stroke:#15803d,color:#fff
+    classDef decide fill:#854d0e,stroke:#a16207,color:#fff
+    classDef err    fill:#7f1d1d,stroke:#991b1b,color:#fff
+    classDef ok     fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+
+    START(["Paging strategy calls\nInvoke-RequestWithRetry"])
+
+    RRS["Resolve-RetryRuntimeSettings\nMerge catalog RetryProfile with defaults\nmaxRetries · baseDelay · maxDelay · jitter\nretryOnStatusCodes · retryOnMethods"]:::call
+
+    IWR["Invoke-WithRetry\n(attempt = 0)"]:::call
+
+    IGR["Invoke-GcRequest\n1. Protect-GcUri — redact ?token= ?secret= etc\n2. Invoke-RestMethod (PowerShell native)\n3. Return response object"]:::call
+
+    API[("Genesys Cloud API")]
+
+    SUCCESS{"HTTP 2xx\nresponse?"}:::decide
+
+    RETRYABLE{"Error retryable?\nStatus in retryOnStatusCodes?\nMethod idempotent?"}:::decide
+
+    MAXED{"attempt >=\nmaxRetries?"}:::decide
+
+    RA["Get-GcRetryAfterSeconds\nParse Retry-After header\nor regex 'Retry the request in N seconds'\nor exponential backoff"]:::call
+
+    SLEEP["Start-Sleep\ncalculated delay\nMin(base × 2^attempt + jitter, max)"]:::call
+
+    INCR["attempt++"]:::ok
+
+    THROW(["throw — propagate\nerror to caller"]):::err
+    RETURN(["Return response\nto paging handler"]):::ok
+
+    START --> RRS --> IWR --> IGR --> API
+    API -->|"response"| SUCCESS
+    SUCCESS -->|"yes"| RETURN
+    SUCCESS -->|"no — exception"| RETRYABLE
+    RETRYABLE -->|"no"| THROW
+    RETRYABLE -->|"yes"| MAXED
+    MAXED -->|"yes — exhausted"| THROW
+    MAXED -->|"no"| RA --> SLEEP --> INCR --> IGR
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Retry Profile Hierarchy</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef source fill:#374151,stroke:#4b5563,color:#e5e7eb
+    classDef merge  fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef result fill:#0f766e,stroke:#0d6b62,color:#fff
+
+    DEF["Module defaults\nmaxRetries=3\nbaseDelay=1s\nmaxDelay=60s\njitter=0.25s"]:::source
+    CAT["Catalog profile\ne.g. rateLimitAware\nretryOnStatusCodes=[429]"]:::source
+    CALL["Call-site overrides\nMaxRetries param\nBaseDelaySeconds param"]:::source
+    MERGE["Resolve-RetryRuntimeSettings\nMerge by precedence:\ncall-site > catalog > defaults"]:::merge
+    SETTINGS["Runtime retry settings\nPassed to Invoke-WithRetry"]:::result
+
+    DEF --> MERGE
+    CAT --> MERGE
+    CALL --> MERGE
+    MERGE --> SETTINGS
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── ASYNC JOBS ─────────────────── -->
+<section id="async">
+  <div class="sec-title">Async Job Flow</div>
+  <div class="sec-desc">
+    Used for <strong>audit-logs</strong> and <strong>analytics-conversation-details</strong>. The Genesys Cloud API
+    requires a submit → poll → fetch results pattern. <code>Invoke-AsyncJob</code> orchestrates all three phases,
+    substituting the <code>jobId</code> into result endpoint path templates via
+    <code>Resolve-AsyncJobRouteValues</code>.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Async Job Lifecycle — Submit / Poll / Results</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef phase  fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef decide fill:#854d0e,stroke:#a16207,color:#fff
+    classDef io     fill:#9f1239,stroke:#be123c,color:#fff
+    classDef http   fill:#166534,stroke:#15803d,color:#fff
+
+    START(["Invoke-AsyncJob called\nTransactionProfile from catalog"])
+
+    RESOLVE["Resolve transaction endpoints from catalog:\nsubmitEndpointRef\nstatusEndpointRef\nresultsEndpointRef"]:::phase
+
+    SUBMIT["Submit-AsyncJob\nPOST to submitEndpointSpec.path\nExtract jobId from response\n(default path: $.transactionId)"]:::http
+    E1["Write-RunEvent\nasync.job.submitted\n{ jobId }"]:::io
+
+    POLL["Get-AsyncJobStatus\nGET statusEndpointSpec.path\n/api/v2/audit/query/{jobId}/status"]:::http
+
+    STATE{"response.state\n in terminal\nstates?"}:::decide
+
+    BACKOFF["Polling backoff\n2s → 4s → 8s …\nmax 10 minutes"]:::phase
+
+    TIMEOUT{"Max wait\nexceeded?"}:::decide
+    FAILED{"state ==\nFAILED or\nCANCELED?"}:::decide
+
+    RESULTS["Get-AsyncJobResults\nResolve-AsyncJobRouteValues\nSubstitute jobId into path template\nGET /api/v2/audit/query/{jobId}/results"]:::http
+    PAGING["Apply paging to results endpoint\n(nextUri or bodyPaging)"]:::phase
+    COLLECT["Collect all items\nWrite-Jsonl per batch"]:::io
+    DONE(["Return items + telemetry"])
+    THROW(["Throw — job failed"])
+
+    START --> RESOLVE --> SUBMIT --> E1 --> POLL --> STATE
+    STATE -->|"RUNNING / QUEUED"| BACKOFF --> TIMEOUT
+    TIMEOUT -->|"no"| POLL
+    TIMEOUT -->|"yes"| THROW
+    STATE -->|"terminal"| FAILED
+    FAILED -->|"FAILED / CANCELED"| THROW
+    FAILED -->|"SUCCEEDED"| RESULTS --> PAGING --> COLLECT --> DONE
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Route Value Substitution</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef code fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+
+    T["Path template\n/api/v2/audit/query/{id}/results"]:::code
+    J["jobId = abc-123"]:::code
+    R["Resolve-AsyncJobRouteValues\nReplace {id} with jobId"]:::code
+    O["Resolved path\n/api/v2/audit/query/abc-123/results"]:::code
+
+    T --> R
+    J --> R
+    R --> O
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── AUTH ─────────────────── -->
+<section id="auth">
+  <div class="sec-title">Authentication Flows</div>
+  <div class="sec-desc">
+    <strong>Genesys.Auth</strong> provides three OAuth2 flows. All three store the resulting
+    <code>Authorization: Bearer …</code> header in module-scoped state and optionally in a
+    DPAPI-encrypted file on disk. Downstream callers pass the stored headers directly to
+    <code>Invoke-Dataset</code>.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Three Authentication Paths</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef flow   fill:#b45309,stroke:#a16207,color:#fff
+    classDef step   fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+    classDef store  fill:#7c2d12,stroke:#9a3412,color:#fff
+    classDef use    fill:#166534,stroke:#15803d,color:#fff
+
+    subgraph BEARER["Path A — Bearer Token (manual)"]
+        direction TB
+        B1["Connect-GenesysCloud\n-AccessToken 'eyJ…'\n-Region 'usw2'"]:::flow
+        B2["Store token in\n$script:StoredHeaders\n$script:ConnectionInfo"]:::store
+    end
+
+    subgraph CC["Path B — Client Credentials"]
+        direction TB
+        C1["Connect-GenesysCloudApp\n-ClientId · -ClientSecret\n-Region 'usw2'"]:::flow
+        C2["POST https://login.{region}\n/oauth/token\ngrant_type=client_credentials"]:::step
+        C3["Response: access_token\nExtract Bearer token"]:::step
+        C4["Store + optional\nDPAPI file write\n%LOCALAPPDATA%/.../auth.dat"]:::store
+    end
+
+    subgraph PKCE["Path C — Authorization Code + PKCE"]
+        direction TB
+        P1["New-GenesysPkceChallenge\nGenerate code_verifier + challenge"]:::flow
+        P2["Get-GenesysPkceAuthorizeUrl\nBuild /authorize URL\n+ redirect_uri"]:::step
+        P3["User opens browser\nGenesys Cloud login page\nUser approves"]:::step
+        P4["Complete-GenesysPkceAuth\n-Code 'authorizationCode'"]:::step
+        P5["POST /oauth/token\ngrant_type=authorization_code\n+ code_verifier"]:::step
+        P6["Store token"]:::store
+    end
+
+    USE["Get-StoredHeaders\nReturn Authorization header"]:::use
+    ID["Invoke-Dataset\nHeaders param"]:::use
+
+    B2 & C4 & P6 --> USE --> ID
+    B1 --> B2
+    C1 --> C2 --> C3 --> C4
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Token Storage Architecture</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef mem  fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef disk fill:#7c2d12,stroke:#9a3412,color:#fff
+
+    TOKEN["Access Token\nBearer eyJ0eXAi…"]
+
+    MEM["Module-scoped state\n$script:StoredHeaders\n$script:ConnectionInfo\nLost on module unload"]:::mem
+    DISK["DPAPI-protected file\n%LOCALAPPDATA%\nGenesysConversationAnalysis\nauth.dat"]:::disk
+
+    TOKEN --> MEM
+    TOKEN --> DISK
+
+    LOAD["On next session:\nGet-StoredHeaders\nDecrypt from disk"]:::mem
+    DISK --> LOAD --> MEM
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── RUN OUTPUT ─────────────────── -->
+<section id="output">
+  <div class="sec-title">Run Output Structure</div>
+  <div class="sec-desc">
+    Every dataset run creates a self-contained folder under <code>out/&lt;datasetKey&gt;/&lt;runId&gt;/</code>.
+    The <code>runId</code> is an ISO 8601 UTC timestamp. Four files are produced: a streaming data JSONL,
+    an append-only events log, a final manifest, and an optional summary.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Run Output Files &amp; RunContext Object</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef ctx   fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef file  fill:#9f1239,stroke:#be123c,color:#fff
+    classDef fn    fill:#166534,stroke:#15803d,color:#fff
+
+    RC["RunContext Object\ndatasetKey · runId\noutputRoot · runFolder\ndataFolder · manifestPath\neventsPath · startedAtUtc"]:::ctx
+
+    NRC["New-RunContext\nCreate folder structure"]:::fn
+    WJ["Write-Jsonl"]:::fn
+    WRE["Write-RunEvent"]:::fn
+    WM["Write-Manifest"]:::fn
+
+    subgraph FOLDER["out/users/20260327T081707Z/"]
+        direction TB
+        DATA["data/\n  users.jsonl\n  ─ one JSON record per line\n  ─ appended during paging\n  ─ fields redacted"]:::file
+        EVENTS["events.jsonl\n  ─ run.started\n  ─ paging.progress per page\n  ─ async.job.submitted\n  ─ run.completed / run.failed"]:::file
+        MANIFEST["manifest.json\n  ─ counts: itemCount · pageCount\n  ─ timing: startedAt · endedAt\n  ─ gitSha\n  ─ warnings[ ]"]:::file
+    end
+
+    NRC --> RC
+    RC --> DATA & EVENTS & MANIFEST
+    WJ --> DATA
+    WRE --> EVENTS
+    WM --> MANIFEST
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Redaction — Protect-RecordData</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef bad fill:#7f1d1d,stroke:#991b1b,color:#fff
+    classDef ok  fill:#166534,stroke:#15803d,color:#fff
+    classDef fn  fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+
+    IN["PSCustomObject or\nIDictionary (any depth)"]
+    PRD["Protect-RecordData\nRecursive walk"]:::fn
+    OUT["Sanitized deep copy"]:::ok
+
+    FNAME{"Field name matches\ntoken|secret|password\nauthorization|apikey\nemail|phone|ssn\nuserid|employeeid|jwt?"}:::bad
+
+    FVAL{"Value is string\ncontaining Bearer/JWT/\nquery-string secret?"}:::bad
+
+    NESTED{"Value is\nobject or array?"}:::fn
+
+    R1["Replace value with\n'REDACTED'"]:::bad
+    R2["Apply string regex\nreplacements"]:::bad
+    R3["Recurse into\nchild properties"]:::fn
+
+    IN --> PRD --> FNAME
+    FNAME -->|"yes"| R1
+    FNAME -->|"no"| FVAL
+    FVAL -->|"yes"| R2
+    FVAL -->|"no"| NESTED
+    NESTED -->|"yes"| R3 --> OUT
+    NESTED -->|"no — scalar"| OUT
+    R1 & R2 --> OUT
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── CATALOG ─────────────────── -->
+<section id="catalog">
+  <div class="sec-title">Catalog &amp; Configuration</div>
+  <div class="sec-desc">
+    The catalog (<code>catalog/genesys.catalog.json</code>) is the single source of truth for API metadata.
+    It defines datasets, endpoints, and named profiles for paging and retry. All runtime settings are
+    derived from it at execution time.
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Catalog Resolution Chain</div>
+    <pre class="mermaid">
+flowchart LR
+    classDef src  fill:#374151,stroke:#4b5563,color:#e5e7eb
+    classDef fn   fill:#1d4ed8,stroke:#1e40af,color:#fff
+    classDef out  fill:#0f766e,stroke:#0d6b62,color:#fff
+
+    EXP["Explicit -CatalogPath\nparameter"]:::src
+    ENV["env:GENESYS_CATALOG_PATH"]:::src
+    DEF["Default: PSScriptRoot\n/../../../catalog/\ngenesys.catalog.json"]:::src
+
+    RC["Resolve-Catalog\nSearch order: explicit → env → default"]:::fn
+    VAL["Validate JSON schema\ncatalog/schema/\ngenesys.catalog.schema.json"]:::fn
+    NORM["ConvertTo-CanonicalCatalog\nNormalise datasets + endpoints\nto pscustomobject"]:::fn
+    CAT["Catalog Object\n.version\n.datasets{}\n.endpoints[]\n.profiles.paging{}\n.profiles.retry{}\n.profiles.transaction{}"]:::out
+
+    EXP & ENV & DEF --> RC --> VAL --> NORM --> CAT
+    </pre>
+  </div>
+
+  <div class="diagram-card">
+    <div class="card-title">Catalog Object Shape</div>
+    <pre class="mermaid">
+flowchart TD
+    classDef node fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
+
+    CATALOG["genesys.catalog.json\nv1.0.0"]:::node
+
+    DATASETS["datasets{}\naudit-logs\nanalytics-conversation-details\nusers\nrouting-queues"]:::node
+    ENDPOINTS["endpoints[]\naudits.query.submit\naudits.query.status\naudits.query.results\nusers.get.all…\nrouting.queues.get…"]:::node
+
+    subgraph PROFILES["profiles{}"]
+        direction LR
+        PP["paging{}\nnextUri\npageNumber\nbodyPaging\ncursor"]:::node
+        PR["retry{}\nrateLimitAware\ndefault"]:::node
+        PT["transaction{}\nauditTransaction\nanalyticsTransaction"]:::node
+    end
+
+    CATALOG --> DATASETS & ENDPOINTS & PROFILES
+
+    DS1["{ endpoint: 'audits.query.submit'\npaging: { profile: 'transactionResults' }\nretry: { profile: 'rateLimitAware' } }"]:::node
+    EP1["{ key: 'audits.query.submit'\nmethod: 'POST'\npath: '/api/v2/audit/query'\nitemsPath: '$' }"]:::node
+
+    DATASETS --> DS1
+    ENDPOINTS --> EP1
+    </pre>
+  </div>
+</section>
+
+<!-- ─────────────────── FILE INDEX ─────────────────── -->
+<section id="file-index">
+  <div class="sec-title">File Index</div>
+  <div class="sec-desc">
+    All 67 PowerShell files organised by module and subsystem. Click any file path to open it.
+    <span style="color:var(--green)">★ entry</span> = public exported function ·
+    <span style="color:var(--blue)">◆ private</span> = internal function
+  </div>
+
+  <div class="diagram-card">
+    <div class="file-tree">
+
+      <!-- Genesys.Auth -->
+      <div class="tree-item">
+        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Auth/</span>
+        <div class="ft-children">
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Auth/Genesys.Auth.psd1">Genesys.Auth.psd1</a><span class="ft-fn">— module manifest · exports 9 functions</span></div>
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Auth/Genesys.Auth.psm1">Genesys.Auth.psm1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— OAuth2 flows · token lifecycle · DPAPI storage</span>
+            <div style="padding-left:16px;color:var(--text2);font-size:0.75rem">
+              Connect-GenesysCloud · Connect-GenesysCloudApp · Connect-GenesysCloudPkce<br>
+              Get-GenesysAuthContext · Get-StoredHeaders · Get-ConnectionInfo<br>
+              Clear-StoredToken · Test-GenesysConnection · New-GenesysPkceChallenge
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Genesys.Core Public -->
+      <div class="tree-item">
+        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Core/</span>
+        <div class="ft-children">
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Genesys.Core.psd1">Genesys.Core.psd1</a><span class="ft-fn">— module manifest · exports 3 functions</span></div>
+
+          <div class="tree-item">
+            <span class="ft-folder" onclick="toggle(this)">▼ Public/</span>
+            <div class="ft-children">
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Invoke-Dataset.ps1">Invoke-Dataset.ps1</a><span class="ft-badge badge-pub">★ entry</span><span class="ft-fn">— main entry point · orchestrates full run</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Assert-Catalog.ps1">Assert-Catalog.ps1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— validate catalog schema</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Get-AuditServiceMapping.ps1">Get-AuditServiceMapping.ps1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— fetch audit service/entity/action metadata</span></div>
+            </div>
+          </div>
+
+          <div class="tree-item">
+            <span class="ft-folder" onclick="toggle(this)">▼ Private/</span>
+            <div class="ft-children">
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1">Invoke-CoreEndpoint.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— paging profile dispatcher</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-GcRequest.ps1">Invoke-GcRequest.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— HTTP wrapper + URI redaction</span></div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Async/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AsyncJob.ps1">Invoke-AsyncJob.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— submit/poll/results orchestrator</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AuditTransaction.ps1">Invoke-AuditTransaction.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— audit-specific async transaction</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Catalog/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1">Resolve-Catalog.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— load, validate &amp; normalise catalog.json</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Datasets/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/DatasetRegistry.ps1">DatasetRegistry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— registry of 4 built-in dataset handlers</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Resolve-DatasetRuntime.ps1">Resolve-DatasetRuntime.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— time interval · endpoint URI building</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AuditLogsDataset.ps1">Invoke-AuditLogsDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— audit logs dataset handler</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AnalyticsConversationDetailsDataset.ps1">Invoke-AnalyticsConversationDetailsDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— analytics dataset handler</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-UsersDataset.ps1">Invoke-UsersDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— users dataset with presence/status join</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-RoutingQueuesDataset.ps1">Invoke-RoutingQueuesDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— routing queues with details</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-SimpleCollectionDataset.ps1">Invoke-SimpleCollectionDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— generic fallback for catalog-defined datasets</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Http/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Http/Join-EndpointUri.ps1">Join-EndpointUri.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— URI construction + route substitution</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Paging/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1">Invoke-PagingNextUri.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— link-based nextUri paging</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1">Invoke-PagingPageNumber.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— offset/page-number paging</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1">Invoke-PagingBodyPaging.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— POST with pageNumber in body</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1">Invoke-PagingCursor.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— cursor-based paging</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Redaction/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1">Protect-RecordData.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— recursive deep sanitization</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Retry/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1">Invoke-WithRetry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— core retry loop · exponential backoff + jitter</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1">Invoke-RequestWithRetry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— HTTP retry wrapper</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1">Resolve-RetryRuntimeSettings.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— merge catalog profile with defaults</span></div>
+                </div>
+              </div>
+
+              <div class="tree-item">
+                <span class="ft-folder" onclick="toggle(this)">▼ Run/</span>
+                <div class="ft-children">
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/New-RunContext.ps1">New-RunContext.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— create run folder structure</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-RunEvent.ps1">Write-RunEvent.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— append JSONL event log</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Manifest.ps1">Write-Manifest.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— write final manifest.json</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Jsonl.ps1">Write-Jsonl.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— JSONL append helper</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Genesys.Ops -->
+      <div class="tree-item">
+        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Ops/</span>
+        <div class="ft-children">
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Ops/Genesys.Ops.psd1">Genesys.Ops.psd1</a><span class="ft-fn">— module manifest · exports 100+ cmdlets</span></div>
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Ops/Genesys.Ops.psm1">Genesys.Ops.psm1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— high-level domain cmdlets · wraps Invoke-Dataset</span>
+            <div style="padding-left:16px;color:var(--text2);font-size:0.75rem">
+              Get-GenesysUser · Get-GenesysQueue · + 98 more<br>
+              Internal: Invoke-GenesysDataset (bridge to Genesys.Core)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Catalog -->
+      <div class="tree-item">
+        <span class="ft-folder" onclick="toggle(this)">▼ catalog/</span>
+        <div class="ft-children">
+          <div class="tree-item ft-file"><a href="../catalog/genesys.catalog.json">genesys.catalog.json</a><span class="ft-fn">— datasets · endpoints · paging/retry/transaction profiles</span></div>
+          <div class="tree-item ft-file"><a href="../catalog/schema/genesys.catalog.schema.json">schema/genesys.catalog.schema.json</a><span class="ft-fn">— JSON Schema for catalog validation</span></div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Scripts -->
+      <div class="tree-item">
+        <span class="ft-folder" onclick="toggle(this)">▼ scripts/</span>
+        <div class="ft-children">
+          <div class="tree-item ft-file"><a href="../scripts/Invoke-GenesysCoreBridge.ps1">Invoke-GenesysCoreBridge.ps1</a><span class="ft-fn">— CLI bridge · load Core · invoke Invoke-Dataset</span></div>
+          <div class="tree-item ft-file"><a href="../scripts/Invoke-MockRun.ps1">Invoke-MockRun.ps1</a><span class="ft-fn">— test harness without live auth</span></div>
+          <div class="tree-item ft-file"><a href="../scripts/Invoke-Smoke.ps1">Invoke-Smoke.ps1</a><span class="ft-fn">— smoke test runner</span></div>
+          <div class="tree-item ft-file"><a href="../scripts/Invoke-Tests.ps1">Invoke-Tests.ps1</a><span class="ft-fn">— unit / integration test runner</span></div>
+        </div>
+      </div>
+
+    </div><!-- /file-tree -->
+  </div>
+</section>
+
+</main>
+</div><!-- /layout -->
+
+<script>
+  // ── Mermaid init ──
+  const isDark = () => document.documentElement.dataset.theme === 'dark';
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark() ? 'dark' : 'default',
+    flowchart: { curve: 'basis', useMaxWidth: true },
+    securityLevel: 'loose'
+  });
+
+  // Render all mermaid diagrams on load
+  document.addEventListener('DOMContentLoaded', async () => {
+    await mermaid.run({ querySelector: '.mermaid' });
+  });
+
+  // ── Navigation ──
+  const navItems = document.querySelectorAll('.nav-item[data-target]');
+  const sections = document.querySelectorAll('section');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const target = item.dataset.target;
+
+      navItems.forEach(n => n.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+
+      item.classList.add('active');
+      const sec = document.getElementById(target);
+      if (sec) sec.classList.add('active');
+    });
+  });
+
+  // ── Theme toggle ──
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    if (html.dataset.theme === 'dark') {
+      html.dataset.theme = 'light';
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.dataset.theme = 'dark';
+      btn.textContent = '☀ Light';
+    }
+  }
+
+  // ── File tree toggle ──
+  function toggle(el) {
+    const children = el.nextElementSibling;
+    if (!children) return;
+    const isOpen = el.textContent.startsWith('▼');
+    el.textContent = el.textContent.replace(isOpen ? '▼' : '▶', isOpen ? '▶' : '▼');
+    children.style.display = isOpen ? 'none' : '';
+  }
+</script>
+
+</body>
+</html>

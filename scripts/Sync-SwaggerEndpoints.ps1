@@ -12,12 +12,154 @@ param(
 function ConvertTo-PlainHashtable {
     param([Parameter(Mandatory = $true)][object]$InputObject)
 
-    $result = @{}
-    foreach ($property in $InputObject.PSObject.Properties) {
-        $result[$property.Name] = $property.Value
+    $result = New-StringDictionary -CaseInsensitive
+    foreach ($entry in Get-JsonMapEntries -InputObject $InputObject) {
+        if ($result.ContainsKey($entry.Name)) {
+            $existingKey = Get-MatchingDictionaryKey -Dictionary $result -Key $entry.Name
+            if ($existingKey -cne $entry.Name) {
+                throw "Catalog endpoint keys '$existingKey' and '$($entry.Name)' differ only by case. The runtime catalog must remain loadable by case-insensitive PowerShell JSON readers."
+            }
+        }
+
+        $result[$entry.Name] = $entry.Value
     }
 
     return $result
+}
+
+function New-StringDictionary {
+    param([switch]$CaseInsensitive)
+
+    $comparer = [System.StringComparer]::Ordinal
+    if ($CaseInsensitive) {
+        $comparer = [System.StringComparer]::OrdinalIgnoreCase
+    }
+
+    return [System.Collections.Generic.Dictionary[string, object]]::new($comparer)
+}
+
+function Get-MatchingDictionaryKey {
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Dictionary,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+
+    foreach ($existingKey in $Dictionary.Keys) {
+        if ([string]$existingKey -ieq $Key) {
+            return [string]$existingKey
+        }
+    }
+
+    return $null
+}
+
+function ConvertFrom-JsonFilePreservingCase {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $convertCommand = Get-Command -Name ConvertFrom-Json
+    if (-not $convertCommand.Parameters.ContainsKey('AsHashTable')) {
+        throw 'Sync-SwaggerEndpoints.ps1 requires PowerShell 7+ because the Genesys swagger contains JSON keys that differ only by case. ConvertFrom-Json -AsHashTable is required to preserve those keys.'
+    }
+
+    return Get-Content -Path $Path -Raw | ConvertFrom-Json -Depth 100 -AsHashTable
+}
+
+function Test-JsonMapKey {
+    param(
+        [Parameter(Mandatory = $true)][AllowNull()][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+
+    if ($null -eq $InputObject) {
+        return $false
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        return $InputObject.Contains($Key)
+    }
+
+    foreach ($property in $InputObject.PSObject.Properties) {
+        if ($property.Name -ceq $Key) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-JsonMapValue {
+    param(
+        [Parameter(Mandatory = $true)][AllowNull()][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        if ($InputObject.Contains($Key)) {
+            return $InputObject[$Key]
+        }
+
+        return $null
+    }
+
+    foreach ($property in $InputObject.PSObject.Properties) {
+        if ($property.Name -ceq $Key) {
+            return $property.Value
+        }
+    }
+
+    return $null
+}
+
+function Set-JsonMapValue {
+    param(
+        [Parameter(Mandatory = $true)][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][AllowNull()][object]$Value
+    )
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        $InputObject[$Key] = $Value
+        return
+    }
+
+    foreach ($property in $InputObject.PSObject.Properties) {
+        if ($property.Name -ceq $Key) {
+            $property.Value = $Value
+            return
+        }
+    }
+
+    $InputObject | Add-Member -MemberType NoteProperty -Name $Key -Value $Value
+}
+
+function Get-JsonMapEntries {
+    param([Parameter(Mandatory = $true)][AllowNull()][object]$InputObject)
+
+    if ($null -eq $InputObject) {
+        return
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        foreach ($key in $InputObject.Keys) {
+            [pscustomobject]@{
+                Name = [string]$key
+                Value = $InputObject[$key]
+            }
+        }
+
+        return
+    }
+
+    foreach ($property in $InputObject.PSObject.Properties) {
+        [pscustomobject]@{
+            Name = $property.Name
+            Value = $property.Value
+        }
+    }
 }
 
 function Get-DenylistOperationIds {
@@ -25,10 +167,10 @@ function Get-DenylistOperationIds {
 
     $denylistPath = Join-Path -Path $SwaggerDirectory -ChildPath 'denylist.operationIds.txt'
     if (-not (Test-Path -Path $denylistPath)) {
-        return @{}
+        return (New-StringDictionary)
     }
 
-    $ids = @{}
+    $ids = New-StringDictionary
     foreach ($line in Get-Content -Path $denylistPath) {
         $trimmed = ([string]$line).Trim()
         if ([string]::IsNullOrWhiteSpace($trimmed)) {
@@ -47,7 +189,7 @@ function Get-DenylistOperationIds {
 function Resolve-SwaggerSchema {
     param(
         [Parameter(Mandatory = $true)][object]$Schema,
-        [Parameter(Mandatory = $true)][hashtable]$Definitions,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Definitions,
         [int]$Depth = 0
     )
 
@@ -55,8 +197,8 @@ function Resolve-SwaggerSchema {
         return $null
     }
 
-    if ($Schema.PSObject.Properties.Name -contains '$ref') {
-        $refValue = [string]$Schema.'$ref'
+    if (Test-JsonMapKey -InputObject $Schema -Key '$ref') {
+        $refValue = [string](Get-JsonMapValue -InputObject $Schema -Key '$ref')
         if ($refValue.StartsWith('#/definitions/')) {
             $definitionKey = $refValue.Substring(14)
             if ($Definitions.ContainsKey($definitionKey)) {
@@ -67,10 +209,10 @@ function Resolve-SwaggerSchema {
         return $Schema
     }
 
-    if ($Schema.PSObject.Properties.Name -contains 'allOf') {
-        foreach ($entry in @($Schema.allOf)) {
+    if (Test-JsonMapKey -InputObject $Schema -Key 'allOf') {
+        foreach ($entry in @((Get-JsonMapValue -InputObject $Schema -Key 'allOf'))) {
             $resolved = Resolve-SwaggerSchema -Schema $entry -Definitions $Definitions -Depth ($Depth + 1)
-            if ($null -ne $resolved -and $resolved.PSObject.Properties.Name -contains 'properties') {
+            if ($null -ne $resolved -and (Test-JsonMapKey -InputObject $resolved -Key 'properties')) {
                 return $resolved
             }
         }
@@ -82,40 +224,41 @@ function Resolve-SwaggerSchema {
 function Get-ItemsPathFromOperation {
     param(
         [Parameter(Mandatory = $true)][object]$Operation,
-        [Parameter(Mandatory = $true)][hashtable]$Definitions
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Definitions
     )
 
+    $responses = Get-JsonMapValue -InputObject $Operation -Key 'responses'
     $responseCodes = @('200', '201', '202')
     foreach ($code in $responseCodes) {
-        if ($Operation.responses.PSObject.Properties.Name -notcontains $code) {
+        if (-not (Test-JsonMapKey -InputObject $responses -Key $code)) {
             continue
         }
 
-        $response = $Operation.responses.$code
-        if ($null -eq $response -or $response.PSObject.Properties.Name -notcontains 'schema') {
+        $response = Get-JsonMapValue -InputObject $responses -Key $code
+        if ($null -eq $response -or -not (Test-JsonMapKey -InputObject $response -Key 'schema')) {
             continue
         }
 
-        $schema = Resolve-SwaggerSchema -Schema $response.schema -Definitions $Definitions
+        $schema = Resolve-SwaggerSchema -Schema (Get-JsonMapValue -InputObject $response -Key 'schema') -Definitions $Definitions
         if ($null -eq $schema) {
             continue
         }
 
-        if ($schema.PSObject.Properties.Name -contains 'type' -and [string]$schema.type -eq 'array') {
+        if ((Test-JsonMapKey -InputObject $schema -Key 'type') -and [string](Get-JsonMapValue -InputObject $schema -Key 'type') -eq 'array') {
             return '$'
         }
 
-        if ($schema.PSObject.Properties.Name -contains 'properties') {
-            $properties = $schema.properties
+        if (Test-JsonMapKey -InputObject $schema -Key 'properties') {
+            $properties = Get-JsonMapValue -InputObject $schema -Key 'properties'
             foreach ($candidate in @('entities', 'results', 'items')) {
-                if ($properties.PSObject.Properties.Name -contains $candidate) {
-                    $propertyValue = $properties.$candidate
-                    if ($propertyValue.PSObject.Properties.Name -contains 'type') {
-                        if ([string]$propertyValue.type -eq 'array') {
+                if (Test-JsonMapKey -InputObject $properties -Key $candidate) {
+                    $propertyValue = Get-JsonMapValue -InputObject $properties -Key $candidate
+                    if (Test-JsonMapKey -InputObject $propertyValue -Key 'type') {
+                        if ([string](Get-JsonMapValue -InputObject $propertyValue -Key 'type') -eq 'array') {
                             return "$.$($candidate)"
                         }
                     }
-                    elseif ($propertyValue.PSObject.Properties.Name -contains 'items') {
+                    elseif (Test-JsonMapKey -InputObject $propertyValue -Key 'items') {
                         return "$.$($candidate)"
                     }
                 }
@@ -136,35 +279,38 @@ if (-not (Test-Path -Path $CatalogPath)) {
 $resolvedSwaggerPath = (Resolve-Path -Path $SwaggerPath).Path
 $resolvedCatalogPath = (Resolve-Path -Path $CatalogPath).Path
 
-$swagger = Get-Content -Path $resolvedSwaggerPath -Raw | ConvertFrom-Json -Depth 100
-if ($swagger.PSObject.Properties.Name -contains 'swagger') {
-    if ([string]$swagger.swagger -ne '2.0') {
-        Write-Warning "Swagger version '$($swagger.swagger)' detected; expected 2.0. Continuing best-effort parsing."
+$swagger = ConvertFrom-JsonFilePreservingCase -Path $resolvedSwaggerPath
+if (Test-JsonMapKey -InputObject $swagger -Key 'swagger') {
+    $swaggerVersion = [string](Get-JsonMapValue -InputObject $swagger -Key 'swagger')
+    if ($swaggerVersion -ne '2.0') {
+        Write-Warning "Swagger version '$swaggerVersion' detected; expected 2.0. Continuing best-effort parsing."
     }
 }
 
-$definitions = @{}
-if ($swagger.PSObject.Properties.Name -contains 'definitions' -and $null -ne $swagger.definitions) {
-    foreach ($property in $swagger.definitions.PSObject.Properties) {
-        $definitions[$property.Name] = $property.Value
+$definitions = New-StringDictionary
+$swaggerDefinitions = Get-JsonMapValue -InputObject $swagger -Key 'definitions'
+if ($null -ne $swaggerDefinitions) {
+    foreach ($entry in Get-JsonMapEntries -InputObject $swaggerDefinitions) {
+        $definitions[$entry.Name] = $entry.Value
     }
 }
 
 $denylist = Get-DenylistOperationIds -SwaggerDirectory (Split-Path -Path $resolvedSwaggerPath -Parent)
-$generatedEndpoints = @{}
+$generatedEndpoints = New-StringDictionary -CaseInsensitive
 $totalSwaggerOps = 0
+$caseCollisionSkippedCount = 0
 
 $allowedMethods = @('get', 'post', 'put', 'patch', 'delete')
-foreach ($pathProperty in $swagger.paths.PSObject.Properties) {
+foreach ($pathProperty in Get-JsonMapEntries -InputObject (Get-JsonMapValue -InputObject $swagger -Key 'paths')) {
     $pathValue = $pathProperty.Value
-    foreach ($methodProperty in $pathValue.PSObject.Properties) {
+    foreach ($methodProperty in Get-JsonMapEntries -InputObject $pathValue) {
         $methodLower = ([string]$methodProperty.Name).ToLowerInvariant()
         if ($allowedMethods -notcontains $methodLower) {
             continue
         }
 
         $operation = $methodProperty.Value
-        $operationId = [string]$operation.operationId
+        $operationId = [string](Get-JsonMapValue -InputObject $operation -Key 'operationId')
         if ([string]::IsNullOrWhiteSpace($operationId)) {
             continue
         }
@@ -176,6 +322,15 @@ foreach ($pathProperty in $swagger.paths.PSObject.Properties) {
         $totalSwaggerOps += 1
         $itemsPath = Get-ItemsPathFromOperation -Operation $operation -Definitions $definitions
 
+        if ($generatedEndpoints.ContainsKey($operationId)) {
+            $existingOperationId = Get-MatchingDictionaryKey -Dictionary $generatedEndpoints -Key $operationId
+            if ($existingOperationId -cne $operationId) {
+                $caseCollisionSkippedCount += 1
+                Write-Warning "Skipping swagger operationId '$operationId' because it differs only by case from '$existingOperationId'. The catalog endpoint map is kept case-insensitive for existing Core compatibility."
+                continue
+            }
+        }
+
         $endpoint = [ordered]@{
             method = $methodLower.ToUpperInvariant()
             path = [string]$pathProperty.Name
@@ -185,26 +340,26 @@ foreach ($pathProperty in $swagger.paths.PSObject.Properties) {
             operationId = $operationId
         }
 
-        if ($operation.PSObject.Properties.Name -contains 'tags') {
-            $endpoint.tags = @($operation.tags)
+        if (Test-JsonMapKey -InputObject $operation -Key 'tags') {
+            $endpoint.tags = @((Get-JsonMapValue -InputObject $operation -Key 'tags'))
         }
-        if ($operation.PSObject.Properties.Name -contains 'summary' -and [string]::IsNullOrWhiteSpace([string]$operation.summary) -eq $false) {
-            $endpoint.summary = [string]$operation.summary
+        if ((Test-JsonMapKey -InputObject $operation -Key 'summary') -and [string]::IsNullOrWhiteSpace([string](Get-JsonMapValue -InputObject $operation -Key 'summary')) -eq $false) {
+            $endpoint.summary = [string](Get-JsonMapValue -InputObject $operation -Key 'summary')
         }
-        if ($operation.PSObject.Properties.Name -contains 'description' -and [string]::IsNullOrWhiteSpace([string]$operation.description) -eq $false) {
-            $endpoint.description = [string]$operation.description
+        if ((Test-JsonMapKey -InputObject $operation -Key 'description') -and [string]::IsNullOrWhiteSpace([string](Get-JsonMapValue -InputObject $operation -Key 'description')) -eq $false) {
+            $endpoint.description = [string](Get-JsonMapValue -InputObject $operation -Key 'description')
         }
 
         $generatedEndpoints[$operationId] = $endpoint
     }
 }
 
-$catalog = Get-Content -Path $resolvedCatalogPath -Raw | ConvertFrom-Json -Depth 100
-if ($null -eq $catalog.endpoints) {
-    $catalog | Add-Member -MemberType NoteProperty -Name endpoints -Value ([ordered]@{})
+$catalog = ConvertFrom-JsonFilePreservingCase -Path $resolvedCatalogPath
+if (-not (Test-JsonMapKey -InputObject $catalog -Key 'endpoints') -or $null -eq (Get-JsonMapValue -InputObject $catalog -Key 'endpoints')) {
+    Set-JsonMapValue -InputObject $catalog -Key 'endpoints' -Value ([ordered]@{})
 }
 
-$catalogEndpoints = ConvertTo-PlainHashtable -InputObject $catalog.endpoints
+$catalogEndpoints = ConvertTo-PlainHashtable -InputObject (Get-JsonMapValue -InputObject $catalog -Key 'endpoints')
 $addedCount = 0
 $skippedExistingCount = 0
 foreach ($operationId in $generatedEndpoints.Keys) {
@@ -230,12 +385,13 @@ $report = [pscustomobject]@{
     totalCatalogEndpoints = $totalCatalogEndpoints
     addedCount = $addedCount
     skippedExistingCount = $skippedExistingCount
+    caseCollisionSkippedCount = $caseCollisionSkippedCount
     missingAfterMergeCount = $missingAfterMergeCount
 }
 
 if ($PSCmdlet.ShouldProcess($resolvedCatalogPath, 'Sync swagger operations into catalog endpoints')) {
-    $catalog.endpoints = [pscustomobject]$catalogEndpoints
-    $catalog.generatedAt = [DateTime]::UtcNow.ToString('o')
+    Set-JsonMapValue -InputObject $catalog -Key 'endpoints' -Value $catalogEndpoints
+    Set-JsonMapValue -InputObject $catalog -Key 'generatedAt' -Value ([DateTime]::UtcNow.ToString('o'))
 
     $catalogJson = $catalog | ConvertTo-Json -Depth 100
     Set-Content -Path $resolvedCatalogPath -Value $catalogJson -Encoding UTF8

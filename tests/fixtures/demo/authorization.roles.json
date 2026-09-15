@@ -1,0 +1,82 @@
+{
+  "entities": [
+    {
+      "id": "role-0001-admin",
+      "name": "Administrator",
+      "description": "Full administrative access to the platform",
+      "default": false,
+      "base": false,
+      "roleNeedsUpdate": false,
+      "unusedPermissions": [],
+      "permissions": [
+        "routing:queue:add",
+        "routing:queue:edit",
+        "routing:queue:view",
+        "analytics:conversationDetail:view",
+        "recording:recording:view",
+        "quality:calibration:add"
+      ],
+      "permissionPolicies": [],
+      "userCount": 3,
+      "selfUri": "/api/v2/authorization/roles/role-0001-admin"
+    },
+    {
+      "id": "role-0002-agent",
+      "name": "Agent",
+      "description": "Standard agent role with call handling permissions",
+      "default": true,
+      "base": true,
+      "roleNeedsUpdate": false,
+      "unusedPermissions": [],
+      "permissions": [
+        "conversation:call:add",
+        "conversation:call:edit",
+        "conversation:chat:add",
+        "recording:recording:view"
+      ],
+      "permissionPolicies": [],
+      "userCount": 8,
+      "selfUri": "/api/v2/authorization/roles/role-0002-agent"
+    },
+    {
+      "id": "role-0003-supervisor",
+      "name": "Supervisor",
+      "description": "Supervisor role with team monitoring and quality management permissions",
+      "default": false,
+      "base": false,
+      "roleNeedsUpdate": false,
+      "unusedPermissions": [],
+      "permissions": [
+        "routing:queue:view",
+        "analytics:conversationDetail:view",
+        "quality:evaluation:add",
+        "quality:calibration:view",
+        "recording:recording:view"
+      ],
+      "permissionPolicies": [],
+      "userCount": 2,
+      "selfUri": "/api/v2/authorization/roles/role-0003-supervisor"
+    },
+    {
+      "id": "role-0004-readonly",
+      "name": "Read Only",
+      "description": "View-only access for reporting and analytics",
+      "default": false,
+      "base": false,
+      "roleNeedsUpdate": false,
+      "unusedPermissions": [],
+      "permissions": [
+        "routing:queue:view",
+        "analytics:conversationDetail:view",
+        "recording:recording:view"
+      ],
+      "permissionPolicies": [],
+      "userCount": 5,
+      "selfUri": "/api/v2/authorization/roles/role-0004-readonly"
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 25,
+  "total": 4,
+  "pageCount": 1
+}

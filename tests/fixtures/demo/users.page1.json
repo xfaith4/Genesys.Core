@@ -1,0 +1,124 @@
+{
+  "entities": [
+    {
+      "id": "user-agent-0001-alice",
+      "name": "Alice Support",
+      "email": "alice.support@corp.example.com",
+      "username": "alice.support@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Senior Support Agent",
+      "acdAutoAnswer": true,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "IDLE",
+        "userId": "user-agent-0001-alice",
+        "startTime": "2026-02-14T09:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 4.5 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0001-alice"
+    },
+    {
+      "id": "user-agent-0002-bob",
+      "name": "Bob Chat",
+      "email": "bob.chat@corp.example.com",
+      "username": "bob.chat@corp.example.com",
+      "state": "active",
+      "department": "Digital Support",
+      "title": "Chat Agent",
+      "acdAutoAnswer": true,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0002-busy",
+          "systemPresence": "BUSY",
+          "name": "Busy"
+        },
+        "message": "On a chat"
+      },
+      "routingStatus": {
+        "status": "INTERACTING",
+        "userId": "user-agent-0002-bob",
+        "startTime": "2026-02-15T13:30:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 5.0 },
+        { "id": "skill-0002-chat", "name": "Chat", "proficiency": 4.0 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0002-bob"
+    },
+    {
+      "id": "user-agent-0003-carol",
+      "name": "Carol Specialist",
+      "email": "carol.specialist@corp.example.com",
+      "username": "carol.specialist@corp.example.com",
+      "state": "active",
+      "department": "Customer Service",
+      "title": "Specialist Agent",
+      "acdAutoAnswer": false,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0001-available",
+          "systemPresence": "AVAILABLE",
+          "name": "Available"
+        },
+        "message": ""
+      },
+      "routingStatus": {
+        "status": "IDLE",
+        "userId": "user-agent-0003-carol",
+        "startTime": "2026-02-15T08:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0001-english", "name": "English", "proficiency": 4.0 },
+        { "id": "skill-0003-billing", "name": "Billing", "proficiency": 4.5 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0003-carol"
+    },
+    {
+      "id": "user-agent-0004-dan",
+      "name": "Dan Outreach",
+      "email": "dan.outreach@corp.example.com",
+      "username": "dan.outreach@corp.example.com",
+      "state": "active",
+      "department": "Sales",
+      "title": "Outbound Sales Agent",
+      "acdAutoAnswer": false,
+      "presence": {
+        "presenceDefinition": {
+          "id": "pres-0003-away",
+          "systemPresence": "AWAY",
+          "name": "Away"
+        },
+        "message": "Break"
+      },
+      "routingStatus": {
+        "status": "OFF_QUEUE",
+        "userId": "user-agent-0004-dan",
+        "startTime": "2026-02-17T10:00:00.000Z"
+      },
+      "groups": [],
+      "skills": [
+        { "id": "skill-0004-sales", "name": "Sales", "proficiency": 4.5 }
+      ],
+      "selfUri": "/api/v2/users/user-agent-0004-dan"
+    }
+  ],
+  "nextUri": "/api/v2/users?pageNumber=2&pageSize=25",
+  "pageNumber": 1,
+  "pageSize": 25,
+  "total": 10,
+  "pageCount": 3,
+  "selfUri": "/api/v2/users?pageNumber=1&pageSize=25"
+}

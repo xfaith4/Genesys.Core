@@ -16,7 +16,7 @@
            (OAuth 2.0 client-credentials flow via Genesys.Auth)
 
     After the run completes, open apps/ConversationAnalysis/index.html in a
-    browser and load the *.jsonl files from the printed data folder.
+    browser and load the conversation JSONL file(s) from the printed data folder.
 
 .PARAMETER Region
     Genesys Cloud region API hostname suffix (e.g. usw2.pure.cloud, mypurecloud.com).
@@ -188,9 +188,13 @@ Write-Host ''
 Write-Host "Run complete."
 Write-Host "  Conversations : $totalConversations"
 Write-Host "  Run ID        : $($run.runId)"
+Write-Host "  Run folder    : $($run.runFolder)"
 Write-Host "  Data folder   : $($run.dataFolder)"
+Write-Host "  Manifest      : $($run.manifestPath)"
 Write-Host ''
-Write-Host "Open apps/ConversationAnalysis/index.html in a browser, then load"
-Write-Host "all *.jsonl files from the data folder above."
+Write-Host "Open apps/ConversationAnalysis/index.html in a browser, then load:"
+Write-Host "  Required: data/*.jsonl from the data folder above"
+Write-Host "  Optional: manifest.json from the run folder above"
+Write-Host "Do not load events.jsonl or api-calls.log into the web page; those are diagnostics."
 
 return $run

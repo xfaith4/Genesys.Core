@@ -1,6 +1,294 @@
 # Changelog
 
-## 2026-03-07
+## 2026-08-15
+
+### Fixed
+
+- Corrected a malformed endpoint key in `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes.division-investigation` recipe:
+  `analytics.division.analysis.conversation.aggregates.by.division.oct.15.dec.8`
+  (a stray literal date range baked into the operationId, with `itemsPath` set
+  to `$.conversations` instead of the aggregates endpoint's actual
+  `$.results` root) is renamed to
+  `analytics.query.conversation.aggregates.division.performance` with a
+  corrected `itemsPath`, consistent with its sibling
+  `analytics.query.conversation.aggregates.*` endpoints. The
+  `conversation-aggregates-by-division` recipe step now references the
+  corrected key.
+
+### Added
+
+- Added two investigation recipes to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes` for parity with the patterns already
+  documented in `docs/ENDPOINT_COMBINATIONS.md`:
+  `real-time-operations-monitoring` (point-in-time queue/agent/flow/trunk
+  observation steps for a NOC wallboard, with single-agent drilldown steps
+  marked separately from the polling loop) and `byoi-conversation-enrichment`
+  (BYOI provenance and external-attribute steps that run alongside
+  `single-conversation-investigation` for conversations injected via the
+  BYOI provider API). All dataset references in both new recipes resolve to
+  existing `datasets` or `endpoints` entries in the same catalog file — a
+  reference-integrity audit walked every `dataset` field across all seven
+  `investigationRecipes` and confirmed each resolves to a real catalog
+  entry; the division-performance key above was the one genuine break
+  found (17 other references that don't exist under `datasets` are
+  intentional references to raw `endpoints` operationIds and were already
+  correct).
+- Cross-referenced the JSON `combinations` recipes from
+  `docs/ENDPOINT_COMBINATIONS.md` so the human-readable patterns and the
+  machine-readable catalog recipes are discoverable from each other.
+
+## 2026-06-08
+
+### Changed
+
+- Hardened `tests/unit/GenesysOps.Phase5Exports.Tests.ps1` so the
+  source-definition assertion accepts indented function declarations in
+  `modules/Genesys.Ops/Genesys.Ops.psm1`; this removes a false-negative failure
+  in the unit suite while preserving the export-surface verification intent.
+- Hardened dropped-file ingestion in `apps/InvestigationConsole/index.html` by
+  replacing placeholder manifest synthesis with summary-derived run identities
+  and guarded JSON parse handling; malformed dropped files are now skipped with
+  operator-visible warning details instead of aborting import.
+- Added `tests/unit/InvestigationConsole.ImportHardening.Tests.ps1` to lock in
+  the hardened import behavior (no placeholder manifest keys, guarded parse
+  path, and investigation-kind inference).
+- Added `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1` and
+  `docs/READINESS_REVIEW.md` Section 10 (`J-01`, `J-02`) as a Release 1.3
+  checkpoint slice so Session 20 trend contract + docs alignment are asserted
+  in the main unit suite.
+- Closed the Release 1.3 checkpoint backlog by adding
+  `docs/RELEASE_1_3_TREND_EVIDENCE.md` (command-level trend checkpoint evidence
+  + sign-off checklist), extending
+  `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1` to assert the
+  evidence references, and promoting readiness criterion `J-03` in
+  `docs/READINESS_REVIEW.md`.
+- Updated `docs/ROADMAP.md` to a status-board format with explicit `Completed`,
+  `Active`, `Next`, and `Maintenance` sections plus an operational sustainment
+  checklist for scheduled tests, dependency checks, docs review, CI review, and
+  live-validation evidence gates.
+
+## 2026-05-13
+
+### Added
+
+- **Release 1.3 Edge Alarms & Event Feed:**
+  - Added Edge log-job catalog datasets for creating a log job, reading log-job status, and requesting an upload from a specific Edge.
+  - Added `Get-GenesysEdgeEvent` to `Genesys.Ops`, normalizing Edge inventory, trunk state, active alerts, and optional Edge log-job status into a flat NOC feed.
+  - Added unit coverage for the NOC feed contract, Edge log-job dataset parameter forwarding, and the `-LogJobId`/`-EdgeId` guard.
+
+### Changed
+
+- Recorded Session 20 Trend UI as delivered after validating the WPF Trend tab, regression/improvement panels, hourly overlay, and case-date-range default wiring through the ConversationAnalyzer test harness.
+- Hardened `apps/MonthlyMetrics/Get-GenesysMonthlyMetrics.ps1` for recurring monthly reporting: previous-month year/month defaults now align across January boundaries, conversation volume detail uses `originatingDirection`, the workbook now includes `Monthly_Totals` and `Voice_PeakConcurrent` sheets, and response expansion tolerates missing optional aggregate/page fields under strict mode.
+- Hardened ConversationAnalyzer post-run display: the run panel now shows the exact saved run/data folders, and completed runs with saved conversation rows automatically clear stale grid filters if those filters would otherwise hide every returned conversation.
+- Hardened `analytics-conversation-details` empty-result artifacts: blank JSONL runs now include request-shape diagnostics in `summary.json`, explicit `analytics.conversationDetails.zeroResults`/request events, and a manifest warning so operators can distinguish a valid zero-result API response from a display or writer failure.
+
+## 2026-05-12
+
+### Added
+
+- **Release 1.4 operator console + demo-ready productization:**
+  - Added `apps/InvestigationConsole/index.html`, a single-file offline console for Agent, Conversation, and Queue investigations with summary KPIs, investigation-specific views, run history, and a diagnostics pane.
+  - Added generic package exports in `Genesys.Ops`: `Export-GenesysInvestigationPackage` writes Markdown/CSV/XLSX deliverables and `Export-GenesysInvestigationDiagnosticsBundle` writes redacted support JSON.
+  - Added wrapper scripts `scripts/Export-InvestigationPackage.ps1`, `scripts/Copy-InvestigationDiagnosticsBundle.ps1`, and `scripts/Invoke-GoldenPathDemo.ps1` to package runs, hand off diagnostics, and assemble the golden-path demo scenario.
+  - Added focused Pester coverage for the new 1.4 packaging and diagnostics workflows.
+
+- **Investigation enrichment + demo outputs:**
+  - `Get-GenesysAgentInvestigation` now includes `routingStatus`, `utilization`, and `activeConversations` sections sourced from user-scoped Genesys endpoints.
+  - `Get-GenesysConversationInvestigation` now includes `surveys` so a single investigation can surface CSAT / NPS alongside recordings and evaluations.
+  - `Get-GenesysQueueInvestigation` now seeds from `routing.get.single.queue.config` and adds `wrapupCodes`, `transfers`, and `wrapupDistribution`, while explicitly parameterizing queue/window aggregate queries.
+  - Added deterministic demo generators: `scripts/New-DemoAgentInvestigation.ps1`, `scripts/New-DemoConversationInvestigation.ps1`, and `scripts/New-DemoQueueInvestigation.ps1`.
+  - Added committed sample outputs under `samples/demo-agent-investigation/`, `samples/demo-conversation-investigation-run/`, and `samples/demo-queue-investigation/`.
+
+- **ConversationAnalyzer Session 20 backend foundation:**
+  - `Get-TrendReport` added to `apps/ConversationAnalyzer/modules/App.CoreAdapter.psm1` to pull queue-performance, abandon, and service-level aggregates for two comparison windows (`WindowA`, `WindowB`).
+  - Schema bumped to **v12** with `report_trend_windows`, `report_trend_comparison`, and the `report_trend_delta` view in `apps/ConversationAnalyzer/modules/App.Database.psm1`.
+  - `Import-TrendReport`, `Get-TrendComparisonRows`, `Get-TrendChangeLeaders`, `Get-IncidentImpactSummary`, and `Export-IncidentImpactSummary` added to establish comparative reporting and briefing export before the WPF Trend tab is wired.
+  - `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` now asserts the trend-report backend surface.
+
+### Changed
+
+- `docs/ROADMAP.md`, `apps/ConversationAnalyzer/docs/ConversationAnalytics_Roadmap.md`, `progress.md`, and `task_plan.md` updated to record Session 20 as partially delivered: backend foundation complete, UI/charting still open.
+
+## 2026-05-07
+
+### Changed
+
+- **Conversation Investigation package hardening:**
+  - `Get-GenesysConversationInvestigation` now starts with
+    `GET /api/v2/conversations/{conversationId}` to derive the conversation
+    start/end window before calling `analytics-conversation-details-query`.
+  - `Export-GenesysConversationInvestigationPackage` no longer requires
+    `-SipTracePath` for live use; it queries SIP metadata, requests the PCAP
+    download, polls the signed URL, and writes the `.pcap` into the package.
+  - Added `docs/CONVERSATION_INVESTIGATION_PACKAGE.md` with the exact live
+    command, API sequence, output files, and PCAP permissions.
+
+## 2026-04-30
+
+### Changed
+
+- **Release 1.0 Track B — Agent Investigation hardening:**
+  - Hardened `Invoke-Investigation` so empty optional steps remain empty arrays
+    instead of becoming `$null` and failing `.Count` checks.
+  - Hardened Agent Investigation subject filters for scalar PowerShell pipeline
+    output from single queue memberships or single conversation participants.
+  - Corrected the investigation manifest join plan so `leftSource` records the
+    source step (`identity`) rather than duplicating the left key path.
+  - Strengthened `tests/integration/AgentInvestigation.Tests.ps1` to assert the
+    join-plan shape and repaired the name-resolution mock.
+  - Updated `README.md`, `docs/ONBOARDING.md`, `docs/training/Training.md`,
+    `docs/ROADMAP.md`, and `docs/READINESS_REVIEW.md` so investigations are
+    documented as first-class and the verified Track B gates are current.
+
+## 2026-04-29
+
+### Changed
+
+- **Mirror-catalog consolidation / canonical catalog cutover (Release 1.0 Track A):**
+  - `catalog/genesys.catalog.json` is now the single canonical catalog for Genesys.Core,
+    Genesys.Ops, scripts, tests, docs, and examples. The deprecated
+    `genesys-core.catalog.json` stub and its legacy auto-discovery fallback in
+    `Resolve-Catalog` have been retired. If no catalog is found at the canonical path
+    (and no explicit `-CatalogPath` is given) `Resolve-Catalog` throws.
+  - `-StrictCatalog` is retained on `Resolve-Catalog`, `Assert-Catalog`, `Invoke-Dataset`,
+    `Get-AuditServiceMapping`, and bridge/smoke scripts as a backward-compatible no-op;
+    it may be removed in a future major version.
+  - Updated `catalog/schema/genesys.catalog.schema.json` `$id` to match the canonical
+    file name (`genesys.catalog.schema.json`).
+  - Updated `.agents/AGENTS.md`, builder skill, and `apps/App_Builder_Template.md` to
+    reference `catalog/genesys.catalog.json` and `catalog/schema/genesys.catalog.schema.json`.
+  - Updated `TESTING.md` catalog-resolution test-category description to reflect
+    canonical-only behavior.
+  - Marked mirror-catalog consolidation done in `docs/ROADMAP.md`.
+
+- **Track A — Workflow auth wiring (Release 1.0):**
+  - Added `.github/workflows/dataset.on-demand.yml` — a live-credential on-demand workflow
+    that authenticates via the OAuth 2.0 client-credentials grant (`GENESYS_CLIENT_ID`,
+    `GENESYS_CLIENT_SECRET`, `GENESYS_REGION` repository secrets), runs any catalog dataset
+    via `Invoke-Dataset`, and uploads the run artifact. Distinct from the CI mock run.
+  - Workflow validates that all required secrets are present before attempting authentication
+    and emits a clear error message listing missing secrets.
+
+- **Track A — Redaction baseline coverage (Release 1.0):**
+  - Five named redaction profiles added to `catalog/genesys.catalog.json`
+    (`profiles.redaction`): `agent-investigation-users`, `agent-investigation-division`,
+    `agent-investigation-presences`, `agent-investigation-activity`, and
+    `agent-investigation-conversations`.
+  - All seven Agent Investigation datasets now carry `redactionProfile` and
+    `validationStatus: "unvalidated"` fields in the catalog:
+    `users`, `users.division.analysis.get.users.with.division.info`,
+    `routing.get.all.routing.skills`, `routing-queues`,
+    `users.get.bulk.user.presences`, `analytics.query.user.details.activity.report`,
+    and `analytics-conversation-details-query`.
+  - `Protect-RecordData` in `Genesys.Core/Private/Redaction.ps1` extended with an optional
+    `-Profile` parameter (hashtable with `removeFields`). Profile-driven removal takes
+    precedence over the heuristic field-name check; existing callers that pass no profile
+    are unaffected.
+  - `Resolve-DatasetRedactionProfile` helper added to `Redaction.ps1` — looks up a
+    dataset's named profile from `catalog.profiles.redaction` and returns it as a
+    hashtable.
+  - All three `Protect-RecordData` call sites in `Datasets.ps1` (`Invoke-AuditLogsDataset`,
+    `Invoke-SimpleCollectionDataset`, `Invoke-AnalyticsConversationDetailsDataset`) now
+    resolve and pass the catalog redaction profile.
+  - Profile-driven redaction tests and `Resolve-DatasetRedactionProfile` tests added to
+    `tests/unit/Security.Redaction.Tests.ps1`.
+
+- **Track A — Formal production-readiness gate (Release 1.0):**
+  - `docs/READINESS_REVIEW.md` rewritten as a verifiable per-criterion checklist
+    (nine categories, 30+ criteria) covering auth, dataset execution, paging, retry,
+    redaction, artifact contract, workflow/CI, live validation, and the Track B gate.
+    Each criterion carries a status (✅ / ⚠️ / ❌ / 🔒) and a "verifiable by" action
+    for reviewers. The previous narrative review is archived at the bottom of the file.
+
+- **Track A — OAuth async orchestration decision (Release 1.0):**
+  - Explicit deferral recorded in `ROADMAP.md`: the `oauth.post.client.usage.query` /
+    `oauth.get.client.usage.query.results` two-step is adequately served by sequencing
+    the existing generic catalog dataset pair; no curated handler is needed for 1.0.
+
+
+
+### Added
+
+- **ConversationAnalyser Session 19 — Quality and Voice-of-Customer Overlay:**
+  - `Get-QualityOverlayReport` added to `App.CoreAdapter.psm1` — pulls `quality.get.evaluations.query` (fan-out by case agent), `quality.get.surveys`, `speechandtextanalytics.get.topics`, and `analytics.post.transcripts.aggregates.query` into a `report-quality-<timestamp>` folder map.
+  - Schema bumped to **v11** with `report_evaluations`, `report_surveys`, and `report_quality_topics` plus supporting indexes.
+  - `Get-CaseAgentUserIds`, `Import-QualityOverlayReport`, `Get-QualitySummary`, `Get-QualityAgentScoreRows`, `Get-QualitySurveyQueueRows`, `Get-LowScoreConversationRows`, `Get-QualityCorrelationSummary`, and `Get-LowScoreTopicRows` added to `App.Database.psm1`.
+  - Evaluation scores normalize to a 0–100 scale from available form totals; survey import extracts NPS, CSAT-style totals, and free-text verbatim answers; transcript topic overlays stay optional and local to the case store.
+  - **"Quality" tab** added to `MainWindow.xaml`: Pull Report button, KPI summary bar, agent score distribution grid, queue survey grid, low-score conversation grid, correlation panel, and low-score topic grid.
+  - `_StartQualityOverlayReportJob`, `_RenderQualityGrid`, and `_OpenLowScoreConversation` added to `App.UI.ps1`; low-score conversations drill into the existing conversation detail workspace.
+  - Quality-specific compliance and architecture checks added to the ConversationAnalyser test runner.
+
+## 2026-04-17
+
+### Added
+
+- **ConversationAnalyser Session 17 — IVR and Flow Containment Report:**
+  - `Get-FlowContainmentReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.flow.aggregates.execution.metrics`, `flows.get.all.flows`, `flows.get.flow.outcomes`, and `flows.get.flow.milestones` into a report folder map.
+  - Schema bumped to **v8** with `report_flow_perf` and `report_flow_milestone_distribution` plus supporting indexes.
+  - `Import-FlowContainmentReport`, `Get-FlowPerfRows`, `Get-FlowMilestoneRows`, `Get-FlowContainmentSummary`, and `Get-FlowQueueRouteRows` added to `App.Database.psm1`.
+  - Containment and failure summaries are weighted by flow entries; queue correlation reads already-imported conversation detail data without adding a frontend API path.
+  - **"Flow & IVR" tab** added to `MainWindow.xaml`: Pull Report button, flow-type filter, summary bar, flow performance grid, milestone grid, and queues-reached grid.
+  - `_StartFlowContainmentReportJob`, `_RenderFlowContainmentGrid`, and `_RenderSelectedFlowDetail` added to `App.UI.ps1`; Transfer and Flow tabs now clear stale rows when the case store is offline or no active case is selected.
+  - Flow-specific compliance and architecture checks added to the ConversationAnalyser test runner.
+
+- **ConversationAnalyser Session 16 — Transfer and Escalation Chain Intel:**
+  - Schema bumped to **v7** with `report_transfer_flows` and `report_transfer_chains` plus supporting indexes.
+  - `Import-TransferReport` added to `App.Database.psm1` — imports the transfer aggregate run folder, derives transfer chains from stored `participants_json`, classifies blind versus consult transfers, and upserts flow and chain rows.
+  - `Get-TransferFlowRows`, `Get-TransferChainRows`, and `Get-TransferSummary` added for grid reads and summary roll-ups.
+  - Transfer import denominator handling now matches the catalog-backed metrics: it supports `nOffered` when present, otherwise falls back to `nConnected`, then `nTransferred`, then local hop totals.
+  - Hardened transfer flow aggregation so name-only queue touches use stable `name:<queueName>` row keys instead of collapsing into one empty-ID bucket.
+  - **"Transfer & Escalation" tab** added to `MainWindow.xaml`: Pull Report button, blind/consult filter, summary bar, flow grid, top destination grid, and multi-hop conversation grid.
+  - `_StartTransferReportJob`, `_RenderTransferGrid`, and `_OpenTransferChainConversation` added to `App.UI.ps1`; selecting a multi-hop conversation opens the existing drilldown view.
+  - Transfer-specific compliance and architecture checks added to the ConversationAnalyser test runner.
+
+## 2026-04-15
+
+### Added
+
+- **ConversationAnalyser Session 15 — Agent Performance Aggregate Report:**
+  - `Get-AgentPerformanceReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.conversation.aggregates.agent.performance`, `analytics.query.user.aggregates.performance.metrics`, and `analytics.query.user.aggregates.login.activity` for the case time window and returns an `{AgentPerfFolder, UserPerfFolder, LoginActivityFolder}` hashtable.
+  - `Import-AgentPerformanceReport` added to `App.Database.psm1` — merges the three JSONL outputs by `userId`, resolves user names, emails, departments, and division names from ref tables, resolves handled queue names from the conversations store, computes `talk_ratio_pct` (tTalk / tHandle × 100), `acw_ratio_pct` (tAcw / tHandle × 100), and `idle_ratio_pct` (tIdle / totalTime × 100), and upserts into `report_agent_perf`.
+  - `Get-AgentPerfRows` and `Get-AgentPerfSummary` added to `App.Database.psm1` for grid reads and summary-bar roll-ups.
+  - Schema bumped to **v6** — adds `report_agent_perf` table with three indexes.
+  - **"Agent Performance" tab** added to `MainWindow.xaml`: header card with Pull Report button and Division filter, summary bar (Agents, Connected, Avg Handle, Avg Talk %, Avg ACW %, Avg Idle %), 16-column `DgAgentPerf` DataGrid with ⚠ flag column (talk ratio < 50 % or ACW ratio > 30 %).
+  - `_StartAgentPerfReportJob`, `_RenderAgentPerfGrid`, `_PopulateAgentPerfDivisionFilter` added to `App.UI.ps1`; division filter repopulates from the database after each import and on case activation.
+
+
+### Added
+
+- **ConversationAnalyser Session 14 — Queue Performance Aggregate Report:**
+  - `Get-QueuePerformanceReport` added to `App.CoreAdapter.psm1` — pulls `analytics.query.conversation.aggregates.queue.performance`, `analytics.query.conversation.aggregates.abandon.metrics`, and `analytics.query.queue.aggregates.service.level` for the case time window and returns a `{QueuePerfFolder, AbandonFolder, ServiceLevelFolder}` hashtable.
+  - `Import-QueuePerformanceReport` added to `App.Database.psm1` — merges the three JSONL outputs by `queueId|intervalStart`, resolves queue and division names from ref tables, computes `abandon_rate_pct` and `service_level_pct`, and upserts into `report_queue_perf`.
+  - `Get-QueuePerfRows` and `Get-QueuePerfSummary` added to `App.Database.psm1` for grid reads and summary-bar roll-ups.
+  - Schema bumped to **v5** — adds `report_queue_perf` table with four indexes.
+  - **"Queue Performance" tab** added to `MainWindow.xaml`: header card with Pull Report button and Division filter, summary bar (Queues, Offered, Abandoned, Avg Abandon %, Avg SLA 30s %, Avg Handle), 13-column `DgQueuePerf` DataGrid.
+  - `_StartQueuePerfReportJob`, `_RenderQueuePerfGrid`, `_PopulateQueuePerfDivisionFilter` added to `App.UI.ps1`; division filter repopulates from the database after each import and on case activation.
+
+
+
+### Added
+
+- **Genesys.Ops — Phase 5 Ideas 27–30:** Four new composite cmdlets completing the Phase 5 Visibility Dashboard roadmap:
+  - `Get-GenesysPeakHourLoad` — ranks queue+media intervals by volume or handle time to surface WFM scheduling gaps (PT1H granularity; PT15M documented as future direct catalog body override).
+  - `Get-GenesysChangeAuditFeed` — risk-classified (HIGH/MEDIUM/LOW) feed of admin configuration changes from the audit log; enriches each event with a human-readable `Summary` and `Risk` field.
+  - `Get-GenesysOutboundCampaignPerformance` — per-campaign KPI snapshot combining campaign configuration with dialer event dispositions (ConnectRate, NoAnswerRate, TotalAttempts, etc.).
+  - `Get-GenesysFlowOutcomeKpiCorrelation` — correlates Architect flow aggregate execution metrics with org-wide CSAT scores and queue handle time to identify IVR self-service drop-off candidates.
+
+- **ConversationAnalyser Session 13 — Reference Data Foundation:**
+  - `Refresh-ReferenceData` added to `App.CoreAdapter.psm1` — invokes `Invoke-Dataset` for all nine reference datasets (`routing-queues`, `users`, `authorization.get.all.divisions`, `routing.get.all.wrapup.codes`, `routing.get.all.routing.skills`, `routing.get.all.languages`, `flows.get.all.flows`, `flows.get.flow.outcomes`, `flows.get.flow.milestones`) and returns a folder map.
+  - `Import-ReferenceDataToCase` added to `App.Database.psm1` — upserts reference records into eight new reference tables scoped by `case_id` with `refreshed_at` timestamps; audits the refresh event.
+  - `Get-ResolvedName` helper added to `App.Database.psm1` — pure SQLite ID→name lookup with `-Type` (queue, user, division, wrapupCode, skill, flow, flowOutcome, flowMilestone) and `-Id` parameters.
+  - Schema v4 adds eight reference tables and their indexes to the SQLite case store.
+  - "Refresh Reference Data" button added to the case management panel in `MainWindow.xaml`; wired via `_StartRefreshReferenceDataJob` in `App.UI.ps1` which runs the fetch in a background runspace and shows record counts in the status bar on completion.
+
+### Changed
+
+- `ROADMAP.md` — Phase 5 Ideas 27–30 marked ✅ Delivered with cmdlet names and notes.
+- `ConversationAnalytics_Roadmap.md` — Session 13 marked **COMPLETE** with delivery summary.
+
+
 
 ### Changed
 
@@ -48,4 +336,3 @@
 - Ensure the canonical catalog is present:
   - `catalog/genesys.catalog.json`
 - Existing callers passing `-CatalogPath` remain supported.
-

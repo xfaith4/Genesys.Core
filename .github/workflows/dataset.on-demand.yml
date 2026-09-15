@@ -1,0 +1,182 @@
+name: Dataset On Demand
+
+# Track A — Workflow auth wiring example.
+# Run any catalog dataset against live Genesys Cloud using client-credentials
+# OAuth stored as repository secrets.
+#
+# Required repository secrets:
+#   GENESYS_CLIENT_ID      — OAuth 2.0 client ID (client_credentials grant)
+#   GENESYS_CLIENT_SECRET  — OAuth 2.0 client secret
+#   GENESYS_REGION         — Genesys Cloud API region suffix (e.g. usw2.pure.cloud)
+#
+# Optional repository variable:
+#   DATASET_ARTIFACT_RETENTION_DAYS — artifact retention in days (default: 7)
+
+on:
+  workflow_dispatch:
+    inputs:
+      datasetKey:
+        description: >
+          Catalog dataset key to run (e.g. users, routing-queues,
+          analytics-conversation-details-query).
+        required: true
+        type: string
+      startUtc:
+        description: >
+          Window start (UTC ISO-8601, e.g. 2026-04-29T00:00:00Z).
+          Omit to use the dataset's default lookback window.
+        required: false
+        type: string
+      endUtc:
+        description: >
+          Window end (UTC ISO-8601). Omit to use current time.
+        required: false
+        type: string
+      summaryOnly:
+        description: >
+          When true, retain only manifest/summary/events — omit data/*.jsonl
+          from the uploaded artifact (reduces artifact size for large datasets).
+        required: false
+        default: false
+        type: boolean
+      retentionDays:
+        description: Artifact retention days (1–90).
+        required: false
+        default: '7'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run_dataset:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets are configured
+        shell: pwsh
+        env:
+          GENESYS_CLIENT_ID:     ${{ secrets.GENESYS_CLIENT_ID }}
+          GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+          GENESYS_REGION:        ${{ secrets.GENESYS_REGION }}
+        run: |
+          $missing = @()
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_CLIENT_ID))     { $missing += 'GENESYS_CLIENT_ID' }
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_CLIENT_SECRET)) { $missing += 'GENESYS_CLIENT_SECRET' }
+          if ([string]::IsNullOrWhiteSpace($env:GENESYS_REGION))        { $missing += 'GENESYS_REGION' }
+
+          if ($missing.Count -gt 0) {
+            Write-Error @"
+          The following required repository secrets are not configured:
+            $($missing -join ', ')
+
+          Add them under Settings > Secrets and variables > Actions, then re-run this workflow.
+          "@
+            exit 1
+          }
+
+          Write-Host "All required secrets are present."
+
+      - name: Install Pester (no NuGet provider)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
+          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+          Import-Module Pester -Force
+
+      - name: Authenticate with Genesys Cloud (client_credentials)
+        id: auth
+        shell: pwsh
+        env:
+          CLIENT_ID:     ${{ secrets.GENESYS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+          REGION:        ${{ secrets.GENESYS_REGION }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Load the auth module — it exposes Connect-GenesysCloudApp which performs
+          # the OAuth 2.0 client_credentials grant and stores the bearer token.
+          Import-Module (Join-Path $env:GITHUB_WORKSPACE 'modules/Genesys.Auth/Genesys.Auth.psd1') -Force
+
+          $ctx = Connect-GenesysCloudApp `
+            -ClientId     $env:CLIENT_ID `
+            -ClientSecret $env:CLIENT_SECRET `
+            -Region       $env:REGION
+
+          Write-Host "Authenticated. Region: $($ctx.Region)  Flow: $($ctx.Flow)"
+          Write-Host "Token expires at: $($ctx.ExpiresAt.ToString('o'))"
+
+          # Surface region for downstream steps.
+          "region=$($ctx.Region)" >> $env:GITHUB_OUTPUT
+
+      - name: Run dataset
+        id: run
+        shell: pwsh
+        env:
+          DATASET_KEY:   ${{ inputs.datasetKey }}
+          START_UTC:     ${{ inputs.startUtc }}
+          END_UTC:       ${{ inputs.endUtc }}
+          SUMMARY_ONLY:  ${{ inputs.summaryOnly }}
+          REGION:        ${{ steps.auth.outputs.region }}
+          CLIENT_ID:     ${{ secrets.GENESYS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Import-Module (Join-Path $env:GITHUB_WORKSPACE 'modules/Genesys.Auth/Genesys.Auth.psd1')  -Force
+          Import-Module (Join-Path $env:GITHUB_WORKSPACE 'modules/Genesys.Core/Genesys.Core.psd1') -Force
+
+          # Re-authenticate so Genesys.Core has a valid session in this runspace.
+          $ctx = Connect-GenesysCloudApp `
+            -ClientId     $env:CLIENT_ID `
+            -ClientSecret $env:CLIENT_SECRET `
+            -Region       $env:REGION
+
+          $params = @{
+            Dataset    = $env:DATASET_KEY
+            BaseUri    = $ctx.BaseUri
+            Headers    = $ctx.Headers
+            OutputRoot = 'out'
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:START_UTC) -or -not [string]::IsNullOrWhiteSpace($env:END_UTC)) {
+            $datasetParams = @{}
+            if (-not [string]::IsNullOrWhiteSpace($env:START_UTC)) { $datasetParams['StartUtc'] = $env:START_UTC }
+            if (-not [string]::IsNullOrWhiteSpace($env:END_UTC))   { $datasetParams['EndUtc']   = $env:END_UTC }
+            $params['DatasetParameters'] = $datasetParams
+          }
+
+          $result = Invoke-Dataset @params
+          Write-Host "Dataset '$($env:DATASET_KEY)' completed. Records: $($result.Summary.totals.totalRecords)"
+
+          # Locate the run folder for artifact upload.
+          $runFolder = Join-Path 'out' $env:DATASET_KEY
+          $latestRun = Get-ChildItem -Path $runFolder -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if ($null -eq $latestRun) { throw "Run folder not found under $runFolder" }
+
+          Write-Host "Run folder: $($latestRun.FullName)"
+
+          # summaryOnly: remove data/ contents when requested.
+          if ([System.Convert]::ToBoolean($env:SUMMARY_ONLY)) {
+            $dataPath = Join-Path $latestRun.FullName 'data'
+            if (Test-Path $dataPath) {
+              Remove-Item -Path (Join-Path $dataPath '*') -Force -Recurse -ErrorAction SilentlyContinue
+            }
+            Write-Host "summaryOnly=true — data/ contents removed."
+          }
+
+          "run_folder=$($latestRun.FullName)" >> $env:GITHUB_OUTPUT
+          "run_id=$($latestRun.Name)"         >> $env:GITHUB_OUTPUT
+
+      - name: Upload dataset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.datasetKey }}-${{ steps.run.outputs.run_id }}-${{ github.run_id }}
+          path: ${{ steps.run.outputs.run_folder }}/
+          retention-days: ${{ inputs.retentionDays }}
+          if-no-files-found: error

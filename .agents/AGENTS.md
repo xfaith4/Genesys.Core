@@ -9,7 +9,7 @@ UIs must be clients of the Core—not reimplementations of the Core.
 
 ## Non-Negotiables (Read This Twice)
 
-1) **Catalog is source of truth.** Endpoint behavior (itemsPath, paging, async flow, retry profile, redaction policy) is defined in `genesys-core.catalog.json`.
+1) **Catalog is source of truth.** Endpoint behavior (itemsPath, paging, async flow, retry profile, redaction policy) is defined in `catalog/genesys.catalog.json`.
 2) **No surprises.** Pagination + retry must be deterministic, tested, and observable.
 3) **No secret leakage.** Never log tokens, client secrets, Authorization headers, or raw PII-heavy payloads.
 4) **PS 5.1 + 7+ compatibility.** Avoid features that break Windows PowerShell 5.1.
@@ -20,8 +20,8 @@ UIs must be clients of the Core—not reimplementations of the Core.
 
 ## Repo Structure (Target)
 
-- `genesys-core.catalog.json`                # Catalog (source of truth)
-- `catalog/schema/genesys-core.catalog.schema.json`  # JSON Schema for catalog
+- `catalog/genesys.catalog.json`                # Catalog (source of truth)
+- `catalog/schema/genesys.catalog.schema.json`  # JSON Schema for catalog
 - `src/ps-module/Genesys.Core/`             # Module code
   - `Public/`                               # Public entrypoints (Invoke-Dataset etc.)
   - `Private/`                              # Internal engines (retry/paging/async/run)

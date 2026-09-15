@@ -1,6 +1,6 @@
 Describe 'Dataset runtime parameter resolution' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Datasets/Resolve-DatasetRuntime.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Datasets.ps1"
     }
 
     It 'builds interval from StartUtc/EndUtc' {

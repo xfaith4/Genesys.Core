@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Genesys.MockServer</RootNamespace>
+    <AssemblyName>Genesys.MockServer</AssemblyName>
+    <Version>1.0.0</Version>
+    <Description>HTTP demo server that mirrors Genesys Cloud API endpoints with static fixture data for Genesys.Core integration testing.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Exclude xUnit test project files from the main server build -->
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,14 +1,71 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
+function _Find-NamedElement {
+    param(
+        [AllowNull()][object]$Root,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    if ($null -eq $Root) {
+        return $null
+    }
+
+    if ($Root -is [System.Windows.FrameworkElement] -and $Root.Name -eq $Name) {
+        return $Root
+    }
+
+    try {
+        foreach ($child in [System.Windows.LogicalTreeHelper]::GetChildren($Root)) {
+            $found = _Find-NamedElement -Root $child -Name $Name
+            if ($null -ne $found) {
+                return $found
+            }
+        }
+    } catch { }
+
+    try {
+        if ($Root -is [System.Windows.DependencyObject]) {
+            $childCount = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($Root)
+            for ($i = 0; $i -lt $childCount; $i++) {
+                $child = [System.Windows.Media.VisualTreeHelper]::GetChild($Root, $i)
+                $found = _Find-NamedElement -Root $child -Name $Name
+                if ($null -ne $found) {
+                    return $found
+                }
+            }
+        }
+    } catch { }
+
+    return $null
+}
+
 function _Ctrl {
     param([string]$Name)
-    return $script:Window.FindName($Name)
+
+    $control = $null
+    try {
+        $control = $script:Window.FindName($Name)
+    } catch { }
+
+    if ($null -eq $control) {
+        $control = _Find-NamedElement -Root $script:Window -Name $Name
+    }
+
+    if ($null -eq $control) {
+        throw "Required UI control '$Name' was not found. Verify apps/AuditLogsConsole/XAML/MainWindow.xaml is loaded and the element has a matching Name or x:Name."
+    }
+
+    return $control
 }
 
 $script:CmbRegion             = _Ctrl 'CmbRegion'
 $script:PwdAccessToken        = _Ctrl 'PwdAccessToken'
 $script:BtnConnect            = _Ctrl 'BtnConnect'
+$script:TxtPkceClientId       = _Ctrl 'TxtPkceClientId'
+$script:TxtPkceRedirectUri    = _Ctrl 'TxtPkceRedirectUri'
+$script:BtnPkceLogin          = _Ctrl 'BtnPkceLogin'
+$script:BtnCancelPkce         = _Ctrl 'BtnCancelPkce'
 $script:TxtStartupState       = _Ctrl 'TxtStartupState'
 $script:TxtAuthState          = _Ctrl 'TxtAuthState'
 $script:TxtStatusMain         = _Ctrl 'TxtStatusMain'
@@ -60,18 +117,27 @@ $script:TxtDiagnosticsPreview = _Ctrl 'TxtDiagnosticsPreview'
 $script:State = [ordered]@{
     CurrentRunFolder = $null
     CurrentRunMode   = ''
+    CurrentDatasetKey = ''
     CurrentQuerySpec = $null
     FilteredIndex    = @()
     CurrentPage      = 1
     PageSize         = [int]$script:AppContext.Settings.Ui.PageSize
     CurrentViewLimit = 0
     AuthContext      = $null
+    AuthPowerShell   = $null
+    AuthHandle       = $null
+    AuthCancel       = $null
     RunPowerShell    = $null
     RunHandle        = $null
     RunStartedAtUtc  = $null
     RunLastError     = ''
     PollTimer        = $null
     CurrentSummary   = $null
+    FilterCatalog    = [ordered]@{
+        ServiceNames     = @()
+        Actions          = @()
+        ActionsByService = [ordered]@{}
+    }
 }
 
 function _SetStatus {
@@ -116,6 +182,128 @@ function _Get-ComboText {
     return ''
 }
 
+function _Sort-UniqueTextArray {
+    param([object[]]$Values)
+
+    return @($Values | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function _New-FilterCatalog {
+    return [pscustomobject]@{
+        ServiceNames     = @()
+        Actions          = @()
+        ActionsByService = [ordered]@{}
+    }
+}
+
+function _Add-FilterCatalog {
+    param([AllowNull()][object]$Catalog)
+
+    if ($null -eq $Catalog) {
+        return
+    }
+
+    $script:State.FilterCatalog.ServiceNames = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ServiceNames + @($Catalog.ServiceNames))
+    $script:State.FilterCatalog.Actions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.Actions + @($Catalog.Actions))
+
+    foreach ($serviceName in @($Catalog.ActionsByService.Keys)) {
+        $serviceActions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ActionsByService[$serviceName] + @($Catalog.ActionsByService[$serviceName]))
+        $script:State.FilterCatalog.ActionsByService[$serviceName] = $serviceActions
+        $script:State.FilterCatalog.ServiceNames = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.ServiceNames + $serviceName)
+        $script:State.FilterCatalog.Actions = _Sort-UniqueTextArray -Values @($script:State.FilterCatalog.Actions + $serviceActions)
+    }
+}
+
+function _Get-FilterActionsForService {
+    param([string]$ServiceName)
+
+    if ([string]::IsNullOrWhiteSpace($ServiceName)) {
+        return @($script:State.FilterCatalog.Actions)
+    }
+
+    foreach ($entry in $script:State.FilterCatalog.ActionsByService.GetEnumerator()) {
+        if ([string]$entry.Key -ieq $ServiceName) {
+            return @($entry.Value)
+        }
+    }
+
+    return @($script:State.FilterCatalog.Actions)
+}
+
+function _Set-ComboItems {
+    param(
+        [Parameter(Mandatory)][System.Windows.Controls.ComboBox]$ComboBox,
+        [object[]]$Items,
+        [string]$CurrentText = ''
+    )
+
+    $ComboBox.ItemsSource = @($Items)
+    $ComboBox.Text = $CurrentText
+}
+
+function _Apply-FilterCatalogToUi {
+    $serviceText = _Get-ComboText -Control $script:CmbService
+    $actionText = _Get-ComboText -Control $script:CmbAction
+
+    _Set-ComboItems -ComboBox $script:CmbService -Items $script:State.FilterCatalog.ServiceNames -CurrentText $serviceText
+    _Set-ComboItems -ComboBox $script:CmbAction -Items (_Get-FilterActionsForService -ServiceName $serviceText) -CurrentText $actionText
+}
+
+function _Build-FilterCatalogFromRunFolder {
+    param(
+        [Parameter(Mandatory)][string]$RunFolder
+    )
+
+    $catalog = _New-FilterCatalog
+    $indexEntries = @(Load-AuditIndex -RunFolder $RunFolder)
+
+    $catalog.ServiceNames = @($indexEntries | ForEach-Object { [string]$_.service } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $catalog.Actions = @($indexEntries | ForEach-Object { [string]$_.action } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+
+    foreach ($entry in $indexEntries) {
+        $serviceName = [string]$entry.service
+        $actionName = [string]$entry.action
+        if ([string]::IsNullOrWhiteSpace($serviceName) -or [string]::IsNullOrWhiteSpace($actionName)) {
+            continue
+        }
+
+        $catalog.ActionsByService[$serviceName] = _Sort-UniqueTextArray -Values @($catalog.ActionsByService[$serviceName] + $actionName)
+    }
+
+    return $catalog
+}
+
+function _Seed-FilterCatalogFromRecentRuns {
+    if (-not $script:AppContext.StartupValidation.Ready) {
+        return
+    }
+
+    foreach ($run in @(Get-RecentRuns -Max $script:AppContext.Settings.Ui.MaxRecentRuns)) {
+        if ([string]::IsNullOrWhiteSpace([string]$run.RunFolder) -or -not [System.IO.Directory]::Exists($run.RunFolder)) {
+            continue
+        }
+
+        try {
+            _Add-FilterCatalog -Catalog (_Build-FilterCatalogFromRunFolder -RunFolder $run.RunFolder)
+        }
+        catch {
+        }
+    }
+}
+
+function _Refresh-FilterCatalogFromLiveSession {
+    if ($null -eq $script:State.AuthContext) {
+        return
+    }
+
+    try {
+        _Add-FilterCatalog -Catalog (Get-AuditFilterOptions)
+        _Apply-FilterCatalogToUi
+    }
+    catch {
+    }
+}
+
 function _Read-DateTimeUtc {
     param(
         [Parameter(Mandatory)][System.Windows.Controls.DatePicker]$DatePicker,
@@ -127,7 +315,14 @@ function _Read-DateTimeUtc {
         throw "$Label date is required."
     }
 
-    $timeText = [string]$TimeBox.Text
+    $timeText = ([string]$TimeBox.Text).Trim()
+    if ([string]::IsNullOrWhiteSpace($timeText)) {
+        throw "$Label time is required (HH:mm or HH:mm:ss)."
+    }
+    # Reject [timespan]::TryParse fallbacks like "5" (= 5 days). Require explicit HH:mm[:ss].
+    if ($timeText -notmatch '^\s*([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?\s*$') {
+        throw "$Label time must be in HH:mm or HH:mm:ss format (24-hour)."
+    }
     $timeValue = [timespan]::Zero
     if (-not [timespan]::TryParse($timeText, [ref]$timeValue)) {
         throw "$Label time must use HH:mm format."
@@ -173,20 +368,47 @@ function _Apply-TimePreset {
 function _Build-QuerySpec {
     $startUtc = _Read-DateTimeUtc -DatePicker $script:DtpStartDate -TimeBox $script:TxtStartTime -Label 'Start'
     $endUtc = _Read-DateTimeUtc -DatePicker $script:DtpEndDate -TimeBox $script:TxtEndTime -Label 'End'
+    if ($endUtc -le $startUtc) {
+        throw 'End date/time must be after Start date/time.'
+    }
+
     $previewLimit = 0
     if (-not [int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$previewLimit)) {
         throw 'Preview result limit must be a whole number.'
     }
+    if ($previewLimit -lt 1 -or $previewLimit -gt 10000) {
+        throw 'Preview result limit must be between 1 and 10000.'
+    }
+
+    $service = _Get-ComboText -Control $script:CmbService
+    $action = _Get-ComboText -Control $script:CmbAction
+    $entity = ([string]$script:TxtEntity.Text).Trim()
+    $actor = ([string]$script:TxtActor.Text).Trim()
+    $keyword = ([string]$script:TxtKeyword.Text).Trim()
+
+    # Free-text length caps (defensive — prevents accidentally pasting megabytes of text into a filter).
+    if ($actor.Length -gt 256)   { throw 'Actor / User filter is too long (max 256 chars).' }
+    if ($entity.Length -gt 256)  { throw 'Entity filter is too long (max 256 chars).' }
+    if ($keyword.Length -gt 512) { throw 'Keyword filter is too long (max 512 chars).' }
+
+    if (-not [string]::IsNullOrWhiteSpace($action) -and [string]::IsNullOrWhiteSpace($entity)) {
+        throw 'Action filtering requires the Entity field to contain a Genesys audit EntityType, such as Queue or Row. Leave Action blank to run a broader extract and filter locally after the run.'
+    }
+
+    $datasetKey = [string]$script:CmbDataset.SelectedItem
+    if ([string]::IsNullOrWhiteSpace($datasetKey)) {
+        throw 'Select a dataset before running.'
+    }
 
     return [ordered]@{
-        DatasetKey    = [string]$script:CmbDataset.SelectedItem
+        DatasetKey    = $datasetKey
         StartUtc      = $startUtc
         EndUtc        = $endUtc
-        Service       = _Get-ComboText -Control $script:CmbService
-        Action        = _Get-ComboText -Control $script:CmbAction
-        Actor         = [string]$script:TxtActor.Text
-        Entity        = [string]$script:TxtEntity.Text
-        Keyword       = [string]$script:TxtKeyword.Text
+        Service       = $service
+        Action        = $action
+        Actor         = $actor
+        Entity        = $entity
+        Keyword       = $keyword
         PreviewLimit  = $previewLimit
     }
 }
@@ -205,10 +427,14 @@ function _Set-RunActionState {
     $startupReady = [bool]$script:AppContext.StartupValidation.Ready
     $hasSession = $null -ne $script:State.AuthContext
     $isBusy = $null -ne $script:State.RunHandle -and -not $script:State.RunHandle.IsCompleted
+    $isAuthBusy = $null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted
     $hasRun = -not [string]::IsNullOrWhiteSpace([string]$script:State.CurrentRunFolder)
 
-    $script:BtnPreviewRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy
-    $script:BtnFullRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy
+    $script:BtnConnect.IsEnabled = $startupReady -and -not $isAuthBusy -and -not $isBusy
+    $script:BtnPkceLogin.IsEnabled = $startupReady -and -not $isAuthBusy -and -not $isBusy
+    $script:BtnCancelPkce.IsEnabled = $isAuthBusy
+    $script:BtnPreviewRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy -and -not $isAuthBusy
+    $script:BtnFullRun.IsEnabled = $startupReady -and $hasSession -and -not $isBusy -and -not $isAuthBusy
     $script:BtnApplyFilters.IsEnabled = $hasRun
     $script:BtnResetFilters.IsEnabled = $hasRun
     $script:BtnExportFilteredCsv.IsEnabled = $hasRun
@@ -262,8 +488,13 @@ function _Populate-RunFilters {
 
     $services = @(Get-AuditDistinctValues -RunFolder $RunFolder -Field service)
     $actions = @(Get-AuditDistinctValues -RunFolder $RunFolder -Field action)
-    $script:CmbService.ItemsSource = $services
-    $script:CmbAction.ItemsSource = $actions
+    $actionsByService = (_Build-FilterCatalogFromRunFolder -RunFolder $RunFolder).ActionsByService
+    _Add-FilterCatalog -Catalog ([pscustomobject]@{
+        ServiceNames     = $services
+        Actions          = $actions
+        ActionsByService = $actionsByService
+    })
+    _Apply-FilterCatalogToUi
 }
 
 function _Refresh-CurrentRunSummary {
@@ -291,6 +522,7 @@ function _Refresh-CurrentRunSummary {
 
     if ($null -ne $summaryInfo.Request) {
         $script:State.CurrentRunMode = [string]$summaryInfo.Request.mode
+        $script:State.CurrentDatasetKey = [string]$summaryInfo.Request.datasetKey
         $script:TxtCurrentViewMode.Text = "$($summaryInfo.Request.mode)  |  dataset $($summaryInfo.Request.datasetKey)"
     }
     else {
@@ -378,19 +610,35 @@ function _Refresh-Results {
         return
     }
 
-    $filters = _Get-CurrentFilters
-    $limit = 0
-    if ($script:State.CurrentRunMode -eq 'Preview') {
-        [void][int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$limit)
-    }
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+    try {
+        $filters = _Get-CurrentFilters
+        $limit = 0
+        if ($script:State.CurrentRunMode -eq 'Preview') {
+            [void][int]::TryParse([string]$script:TxtPreviewLimit.Text, [ref]$limit)
+        }
 
-    $script:State.FilteredIndex = @(Search-AuditRun -RunFolder $script:State.CurrentRunFolder -Service $filters.Service -Action $filters.Action -Actor $filters.Actor -Entity $filters.Entity -Keyword $filters.Keyword -Limit $limit)
-    $page = Get-AuditResultPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $script:State.FilteredIndex -PageNumber $script:State.CurrentPage -PageSize $script:State.PageSize
-    $script:DgAuditResults.ItemsSource = $page.Rows
-    $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
-    $script:BtnPrevPage.IsEnabled = $page.PageNumber -gt 1
-    $script:BtnNextPage.IsEnabled = $page.PageNumber -lt $page.TotalPages
-    $script:TxtCurrentRunStatus.Text = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+        $script:State.FilteredIndex = @(Search-AuditRun -RunFolder $script:State.CurrentRunFolder -Service $filters.Service -Action $filters.Action -Actor $filters.Actor -Entity $filters.Entity -Keyword $filters.Keyword -Limit $limit)
+        $page = Get-AuditResultPage -RunFolder $script:State.CurrentRunFolder -IndexEntries $script:State.FilteredIndex -PageNumber $script:State.CurrentPage -PageSize $script:State.PageSize
+        $script:DgAuditResults.ItemsSource = $page.Rows
+        if ($page.TotalCount -eq 0) {
+            $runStatus = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+            if ($runStatus -eq 'Completed') {
+                $script:TxtPageInfo.Text = 'Completed - zero audit records matched the query.'
+            }
+            else {
+                $script:TxtPageInfo.Text = "$runStatus - no audit records indexed yet."
+            }
+        }
+        else {
+            $script:TxtPageInfo.Text = "Page $($page.PageNumber) of $($page.TotalPages)  |  $($page.TotalCount) records"
+        }
+        $script:BtnPrevPage.IsEnabled = $page.PageNumber -gt 1
+        $script:BtnNextPage.IsEnabled = $page.PageNumber -lt $page.TotalPages
+        $script:TxtCurrentRunStatus.Text = Get-RunStatus -RunFolder $script:State.CurrentRunFolder
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
+    }
 }
 
 function _Load-Run {
@@ -403,26 +651,32 @@ function _Load-Run {
         throw "Run folder not found: $RunFolder"
     }
 
-    $script:State.CurrentRunFolder = $RunFolder
-    if (-not [string]::IsNullOrWhiteSpace($Mode)) {
-        $script:State.CurrentRunMode = $Mode
-    }
-    else {
-        $request = Get-RunRequestMetadata -RunFolder $RunFolder
-        if ($null -ne $request) {
-            $script:State.CurrentRunMode = [string]$request.mode
+    [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+    try {
+        $script:State.CurrentRunFolder = $RunFolder
+        if (-not [string]::IsNullOrWhiteSpace($Mode)) {
+            $script:State.CurrentRunMode = $Mode
         }
-    }
+        else {
+            $request = Get-RunRequestMetadata -RunFolder $RunFolder
+            if ($null -ne $request) {
+                $script:State.CurrentRunMode = [string]$request.mode
+                $script:State.CurrentDatasetKey = [string]$request.datasetKey
+            }
+        }
 
-    Clear-AuditIndexCache -RunFolder $RunFolder
-    Load-AuditIndex -RunFolder $RunFolder | Out-Null
-    _Populate-RunFilters -RunFolder $RunFolder
-    _Refresh-CurrentRunSummary
-    $script:State.CurrentPage = 1
-    _Refresh-Results
-    _Render-Console
-    _Set-RunActionState
-    _SetStatus -Main "Loaded run $([System.IO.Path]::GetFileName($RunFolder))" -Right ([datetime]::Now.ToString('HH:mm:ss'))
+        Clear-AuditIndexCache -RunFolder $RunFolder
+        Load-AuditIndex -RunFolder $RunFolder | Out-Null
+        _Populate-RunFilters -RunFolder $RunFolder
+        _Refresh-CurrentRunSummary
+        $script:State.CurrentPage = 1
+        _Refresh-Results
+        _Render-Console
+        _Set-RunActionState
+        _SetStatus -Main "Loaded run $([System.IO.Path]::GetFileName($RunFolder))" -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
+    }
 }
 
 function _Open-RunFolder {
@@ -470,6 +724,7 @@ function _Start-Run {
 
     $script:State.CurrentRunMode = $Mode
     $script:State.CurrentQuerySpec = $querySpec
+    $script:State.CurrentDatasetKey = [string]$querySpec.DatasetKey
     $script:State.RunLastError = ''
     $script:State.CurrentRunFolder = $null
     $script:State.RunStartedAtUtc = [datetime]::UtcNow
@@ -497,7 +752,11 @@ else {
     [void]$ps.AddArgument($script:AppContext.Settings)
     [void]$ps.AddArgument($Mode)
     [void]$ps.AddArgument($querySpec)
-    [void]$ps.AddArgument(($script:PwdAccessToken.Password))
+    $runAccessToken = $script:PwdAccessToken.Password
+    if ([string]::IsNullOrWhiteSpace($runAccessToken) -and $null -ne $script:State.AuthContext -and $script:State.AuthContext.PSObject.Properties['Token']) {
+        $runAccessToken = [string]$script:State.AuthContext.Token
+    }
+    [void]$ps.AddArgument($runAccessToken)
     [void]$ps.AddArgument($script:CmbRegion.Text)
 
     $script:State.RunPowerShell = $ps
@@ -512,7 +771,20 @@ function _Poll-BackgroundRun {
     }
 
     if ([string]::IsNullOrWhiteSpace([string]$script:State.CurrentRunFolder) -and $script:AppContext.StartupValidation.Ready) {
-        $datasetRoot = Join-Path $script:AppContext.Settings.OutputRoot $script:AppContext.Settings.DatasetKeys.Default
+        $activeDatasetKey = [string]$script:State.CurrentDatasetKey
+        if ([string]::IsNullOrWhiteSpace($activeDatasetKey)) {
+            $activeDatasetKey = if ($script:State.CurrentRunMode -eq 'Preview') {
+                [string]$script:AppContext.Settings.DatasetKeys.Preview
+            }
+            elseif ($script:State.CurrentRunMode -eq 'Full') {
+                [string]$script:AppContext.Settings.DatasetKeys.Full
+            }
+            else {
+                [string]$script:AppContext.Settings.DatasetKeys.Default
+            }
+        }
+
+        $datasetRoot = Join-Path $script:AppContext.Settings.OutputRoot $activeDatasetKey
         if ([System.IO.Directory]::Exists($datasetRoot)) {
             $candidates = Get-ChildItem -Path $datasetRoot -Directory | Sort-Object CreationTimeUtc -Descending
             foreach ($candidate in $candidates) {
@@ -529,6 +801,12 @@ function _Poll-BackgroundRun {
         _Render-Console
     }
 
+    # Show elapsed run time in the right-side status label while the run is active
+    if (-not $script:State.RunHandle.IsCompleted -and $null -ne $script:State.RunStartedAtUtc) {
+        $elapsed = ([datetime]::UtcNow - $script:State.RunStartedAtUtc).ToString('hh\:mm\:ss')
+        _SetStatus -Main $script:TxtStatusMain.Text -Right $elapsed
+    }
+
     if (-not $script:State.RunHandle.IsCompleted) {
         return
     }
@@ -538,6 +816,7 @@ function _Poll-BackgroundRun {
         $finalResult = $result | Select-Object -Last 1
         if ($null -ne $finalResult -and $finalResult.RunContext -and $finalResult.RunContext.runFolder) {
             $script:State.CurrentRunFolder = [string]$finalResult.RunContext.runFolder
+            $script:State.CurrentDatasetKey = [string]$finalResult.DatasetKey
             Save-RunRequestMetadata -RunFolder $script:State.CurrentRunFolder -QuerySpec $script:State.CurrentQuerySpec -Mode $script:State.CurrentRunMode -DatasetKey $finalResult.DatasetKey -Effective $finalResult.Effective | Out-Null
         }
 
@@ -560,6 +839,132 @@ function _Poll-BackgroundRun {
     }
 }
 
+function _Get-PkceClientId {
+    $clientId = [string]$script:TxtPkceClientId.Text
+    if ([string]::IsNullOrWhiteSpace($clientId) -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) {
+        $clientId = $env:GENESYS_PKCE_CLIENT_ID
+    }
+
+    return $clientId.Trim()
+}
+
+function _Get-PkceRedirectUri {
+    $redirectUri = [string]$script:TxtPkceRedirectUri.Text
+    if ([string]::IsNullOrWhiteSpace($redirectUri)) {
+        $redirectUri = 'http://localhost:8080/callback'
+    }
+
+    return $redirectUri.Trim()
+}
+
+function _Start-PkceLogin {
+    if ($null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    $clientId = _Get-PkceClientId
+    if ([string]::IsNullOrWhiteSpace($clientId)) {
+        [System.Windows.MessageBox]::Show(
+            'Enter a PKCE OAuth client ID or set GENESYS_PKCE_CLIENT_ID.',
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+
+    $redirectUri = _Get-PkceRedirectUri
+    if ($redirectUri -notmatch '^https?://[^\s]+$') {
+        [System.Windows.MessageBox]::Show(
+            "PKCE Redirect URI is not a valid http/https URL: $redirectUri",
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+    $region = ([string]$script:CmbRegion.Text).Trim()
+    if ([string]::IsNullOrWhiteSpace($region)) {
+        [System.Windows.MessageBox]::Show(
+            'Select a Genesys Cloud region (e.g. usw2.pure.cloud).',
+            'PKCE Login',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+    $cts = [System.Threading.CancellationTokenSource]::new()
+
+    $scriptText = @'
+param($appRoot, $settings, $clientId, $region, $redirectUri, $cancelToken)
+Import-Module (Join-Path $appRoot 'App.CoreAdapter.psm1') -Force
+Initialize-CoreIntegration -CoreModulePath $settings.CoreModulePath -AuthModulePath $settings.AuthModulePath -CatalogPath $settings.CatalogPath -SchemaPath $settings.SchemaPath -OutputRoot $settings.OutputRoot -DatasetKeys $settings.DatasetKeys -PreviewConfig $settings.Preview | Out-Null
+Connect-AuditSessionPkce -ClientId $clientId -Region $region -RedirectUri $redirectUri -CancellationToken $cancelToken
+'@
+
+    $ps = [powershell]::Create()
+    [void]$ps.AddScript($scriptText)
+    [void]$ps.AddArgument($script:AppContext.Settings.AppRoot)
+    [void]$ps.AddArgument($script:AppContext.Settings)
+    [void]$ps.AddArgument($clientId)
+    [void]$ps.AddArgument($region)
+    [void]$ps.AddArgument($redirectUri)
+    [void]$ps.AddArgument($cts.Token)
+
+    $script:State.AuthPowerShell = $ps
+    $script:State.AuthCancel = $cts
+    $script:State.AuthHandle = $ps.BeginInvoke()
+
+    _SetStatus -Main 'PKCE login started. Complete the browser sign-in.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    _Set-RunActionState
+}
+
+function _Poll-PkceLogin {
+    if ($null -eq $script:State.AuthHandle) {
+        return
+    }
+
+    if (-not $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    try {
+        $result = $script:State.AuthPowerShell.EndInvoke($script:State.AuthHandle)
+        $ctx = $result | Select-Object -Last 1
+        if ($null -eq $ctx) {
+            throw 'PKCE login completed without an auth context.'
+        }
+
+        $script:State.AuthContext = $ctx
+        _Update-AuthState
+        _Refresh-FilterCatalogFromLiveSession
+        $connectedVia = if ($null -ne $ctx -and $ctx.PSObject.Properties['AuthFlow'] -and $ctx.AuthFlow -eq 'pkce') { 'PKCE' } else { 'bearer token' }
+        _SetStatus -Main "Connected to Genesys Cloud via $connectedVia ($($ctx.Region))." -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    }
+    catch {
+        [System.Windows.MessageBox]::Show(
+            $_.Exception.Message,
+            'Authentication Error',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Error) | Out-Null
+        _SetStatus -Main 'Authentication failed.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    }
+    finally {
+        try { $script:State.AuthPowerShell.Dispose() } catch { }
+        try { $script:State.AuthCancel.Dispose() } catch { }
+        $script:State.AuthPowerShell = $null
+        $script:State.AuthHandle = $null
+        $script:State.AuthCancel = $null
+        _Set-RunActionState
+    }
+}
+
+function _Cancel-PkceLogin {
+    if ($null -eq $script:State.AuthHandle -or $script:State.AuthHandle.IsCompleted) {
+        return
+    }
+
+    try { $script:State.AuthCancel.Cancel() } catch { }
+    _SetStatus -Main 'Cancelling PKCE login...' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+}
+
 function _Try-AutoConnect {
     if (-not $script:AppContext.StartupValidation.Ready) {
         return
@@ -572,6 +977,7 @@ function _Try-AutoConnect {
     try {
         $script:State.AuthContext = Connect-AuditSession -AccessToken $env:GENESYS_BEARER_TOKEN -Region $script:CmbRegion.Text
         _Update-AuthState
+        _Refresh-FilterCatalogFromLiveSession
         _Set-RunActionState
     }
     catch {
@@ -580,9 +986,13 @@ function _Try-AutoConnect {
 
 $script:CmbRegion.ItemsSource = $script:AppContext.Settings.Ui.Regions
 $script:CmbRegion.Text = $script:AppContext.Settings.Ui.DefaultRegion
+$script:TxtPkceClientId.Text = if ([string]::IsNullOrWhiteSpace($env:GENESYS_PKCE_CLIENT_ID)) { [string]$script:AppContext.Settings.OAuth.PkceClientId } else { $env:GENESYS_PKCE_CLIENT_ID }
+$script:TxtPkceRedirectUri.Text = [string]$script:AppContext.Settings.OAuth.PkceRedirectUri
 $script:CmbDataset.ItemsSource = @($script:AppContext.Settings.DatasetKeys.Default)
 $script:CmbDataset.SelectedIndex = 0
 $script:CmbTimePreset.SelectedIndex = 0
+_Seed-FilterCatalogFromRecentRuns
+_Apply-FilterCatalogToUi
 _Apply-TimePreset
 _Update-StartupBanner
 _Update-AuthState
@@ -591,27 +1001,63 @@ _Refresh-RecentRuns
 _Try-AutoConnect
 
 $script:State.PollTimer = New-Object System.Windows.Threading.DispatcherTimer
-$script:State.PollTimer.Interval = [TimeSpan]::FromSeconds(1.5)
-$script:State.PollTimer.Add_Tick({ _Poll-BackgroundRun })
+$script:State.PollTimer.Interval = [TimeSpan]::FromMilliseconds(500)
+$script:State.PollTimer.Add_Tick({
+    _Poll-PkceLogin
+    _Poll-BackgroundRun
+})
 $script:State.PollTimer.Start()
 
 $script:BtnConnect.Add_Click({
-    try {
-        $script:State.AuthContext = Connect-AuditSession -AccessToken $script:PwdAccessToken.Password -Region $script:CmbRegion.Text
-        _Update-AuthState
-        _SetStatus -Main 'Connected to Genesys Cloud session.' -Right ([datetime]::Now.ToString('HH:mm:ss'))
-        _Set-RunActionState
-    }
-    catch {
+    $accessToken = $script:PwdAccessToken.Password
+    $region      = ([string]$script:CmbRegion.Text).Trim()
+
+    if ([string]::IsNullOrWhiteSpace($accessToken)) {
         [System.Windows.MessageBox]::Show(
-            $_.Exception.Message,
-            'Connection Error',
+            'Paste a bearer token into the access token field.',
+            'Connection',
             [System.Windows.MessageBoxButton]::OK,
-            [System.Windows.MessageBoxImage]::Error) | Out-Null
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
     }
+
+    if ([string]::IsNullOrWhiteSpace($region)) {
+        [System.Windows.MessageBox]::Show(
+            'Select or enter a Genesys Cloud region (e.g. usw2.pure.cloud).',
+            'Connection',
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        return
+    }
+
+    # Guard: don't start a second auth if one is already in flight.
+    if ($null -ne $script:State.AuthHandle -and -not $script:State.AuthHandle.IsCompleted) { return }
+
+    $scriptText = @'
+param($appRoot, $settings, $accessToken, $region)
+Import-Module (Join-Path $appRoot 'App.CoreAdapter.psm1') -Force
+Initialize-CoreIntegration -CoreModulePath $settings.CoreModulePath -AuthModulePath $settings.AuthModulePath -CatalogPath $settings.CatalogPath -SchemaPath $settings.SchemaPath -OutputRoot $settings.OutputRoot -DatasetKeys $settings.DatasetKeys -PreviewConfig $settings.Preview | Out-Null
+Connect-AuditSession -AccessToken $accessToken -Region $region
+'@
+    $ps = [powershell]::Create()
+    [void]$ps.AddScript($scriptText)
+    [void]$ps.AddArgument($script:AppContext.Settings.AppRoot)
+    [void]$ps.AddArgument($script:AppContext.Settings)
+    [void]$ps.AddArgument($accessToken)
+    [void]$ps.AddArgument($region)
+
+    $script:State.AuthPowerShell = $ps
+    $script:State.AuthHandle     = $ps.BeginInvoke()
+
+    _SetStatus -Main 'Connecting…' -Right ([datetime]::Now.ToString('HH:mm:ss'))
+    _Set-RunActionState
 })
 
+$script:BtnPkceLogin.Add_Click({ _Start-PkceLogin })
+$script:BtnCancelPkce.Add_Click({ _Cancel-PkceLogin })
 $script:CmbTimePreset.Add_SelectionChanged({ _Apply-TimePreset })
+$script:CmbService.Add_DropDownClosed({ _Apply-FilterCatalogToUi })
+$script:CmbService.Add_LostFocus({ _Apply-FilterCatalogToUi })
 $script:BtnPreviewRun.Add_Click({ _Start-Run -Mode 'Preview' })
 $script:BtnFullRun.Add_Click({ _Start-Run -Mode 'Full' })
 $script:BtnRefreshRuns.Add_Click({ _Refresh-RecentRuns })
@@ -633,6 +1079,7 @@ $script:BtnResetFilters.Add_Click({
     $script:TxtEntity.Text = ''
     $script:TxtKeyword.Text = ''
     $script:State.CurrentPage = 1
+    _Apply-FilterCatalogToUi
     _Refresh-Results
 })
 $script:BtnPrevPage.Add_Click({

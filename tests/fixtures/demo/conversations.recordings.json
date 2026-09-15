@@ -1,0 +1,38 @@
+[
+  {
+    "id": "recordid-0006-0006-aabbccddeeff",
+    "name": "conv-v001-recording",
+    "conversationId": "conv-v001-voice-inbound",
+    "path": "/api/v2/conversations/conv-v001-voice-inbound/recordings/recordid-0006-0006-aabbccddeeff",
+    "startTime": "2026-02-14T09:01:15.000Z",
+    "endTime": "2026-02-14T09:14:27.000Z",
+    "media": "CALL",
+    "annotations": [],
+    "transcript": null,
+    "fileState": "AVAILABLE",
+    "durationMs": 792000,
+    "archivalTime": null,
+    "archiveDate": null,
+    "deleteDate": null,
+    "exportDate": null,
+    "selfUri": "/api/v2/conversations/conv-v001-voice-inbound/recordings/recordid-0006-0006-aabbccddeeff"
+  },
+  {
+    "id": "recordid-0007-0007-aabbccddeeff",
+    "name": "conv-c002-recording",
+    "conversationId": "conv-c002-chat-transfer",
+    "path": "/api/v2/conversations/conv-c002-chat-transfer/recordings/recordid-0007-0007-aabbccddeeff",
+    "startTime": "2026-02-15T13:30:00.000Z",
+    "endTime": "2026-02-15T14:01:05.000Z",
+    "media": "CHAT",
+    "annotations": [],
+    "transcript": null,
+    "fileState": "AVAILABLE",
+    "durationMs": 1865000,
+    "archivalTime": null,
+    "archiveDate": null,
+    "deleteDate": null,
+    "exportDate": null,
+    "selfUri": "/api/v2/conversations/conv-c002-chat-transfer/recordings/recordid-0007-0007-aabbccddeeff"
+  }
+]

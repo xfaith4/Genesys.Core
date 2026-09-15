@@ -1,0 +1,8 @@
+[
+  { "serviceName": "routing" },
+  { "serviceName": "quality" },
+  { "serviceName": "architect" },
+  { "serviceName": "platform" },
+  { "serviceName": "analytics" },
+  { "serviceName": "recording" }
+]

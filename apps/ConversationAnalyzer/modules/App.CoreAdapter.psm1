@@ -1,0 +1,1183 @@
+#Requires -Version 5.1
+Set-StrictMode -Version Latest
+
+# ── Gate B + Gate D boundary ──────────────────────────────────────────────────
+# ONLY this module may:
+#   - Import-Module Genesys.Core
+#   - Call Assert-Catalog
+#   - Call Invoke-Dataset
+#
+# Dataset keys (fixed by spec):
+#   Preview       : analytics-conversation-details-query
+#   Full run      : analytics-conversation-details
+#   Timeline run  : analytics-conversation-timeline-analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+$script:Initialized  = $false
+$script:CoreModPath  = $null
+$script:CatalogPath  = $null
+$script:SchemaPath   = $null
+$script:OutputRoot   = $null
+
+function Initialize-CoreAdapter {
+    <#
+    .SYNOPSIS
+        Gate A – imports Genesys.Core and validates the catalog.
+        Must be called once at startup (and again inside every background runspace).
+    #>
+    param(
+        [Parameter(Mandatory)][string]$CoreModulePath,
+        [Parameter(Mandatory)][string]$CatalogPath,
+        [Parameter(Mandatory)][string]$OutputRoot,
+        [string]$SchemaPath = ''
+    )
+
+    if (-not [System.IO.File]::Exists($CoreModulePath)) {
+        throw "Genesys.Core module not found at: $CoreModulePath"
+    }
+    if (-not [System.IO.File]::Exists($CatalogPath)) {
+        throw "Catalog file not found at: $CatalogPath"
+    }
+    if ($SchemaPath -and -not [System.IO.File]::Exists($SchemaPath)) {
+        throw "Schema file not found at: $SchemaPath"
+    }
+
+    Import-Module $CoreModulePath -Force -ErrorAction Stop
+    $assertParams = @{ CatalogPath = $CatalogPath }
+    if ($SchemaPath) { $assertParams['SchemaPath'] = $SchemaPath }
+    Assert-Catalog @assertParams -ErrorAction Stop
+
+    if (-not [System.IO.Directory]::Exists($OutputRoot)) {
+        [System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+    }
+
+    $script:Initialized = $true
+    $script:CoreModPath = $CoreModulePath
+    $script:CatalogPath = $CatalogPath
+    $script:SchemaPath  = $SchemaPath
+    $script:OutputRoot  = $OutputRoot
+}
+
+function Test-CoreInitialized {
+    <#
+    .SYNOPSIS
+        Returns $true if Initialize-CoreAdapter has completed successfully in this runspace.
+    #>
+    return $script:Initialized
+}
+
+function _RequireInitialized {
+    if (-not $script:Initialized) {
+        throw 'CoreAdapter is not initialized. Call Initialize-CoreAdapter before invoking dataset operations.'
+    }
+}
+
+function Invoke-CoreDatasetRun {
+    param(
+        [Parameter(Mandatory)][string]$Dataset,
+        [string]$OutputRoot = $script:OutputRoot,
+        [hashtable]$DatasetParameters = $null,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    $invokeParams = @{
+        Dataset     = $Dataset
+        CatalogPath = $script:CatalogPath
+        OutputRoot  = $OutputRoot
+    }
+    if ($null -ne $DatasetParameters) {
+        $invokeParams['DatasetParameters'] = $DatasetParameters
+    }
+    if ($null -ne $Headers -and $Headers.Count -gt 0) {
+        $invokeParams['Headers'] = $Headers
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BaseUri)) {
+        $invokeParams['BaseUri'] = $BaseUri
+    }
+
+    return Invoke-Dataset @invokeParams
+}
+
+function Find-CoreRunFolder {
+    param([Parameter(Mandatory)][string]$Root)
+
+    foreach ($child in [System.IO.Directory]::GetDirectories($Root)) {
+        foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+            if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                return $grandchild
+            }
+        }
+    }
+
+    return $null
+}
+
+function Start-PreviewRun {
+    <#
+    .SYNOPSIS
+        Gate B – invokes the preview dataset (analytics-conversation-details-query).
+    #>
+    param(
+        [Parameter(Mandatory)][hashtable]$DatasetParameters,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-details-query' -DatasetParameters $DatasetParameters -Headers $Headers -BaseUri $BaseUri
+}
+
+function Start-FullRun {
+    <#
+    .SYNOPSIS
+        Gate B – invokes the full dataset (analytics-conversation-details).
+    #>
+    param(
+        [Parameter(Mandatory)][hashtable]$DatasetParameters,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-details' -DatasetParameters $DatasetParameters -Headers $Headers -BaseUri $BaseUri
+}
+
+function Get-RunManifest {
+    <#
+    .SYNOPSIS
+        Reads and parses manifest.json from a run folder.  Returns $null if absent.
+    #>
+    param([Parameter(Mandatory)][string]$RunFolder)
+    $path = [System.IO.Path]::Combine($RunFolder, 'manifest.json')
+    if (-not [System.IO.File]::Exists($path)) { return $null }
+    $raw = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    return $raw | ConvertFrom-Json
+}
+
+function Get-RunSummary {
+    <#
+    .SYNOPSIS
+        Reads and parses summary.json from a run folder.  Returns $null if absent.
+    #>
+    param([Parameter(Mandatory)][string]$RunFolder)
+    $path = [System.IO.Path]::Combine($RunFolder, 'summary.json')
+    if (-not [System.IO.File]::Exists($path)) { return $null }
+    $raw = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    return $raw | ConvertFrom-Json
+}
+
+function Get-RunEvents {
+    <#
+    .SYNOPSIS
+        Returns the last N events from events.jsonl using FileStream + StreamReader
+        (supports in-progress/shared-write files via FileShare.ReadWrite).
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [int]$LastN = 50
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'events.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $allEvents = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new(
+        $path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $allEvents.Add(($line | ConvertFrom-Json))
+            } catch { <# skip malformed event lines #> }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+
+    if ($allEvents.Count -le $LastN) { return $allEvents.ToArray() }
+    return $allEvents.GetRange($allEvents.Count - $LastN, $LastN).ToArray()
+}
+
+function Get-RunStatus {
+    <#
+    .SYNOPSIS
+        Returns the 'status' string from manifest.json, or 'Unknown'.
+    #>
+    param([Parameter(Mandatory)][string]$RunFolder)
+    $manifest = Get-RunManifest -RunFolder $RunFolder
+    if ($null -eq $manifest) { return 'Unknown' }
+    if ($manifest.PSObject.Properties['status']) { return $manifest.status }
+    return 'Unknown'
+}
+
+function Get-RecentRunFolders {
+    <#
+    .SYNOPSIS
+        Returns up to $Max run folders under $OutputRoot, sorted newest first.
+        A folder qualifies if it contains manifest.json.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$OutputRoot,
+        [int]$Max = 20
+    )
+    if (-not [System.IO.Directory]::Exists($OutputRoot)) { return @() }
+
+    # Invoke-Dataset writes to OutputRoot\DatasetKey\RunId\ (2 levels deep).
+    # Also support flat OutputRoot\RunId\ layout for backwards compatibility.
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    foreach ($child in [System.IO.Directory]::GetDirectories($OutputRoot)) {
+        if ([System.IO.File]::Exists([System.IO.Path]::Combine($child, 'manifest.json'))) {
+            $candidates.Add($child)
+        } else {
+            foreach ($grandchild in [System.IO.Directory]::GetDirectories($child)) {
+                if ([System.IO.File]::Exists([System.IO.Path]::Combine($grandchild, 'manifest.json'))) {
+                    $candidates.Add($grandchild)
+                }
+            }
+        }
+    }
+
+    # Wrap in @() so an empty or single-item result is always an array,
+    # not $null (PS 5.1 Sort-Object returns $null for empty input).
+    $dirs = @($candidates.ToArray() |
+              Sort-Object { [System.IO.Directory]::GetCreationTimeUtc($_) } -Descending)
+
+    if ($dirs.Count -le $Max) { return $dirs }
+    return $dirs[0..($Max - 1)]
+}
+
+function Get-DiagnosticsText {
+    <#
+    .SYNOPSIS
+        Assembles a diagnostics dump string for a run folder (manifest + summary + last 10 events).
+    #>
+    param([Parameter(Mandatory)][string]$RunFolder)
+
+    $sb       = New-Object System.Text.StringBuilder
+    $manifest = Get-RunManifest -RunFolder $RunFolder
+    $summary  = Get-RunSummary  -RunFolder $RunFolder
+
+    [void]$sb.AppendLine('=== Genesys Conversation Analysis – Run Diagnostics ===')
+    [void]$sb.AppendLine("Folder    : $RunFolder")
+    [void]$sb.AppendLine("Timestamp : $([datetime]::UtcNow.ToString('o'))")
+
+    if ($null -ne $manifest) {
+        [void]$sb.AppendLine("Manifest  : $($manifest | ConvertTo-Json -Compress -Depth 5)")
+    } else {
+        [void]$sb.AppendLine('Manifest  : (not found)')
+    }
+
+    if ($null -ne $summary) {
+        [void]$sb.AppendLine("Summary   : $($summary | ConvertTo-Json -Compress -Depth 5)")
+    } else {
+        [void]$sb.AppendLine('Summary   : (not found)')
+    }
+
+    [void]$sb.AppendLine('--- Last 10 Events ---')
+    $events = Get-RunEvents -RunFolder $RunFolder -LastN 10
+    if ($events.Count -eq 0) {
+        [void]$sb.AppendLine('  (no events)')
+    } else {
+        foreach ($e in $events) {
+            [void]$sb.AppendLine("  $($e | ConvertTo-Json -Compress)")
+        }
+    }
+
+    return $sb.ToString()
+}
+
+function Refresh-ReferenceData {
+    <#
+    .SYNOPSIS
+        Gate B – pulls all reference datasets and writes them to a dated run folder.
+    .DESCRIPTION
+        Invokes Invoke-Dataset for each reference dataset in dependency order and
+        writes the results under OutputRoot\ref-<timestamp>\.  Returns a hashtable
+        keyed by dataset key, each value being the run folder path for that dataset.
+
+        Reference datasets fetched (in order):
+            routing-queues
+            users
+            authorization.get.all.divisions
+            routing.get.all.wrapup.codes
+            routing.get.all.routing.skills
+            routing.get.all.languages
+            flows.get.all.flows
+            flows.get.flow.outcomes
+            flows.get.flow.milestones
+
+        The caller is responsible for passing the returned folder map to
+        Import-ReferenceDataToCase in App.Database.psm1.
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp    = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $refRoot  = [System.IO.Path]::Combine($script:OutputRoot, "ref-$stamp")
+    [System.IO.Directory]::CreateDirectory($refRoot) | Out-Null
+
+    $datasetKeys = @(
+        'routing-queues',
+        'users',
+        'authorization.get.all.divisions',
+        'routing.get.all.wrapup.codes',
+        'routing.get.all.routing.skills',
+        'routing.get.all.languages',
+        'flows.get.all.flows',
+        'flows.get.flow.outcomes',
+        'flows.get.flow.milestones'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($refRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Refresh-ReferenceData: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return $folderMap
+}
+
+function New-AnalyticsAggregateBody {
+    param(
+        [Parameter(Mandatory)][string] $Interval,
+        [Parameter(Mandatory)][string[]] $GroupBy,
+        [Parameter(Mandatory)][string[]] $Metrics,
+        [string] $Granularity = 'PT1H',
+        [object[]] $Predicates = @()
+    )
+
+    $body = [ordered]@{
+        interval = $Interval
+        groupBy  = @($GroupBy)
+        metrics  = @($Metrics)
+        filter   = [ordered]@{
+            type       = 'and'
+            predicates = @($Predicates)
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Granularity)) {
+        $body.granularity = $Granularity
+    }
+    return $body
+}
+
+function Get-QueuePerformanceReport {
+    <#
+    .SYNOPSIS
+        Session 14 — pulls three queue-performance aggregate datasets and returns
+        their run folder paths for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.queue.performance
+          - analytics.query.conversation.aggregates.abandon.metrics
+          - analytics.query.queue.aggregates.service.level
+
+        All three calls use the same StartDateTime / EndDateTime window so the
+        data aligns on interval boundaries.  Results are written under
+        OutputRoot\report-queue-perf-<timestamp>\.
+
+        Returns a hashtable with keys:
+          QueuePerfFolder     — run folder for the queue-performance dataset
+          AbandonFolder       — run folder for the abandon-metrics dataset
+          ServiceLevelFolder  — run folder for the service-level dataset
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-queue-perf-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    # Shared DatasetParameters body override — supply interval so all three
+    # queries share the same window.
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.queue.performance',
+        'analytics.query.conversation.aggregates.abandon.metrics',
+        'analytics.query.queue.aggregates.service.level'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $body = switch ($key) {
+                'analytics.query.conversation.aggregates.queue.performance' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound')
+                }
+                'analytics.query.conversation.aggregates.abandon.metrics' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned')
+                }
+                'analytics.query.queue.aggregates.service.level' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60')
+                }
+            }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-QueuePerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
+        AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
+        ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+        PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
+function Get-TrendReport {
+    <#
+    .SYNOPSIS
+        Session 20 — pulls two queue-performance windows for trend comparison.
+    .DESCRIPTION
+        Calls Invoke-Dataset for the same three aggregate datasets used by
+        Get-QueuePerformanceReport, once for Window A and once for Window B.
+        Results are written under OutputRoot\report-trend-<timestamp>\window-a\
+        and OutputRoot\report-trend-<timestamp>\window-b\.
+
+        Each window parameter must expose Start and End members (hashtable or
+        PSCustomObject). The returned hashtable is shaped for
+        Import-TrendReport in App.Database.psm1.
+    .PARAMETER WindowA
+        Baseline or comparison window. Must contain Start and End.
+    .PARAMETER WindowB
+        Baseline or comparison window. Must contain Start and End.
+    .PARAMETER Headers
+        Auth headers hashtable. Optional.
+    .PARAMETER BaseUri
+        Optional Genesys Cloud API base URI.
+    .PARAMETER Granularity
+        Analytics aggregate granularity for both windows. Defaults to PT1H.
+    #>
+    param(
+        [Parameter(Mandatory)][object] $WindowA,
+        [Parameter(Mandatory)][object] $WindowB,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = '',
+        [string] $Granularity = 'PT1H'
+    )
+    _RequireInitialized
+
+    function _GetWindowField {
+        param(
+            [Parameter(Mandatory)][object]$Window,
+            [Parameter(Mandatory)][string]$Name
+        )
+        if ($Window -is [hashtable]) {
+            if ($Window.ContainsKey($Name)) {
+                return [string]$Window[$Name]
+            }
+            return ''
+        }
+
+        $prop = $Window.PSObject.Properties[$Name]
+        if ($null -eq $prop) { return '' }
+        return [string]$prop.Value
+    }
+
+    function _InvokeTrendWindow {
+        param(
+            [Parameter(Mandatory)][string]$WindowLabel,
+            [Parameter(Mandatory)][object]$Window,
+            [Parameter(Mandatory)][string]$RootPath
+        )
+
+        $startDateTime = _GetWindowField -Window $Window -Name 'Start'
+        $endDateTime = _GetWindowField -Window $Window -Name 'End'
+        if ([string]::IsNullOrWhiteSpace($startDateTime) -or [string]::IsNullOrWhiteSpace($endDateTime)) {
+            throw "Get-TrendReport: window '$WindowLabel' must provide non-empty Start and End values."
+        }
+
+        $interval = "$startDateTime/$endDateTime"
+        $datasetKeys = @(
+            'analytics.query.conversation.aggregates.queue.performance',
+            'analytics.query.conversation.aggregates.abandon.metrics',
+            'analytics.query.queue.aggregates.service.level'
+        )
+
+        $folderMap = @{}
+        foreach ($key in $datasetKeys) {
+            $dsRoot = [System.IO.Path]::Combine($RootPath, $key)
+            [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+            try {
+                $body = switch ($key) {
+                    'analytics.query.conversation.aggregates.queue.performance' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered', 'tHeld', 'nOffered', 'nOutbound') -Granularity $Granularity
+                    }
+                    'analytics.query.conversation.aggregates.abandon.metrics' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAbandoned', 'nConnected', 'tAbandoned') -Granularity $Granularity
+                    }
+                    'analytics.query.queue.aggregates.service.level' {
+                        New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nOffered', 'nAnsweredIn20', 'nAnsweredIn30', 'nAnsweredIn60') -Granularity $Granularity
+                    }
+                }
+                Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            } catch {
+                Write-Warning "Get-TrendReport: window '$WindowLabel' dataset '$key' failed — $($_.Exception.Message)"
+            }
+
+            $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+        }
+
+        return @{
+            WindowLabel        = $WindowLabel
+            StartDateTime      = $startDateTime
+            EndDateTime        = $endDateTime
+            QueuePerfFolder    = $folderMap['analytics.query.conversation.aggregates.queue.performance']
+            AbandonFolder      = $folderMap['analytics.query.conversation.aggregates.abandon.metrics']
+            ServiceLevelFolder = $folderMap['analytics.query.queue.aggregates.service.level']
+            PartialFailure     = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+        }
+    }
+
+    $stamp = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-trend-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $windowARoot = [System.IO.Path]::Combine($repRoot, 'window-a')
+    $windowBRoot = [System.IO.Path]::Combine($repRoot, 'window-b')
+    [System.IO.Directory]::CreateDirectory($windowARoot) | Out-Null
+    [System.IO.Directory]::CreateDirectory($windowBRoot) | Out-Null
+
+    $windowAFolders = _InvokeTrendWindow -WindowLabel 'A' -Window $WindowA -RootPath $windowARoot
+    $windowBFolders = _InvokeTrendWindow -WindowLabel 'B' -Window $WindowB -RootPath $windowBRoot
+
+    return @{
+        WindowA = $windowAFolders
+        WindowB = $windowBFolders
+        PartialFailure = ($windowAFolders.PartialFailure -or $windowBFolders.PartialFailure)
+    }
+}
+
+function Get-AgentPerformanceReport {
+    <#
+    .SYNOPSIS
+        Session 15 — pulls three agent-performance aggregate datasets and returns
+        their run folder paths for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.agent.performance
+          - analytics.query.user.aggregates.performance.metrics
+          - analytics.query.user.aggregates.login.activity
+
+        All three calls use the same StartDateTime / EndDateTime window so the
+        data aligns on interval boundaries.  Results are written under
+        OutputRoot\report-agent-perf-<timestamp>\.
+
+        Returns a hashtable with keys:
+          AgentPerfFolder       — run folder for the conversation-aggregate agent-performance dataset
+          UserPerfFolder        — run folder for the user-aggregate performance-metrics dataset
+          LoginActivityFolder   — run folder for the user-aggregate login-activity dataset
+          PartialFailure        — $true if any dataset call failed
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-agent-perf-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.agent.performance',
+        'analytics.query.user.aggregates.performance.metrics',
+        'analytics.query.user.aggregates.login.activity'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $body = switch ($key) {
+                'analytics.query.conversation.aggregates.agent.performance' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'tAnswered')
+                }
+                'analytics.query.user.aggregates.performance.metrics' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId', 'mediaType') -Metrics @('nConnected', 'tHandle', 'tTalk', 'tAcw', 'nOffered', 'tAnswered')
+                }
+                'analytics.query.user.aggregates.login.activity' {
+                    New-AnalyticsAggregateBody -Interval $interval -GroupBy @('userId') -Metrics @('tAgentRoutingStatus', 'tSystemPresence', 'tOrganizationPresence')
+                }
+            }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-AgentPerformanceReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        AgentPerfFolder     = $folderMap['analytics.query.conversation.aggregates.agent.performance']
+        UserPerfFolder      = $folderMap['analytics.query.user.aggregates.performance.metrics']
+        LoginActivityFolder = $folderMap['analytics.query.user.aggregates.login.activity']
+        PartialFailure      = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
+function Get-TransferReport {
+    <#
+    .SYNOPSIS
+        Session 16 — pulls the transfer-metrics aggregate dataset and returns its
+        run folder path for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.transfer.metrics
+
+        The call uses the case's StartDateTime / EndDateTime as the interval
+        DatasetParameters override.  Results are written under
+        OutputRoot\report-transfer-<timestamp>\.
+
+        Session 16 also builds per-conversation transfer chains by reading
+        segment data from the conversations table already in the case store —
+        that second pass is pure-local and does not require a new API call.
+        This function only handles the aggregate dataset fetch; the chain
+        extraction runs inside Import-TransferReport (App.Database.psm1).
+
+        Returns a hashtable with keys:
+          TransferMetricsFolder  — run folder for the transfer-metrics dataset
+          PartialFailure         — $true if the dataset call failed
+    .PARAMETER StartDateTime
+        UTC ISO-8601 start of the report interval (e.g. "2026-03-01T00:00:00.000Z").
+    .PARAMETER EndDateTime
+        UTC ISO-8601 end of the report interval   (e.g. "2026-03-31T23:59:59.999Z").
+    .PARAMETER Headers
+        Auth headers hashtable.  Optional — uses the last-stored headers if omitted.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-transfer-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.transfer.metrics'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $body = New-AnalyticsAggregateBody -Interval $interval -GroupBy @('queueId', 'mediaType') -Metrics @('nTransferred', 'nBlindTransferred', 'nConsultTransferred', 'nConnected')
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters @{ Body = $body } -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-TransferReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        TransferMetricsFolder = $folderMap['analytics.query.conversation.aggregates.transfer.metrics']
+        PartialFailure        = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
+function Get-FlowContainmentReport {
+    <#
+    .SYNOPSIS
+        Session 17 — pulls flow execution aggregate data and flow reference
+        datasets for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.flow.aggregates.execution.metrics
+          - flows.get.all.flows
+          - flows.get.flow.outcomes
+          - flows.get.flow.milestones
+
+        The aggregate call uses StartDateTime / EndDateTime as the interval
+        DatasetParameters override. Results are written under
+        OutputRoot\report-flow-containment-<timestamp>\.
+
+        Returns a hashtable with keys:
+          FlowAggFolder        — run folder for flow execution aggregate metrics
+          FlowDefsFolder       — run folder for Architect flow definitions
+          FlowOutcomesFolder   — run folder for flow outcome definitions
+          FlowMilestonesFolder — run folder for flow milestone definitions
+          PartialFailure       — $true if any dataset call failed
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-flow-containment-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.flow.aggregates.execution.metrics',
+        'flows.get.all.flows',
+        'flows.get.flow.outcomes',
+        'flows.get.flow.milestones'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $params = if ($key -eq 'analytics.query.flow.aggregates.execution.metrics') {
+                @{
+                    Body = (New-AnalyticsAggregateBody -Interval $interval -GroupBy @('flowId', 'flowType') -Metrics @('nFlow', 'nFlowOutcome', 'nFlowOutcomeFailed', 'nFlowMilestone') -Granularity '')
+                }
+            } else { $null }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-FlowContainmentReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        FlowAggFolder        = $folderMap['analytics.query.flow.aggregates.execution.metrics']
+        FlowDefsFolder       = $folderMap['flows.get.all.flows']
+        FlowOutcomesFolder   = $folderMap['flows.get.flow.outcomes']
+        FlowMilestonesFolder = $folderMap['flows.get.flow.milestones']
+        PartialFailure       = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
+function Get-WrapupDistributionReport {
+    <#
+    .SYNOPSIS
+        Session 18 — pulls the wrapup distribution aggregate dataset and the
+        wrapup code reference dataset for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - analytics.query.conversation.aggregates.wrapup.distribution
+          - routing.get.all.wrapup.codes
+
+        The aggregate call uses StartDateTime / EndDateTime as the interval
+        DatasetParameters override. Results are written under
+        OutputRoot\report-wrapup-<timestamp>\.
+
+        Returns a hashtable with keys:
+          WrapupAggFolder   — run folder for wrapup distribution aggregate metrics
+          WrapupCodesFolder — run folder for wrapup code definitions
+          PartialFailure    — $true if any dataset call failed
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-wrapup-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $interval = "$StartDateTime/$EndDateTime"
+
+    $datasetKeys = @(
+        'analytics.query.conversation.aggregates.wrapup.distribution',
+        'routing.get.all.wrapup.codes'
+    )
+
+    $folderMap = @{}
+
+    foreach ($key in $datasetKeys) {
+        $dsRoot = [System.IO.Path]::Combine($repRoot, $key)
+        [System.IO.Directory]::CreateDirectory($dsRoot) | Out-Null
+
+        try {
+            $params = if ($key -eq 'analytics.query.conversation.aggregates.wrapup.distribution') {
+                @{
+                    Interval = $interval
+                    Body = @{
+                        interval    = $interval
+                        granularity = 'PT1H'
+                        groupBy     = @('queueId', 'wrapUpCode')
+                        metrics     = @('nConnected', 'tHandle')
+                        filter      = @{ type = 'and'; predicates = @() }
+                    }
+                }
+            } else { $null }
+            Invoke-CoreDatasetRun -Dataset $key -OutputRoot $dsRoot -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri | Out-Null
+        } catch {
+            Write-Warning "Get-WrapupDistributionReport: dataset '$key' failed — $($_.Exception.Message)"
+        }
+
+        $folderMap[$key] = Find-CoreRunFolder -Root $dsRoot
+    }
+
+    return @{
+        WrapupAggFolder   = $folderMap['analytics.query.conversation.aggregates.wrapup.distribution']
+        WrapupCodesFolder = $folderMap['routing.get.all.wrapup.codes']
+        PartialFailure    = ($folderMap.Values | Where-Object { $null -eq $_ }).Count -gt 0
+    }
+}
+
+function Get-QualityOverlayReport {
+    <#
+    .SYNOPSIS
+        Session 19 — pulls quality evaluations, surveys, and optional speech
+        analytics topic overlays for import into the case store.
+    .DESCRIPTION
+        Calls Invoke-Dataset for:
+          - quality.get.evaluations.query
+          - quality.get.surveys
+          - speechandtextanalytics.get.topics
+          - analytics.post.transcripts.aggregates.query
+
+        The evaluation endpoint is driven by per-agent query fan-out because the
+        underlying API requires an identity filter in addition to the time
+        window. Surveys are pulled as a flat collection and filtered to the case
+        window during import. Transcript aggregates are grouped by
+        (conversationId, topicId) so low-score conversations can be correlated
+        locally without passing raw conversation IDs back into Core aggregate
+        filters.
+
+        Returns a hashtable with keys:
+          EvaluationsFolder       — root folder containing one or more evaluation runs
+          SurveysFolder           — root folder containing survey results
+          TopicsFolder            — root folder containing topic definitions
+          TranscriptAggFolder     — root folder containing transcript aggregate results
+          PartialFailure          — $true if any dataset call failed
+          EvaluationQueryCount    — number of agent-targeted evaluation pulls attempted
+    #>
+    param(
+        [Parameter(Mandatory)][string] $StartDateTime,
+        [Parameter(Mandatory)][string] $EndDateTime,
+        [string[]] $AgentUserIds = @(),
+        [hashtable] $Headers = $null,
+        [string] $BaseUri = ''
+    )
+    _RequireInitialized
+
+    $stamp   = [datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $repRoot = [System.IO.Path]::Combine($script:OutputRoot, "report-quality-$stamp")
+    [System.IO.Directory]::CreateDirectory($repRoot) | Out-Null
+
+    $folderMap = @{
+        'quality.get.evaluations.query'              = [System.IO.Path]::Combine($repRoot, 'quality.get.evaluations.query')
+        'quality.get.surveys'                        = [System.IO.Path]::Combine($repRoot, 'quality.get.surveys')
+        'speechandtextanalytics.get.topics'          = [System.IO.Path]::Combine($repRoot, 'speechandtextanalytics.get.topics')
+        'analytics.post.transcripts.aggregates.query' = [System.IO.Path]::Combine($repRoot, 'analytics.post.transcripts.aggregates.query')
+    }
+
+    foreach ($path in $folderMap.Values) {
+        [System.IO.Directory]::CreateDirectory($path) | Out-Null
+    }
+
+    $partialFailure = $false
+    $attemptedEvaluationQueries = 0
+    $uniqueAgentIds = @($AgentUserIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique)
+
+    if ($uniqueAgentIds.Count -gt 0) {
+        foreach ($agentUserId in $uniqueAgentIds) {
+            try {
+                $attemptedEvaluationQueries++
+                Invoke-CoreDatasetRun -Dataset 'quality.get.evaluations.query' -OutputRoot $folderMap['quality.get.evaluations.query'] -DatasetParameters @{
+                    Query = @{
+                        agentUserId = $agentUserId
+                        startTime   = $StartDateTime
+                        endTime     = $EndDateTime
+                        pageSize    = 100
+                        pageNumber  = 1
+                    }
+                } -Headers $Headers -BaseUri $BaseUri | Out-Null
+            } catch {
+                $partialFailure = $true
+                Write-Warning "Get-QualityOverlayReport: evaluation query for agent '$agentUserId' failed — $($_.Exception.Message)"
+            }
+        }
+    }
+
+    try {
+        Invoke-CoreDatasetRun -Dataset 'quality.get.surveys' -OutputRoot $folderMap['quality.get.surveys'] -DatasetParameters @{
+            Query = @{
+                pageSize   = 100
+                pageNumber = 1
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'quality.get.surveys' failed — $($_.Exception.Message)"
+    }
+
+    try {
+        Invoke-CoreDatasetRun -Dataset 'speechandtextanalytics.get.topics' -OutputRoot $folderMap['speechandtextanalytics.get.topics'] -DatasetParameters @{
+            Query = @{
+                pageSize = 500
+                state    = 'latest'
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'speechandtextanalytics.get.topics' failed — $($_.Exception.Message)"
+    }
+
+    try {
+        $interval = "$StartDateTime/$EndDateTime"
+        Invoke-CoreDatasetRun -Dataset 'analytics.post.transcripts.aggregates.query' -OutputRoot $folderMap['analytics.post.transcripts.aggregates.query'] -DatasetParameters @{
+            Body = @{
+                interval    = $interval
+                groupBy     = @('conversationId', 'topicId')
+                metrics     = @('nTopicCommunications', 'nSpeechTextAnalyzedConversations')
+                filter      = @{ type = 'and'; predicates = @() }
+                granularity = 'PT24H'
+            }
+        } -Headers $Headers -BaseUri $BaseUri | Out-Null
+    } catch {
+        $partialFailure = $true
+        Write-Warning "Get-QualityOverlayReport: dataset 'analytics.post.transcripts.aggregates.query' failed — $($_.Exception.Message)"
+    }
+
+    return @{
+        EvaluationsFolder    = $folderMap['quality.get.evaluations.query']
+        SurveysFolder        = $folderMap['quality.get.surveys']
+        TopicsFolder         = $folderMap['speechandtextanalytics.get.topics']
+        TranscriptAggFolder  = $folderMap['analytics.post.transcripts.aggregates.query']
+        PartialFailure       = $partialFailure
+        EvaluationQueryCount = $attemptedEvaluationQueries
+    }
+}
+
+function Start-TimelineRun {
+    <#
+    .SYNOPSIS
+        Gate B – invokes the compound timeline analysis dataset (analytics-conversation-timeline-analysis).
+    .PARAMETER AgentId
+        Genesys Cloud user ID to filter by. At least one of AgentId, ConversationId, or QueueId is required.
+    .PARAMETER ConversationId
+        Single conversation ID to analyze.
+    .PARAMETER QueueId
+        Queue ID to filter by.
+    .PARAMETER Interval
+        ISO-8601 interval string, e.g. "2026-04-30T00:00:00.000Z/2026-05-07T00:00:00.000Z".
+    .PARAMETER MediaTypes
+        Optional array of media types to filter: voice, callback, message, email.
+    .PARAMETER PreviewMode
+        If $true, uses the synchronous details query (fast, small result sets) instead of the async job.
+    .PARAMETER IncludeConversationObject
+        Fetch the canonical conversation object for each conversation. Default $true.
+    .PARAMETER IncludeCustomAttributes
+        Fetch per-conversation custom attributes. Default $true.
+    .PARAMETER IncludeParticipantAttributes
+        Fetch participant attributes (IVR/Architect data). Default $true.
+    .PARAMETER IncludeSuggestions
+        Fetch agent assist suggestions per conversation. Default $true.
+    .PARAMETER IncludeRecordingMetadata
+        Fetch recording metadata per conversation. Default $true.
+    .PARAMETER IncludeSpeechTextAnalytics
+        Fetch speech and text analytics per conversation. Default $true.
+    #>
+    param(
+        [string]$AgentId = '',
+        [string]$ConversationId = '',
+        [string]$QueueId = '',
+        [Parameter(Mandatory)][string]$Interval,
+        [string[]]$MediaTypes = @(),
+        [bool]$PreviewMode = $false,
+        [bool]$IncludeConversationObject = $true,
+        [bool]$IncludeCustomAttributes = $true,
+        [bool]$IncludeParticipantAttributes = $true,
+        [bool]$IncludeSuggestions = $true,
+        [bool]$IncludeRecordingMetadata = $true,
+        [bool]$IncludeSpeechTextAnalytics = $true,
+        [hashtable]$Headers = $null,
+        [string]$BaseUri = ''
+    )
+    _RequireInitialized
+
+    $params = @{
+        Interval                  = $Interval
+        PreviewMode               = $PreviewMode
+        IncludeConversationObject = $IncludeConversationObject
+        IncludeCustomAttributes   = $IncludeCustomAttributes
+        IncludeParticipantAttributes = $IncludeParticipantAttributes
+        IncludeSuggestions        = $IncludeSuggestions
+        IncludeRecordingMetadata  = $IncludeRecordingMetadata
+        IncludeSpeechTextAnalytics = $IncludeSpeechTextAnalytics
+    }
+    if (-not [string]::IsNullOrWhiteSpace($AgentId))        { $params['UserIds']        = $AgentId }
+    if (-not [string]::IsNullOrWhiteSpace($ConversationId)) { $params['ConversationId'] = $ConversationId }
+    if (-not [string]::IsNullOrWhiteSpace($QueueId))        { $params['QueueIds']       = $QueueId }
+    if ($MediaTypes.Count -gt 0)                            { $params['MediaTypes']     = $MediaTypes }
+
+    return Invoke-CoreDatasetRun -Dataset 'analytics-conversation-timeline-analysis' `
+        -DatasetParameters $params -Headers $Headers -BaseUri $BaseUri
+}
+
+function Get-TimelineConversations {
+    <#
+    .SYNOPSIS
+        Reads conversations.jsonl from a timeline run folder using shared-read FileStream.
+        Returns an array of conversation summary objects.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [int]$MaxRows = 5000
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'conversations.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream -and $result.Count -lt $MaxRows) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try { $result.Add(($line | ConvertFrom-Json)) } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
+function Get-TimelineEvents {
+    <#
+    .SYNOPSIS
+        Reads timeline-events.jsonl for a specific ConversationId using shared-read FileStream.
+        Returns sorted event array for that conversation.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [Parameter(Mandatory)][string]$ConversationId
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'timeline-events.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json
+                if ([string]$obj.conversationId -eq $ConversationId) {
+                    $result.Add($obj)
+                }
+            } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
+function Get-TimelineErrors {
+    <#
+    .SYNOPSIS
+        Reads errors.jsonl from a timeline run folder for surfacing enrichment warnings in the UI.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$RunFolder,
+        [string]$ConversationId = ''
+    )
+    $path = [System.IO.Path]::Combine($RunFolder, 'errors.jsonl')
+    if (-not [System.IO.File]::Exists($path)) { return @() }
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8)
+    try {
+        while (-not $sr.EndOfStream) {
+            $line = $sr.ReadLine()
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json
+                if ([string]::IsNullOrWhiteSpace($ConversationId) -or [string]$obj.conversationId -eq $ConversationId) {
+                    $result.Add($obj)
+                }
+            } catch { }
+        }
+    } finally {
+        $sr.Dispose()
+        $fs.Dispose()
+    }
+    return $result.ToArray()
+}
+
+Export-ModuleMember -Function `
+    Initialize-CoreAdapter, Test-CoreInitialized, `
+    Start-PreviewRun, Start-FullRun, Start-TimelineRun, `
+    Get-RunManifest, Get-RunSummary, Get-RunEvents, Get-RunStatus, `
+    Get-RecentRunFolders, Get-DiagnosticsText, `
+    Get-TimelineConversations, Get-TimelineEvents, Get-TimelineErrors, `
+    Refresh-ReferenceData, Get-QueuePerformanceReport, Get-TrendReport, Get-AgentPerformanceReport, `
+    Get-TransferReport, Get-FlowContainmentReport, Get-WrapupDistributionReport, `
+    Get-QualityOverlayReport

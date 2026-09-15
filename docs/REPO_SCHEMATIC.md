@@ -19,14 +19,13 @@ Genesys.Core/
 │   │   │   ├── Invoke-Dataset.ps1
 │   │   │   └── Assert-Catalog.ps1
 │   │   └── Private/
-│   │       ├── Catalog/
-│   │       ├── Datasets/
-│   │       ├── Retry/
-│   │       ├── Paging/
-│   │       ├── Async/
-│   │       ├── Redaction/
-│   │       ├── Http/
-│   │       └── Run/
+│   │       ├── Catalog.ps1       # Catalog resolution, profile merging, normalization
+│   │       ├── Redaction.ps1     # PII/sensitive-field redaction
+│   │       ├── RunArtifacts.ps1  # Run context, JSONL/manifest/event writers
+│   │       ├── Transport.ps1     # URI construction, HTTP, retry engine
+│   │       ├── Paging.ps1        # All paging strategies + core endpoint dispatcher
+│   │       ├── Async.ps1         # Async job and audit transaction patterns
+│   │       └── Datasets.ps1      # Dataset registry, invokers, output orchestration
 │   └── Genesys.Ops/
 │       ├── Genesys.Ops.psd1
 │       └── Genesys.Ops.psm1
@@ -42,6 +41,8 @@ Genesys.Core/
 │   ├── ONBOARDING.md
 │   ├── ENGINEER_INTEGRATIONS_AUTH.md
 │   ├── ROADMAP.md
+│   ├── INVESTIGATIONS.md                 # Investigation composer design (Release 1.0 Track B)
+│   ├── TEST_EVIDENCE_LEVELS.md           # Validation claim vocabulary
 │   ├── CHANGELOG.md
 │   ├── READINESS_REVIEW.md
 │   ├── REPO_SCHEMATIC.md
@@ -51,6 +52,7 @@ Genesys.Core/
 ├── scripts/
 │   ├── Invoke-Smoke.ps1
 │   ├── Invoke-Tests.ps1
+│   ├── Invoke-LiveValidationMenu.ps1      # Operator-run live validation menu
 │   ├── Invoke-GenesysCoreBridge.ps1       # CLI bridge for non-PS wrappers
 │   ├── Invoke-MockRun.ps1
 │   ├── Update-CatalogFromSwagger.ps1
@@ -72,6 +74,11 @@ Wrapper UI / App
   -> Genesys.Core (catalog-driven runtime engine)
   -> output contract: out/<dataset>/<runId>/{manifest,events,summary,data}
 ```
+
+## Validation Vocabulary
+
+Evidence labels for tests, readiness claims, live probes, and production
+workflow validation are defined in `docs/TEST_EVIDENCE_LEVELS.md`.
 
 ## Canonical Defaults
 

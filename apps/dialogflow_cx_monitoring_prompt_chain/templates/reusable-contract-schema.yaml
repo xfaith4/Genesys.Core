@@ -1,0 +1,41 @@
+contract_name:
+contract_version:
+phase:
+objective:
+
+inputs_required:
+  - name:
+    required: true
+    source:
+    validation_rule:
+
+allowed_actions:
+  - 
+
+forbidden_actions:
+  - 
+
+deliverables:
+  - name:
+    format:
+    required: true
+
+evidence_requirements:
+  - claim:
+    acceptable_sources:
+      - command_output
+      - metric_descriptor
+      - log_entry
+      - official_documentation
+
+quality_gates:
+  proceed_if:
+    - 
+  block_if:
+    - 
+
+risk_controls:
+  - 
+
+open_questions:
+  - 

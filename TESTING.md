@@ -6,6 +6,7 @@ This document provides comprehensive instructions for testing the Genesys.Core P
 
 - [Quick Start](#quick-start)
 - [End-user Onboarding](#end-user-onboarding)
+- [Test Evidence Levels](#test-evidence-levels)
 - [Local Development Testing](#local-development-testing)
 - [Production Environment Testing](#production-environment-testing)
 - [Test Suite Overview](#test-suite-overview)
@@ -35,6 +36,17 @@ Invoke-Pester -Configuration $config
 pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
 ```
 
+### Running Live Validation Menu
+
+```powershell
+# Operator-run live validation. Requires live Genesys Cloud credentials.
+pwsh -NoProfile -File ./scripts/Invoke-LiveValidationMenu.ps1
+```
+
+This menu separates `Live catalog probe completed` evidence from
+`Live Invoke-Dataset acceptance passed` evidence. Generated shareable reports
+omit raw live records and sensitive values.
+
 ## End-user Onboarding
 
 For an end-to-end onboarding flow (auth setup, dataset discovery, first run, output validation), see:
@@ -45,6 +57,25 @@ Current behavior to be aware of:
 
 - Authenticated live calls should use module invocation (`Import-Module` + `Invoke-Dataset -Headers ...`).
 - Direct script invocation (`pwsh -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1`) also supports `-Headers`, `-BaseUri`, and `-DatasetParameters` for CI and scripted use cases.
+
+## Test Evidence Levels
+
+Test and validation reports must describe what was actually proven. A mocked
+dataset test should not be reported as a live endpoint pass, and a live catalog
+probe should not be reported as a full `Invoke-Dataset` acceptance run.
+
+Use the evidence labels in [docs/TEST_EVIDENCE_LEVELS.md](docs/TEST_EVIDENCE_LEVELS.md)
+when writing readiness tables, release notes, checklist output, or issue
+comments. For example:
+
+- `Catalog shape passed`
+- `Dataset pagination test passed`
+- `Dataset response processing passed`
+- `Live catalog probe completed`
+- `Live Invoke-Dataset acceptance passed`
+
+`All tests pass` only means the selected checks passed. Always pair that claim
+with the command that ran and the evidence levels covered.
 
 ## Local Development Testing
 
@@ -67,9 +98,9 @@ Invoke-Pester -Path ./tests/unit/Retry.Tests.ps1
    - Checks paging and retry profile consistency
 
 2. **Catalog Resolution** (`tests/unit/CatalogResolution.Tests.ps1`)
-   - Tests precedence between root and legacy catalog locations
-   - Validates strict mode behavior
-   - Tests catalog conflict detection
+   - Tests canonical catalog resolution (canonical-only; legacy mirror is retired)
+   - Validates that `-StrictCatalog` is accepted as a backward-compatible no-op
+   - Tests that a missing catalog throws rather than silently falling back
 
 3. **Paging Strategies** (`tests/unit/Paging.Tests.ps1`)
    - NextUri pagination
@@ -340,4 +371,3 @@ For issues or questions:
 - Review [.agents/AGENTS.md](.agents/AGENTS.md) for architectural guidelines
 - Check existing tests for usage examples
 - Ensure catalog is valid: `Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json`
-

@@ -1,0 +1,49 @@
+{
+  "Genesys": {
+    "Region": "usw2.pure.cloud",
+    "OrgName": "",
+    "OrgId": "",
+    "AuthProfile": "",
+    "DatasetKey": "analytics-conversation-details"
+  },
+  "Query": {
+    "ThresholdSeconds": 5,
+    "Directions": ["inbound", "outbound"],
+    "MediaType": "voice",
+    "LookbackMinutes": 70,
+    "ExcludeIncompleteConversations": true,
+    "Queue": "",
+    "Division": "",
+    "User": "",
+    "Campaign": "",
+    "DisconnectType": "",
+    "WrapUpCode": "",
+    "Ani": "",
+    "Dnis": "",
+    "ExternalContact": ""
+  },
+  "Output": {
+    "ArtifactRoot": ".artifacts/short-voice-conversations",
+    "ExportMarkdown": true,
+    "ExportJson": true,
+    "ExportCsv": true,
+    "ExportExcel": true
+  },
+  "Elastic": {
+    "Enabled": false,
+    "Uri": "https://localhost:9200",
+    "IndexName": "genesys-short-voice-conversations-rollup",
+    "UseDailyIndexSuffix": true,
+    "AuthMode": "ApiKey",
+    "ApiKeyEnvironmentVariable": "GENESYS_SHORT_CALLS_ELASTIC_API_KEY",
+    "UsernameEnvironmentVariable": "GENESYS_SHORT_CALLS_ELASTIC_USERNAME",
+    "PasswordEnvironmentVariable": "GENESYS_SHORT_CALLS_ELASTIC_PASSWORD",
+    "ValidateTls": true,
+    "DryRun": true,
+    "BulkBatchSize": 500
+  },
+  "Schedule": {
+    "Frequency": "Hourly",
+    "StartTime": "00:05"
+  }
+}

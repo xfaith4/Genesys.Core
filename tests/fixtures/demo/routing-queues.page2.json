@@ -1,0 +1,44 @@
+{
+  "entities": [
+    {
+      "id": "queueid-0004-0004-0004-aabbccddeeff",
+      "name": "Callback Queue",
+      "division": null,
+      "description": "Scheduled callback queue for requested callbacks",
+      "dateCreated": "2024-06-01T09:00:00.000Z",
+      "dateModified": "2026-01-05T11:00:00.000Z",
+      "modifiedBy": "user-admin-0007-grace",
+      "memberCount": 0,
+      "joined": false,
+      "mediaSettings": {
+        "call": { "alertingTimeoutSeconds": 30, "serviceLevel": { "percentage": 0.75, "durationMs": 30000 } }
+      },
+      "selfUri": "/api/v2/routing/queues/queueid-0004-0004-0004-aabbccddeeff"
+    },
+    {
+      "id": "queueid-0005-0005-0005-aabbccddeeff",
+      "name": "Email Response",
+      "division": {
+        "id": "div-digital-0002-aabbccddeeff",
+        "name": "Digital Division",
+        "selfUri": "/api/v2/authorization/divisions/div-digital-0002-aabbccddeeff"
+      },
+      "description": "Email response and follow-up queue",
+      "dateCreated": "2024-09-01T09:00:00.000Z",
+      "dateModified": "2026-02-10T09:00:00.000Z",
+      "modifiedBy": "user-supv-0006-frank",
+      "memberCount": 4,
+      "joined": false,
+      "mediaSettings": {
+        "email": { "alertingTimeoutSeconds": 300, "serviceLevel": { "percentage": 0.9, "durationMs": 86400000 } }
+      },
+      "selfUri": "/api/v2/routing/queues/queueid-0005-0005-0005-aabbccddeeff"
+    }
+  ],
+  "nextUri": null,
+  "pageNumber": 2,
+  "pageSize": 25,
+  "total": 5,
+  "pageCount": 2,
+  "selfUri": "/api/v2/routing/queues?pageNumber=2&pageSize=25&sortBy=name"
+}

@@ -1,0 +1,103 @@
+{
+  "entities": [
+    {
+      "id": "conv-active-0001",
+      "startTime": "2026-02-14T09:00:00.000Z",
+      "endTime": null,
+      "address": "+14155550101",
+      "state": "alerting",
+      "direction": "inbound",
+      "disconnectType": null,
+      "held": false,
+      "participants": [
+        {
+          "id": "part-active-0001-customer",
+          "name": "Customer",
+          "purpose": "customer",
+          "state": "connected",
+          "direction": "inbound",
+          "calls": [
+            {
+              "id": "call-active-0001",
+              "state": "connected",
+              "muted": false,
+              "confined": false,
+              "held": false,
+              "direction": "inbound",
+              "connectedTime": "2026-02-14T09:00:05.000Z"
+            }
+          ]
+        },
+        {
+          "id": "part-active-0001-agent",
+          "name": "Alice Support",
+          "purpose": "agent",
+          "state": "connected",
+          "userId": "user-agent-0001-alice",
+          "direction": "inbound",
+          "calls": [
+            {
+              "id": "call-active-0002",
+              "state": "connected",
+              "muted": false,
+              "confined": false,
+              "held": false,
+              "direction": "inbound",
+              "connectedTime": "2026-02-14T09:01:15.000Z"
+            }
+          ]
+        }
+      ],
+      "selfUri": "/api/v2/conversations/conv-active-0001"
+    },
+    {
+      "id": "conv-active-0002",
+      "startTime": "2026-02-14T09:05:00.000Z",
+      "endTime": null,
+      "address": null,
+      "state": "connected",
+      "direction": "inbound",
+      "disconnectType": null,
+      "held": false,
+      "participants": [
+        {
+          "id": "part-active-0002-customer",
+          "name": "Customer",
+          "purpose": "customer",
+          "state": "connected",
+          "direction": "inbound",
+          "chats": [
+            {
+              "id": "chat-active-0001",
+              "state": "connected",
+              "direction": "inbound",
+              "connectedTime": "2026-02-14T09:05:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "part-active-0002-agent",
+          "name": "Bob Chat",
+          "purpose": "agent",
+          "state": "connected",
+          "userId": "user-agent-0002-bob",
+          "direction": "inbound",
+          "chats": [
+            {
+              "id": "chat-active-0002",
+              "state": "connected",
+              "direction": "inbound",
+              "connectedTime": "2026-02-14T09:05:30.000Z"
+            }
+          ]
+        }
+      ],
+      "selfUri": "/api/v2/conversations/conv-active-0002"
+    }
+  ],
+  "nextUri": null,
+  "pageNumber": 1,
+  "pageSize": 25,
+  "total": 2,
+  "pageCount": 1
+}

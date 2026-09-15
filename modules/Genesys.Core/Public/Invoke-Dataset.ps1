@@ -3,7 +3,7 @@ param(
     [string]$Dataset,
     [string]$CatalogPath,
     [string]$OutputRoot = 'out',
-    [string]$BaseUri = 'https://api.mypurecloud.com',
+    [string]$BaseUri = 'https://api.usw2.pure.cloud',
     [hashtable]$Headers,
     [scriptblock]$RequestInvoker,
     [hashtable]$DatasetParameters,
@@ -35,6 +35,14 @@ function Resolve-OutputRootPath {
         $effectiveOutputRoot = 'out'
     }
 
+    if ([System.IO.Path]::DirectorySeparatorChar -ne '\' -and $effectiveOutputRoot -match '^([A-Za-z]):[\\/](.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $rest  = ($Matches[2] -replace '\\', '/').TrimStart('/')
+        $effectiveOutputRoot = "runs"
+    } elseif ([System.IO.Path]::DirectorySeparatorChar -ne '\') {
+        $effectiveOutputRoot = $effectiveOutputRoot -replace '\\', '/'
+    }
+
     if ([System.IO.Path]::IsPathRooted($effectiveOutputRoot)) {
         return [System.IO.Path]::GetFullPath($effectiveOutputRoot)
     }
@@ -53,7 +61,7 @@ function Invoke-Dataset {
 
         [string]$OutputRoot = 'out',
 
-        [string]$BaseUri = 'https://api.mypurecloud.com',
+        [string]$BaseUri = 'https://api.usw2.pure.cloud',
 
         [hashtable]$Headers,
 
@@ -66,7 +74,15 @@ function Invoke-Dataset {
         [switch]$NoRedact
     )
 
-    $schemaPath = Join-Path -Path $PSScriptRoot -ChildPath '../../../catalog/schema/genesys.catalog.schema.json'
+    # $PSScriptRoot inside this function body reflects the module root (modules/Genesys.Core/),
+    # NOT the Public/ subdirectory where this file lives.  Use the captured module root and
+    # go two levels up to reach the repo root, then into catalog/schema/.
+    $schemaRoot = if ($null -ne $script:GcModuleRoot) {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $script:GcModuleRoot -ChildPath '../..'))
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '../../..'))
+    }
+    $schemaPath = Join-Path -Path $schemaRoot -ChildPath 'catalog/schema/genesys.catalog.schema.json'
     $catalogResolution = Resolve-Catalog -CatalogPath $CatalogPath -SchemaPath $schemaPath -StrictCatalog:$StrictCatalog
 
     foreach ($warning in @($catalogResolution.warnings)) {
@@ -89,11 +105,12 @@ function Invoke-Dataset {
             manifestPath = (Join-Path -Path $plannedRunFolder -ChildPath 'manifest.json')
             eventsPath = (Join-Path -Path $plannedRunFolder -ChildPath 'events.jsonl')
             summaryPath = (Join-Path -Path $plannedRunFolder -ChildPath 'summary.json')
+            apiLogPath = (Join-Path -Path $plannedRunFolder -ChildPath 'api-calls.log')
         }
 
         Write-Host "[WhatIf] Dataset '$($Dataset)' would run using catalog '$($catalogResolution.pathUsed)'."
         Write-Host "[WhatIf] Planned output root: '$($resolvedOutputRoot)'."
-        Write-Host "[WhatIf] Would write outputs under '$($plannedContext.runFolder)' (manifest/events/summary/data)."
+        Write-Host "[WhatIf] Would write outputs under '$($plannedContext.runFolder)' (manifest/events/summary/data plus api-calls.log)."
         Write-Host "[WhatIf] No files or directories were created."
         return $plannedContext
     }
@@ -103,6 +120,8 @@ function Invoke-Dataset {
     }
 
     $runContext = New-RunContext -DatasetKey $Dataset -OutputRoot $resolvedOutputRoot
+    Write-Host "[Genesys.Core] Starting dataset '$($Dataset)' run '$($runContext.runId)'."
+    Write-Host "[Genesys.Core] Run folder: $($runContext.runFolder)"
 
     if (-not $PSBoundParameters.ContainsKey('Headers') -and -not [string]::IsNullOrWhiteSpace($env:GENESYS_BEARER_TOKEN)) {
         $Headers = @{ Authorization = "Bearer $($env:GENESYS_BEARER_TOKEN)" }
@@ -110,14 +129,22 @@ function Invoke-Dataset {
 
     Write-RunEvent -RunContext $runContext -EventType 'run.started' -Payload @{ catalogPath = $catalogResolution.pathUsed } | Out-Null
 
+    $previousRunContext = (Get-Variable -Name 'GcActiveRunContext' -Scope Script -ErrorAction SilentlyContinue).Value
+    $script:GcActiveRunContext = $runContext
+
     try {
         Invoke-RegisteredDataset -Dataset $Dataset -RunContext $runContext -Catalog $catalog -BaseUri $BaseUri -Headers $Headers -RequestInvoker $RequestInvoker -DatasetParameters $DatasetParameters -NoRedact:$NoRedact | Out-Null
+        Write-Host "[Genesys.Core] Completed dataset '$($Dataset)' run '$($runContext.runId)'."
         return $runContext
     }
     catch {
+        Write-Host "[Genesys.Core] Dataset '$($Dataset)' run '$($runContext.runId)' failed: $($_.Exception.Message)"
         Write-RunEvent -RunContext $runContext -EventType 'run.failed' -Payload @{ message = $_.Exception.Message } | Out-Null
         Write-Manifest -RunContext $runContext -Counts @{ itemCount = 0 } -Warnings @($_.Exception.Message) | Out-Null
         throw
+    }
+    finally {
+        $script:GcActiveRunContext = $previousRunContext
     }
 }
 

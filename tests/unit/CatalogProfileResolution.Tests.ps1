@@ -1,6 +1,6 @@
 Describe 'Catalog profile resolution' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Catalog.ps1"
     }
 
     It 'resolves paging profile references to concrete runtime profile types' {

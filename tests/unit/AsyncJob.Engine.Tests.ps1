@@ -1,15 +1,8 @@
 Describe 'Async job engine' {
     BeforeAll {
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Http/Join-EndpointUri.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1"
-        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Async/Invoke-AsyncJob.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Async.ps1"
     }
 
     It 'runs analytics-style async profile with custom id/state paths' {
@@ -92,7 +85,7 @@ Describe 'Async job engine' {
         (@($runEvents | Where-Object { $_.eventType -eq 'paging.progress' })).Count | Should -BeGreaterThan 1
     }
 
-    It 'uses configured terminalStates fallback when terminalStatesPath is missing in status payload' {
+    It 'uses configured terminalStates fallback case-insensitively when terminalStatesPath is missing in status payload' {
         $runEvents = [System.Collections.Generic.List[object]]::new()
 
         $submitEndpoint = [pscustomobject]@{
@@ -138,7 +131,7 @@ Describe 'Async job engine' {
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback') {
-                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'FULFILLED' } }
+                return [pscustomobject]@{ Result = [pscustomobject]@{ state = 'fulfilled' } }
             }
 
             if ($method -eq 'GET' -and $uri -eq 'https://api.test.local/api/v2/jobs/job-fallback/results') {

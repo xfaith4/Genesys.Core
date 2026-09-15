@@ -17,6 +17,11 @@
         DefaultLookbackHours = 1
     }
 
+    OAuth = @{
+        PkceClientId    = ''
+        PkceRedirectUri = 'http://localhost:8080/callback'
+    }
+
     Ui = @{
         PageSize      = 100
         MaxRecentRuns = 20

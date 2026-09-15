@@ -5,7 +5,7 @@
     Author            = 'IT Operations'
     CompanyName       = ''
     Description       = 'IT Operations wrapper around Genesys.Core for day-to-day Genesys Cloud administration.'
-    Copyright         = '(c) xfaith. All rights reserved.'
+    Copyright         = '(c) Genesys.Core contributors. All rights reserved.'
 
     # Runtime requirements
     PowerShellVersion = '5.1'
@@ -104,6 +104,7 @@
         'Get-GenesysTrunkMetrics'
         'Get-GenesysStation'
         'Get-GenesysEdgeHealthSnapshot'
+        'Get-GenesysEdgeEvent'
 
         # Queue KPIs — Abandon Rate, SLA, Transfer, Wrapup  (Roadmap ideas 6–10)
         'Get-GenesysQueueAbandonRate'
@@ -111,6 +112,7 @@
         'Get-GenesysTransferAnalysis'
         'Get-GenesysWrapupDistribution'
         'Get-GenesysDigitalChannelVolume'
+        'Export-GenesysMonthlyChannelVolume'
 
         # Quality & CSAT  (Roadmap ideas 11–13)
         'Get-GenesysEvaluation'
@@ -133,17 +135,43 @@
         # ACW Anomaly Detection  (Roadmap idea 21)
         'Get-GenesysAgentAcwAnomaly'
 
-        # Workforce Management  (Roadmap idea 22)
+        # Phase 5 Visibility Dashboard  (Roadmap ideas 24–30)
+        # Idea 24 — Workforce Management Unit Visibility
         'Get-GenesysWorkforceManagementUnit'
 
-        # Journey / Predictive Engagement  (Roadmap idea 23)
+        # Idea 25 — Journey Action Map Inventory
         'Get-GenesysJourneyActionMap'
 
-        # Composite Dashboard Snapshots  (Roadmap ideas 24–30)
+        # Idea 26 — Enhanced Operations Report
         'Get-GenesysAbandonRateDashboard'
         'Get-GenesysQueueHealthSnapshot'
         'Get-GenesysAgentQualitySnapshot'
         'Invoke-GenesysOperationsReport'
+        'Invoke-GenesysNotRespondingReport'
+
+        # Idea 27 — Peak Hour Load Analysis
+        'Get-GenesysPeakHourLoad'
+
+        # Idea 28 — Configuration Change Audit Feed
+        'Get-GenesysChangeAuditFeed'
+
+        # Idea 29 — Outbound Campaign Performance Dashboard
+        'Get-GenesysOutboundCampaignPerformance'
+
+        # Idea 30 — Flow Outcome KPI Correlation
+        'Get-GenesysFlowOutcomeKpiCorrelation'
+
+        # Investigations (Release 1.0 Track B + Release 1.1 + Release 1.2)
+        'Get-GenesysAgentInvestigation'
+        'Get-GenesysCampaignInvestigation'
+        'Get-GenesysConversationInvestigation'
+        'Export-GenesysInvestigationPackage'
+        'Export-GenesysInvestigationDiagnosticsBundle'
+        'Export-GenesysConversationInvestigationPackage'
+        'Get-GenesysQueueInvestigation'
+
+        # Dataset coverage audit
+        'Test-GenesysOpsDatasetCoverage'
     )
 
     CmdletsToExport   = @()
@@ -153,7 +181,7 @@
     PrivateData = @{
         PSData = @{
             Tags         = @('Genesys', 'GenesysCloud', 'ContactCentre', 'ITOps')
-            ProjectUri   = 'https://github.com/xfaith4/Genesys.Core'
+            ProjectUri   = 'https://github.com/your-org/Genesys.Core'
             ReleaseNotes = 'Initial release — wraps Genesys.Core datasets with IT Operations-focused cmdlets.'
         }
     }

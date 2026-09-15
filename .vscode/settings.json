@@ -26,10 +26,10 @@
         "utf8": "disable"
     },
     "Lua.workspace.library": [
-        "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.1-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\tsp-lua-5.0",
-        "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.1-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\nodes_definitions"
+        "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.2-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\tsp-lua-5.0",
+        "c:\\Users\\benfu\\.vscode\\extensions\\tektronix.tsp-toolkit-1.4.2-win32-x64\\node_modules\\@tektronix\\keithley_instrument_libraries\\keithley_instrument_libraries\\nodes_definitions"
     ],
     "pgsql.connections": [],
-    "snyk.advanced.organization": "061b93ac-d802-4306-9a45-7c424db4d7a0",
-    "snyk.advanced.autoSelectOrganization": true
+    "snyk.advanced.autoSelectOrganization": true,
+    "vscode-edge-devtools.headless": false
 }

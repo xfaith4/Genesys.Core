@@ -1,0 +1,30 @@
+{
+    "Lua.workspace.preloadFileSize": 2000,
+    "Lua.workspace.ignoreDir": [],
+    "Lua.diagnostics.libraryFiles": "Disable",
+    "Lua.runtime.version": "Lua 5.1",
+    "Lua.runtime.builtin": {
+        "basic": "enable",
+        "builtin": "enable",
+        "table": "enable",
+        "bit": "disable",
+        "bit32": "disable",
+        "coroutine": "disable",
+        "debug": "disable",
+        "ffi": "disable",
+        "io": "disable",
+        "jit": "disable",
+        "jit.profile": "disable",
+        "jit.util": "disable",
+        "math": "disable",
+        "os": "disable",
+        "package": "disable",
+        "string": "disable",
+        "string.buffer": "disable",
+        "table.clear": "disable",
+        "table.new": "disable",
+        "utf8": "disable"
+    },
+    "Lua.workspace.library": [],
+    "snyk.advanced.autoSelectOrganization": true
+}

@@ -40,7 +40,7 @@ Describe 'Genesys.MockServer Integration Tests' {
         $script:RepoRoot      = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
         $script:ModulePath    = Join-Path $script:RepoRoot 'modules/Genesys.Core/Genesys.Core.psd1'
         $script:ProjectPath   = Join-Path $script:RepoRoot 'tools/Genesys.MockServer/Genesys.MockServer.csproj'
-        $script:OutputRoot    = Join-Path $env:TEMP "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
+        $script:OutputRoot    = Join-Path ([System.IO.Path]::GetTempPath()) "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
         $script:ServerProcess = $null
 
         function Start-MockServer {
@@ -55,7 +55,7 @@ Describe 'Genesys.MockServer Integration Tests' {
 
             $script:ServerProcess = Start-Process -FilePath 'dotnet' `
                 -ArgumentList "run --project `"$($script:ProjectPath)`"" `
-                -PassThru -WindowStyle Hidden -RedirectStandardOutput ([System.IO.Path]::GetTempFileName())
+                -PassThru -RedirectStandardOutput ([System.IO.Path]::GetTempFileName())
 
             # Wait up to 30 seconds for the server to become ready
             $ready   = $false

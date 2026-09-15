@@ -55,3 +55,15 @@ Execution strategy:
 | In-place LF normalization failed inside sandbox with read-only temp-file error | Line-ending cleanup | Reran the mechanical normalization command with escalation; `git diff --check` is now clean on touched files. |
 | Persisted `C:\Users\...` paths resolved as app-relative paths under WSL | Config/output investigation | Added config and Core output-root normalization so Windows drive paths map to `/mnt/<drive>/...` and relative backslash paths resolve correctly. |
 | Offline demo PCAP hook still attempted signed URL DNS lookup | Demo package rerun | Fixed binary download handling so PowerShell-enumerated byte arrays from test/demo download hooks are written as `.pcap` bytes instead of falling through to `Invoke-WebRequest`. |
+
+## 2026-09-15 Repository reconciliation and product assessment
+
+- [x] Inspect divergence and preserve tracked/untracked work and Git merge metadata in external recovery archive.
+- [x] Reconcile unfinished merge and latest origin/main, retaining unique modern work.
+- [x] Remove proven legacy duplication and generated debris; repair documentation authority.
+- [x] Run applicable Core, app, and mock-server checks.
+- [x] Record current feature value and ranked future opportunities with sources and proof boundaries.
+
+Recovery archive: /mnt/f/Development/20_Staging/GenesysCloud/Genesys.Core-recovery-20260915T045511Z
+
+Publication: blocked by absent GitHub HTTPS credentials; local reconciliation is complete. No remote changes made.

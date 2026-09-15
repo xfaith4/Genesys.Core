@@ -27,6 +27,8 @@ decision behind this.
 
 ## Running it
 
+Use Node.js 24 LTS (`nvm use` in this directory) and .NET SDK 8 for the demo server.
+
 Start the offline Genesys.Core implementation from the repository root:
 
 ```bash

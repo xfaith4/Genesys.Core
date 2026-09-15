@@ -120,3 +120,15 @@
 - Validation passed: parser checks for `App.UI.ps1`, `App.Index.psm1`, `Invoke-AllTests.ps1`, and `Test-Compliance.ps1`; `apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1` passed 270 checks, 0 failed, 2 skipped for missing WSL `e_sqlite3`.
 - Investigated blank `data/analytics-conversation-details.jsonl` artifacts. The async dataset intentionally writes a zero-byte JSONL when the Genesys results endpoint returns zero conversations, so the run now writes non-PII request-shape diagnostics to `summary.json`, emits explicit `analytics.conversationDetails.request` and `analytics.conversationDetails.zeroResults` events, and carries a manifest warning for zero-result full runs.
 - Validation passed: parser checks for `modules/Genesys.Core/Private/Datasets.ps1` and `tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1`; `Invoke-Pester -Path ./tests/unit/AnalyticsConversationDetails.Dataset.Tests.ps1 -Output Normal` passed 9 tests.
+
+## 2026-09-15 Repository reconciliation
+
+- External recovery archive created before resolving interrupted merge. Completed merge 77b1ad9, then merged current origin/main 65e39c5.
+- Initial merge attempt encountered regenerated tracked .NET outputs; restored them with autocrlf disabled and merge succeeded. Latest upstream removes those generated files.
+- GitHub CLI lacks authentication; public GitHub API successfully listed four open PRs. Git fetch succeeded.
+
+- An initial npm command at the repository root resolved the parent directory manifest. Its resulting parent node_modules and lockfile were moved into the recovery directory under parent-npm-artifacts; the parent package.json was not changed. Subsequent installs used the explicit Data Client directory.
+- Node 24 client build passed; 75 tests passed against the local HTTP mock, and the rendered accessibility script audited 15 surfaces with zero violations.
+- Git push dry run failed: no HTTPS GitHub credentials. GitHub publication remains blocked; no remote refs or PRs changed.
+
+- Final Core unit suite passed 206 tests, zero failures, one Swagger-snapshot skip. Strict catalog and recipe integrity gates passed. Reports and roadmap record accepted references, deferred proposals, current feature recommendation and future priorities.

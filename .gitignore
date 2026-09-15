@@ -17,7 +17,7 @@ generated/
 *.cache
 
 # Vendored runtime dependency shipped with the Conversation Analyzer
-!apps/ConversationAnalyser/lib/System.Data.SQLite.dll
+!apps/ConversationAnalyzer/lib/System.Data.SQLite.dll
 
 # Temporary files
 tmp/
@@ -45,3 +45,7 @@ obj/
 
 # Pester -CI writes this into the working directory; it is a run artifact, not source.
 testResults.xml
+
+# Local editor configuration and reconciliation scratch files
+**/.vscode/settings.json
+.tmp_compare/

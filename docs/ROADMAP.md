@@ -1,5 +1,8 @@
 # Genesys.Core - Product & Engineering Roadmap
 
+Current priorities: [root roadmap](../ROADMAP.md). This file retains detailed release
+history and acceptance gates; unchecked live/operator gates remain open.
+
 > Status: Active
 >
 > Last updated: 2026-06-08
@@ -16,7 +19,8 @@ The next product step is **investigation composition**: combining the
 existing per-dataset queries into joined, subject-centred records — for example,
 matching an agent's identity, division, location, skills, and queue
 assignments to the conversations on which they were alerted or engaged.
-The raw datasets exist; the composition layer does not.
+The Agent, Conversation, Queue, and Campaign composition workflows exist.
+Current work should close tenant acceptance gaps and extend evidence correlation.
 
 Audience: contact-centre operators, platform admins, compliance reviewers, and
 the engineering teams that automate against them.

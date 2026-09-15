@@ -9,7 +9,7 @@ The app does not extract directly from Genesys Cloud. `Genesys.Core` remains the
 ```text
 genesys.core/
 └── apps/
-    └── ConversationAnalyser/
+    └── ConversationAnalyzer/
 ├── App.ps1
 ├── modules/
 │   ├── App.Config.psm1
@@ -36,7 +36,7 @@ genesys.core/
 Launch the app from this application folder:
 
 ```powershell
-cd ./apps/ConversationAnalyser
+cd ./apps/ConversationAnalyzer
 pwsh -NoProfile -ExecutionPolicy Bypass -File ./App.ps1
 ```
 
@@ -267,13 +267,13 @@ The case audit trail records every state transition with a timestamp.
 Run the full repo guardrail suite from the root:
 
 ```powershell
-pwsh -NoProfile -File ./apps/ConversationAnalyser/tests/Invoke-AllTests.ps1
+pwsh -NoProfile -File ./apps/ConversationAnalyzer/tests/Invoke-AllTests.ps1
 ```
 
 That runner executes:
 
-- Static compliance checks in `apps/ConversationAnalyser/tests/Test-Compliance.ps1`
-- Runtime smoke checks in `apps/ConversationAnalyser/tests/Invoke-SmokeTests.ps1`
+- Static compliance checks in `apps/ConversationAnalyzer/tests/Test-Compliance.ps1`
+- Runtime smoke checks in `apps/ConversationAnalyzer/tests/Invoke-SmokeTests.ps1`
 - Architecture/layout invariants for startup, boundaries, indexing, export, reporting, and case-store design
 
 ## Design Intent

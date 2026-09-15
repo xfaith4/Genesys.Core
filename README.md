@@ -9,9 +9,16 @@
 
 Genesys.Core streamlines data extraction from Genesys Cloud REST API, handling pagination, rate limits, and ensuring data security. It operates via a JSON catalog, separating operational logic from scripts and enabling consistent, auditable output suitable for compliance and CI. Featured investigations include Agent, Conversation, and Queue analyses, providing comprehensive insights tailored to individual users or instances.
 
+## Product direction
+
+Start with [conversation investigation and evidence export](docs/CONVERSATION_INVESTIGATION_PACKAGE.md).
+Use the [Genesys Data Client](apps/GenesysDataClient/README.md) for the modern web experience.
+See the [roadmap](ROADMAP.md), [feature-value assessment](docs/PRODUCT_VALUE.md), and
+[reconciliation report](docs/REPOSITORY_RECONCILIATION.md) for current priorities and proof boundaries.
+
 ## Features
 
-- **Catalog-driven**: 31 datasets and 74 endpoint definitions, schema-validated.
+- **Catalog-driven**: 111 datasets and 3,389 endpoint definitions, schema-validated.
 - **Paging strategies**: Adjustable per endpoint, supporting six types.
 - **Retry engine**: Configurable, with jitter and `Retry-After` parsing.
 - **Async transactions**: Efficient logging and analytics job handling.
@@ -19,7 +26,7 @@ Genesys.Core streamlines data extraction from Genesys Cloud REST API, handling p
 - **Investigations**: Emissions of structured datasets for agents, conversations, and queues.
 - **Integration**: GitHub Actions workflows, ready-made apps, operator dashboards.
 - **Security**: Redaction of sensitive information from logs.
-- **Accessibility**: All shipped HTML surfaces conform to WCAG 2.1 Level AA, gated in CI.
+- **Accessibility**: Automated accessibility checks run in CI; manual conformance checks remain open.
 - **Compatibility**: Supports Windows PowerShell 5.1 and PowerShell 7+.
 
 ## Quickstart
@@ -41,6 +48,7 @@ $authResponse = Invoke-RestMethod -Uri "https://login.$($region)/oauth/token" -M
     client_secret = '<your-client-secret>'
 } -ContentType 'application/x-www-form-urlencoded'
 
+$baseUri = "https://api.$($region)"
 $headers = @{ Authorization = "Bearer $($authResponse.access_token)" }
 ```
 
@@ -118,8 +126,9 @@ Invoke-Dataset -Dataset 'analytics-conversation-details' -OutputRoot './out' -Ba
 ## Accessibility
 
 The operator consoles, dataset browser, documentation pages, and generated
-investigation reports are held to **WCAG 2.1 Level AA**. Conformance is enforced
-on every pull request by the `accessibility` CI job.
+investigation reports have automated checks targeting **WCAG 2.1 Level AA** in CI.
+A passing automated audit does not establish full conformance; rendered and manual
+checks are tracked separately.
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Invoke-AccessibilityAudit.ps1

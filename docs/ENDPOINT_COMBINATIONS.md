@@ -99,12 +99,12 @@ The `telephony.get.edge.performance.metrics` dataset (`GET /api/v2/telephony/pro
 should be pulled for the Edge appliance that handled the call if CPU, memory, or error counters suggest
 resource pressure during the conversation window.
 
-### BYOI Indicator
+### External integration correlation
 
-If `conversations.get.conversation.object` returns a non-null `externalTag` or `externalConversationId`,
-the call was injected via the BYOI integration (`POST /api/v2/conversations/providers/{providerId}/calls`).
-Custom attributes in step 4 will contain the provider's context (CRM case ID, external call ID).
-The SIP trace (step 8) will reflect the provider's SIP-to-SIP handoff, not an inbound PSTN leg.
+`externalTag` and external identifiers are correlation hints, not proof of integration
+origin. Confirm message/provider metadata or the configured voice trunk and SIP evidence.
+Open Messaging uses the integration-scoped message, event, and receipt endpoints.
+The legacy catch-all endpoint is deprecated; see the correction note below.
 
 ---
 
@@ -340,9 +340,8 @@ intended for targeted drilldown (supervisor clicks on an agent in the wall board
 
 **Subject:** One `conversationId` that was injected via BYOI  
 **Use case:** A conversation originated in an external system (CRM telephony, third-party contact
-centre, a custom SIP provider) and was injected into Genesys Cloud via the BYOI provider API
-(`POST /api/v2/conversations/providers/{providerId}/calls`). The conversation appears in Genesys
-analytics and recordings, but context lives in the external system.
+centre, a custom SIP provider). Confirm the actual channel and integration path before
+joining external context to Genesys analytics and recordings.
 
 **Core question:** *Where did this conversation come from, and what external context does it carry?*
 
@@ -360,7 +359,7 @@ In step 1 of the Conversation Investigation, `conversations.get.conversation.obj
 }
 ```
 
-A non-null `externalTag` is the definitive BYOI indicator.
+A non-null `externalTag` does not prove BYOI origin. Confirm against integration or trunk evidence.
 
 ### Additional Steps for BYOI Conversations
 
@@ -525,3 +524,25 @@ The matrix below shows which datasets are used across which investigations and r
 *All dataset keys in this document map directly to entries in `catalog/genesys.catalog.json`.*  
 *All endpoint paths are Genesys Cloud API v2 (`/api/v2/...`).*  
 *Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
+
+
+## September 2026 reconciliation
+
+Recent reference recipes are consolidated in `catalog/genesys.catalog.json` and marked
+`validationStatus: reference-only`. They are design inputs, not exported Ops commands.
+[Proposal decisions](reconciliation/proposal-decisions.json) record accepted updates and
+recipes held because referenced catalog entries are missing; the original deltas are
+preserved in [recent proposals](reconciliation/recent-proposals.json).
+
+The accepted references expand operational alerts, callback/overflow investigation,
+customer/team context, skill coverage, coaching outcomes and business-unit reporting.
+Validate joins, metric denominators, permissions and endpoint behavior before implementation.
+
+### Open Messaging correction
+
+Use `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message`, with
+integration-scoped event and receipt endpoints as needed. The old catch-all
+`/api/v2/conversations/messages/inbound/open` is deprecated, with removal announced for
+2026-10-05. The previously suggested generic provider-call injection endpoint was
+unverified and has been removed from active guidance.
+[Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).

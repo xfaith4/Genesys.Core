@@ -6,7 +6,6 @@ This is the v2 lane layout and canonical navigation map.
 Genesys.Core/
 ├── README.md
 ├── TESTING.md
-├── GenesysCore-GUI.ps1                    # Windows WPF GUI client
 ├── genesys.env.json.example
 ├── modules/
 │   ├── Genesys.Auth/

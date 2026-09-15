@@ -43229,7 +43229,15 @@
           "evaluationScore",
           "csatScore",
           "wrapUpCode"
-        ]
+        ],
+        "enrichWith": [
+          "getConversationsCallback (callback-type conversations only — scheduled callback time, attempt count, callback number; join on conversationId)",
+          "getConversationsMessage + getConversationsMessageDetails (digital/message-type conversations only — full message thread and content beyond the generic conversation object)",
+          "getConversationRecordingAnnotations (QM annotation markers on an existing recording; join on conversationId+recordingId from recording-metadata)",
+          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       },
       "agent-investigation": {
         "description": "Multi-dimensional investigation of a single agent — identity, division, skills, queue memberships, conversation history, performance aggregates, quality scores, adherence, and coaching. Used for performance reviews, PIPs, and escalation root-cause. Divisions are the cross-queue grouping unit: an agent's divisionId ties them to queues across the organisation regardless of queue configuration.",
@@ -43593,7 +43601,13 @@
           "estWaitTimeSecs",
           "oOnQueueUsers",
           "oWaiting"
-        ]
+        ],
+        "enrichWith": [
+          "getVoicemailQueueMessages (queue voicemail backlog; join on queueId, only relevant for queues with voicemail enabled)",
+          "getRoutingQueueMediatypeEstimatedwaittime (per-mediaType EWT — finer-grained than the estimated-wait-time step for queues that mix voice, chat, and email with different EWT profiles)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       },
       "division-investigation": {
         "description": "Cross-queue analysis scoped to a division. Divisions are the primary organisational grouping in Genesys Cloud — agents assigned to a division serve queues in that division, even if those queues span different functional areas. Use this recipe to produce territory/region or business-unit level executive reporting.",
@@ -43677,7 +43691,14 @@
           "evalAvgScore",
           "agentCount",
           "queueCount"
-        ]
+        ],
+        "enrichWith": [
+          "getGroup + getGroupMembers (org-level group membership — a division-scoped team may also be organised as a Genesys group; use when division-agents membership doesn't fully explain a reporting structure)",
+          "getAuthorizationRoleUsers (resolve which users hold a given role; pair with division-grants to answer who specifically holds a role in this division)",
+          "getAuthorizationRoleSubjectgrants (the exact division+role grant record for a subject — the authoritative source behind the division-grants step)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       },
       "real-time-operations-monitoring": {
         "description": "Point-in-time snapshot of contact-centre health for a NOC/real-time analyst or supervisor wallboard. No historical window — every step reflects current state as of the API call and is intended to be polled, not run once.",
@@ -43770,19 +43791,31 @@
             "dataset": "alerting.get.alerts",
             "provides": "currently-firing threshold alerts",
             "description": "Any alert already firing for a monitored metric — correlate against the steps above before manual triage"
+          },
+          {
+            "step": "screen-recording-capacity",
+            "dataset": "getRecordingsScreensessionsDetails",
+            "audience": [
+              "voice-engineer",
+              "supervisor"
+            ],
+            "provides": "org-wide count of concurrently active screen-recording sessions",
+            "description": "Capacity/licensing signal — correlate against active-alerts when screen-recording SLA or license ceiling is a suspected cause of missing recordings"
           }
         ],
-        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop.",
+        "pollingNote": "queue-observations, conversation-activity, and user-observations do not accept interval parameters; they reflect current state. Poll at 10–30s intervals for a wallboard. agent-drilldown/agent-active-conversations/agent-routing-status are single-subject and intended for on-click drilldown, not the polling loop. For a wallboard or alerting pipeline held open longer than a minute, or watching more than a handful of queues/agents, prefer the event-driven realtime-notification-channel-strategy recipe instead of polling these three steps on a timer.",
         "executiveMetrics": [
           "oInteracting",
           "oWaiting",
           "oOnQueueUsers",
           "oLongestWaiting",
           "oActiveUsers"
-        ]
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       },
       "byoi-conversation-enrichment": {
-        "description": "Enrichment recipe for a conversation injected via the Bring Your Own Instance (BYOI) provider API. Runs alongside single-conversation-investigation to surface external-system provenance — CRM case IDs, external call IDs, and provider SIP-to-SIP handoff — for a conversation that did not originate as an inbound PSTN call.",
+        "description": "Enrichment recipe for a conversation that originated outside native inbound PSTN routing — injected as a voice/agentless conversation object, or delivered through a third-party channel wired up via an Open Messaging integration. Runs alongside single-conversation-investigation to surface external-system provenance: CRM case IDs, external call IDs, and (for voice) the provider's SIP-to-SIP handoff. Note: 'BYOI' (Bring Your Own Interactions) is Genesys's name for a related but distinct capability — batch/near-real-time ingestion of interaction records and agent-state events from an external ACD for Analytics/WFM/QM parity, with no live Genesys call control. Its ingestion endpoint is not yet present in this catalog's endpoint inventory (see identificationRule) and should be confirmed against the live API Explorer before automating against it; this recipe covers the endpoints that ARE verified in-catalog.",
         "subjectParam": "conversationId",
         "windowRequired": false,
         "steps": [
@@ -43792,7 +43825,7 @@
             "role": "seed",
             "joinKey": "conversationId",
             "provides": "externalTag, externalConversationId, participants[].purpose=external, participants[].externalContactId",
-            "description": "A non-null externalTag is the definitive BYOI indicator; externalConversationId is the provider's own identifier for the same interaction"
+            "description": "An externalTag can correlate external records but does not establish integration origin; verify provider or trunk evidence separately."
           },
           {
             "step": "custom-attributes",
@@ -43839,14 +43872,686 @@
             ],
             "provides": "SIP signalling trace",
             "description": "Reflects the provider's SIP-to-SIP handoff (injection leg), not an inbound PSTN leg — expect a different call-setup pattern than native voice conversations"
+          },
+          {
+            "step": "digital-message-envelope",
+            "dataset": "getConversationsMessage",
+            "joinKey": "conversationId",
+            "audience": [
+              "digital-analyst"
+            ],
+            "condition": "conversations.get.conversation.object.participants[].messages non-empty (message-media BYOI conversation, not voice)",
+            "provides": "provider/messaging metadata — fromAddress, toAddress, messageType, provider-specific envelope",
+            "description": "Digital-channel counterpart to the SIP trace step — confirms the Open Messaging integration that originated the conversation and its addressing, for chat/SMS/social BYOI conversations"
           }
         ],
-        "identificationRule": "conversations.get.conversation.object.externalTag != null identifies a BYOI-injected conversation. Injection occurs via POST /api/v2/conversations/providers/{providerId}/calls; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) uses the same object shape and needs no BYOI-specific handling.",
+        "identificationRule": "externalTag is a correlation hint, not proof of BYOI origin. Confirm integration identity from message/provider metadata or the configured voice trunk and SIP evidence. For Open Messaging, use POST /api/v2/conversations/messages/{integrationId}/inbound/open/message and the paired event/receipt endpoints. The legacy catch-all /api/v2/conversations/messages/inbound/open is deprecated; Genesys announces removal on 2026-10-05. No generic voice-injection REST endpoint is established by this recipe.",
         "executiveMetrics": [
-          "externalTag coverage % (BYOI volume vs. native)",
-          "tHandle (BYOI vs. native comparison)",
-          "evaluationScore (BYOI vs. native comparison)"
-        ]
+          "externalTag coverage % (externally-provenanced volume vs. native)",
+          "tHandle (externally-provenanced vs. native comparison)",
+          "evaluationScore (externally-provenanced vs. native comparison)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "customer-journey-and-external-contact-enrichment": {
+        "description": "Enrichment recipe linking a conversation's customer to their CRM identity (External Contacts) and pre-contact digital journey (Predictive Engagement). Runs alongside single-conversation-investigation whenever a participant carries an externalContactId. Answers: who is this customer, what did they do online before calling, and did self-service fail them? Rolls up to the customer-journey-attribution executive playbook for journey-to-contact conversion reporting.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-participants",
+            "dataset": "conversations.get.specific.conversation.details",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].externalContactId, participants[].purpose",
+            "description": "Identify which participant(s) carry an externalContactId — the join key into External Contacts. Absence of an externalContactId on the customer participant means no CRM match was made; the recipe short-circuits here for that conversation."
+          },
+          {
+            "step": "contact-identity",
+            "dataset": "getExternalcontactsContact",
+            "joinKey": "externalContactId",
+            "provides": "name, title, workPhone, organization link, twitterId",
+            "description": "CRM identity record for the customer — resolves an anonymous ANI/participant to a known contact."
+          },
+          {
+            "step": "contact-notes",
+            "dataset": "getExternalcontactsContactNotes",
+            "joinKey": "externalContactId",
+            "provides": "prior interaction notes left by agents or integrations",
+            "description": "Free-text history on the contact — repeat-contact context without re-listening to prior calls."
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "getExternalcontactsContactJourneySessions",
+            "joinKey": "externalContactId",
+            "provides": "sessionId list, device, channel, first/last seen timestamps",
+            "description": "Web/app browsing sessions Predictive Engagement attributes to this contact, spanning before and after the call."
+          },
+          {
+            "step": "journey-events",
+            "dataset": "getJourneySessionEvents",
+            "joinKey": "sessionId",
+            "provides": "pageview, event, and segment-triggered actions within a session",
+            "description": "The pages/actions the customer took online — e.g. abandoned a cart or repeatedly viewed a billing FAQ before calling. sessionId comes from journey-sessions."
+          },
+          {
+            "step": "journey-outcome-scores",
+            "dataset": "getJourneySessionOutcomescores",
+            "joinKey": "sessionId",
+            "provides": "outcomeId, score per configured Predictive Engagement outcome",
+            "description": "Scored likelihood the session was working toward a configured outcome (e.g. 'Purchase', 'Support Escalation'). A high score followed by a phone contact is a self-service-failure signal."
+          },
+          {
+            "step": "outcome-catalog",
+            "dataset": "getJourneyOutcomes",
+            "provides": "outcomeId -> name mapping",
+            "description": "Resolves outcome IDs from journey-outcome-scores to human-readable names for reporting."
+          }
+        ],
+        "joinSequence": "conversation-participants (externalContactId) → contact-identity → contact-notes → journey-sessions (externalContactId) → journey-events (sessionId) → journey-outcome-scores (sessionId) → outcome-catalog (label resolution)",
+        "diagnosticSignals": [
+          "High journey-outcome-score session immediately followed by a phone contact in the same window → self-service, IVR, or bot deflection likely failed at the final step; review the session's last events before the call",
+          "Same ANI recurs across multiple conversations with no externalContactId on any of them → CRM identity-resolution gap, not a customer-behaviour issue; check the External Contacts matching rules",
+          "journey-sessions returns no rows for a matched contact → the contact has no tracked digital footprint (call-only customer, or the web/app deployment snippet is not tagging sessions for this contact)"
+        ],
+        "executiveMetrics": [
+          "journeyMatchRate% = conversations with a resolved externalContactId / total conversations",
+          "avgSessionsBeforeContact",
+          "highOutcomeScoreBeforeContact% = sessions with outcomeScore above threshold that ended in a phone contact (self-service-failure indicator)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "queue-overflow-and-deflection-analysis": {
+        "description": "Quantifies how many contacts that could not be answered in-queue overflowed to a callback offer or a voicemail box, instead of abandoning outright. Runs alongside queue-investigation to complete the 'what happened to unanswered contacts' picture — raw abandon metrics alone do not distinguish a lost contact from a deflected one.",
+        "subjectParam": "queueId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "queue-abandons",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "nAbandoned, tAbandon, tShortAbandon, nOffered",
+            "description": "Baseline abandon volume from queue-investigation — the denominator this recipe explains."
+          },
+          {
+            "step": "callback-offers",
+            "dataset": "conversations.get.active.callbacks",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "queueId",
+            "provides": "callback conversationId, scheduled callback time, status (pending/connected/cancelled)",
+            "description": "Callbacks offered from this queue in the window. A customer who accepted a callback should not be counted as a lost contact even though the original interaction shows as abandoned/disconnected."
+          },
+          {
+            "step": "voicemail-overflow",
+            "dataset": "getVoicemailQueueMessages",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "voicemail message count, duration, read status",
+            "description": "Voicemails deposited when the queue's voicemail-on-overflow policy triggered — the queue's final overflow path after hold and callback are exhausted."
+          },
+          {
+            "step": "wrapup-cross-check",
+            "dataset": "analytics.query.conversation.aggregates.wrapup.distribution",
+            "joinKey": "queueId",
+            "provides": "wrapUpCode distribution, including any callback- or voicemail-specific codes",
+            "description": "Cross-checks whether overflowed contacts are wrapped up distinctly from directly-handled ones, so the deflection metrics below reconcile against wrapup volume."
+          }
+        ],
+        "joinSequence": "queue-abandons (seed) → callback-offers (queueId) → voicemail-overflow (queueId) → wrapup-cross-check (queueId)",
+        "derivedMetrics": [
+          "deflectionRate% = (callbacksAccepted + voicemailsLeft) / nOffered",
+          "trueAbandonRate% = (nAbandoned - callbacksAccepted - voicemailsLeft) / nOffered",
+          "callbackAcceptanceRate% = callbacksAccepted / callbacksOffered"
+        ],
+        "diagnosticSignals": [
+          "nAbandoned high but deflectionRate% also high → overflow paths are working as designed; the true lost-contact rate is lower than the raw abandon metric suggests",
+          "voicemail-overflow volume rising with flat callback-offers → callback may not be enabled or reachable on this queue; check queue-config acwSettings/mediaSettings for a callback configuration gap",
+          "callbackAcceptanceRate% low → the callback-offer prompt or timing may be poorly placed in the IVR flow; correlate with flow-and-ivr-diagnostics"
+        ],
+        "executiveMetrics": [
+          "deflectionRate%",
+          "trueAbandonRate%",
+          "callbackAcceptanceRate%",
+          "voicemailVolume"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "realtime-notification-channel-strategy": {
+        "description": "Event-driven alternative to the polling pattern in real-time-operations-monitoring. Genesys Cloud's Notifications API pushes state changes over a websocket the instant they occur, eliminating polling latency and the wasted API calls of unchanged-state polls. Recommended for any wallboard, alerting pipeline, or supervisor UI that stays open longer than a minute or watches more than a handful of queues/agents.",
+        "subjectParam": "organizationWide (topic-scoped, not a single subject)",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "list-available-topics",
+            "dataset": "notifications.get.available.notification.topics",
+            "role": "seed",
+            "provides": "topic template catalog, e.g. v2.routing.queues.{id}.conversations, v2.users.{id}.presence",
+            "description": "Enumerate valid topic templates before subscribing — confirms the exact topic string and whether it requires a specific permission or license."
+          },
+          {
+            "step": "create-channel",
+            "dataset": "postNotificationsChannels",
+            "provides": "channelId, connectUri (wss:// websocket endpoint), expires",
+            "description": "Opens a notification channel; the returned connectUri is the websocket to hold open for pushed events. Channels expire and must be recreated or refreshed before that time."
+          },
+          {
+            "step": "subscribe-topics",
+            "dataset": "postNotificationsChannelSubscriptions",
+            "filterBy": "channelId",
+            "joinKey": "channelId",
+            "provides": "confirms subscribed topic list",
+            "description": "Subscribes the channel to specific queue/user/conversation topics — e.g. one v2.routing.queues.{queueId}.conversations per monitored queue, one v2.users.{userId}.routingStatus per monitored agent."
+          },
+          {
+            "step": "verify-subscriptions",
+            "dataset": "getNotificationsChannelSubscriptions",
+            "filterBy": "channelId",
+            "joinKey": "channelId",
+            "provides": "current subscription list for the channel",
+            "description": "Confirms what a channel is actually subscribed to — useful when reconciling a long-lived wallboard connection against its expected queue/agent scope."
+          }
+        ],
+        "joinSequence": "list-available-topics (seed) → create-channel → subscribe-topics (channelId) → verify-subscriptions (channelId)",
+        "topicsOfInterest": [
+          "v2.routing.queues.{id}.conversations — pushed the instant a conversation enters, leaves, or changes state in the queue",
+          "v2.analytics.queues.{id}.observations — pushed queue-level real-time-stat deltas (oWaiting, oInteracting, oOnQueueUsers)",
+          "v2.users.{id}.presence — pushed the instant an agent's system presence changes",
+          "v2.users.{id}.routingStatus — pushed the instant an agent's ACD routing status changes; replaces polling for the NOT_RESPONDING signal used in agent-not-responding-autoanswer",
+          "v2.analytics.users.{id}.observations — pushed per-agent real-time observation deltas"
+        ],
+        "tradeoffNote": "Use the polling steps in real-time-operations-monitoring for a small number of one-off or infrequent lookups. Prefer notification channels for anything held open longer than a minute or covering more than a handful of queues/agents — a channel carries a maximum number of topic subscriptions, so a large wallboard needs multiple channels fanned out by queue/agent group.",
+        "executiveMetrics": [
+          "notificationLatencyMs (push vs. poll interval saved)",
+          "apiCallsAvoidedPerHour (channel subscriptions vs. equivalent polling cadence)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "embeddable-framework-digital-engagement-investigation": {
+        "description": "Investigation of a web messaging/webchat conversation carried over the Embeddable Framework, enriched with cobrowse and screen-share session detail. The Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state, participants[].calls[].state/muted/held) is the same object shape returned by conversations.get.conversation.object — this recipe adds the digital-engagement features (cobrowse, screen-share, typing) that BYOI/voice recipes do not cover. Used when a customer or agent reports the embedded chat widget misbehaving: cobrowse invite never accepted, screen-share failing to start, or the widget showing stale participant state.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].purpose, participants[].state, participants[].calls[].state/muted/held — the condensed conversation shape the Embeddable Framework widget renders",
+            "description": "Same object shape as the widget's own condensed view; confirms Genesys Cloud's server-side state matches what the customer/agent widget displayed"
+          },
+          {
+            "step": "webdeployment-config",
+            "dataset": "getWebdeploymentsDeployment",
+            "filterBy": "deploymentId (from conversation origin/custom attributes)",
+            "joinKey": "deploymentId",
+            "provides": "allowed features for the deployment — whether cobrowse/screen-share/messenger was enabled for this widget instance",
+            "description": "Confirms the feature was actually enabled in the published configuration at conversation time; a disabled feature is the most common root cause for 'the button did nothing'"
+          },
+          {
+            "step": "cobrowse-sessions",
+            "dataset": "getConversationsCobrowsesessions",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "cobrowse session id(s) associated with the conversation, if any were started",
+            "description": "Empty result with webdeployment-config showing cobrowse enabled indicates the customer/agent never launched cobrowse, not a configuration fault"
+          },
+          {
+            "step": "cobrowse-session-detail",
+            "dataset": "getConversationsCobrowsesession",
+            "joinKey": "cobrowseSessionId",
+            "provides": "session state, recordingState, participant list",
+            "description": "Session stuck in a pending/requesting state indicates the invite was sent but never accepted — check agent-side popup blocking or browser compatibility"
+          },
+          {
+            "step": "cobrowse-participant-wrapup",
+            "dataset": "getConversationsCobrowsesessionParticipantWrapup",
+            "joinKey": "participantId",
+            "provides": "wrapUpCode recorded for the cobrowse participant leg",
+            "description": "Confirms the cobrowse leg was formally closed out rather than abandoned mid-session"
+          },
+          {
+            "step": "screenshare-wrapup",
+            "dataset": "getConversationsScreenshareParticipantCommunicationWrapup",
+            "joinKey": "participantId+communicationId",
+            "provides": "wrapUpCode for the screen-share communication leg, if screen-share was used",
+            "description": "Absent while cobrowse-sessions has data indicates screen-share was declined, unsupported by the browser, or never offered"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "deploymentId, journey/customer context set at conversation start",
+            "description": "Source of the deploymentId used to join webdeployment-config when it is not already known"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "widget-set participant variables (page URL, referrer, journey context)",
+            "description": "Confirms what page/context the customer was on when the widget session started"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores if the digital interaction was reviewed",
+            "description": "Digital-channel evaluations follow the same evaluation pipeline as voice/chat"
+          }
+        ],
+        "joinSequence": "seed (conversation-object) → custom-attributes (deploymentId) → webdeployment-config (deploymentId) → cobrowse-sessions (conversationId) → cobrowse-session-detail (cobrowseSessionId) → cobrowse-participant-wrapup / screenshare-wrapup (participantId)",
+        "diagnosticSignals": [
+          "webdeployment-config shows cobrowse/screen-share disabled but the customer reports seeing the button → stale client cache serving an old published version; check webdeployments configuration versions/draft vs. published",
+          "cobrowse-sessions empty despite feature enabled → widget never launched cobrowse; not a platform fault",
+          "cobrowse-session-detail state stuck pending/requesting → invite sent but never accepted; check agent-side popup blocking or unsupported browser",
+          "cobrowse-participant-wrapup missing while session-detail shows an ended state → session dropped without formal close, investigate network stability on that leg",
+          "screenshare-wrapup absent while cobrowse-sessions has data → screen-share declined or unsupported by the browser; cobrowse and screen-share are independent features"
+        ],
+        "identificationRule": "Use application deployment/integration logs and verified participant metadata to establish whether an embedded client was involved. originatingDirection and externalTag alone do not identify a deployment or prove BYOI origin.",
+        "executiveMetrics": [
+          "cobrowseSessionCount",
+          "screenShareSessionCount",
+          "cobrowseAcceptanceRate% (sessions reaching an active state / sessions requested)",
+          "avgCobrowseDurationSecs"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "customer-360-contact-history": {
+        "description": "Enrichment recipe keyed off a customer's externalContactId to build a Customer 360 view spanning every conversation, note, and organization relationship on file. Runs alongside single-conversation-investigation or byoi-conversation-enrichment whenever a participant carries an externalContactId, and independently for repeat-contact / VIP-customer investigations that start from a known contact rather than a single call.",
+        "subjectParam": "externalContactId",
+        "windowRequired": false,
+        "sourcingNote": "externalContactId is surfaced by conversations.get.conversation.object and analytics.get.single.conversation.analytics under participants[].externalContactId. It is populated for both native external-participant contacts and BYOI-injected conversations (see byoi-conversation-enrichment) — there is no separate lookup required to discover it once a conversationId is known.",
+        "steps": [
+          {
+            "step": "contact-record",
+            "dataset": "getExternalcontactsContact",
+            "role": "seed",
+            "joinKey": "externalContactId",
+            "provides": "name, title, workPhone/cellPhone/email addresses, twitterId, lineId, whatsappId, address, division",
+            "description": "Core contact profile. Confirms the identity behind the conversation's external participant and the division the contact record is scoped to."
+          },
+          {
+            "step": "contact-identifiers",
+            "dataset": "getExternalcontactsContactIdentifiers",
+            "joinKey": "externalContactId",
+            "provides": "alternate identifiers (loyalty ID, CRM ID, custom identifier types) mapped to this contact",
+            "description": "Resolves the contact against external CRM/loyalty identifiers — the join key back to the customer's system of record."
+          },
+          {
+            "step": "contact-notes",
+            "dataset": "getExternalcontactsContactNotes",
+            "joinKey": "externalContactId",
+            "provides": "agent- and system-authored notes with createdDate and createdBy",
+            "description": "Prior context left by agents on previous contacts — read before the current conversation to understand repeat-contact history."
+          },
+          {
+            "step": "organization-relationships",
+            "dataset": "getExternalcontactsOrganizationContacts",
+            "joinKey": "externalOrganizationId (from contact-record.externalOrganization.id)",
+            "provides": "sibling contacts at the same organization, titles, relationship type",
+            "description": "For B2B contacts, surfaces who else at the same account has been in contact — useful for escalations that span multiple stakeholders."
+          },
+          {
+            "step": "case-history",
+            "dataset": "getCasemanagementCasesExternalcontact",
+            "joinKey": "externalContactId",
+            "provides": "open/closed case IDs, case titles, status",
+            "description": "Case Management cases already opened against this contact — prevents duplicate case creation and surfaces unresolved threads."
+          },
+          {
+            "step": "conversation-history",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participants[].externalContactId",
+            "joinKey": "externalContactId",
+            "provides": "every prior conversationId, queueId, mediaType, and outcome for this contact in the query window",
+            "description": "The contact's full interaction history across channels — the definitive answer to 'how many times has this customer called, and about what.'"
+          }
+        ],
+        "identificationRule": "A conversation carries a resolvable customer context whenever conversations.get.conversation.object.participants[].externalContactId is non-null. Absence of an externalContactId means the customer was never matched or promoted to an External Contacts record (see postExternalcontactsContactPromotion) and this recipe has nothing to enrich.",
+        "voiceEngineerHighlights": [
+          "conversation-history repeat-contact count within a short window (e.g. 3+ contacts in 24h) is a strong signal of an unresolved or mis-routed issue worth escalating beyond a single-call fix",
+          "contact-notes left by a prior agent often already document a workaround or known defect — check before re-diagnosing from scratch"
+        ],
+        "executiveMetrics": [
+          "repeatContactRate (contacts with >1 conversation in the reporting window / total contacts)",
+          "avgConversationsPerContact",
+          "caseBacklogPerContact"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "team-investigation": {
+        "description": "Cross-queue, cross-division performance rollup scoped to a Genesys Cloud Team (/api/v2/teams) rather than a Division. Teams are a lighter-weight organizational grouping used by supervisors and WFM to cluster agents by reporting line or shift crew — a team's members are not required to share a division or a queue set, so this recipe is the correct entry point when the investigation boundary is 'who reports to this supervisor' rather than 'which business unit owns this data.'",
+        "subjectParam": "teamId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "team-detail",
+            "dataset": "getTeams",
+            "role": "seed",
+            "filterBy": "teamId",
+            "joinKey": "id",
+            "provides": "name, description, division reference, memberCount",
+            "description": "Team metadata, including which division(s) the team's members are drawn from."
+          },
+          {
+            "step": "team-members",
+            "dataset": "getTeamMembers",
+            "joinKey": "teamId",
+            "provides": "userId list with name and state for every member of the team",
+            "description": "Definitive membership roster — drives every per-agent join below. Use postTeamsSearch instead of getTeams when the team is known by name rather than teamId."
+          },
+          {
+            "step": "team-activity",
+            "dataset": "postAnalyticsTeamsActivityQuery",
+            "filterBy": "teamId",
+            "joinKey": "teamId",
+            "provides": "aggregated routing-status time-in-state and on-queue metrics rolled up at the team level",
+            "description": "Team-level activity aggregate — the fastest single call for a supervisor's shift-crew summary, before drilling into individual agents."
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per team member",
+            "description": "Per-agent conversation volume and handle-time for everyone on the team, for ranking within the crew."
+          },
+          {
+            "step": "quality-by-team",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from team-members",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore per team member",
+            "description": "Quality coverage and scores for the team — pairs with agent-performance for a one-screen team scorecard."
+          }
+        ],
+        "teamVsDivisionNote": "Use divisionId (division-investigation) when the boundary is data access / business-unit reporting; use teamId (this recipe) when the boundary is a supervisor's direct reports or a scheduling crew. A team's members can span multiple divisions and queues — team-members is the only reliable source of the roster, do not assume a shared division or queue set.",
+        "executiveMetrics": [
+          "teamHeadcount",
+          "nConnected (team total)",
+          "tHandle (team avg)",
+          "evalAvgScore (team avg)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "open-messaging-digital-injection-investigation": {
+        "description": "Provenance and delivery trace for a digital conversation delivered through a third-party channel wired up via a Genesys Cloud Open Messaging integration (the verified, in-catalog mechanism for bringing a custom or BYO messaging channel into Genesys queues — SMS gateways, custom chat widgets, proprietary messaging apps). Complements byoi-conversation-enrichment, which is voice/SIP-focused; this recipe is for the digital-channel equivalent, used by integration engineers and digital-channel supervisors investigating a specific injected conversation or auditing which providers are driving digital volume.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "integration-inventory",
+            "dataset": "getConversationsMessagingIntegrationsOpen",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "integrationId, name, webhook/outbound notification config, supported content types",
+            "description": "Enumerates configured Open Messaging integrations; use to resolve which provider handled a given conversation and to scope an audit of all injected-channel volume"
+          },
+          {
+            "step": "integration-detail",
+            "dataset": "getConversationsMessagingIntegrationsOpenIntegrationId",
+            "filterBy": "integrationId",
+            "joinKey": "integrationId",
+            "provides": "full integration configuration — outbound notification webhook URL, supported content",
+            "description": "Detailed config for one integration when narrowing from the inventory to a single provider"
+          },
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "joinKey": "conversationId",
+            "provides": "participants[].purpose, mediaType=message, queue assignment, start/end times",
+            "description": "Base conversation object — same shape as any other conversation regardless of digital-channel origin"
+          },
+          {
+            "step": "message-details",
+            "dataset": "getConversationsMessageDetails",
+            "joinKey": "conversationId (via messageId)",
+            "provides": "full message content, direction, timestamps per message in the conversation",
+            "description": "Message-level detail beyond the conversation object's summary view — useful for reconstructing the exact exchange"
+          },
+          {
+            "step": "cached-media",
+            "dataset": "getConversationsMessagesCachedmedia",
+            "joinKey": "conversationId",
+            "provides": "attachments/media sent through the channel (images, documents)",
+            "description": "Present only when the provider/channel supports media attachments"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "getConversationsMessageParticipantWrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode selected by the handling agent",
+            "description": "Wrapup outcome for the digital conversation, same as any native message conversation"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "queue wait, handle time, ACW segments",
+            "description": "Confirms the injected conversation routed and was handled through the standard ACD pipeline"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "QM evaluation scores if the conversation was evaluated",
+            "description": "Evaluations proceed normally for injected digital conversations"
+          }
+        ],
+        "identificationRule": "A conversation whose mediaType is 'message' and whose owning integration appears in getConversationsMessagingIntegrationsOpen (as opposed to the first-party apple/facebook/instagram/twitter/whatsapp integration lists) was delivered through a custom Open Messaging provider — the mechanism third parties use to bring their own digital channel into Genesys Cloud. Injection is provider-initiated: the external system POSTs to postConversationsMessageInboundOpenMessage (or ...OpenEvent / ...OpenReceipt for typing/read-receipt signals) using the integrationId from postConversationsMessagingIntegrationsOpen's registration response.",
+        "executiveMetrics": [
+          "conversation volume by integrationId (provider mix)",
+          "tHandle by integrationId",
+          "evaluationScore by integrationId",
+          "attachment/media usage rate"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "skill-coverage-gap-analysis": {
+        "description": "Cross-queue, cross-division staffing gap analysis for skill-based routing. Skills are assigned to agents independently of queue or division membership, so a skill shortage is invisible to a single-queue or single-division investigation — an agent's skills follow them across every queue and division they serve. Use this recipe to find skills where qualified-agent supply cannot cover requested-skill demand.",
+        "subjectParam": "skillId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "skill-catalog",
+            "dataset": "routing.get.all.routing.skills",
+            "role": "seed",
+            "filterBy": "skillId (optional; omit for org-wide sweep)",
+            "joinKey": "id",
+            "provides": "skill id and name catalog",
+            "description": "The full set of routing skills configured in the org, or a single skill when scoped"
+          },
+          {
+            "step": "skill-groups",
+            "dataset": "routing.get.skill.groups",
+            "joinKey": "skillIds[] contains skillId",
+            "provides": "skill group membership counts and memberDivisionIds",
+            "description": "Skill groups aggregate related skills and are themselves division-scoped — the first place a division-level skill gap becomes visible"
+          },
+          {
+            "step": "agent-roster",
+            "dataset": "users",
+            "role": "fan-out source",
+            "provides": "userId list of active agents to check for skill assignment",
+            "description": "Base population for the per-agent skill fan-out below; filter to active/non-inactive users"
+          },
+          {
+            "step": "agent-skill-assignment",
+            "dataset": "users.get.user.routing.skills",
+            "filterBy": "userId (fan-out over agent-roster)",
+            "joinKey": "userId",
+            "provides": "per-agent skill id, proficiency, and state",
+            "description": "Qualified-agent count for the target skill is the number of agents whose routing skills include skillId with state=active"
+          },
+          {
+            "step": "conversation-demand",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "window + requestedRoutingSkillIds contains skillId",
+            "joinKey": "conversationId",
+            "provides": "conversations that requested this skill, their queueId, and outcome (answered/abandoned/transferred)",
+            "description": "Demand-side signal — conversation session records carry requestedRoutingSkillIds; volume here is the denominator for coverage ratio"
+          },
+          {
+            "step": "queue-performance-for-affected-queues",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId list derived from conversation-demand",
+            "joinKey": "queueId",
+            "provides": "nOffered, nAbandoned, tHandle for queues that route on this skill",
+            "description": "Confirms whether skill scarcity is actually producing queue-level pain (abandons, long waits) or is a latent gap with no material impact yet"
+          },
+          {
+            "step": "division-crosscut",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from agent-skill-assignment",
+            "joinKey": "userId",
+            "provides": "divisionId per qualified agent",
+            "description": "Breaks the qualified-agent count out by division — a skill can be adequately staffed org-wide but critically short in one division's agent pool"
+          }
+        ],
+        "identificationRule": "Coverage ratio = count(agents with this skill, state=active) / count(conversations requesting this skill in window). A ratio trending down over successive windows while nAbandoned rises for the affected queues is the actionable signal — not the raw agent count alone.",
+        "executiveMetrics": [
+          "qualifiedAgentCount (by skill, by division)",
+          "skillRequestVolume (nConversations requesting skillId)",
+          "coverageRatio (qualifiedAgentCount / skillRequestVolume)",
+          "abandonRate% for skill-affected queues",
+          "divisionsBelowCoverageThreshold (count)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "alert-root-cause-drilldown": {
+        "description": "Turns a firing platform alert into an actionable diagnosis by resolving the alert to its rule definition and then to the live metric that breached threshold. Designed to sit on top of real-time-operations-monitoring: an alert list by itself just says something crossed a line, this recipe says which line, on which resource, and what to check next.",
+        "subjectParam": "alertId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "firing-alert",
+            "dataset": "alerting.get.alerts",
+            "role": "seed",
+            "filterBy": "alertId",
+            "joinKey": "id",
+            "provides": "ruleId, resourceId, resourceType, triggeredTime, currentValue",
+            "description": "The alert instance — identifies which rule fired and against which resource"
+          },
+          {
+            "step": "rule-definition",
+            "dataset": "alerting.get.rules",
+            "filterBy": "ruleId",
+            "joinKey": "id",
+            "provides": "metric name, comparison operator, threshold value, notification targets",
+            "description": "Explains why the alert fired — the exact metric and threshold that was breached, not just that something was 'bad'"
+          },
+          {
+            "step": "resource-drilldown-queue",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "filterBy": "resourceId (when resourceType=queue)",
+            "joinKey": "queueId",
+            "provides": "current oWaiting, oInteracting, oOnQueueUsers for the alerting queue",
+            "description": "Confirms the breach is still live and quantifies current severity — branch taken only when the alert's resourceType is a queue"
+          },
+          {
+            "step": "resource-drilldown-edge-trunk",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "filterBy": "resourceId (when resourceType=edge or trunk)",
+            "joinKey": "edgeId",
+            "provides": "CPU, memory, active call count on the alerting Edge appliance",
+            "description": "Branch taken only when the alert's resourceType is telephony infrastructure; pair with telephony.get.trunk.metrics.summary for trunk-scoped alerts"
+          },
+          {
+            "step": "resource-drilldown-user",
+            "dataset": "analytics.query.user.observations.real.time.status",
+            "filterBy": "resourceId (when resourceType=user)",
+            "joinKey": "userId",
+            "provides": "current presence and routing status for the alerting agent",
+            "description": "Branch taken only when the alert's resourceType is a user (e.g. adherence or long-not-responding alerts)"
+          },
+          {
+            "step": "recent-trend-confirmation",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "resourceId, short trailing window (e.g. last 1-4 hours)",
+            "joinKey": "queueId",
+            "provides": "whether the breach is a spike or a sustained trend",
+            "description": "Distinguishes a transient blip (self-resolving) from a sustained condition (needs staffing/config action) — the difference that keeps this from being a data dump"
+          }
+        ],
+        "identificationRule": "resourceType on the alert instance determines which drilldown branch applies — route to exactly one of resource-drilldown-queue / resource-drilldown-edge-trunk / resource-drilldown-user, never all three. This recipe composes with queue-investigation, trunk-and-edge-health-check, or agent-investigation for the follow-up deep dive once the resource is identified.",
+        "executiveMetrics": [
+          "alertsFired (count, by rule, by resourceType)",
+          "meanTimeToAcknowledge (if alert history retained)",
+          "sustainedVsTransientRatio",
+          "alertsWithNoConfiguredRule (coverage gap — metric breaches not currently alerted on)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-engagement-journey-correlation": {
+        "description": "Correlates a web messaging/chat conversation with the Predictive Engagement action map that produced it, for investigating proactive-offer effectiveness and Embeddable Framework widget behaviour. Complements byoi-conversation-enrichment: BYOI explains conversations injected from an external telephony/CRM system, this recipe explains digital conversations originated by an on-site journey trigger rather than a customer-initiated chat.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "conversation-object",
+            "dataset": "conversations.get.conversation.object",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType, participants[].purpose, originatingDirection",
+            "description": "Confirms this is a digital (message/chat) conversation and identifies the customer participant; the Embeddable Framework's condensed conversation view (participants[].purpose, participants[].state) is the same object shape surfaced to the web widget"
+          },
+          {
+            "step": "custom-attributes",
+            "dataset": "conversations.get.conversation.customattributes",
+            "joinKey": "conversationId",
+            "provides": "action-map/campaign attributes set at engagement time (e.g. originating action map id, trigger page URL)",
+            "description": "The primary link from the conversation back to the proactive engagement that started it, when one exists"
+          },
+          {
+            "step": "action-map-catalog",
+            "dataset": "journey.get.action.maps",
+            "joinKey": "attributes action-map id -> action map id",
+            "provides": "action map name, trigger conditions, target segment, offered action (webchat/webMessagingOffer/architectFlow)",
+            "description": "Resolves the id captured in custom attributes to a human-readable campaign definition — what condition on the customer's journey caused this conversation to be offered"
+          },
+          {
+            "step": "participant-attributes",
+            "dataset": "conversations.search.participant.attributes",
+            "joinKey": "conversationId",
+            "provides": "Architect flow variables captured during the digital session",
+            "description": "Same shape as voice IVR variables — useful when the engagement handed off into a bot or Architect flow before reaching an agent"
+          },
+          {
+            "step": "analytics-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "segment timing — wait, handle, disconnect type for the digital session",
+            "description": "Digital conversations still flow through queue/ACW segments identically to voice; use for handle-time comparison against organic (non-triggered) chats"
+          },
+          {
+            "step": "post-chat-survey",
+            "dataset": "quality.get.surveys",
+            "joinKey": "conversationId",
+            "provides": "CSAT/NPS if a post-chat survey was triggered",
+            "description": "Outcome measure for whether the proactive engagement led to a satisfactory interaction"
+          }
+        ],
+        "identificationRule": "A conversation is action-map-originated when conversations.get.conversation.customattributes contains an action-map/journey attribute key; absence of that key means the digital conversation was customer-initiated (organic) rather than proactively triggered. Compare the two populations rather than reporting only on triggered conversations.",
+        "executiveMetrics": [
+          "actionMapAttributedConversationVolume vs. organicDigitalVolume",
+          "conversionRate (offers extended vs. accepted, from action map data)",
+          "avgCsat (triggered vs. organic)",
+          "tHandle (triggered vs. organic)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -43998,7 +44703,9 @@
           "workforce.get.management.units",
           "workforce.get.management.unit.users",
           "workforce.get.management.unit.adherence",
-          "analytics.query.user.aggregates.login.activity"
+          "analytics.query.user.aggregates.login.activity",
+          "postWorkforcemanagementManagementunitAgentschedulesSearch",
+          "postWorkforcemanagementAgentAdherenceExplanationsQuery"
         ],
         "joinOn": "managementUnitId → userId",
         "groupBy": [
@@ -44011,9 +44718,13 @@
           "tOffQueueTime",
           "tIdleTime",
           "scheduleVarianceMinutes",
-          "occupancyPct = tInteracting / tOnQueue"
+          "occupancyPct = tInteracting / tOnQueue",
+          "scheduledShiftMinutes (from the published agent schedule)",
+          "adherenceExceptionCount (per-agent exception count from adherence explanations)"
         ],
-        "executivePresentation": "Adherence heat map by management unit + individual agent variance table"
+        "executivePresentation": "Adherence heat map by management unit + individual agent variance table",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       },
       "outbound-campaign-performance": {
         "description": "Outbound dialer campaign reach rates, contact dispositions, and messaging engagement. Feeds campaign ROI reporting and list penetration tracking.",
@@ -44057,6 +44768,157 @@
           "nFlowMilestone (key-step completion counts)"
         ],
         "executivePresentation": "Containment funnel + flow outcome breakdown; compare bot vs. IVR containment rates"
+      },
+      "customer-journey-attribution": {
+        "description": "Journey-to-contact conversion reporting — what share of conversations trace back to a known digital journey, and how often that journey signalled a self-service failure before the customer called. Feeds CX strategy and self-service investment decisions.",
+        "datasetsInOrder": [
+          "conversations.get.specific.conversation.details",
+          "getExternalcontactsContactJourneySessions",
+          "getJourneySessionOutcomescores",
+          "getJourneyOutcomes"
+        ],
+        "joinOn": "externalContactId → sessionId",
+        "groupBy": [
+          "queueId",
+          "outcomeId",
+          "mediaType"
+        ],
+        "outputMetrics": [
+          "journeyMatchRate%",
+          "avgSessionsBeforeContact",
+          "highOutcomeScoreBeforeContact%",
+          "topOutcomes (by frequency, preceding a contact)"
+        ],
+        "executivePresentation": "Funnel: digital session → high outcome score → phone contact; highlight outcomes with elevated pre-contact scores as self-service investment candidates",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "queue-overflow-and-deflection-kpis": {
+        "description": "Cross-queue rollup of the queue-overflow-and-deflection-analysis recipe — how much abandon volume was actually deflected to a callback or voicemail versus truly lost. The corrective lens on the abandon-rate KPI in service-level-and-abandon-kpis.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "conversations.get.active.callbacks",
+          "getVoicemailQueueMessages"
+        ],
+        "joinOn": "queueId",
+        "groupBy": [
+          "queueId",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "deflectionRate%",
+          "trueAbandonRate%",
+          "callbackAcceptanceRate%",
+          "voicemailVolume"
+        ],
+        "executivePresentation": "Stacked bar per queue: truly lost vs. callback-deflected vs. voicemail-deflected, layered under the standard abandon-rate KPI card",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-journey-conversion-attribution": {
+        "description": "Correlates Predictive Engagement (Journey) web/app session and outcome data with contact-center conversation aggregates to answer 'what digital activity is driving contact volume, and is it converting.' Used in executive reporting to justify or challenge digital self-service investment and to spot journeys that fail to deflect and instead generate avoidable contacts.",
+        "datasetsInOrder": [
+          "getJourneyOutcomes",
+          "postAnalyticsJourneysAggregatesQuery",
+          "getJourneySession",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "customerCookieId / sessionId carried from the journey session into the conversation via externalevents or action-map-triggered engagement, surfaced on the resulting conversation's custom attributes",
+        "groupBy": [
+          "outcomeId",
+          "queueId",
+          "day"
+        ],
+        "outputMetrics": [
+          "journeySessionCount",
+          "outcomeAchievedRate",
+          "actionMapTriggeredConversationCount",
+          "nOffered (queue, same window)",
+          "conversionRate (outcomeAchieved / journeySessionCount)"
+        ],
+        "executivePresentation": "Funnel view: journey sessions -> outcome achieved -> action map fired -> conversation opened -> resolved. Flag outcomes with high session volume but low resolution rate as self-service candidates.",
+        "caveat": "Journey-to-conversation correlation depends on the customerCookieId or a shared identifier being propagated into the conversation's custom attributes by the triggering action map or web messaging integration; conversations with no journey linkage are out of scope for this playbook, not evidence of a broken funnel.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "byoi-and-messaging-integration-coverage": {
+        "description": "Breaks down digital conversation volume by owning messaging integration/provider — first-party (Apple, Facebook, Instagram, Twitter, WhatsApp) vs. custom Open Messaging integrations (the mechanism third parties use to bring their own channel into Genesys Cloud). Answers 'which external provider is driving our digital volume, and is it performing on par with native channels?' — the executive-rollup counterpart to the open-messaging-digital-injection-investigation recipe.",
+        "datasetsInOrder": [
+          "getConversationsMessagingIntegrations",
+          "getConversationsMessagingIntegrationsOpen",
+          "analytics.query.conversation.aggregates.digital.channels",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "integrationId → conversation group (mediaType=message)",
+        "groupBy": [
+          "integrationId",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "nConnected by integrationId",
+          "tHandle by integrationId",
+          "evaluationScore by integrationId",
+          "customIntegrationShare% (Open Messaging volume vs. first-party channel volume)"
+        ],
+        "executivePresentation": "Provider mix donut chart; handle-time/quality comparison table, custom-integration vs. first-party channels",
+        "caveat": "analytics.query.conversation.aggregates.digital.channels groups by mediaType, not integrationId directly — resolving per-provider volume requires joining conversation-level records (conversations.get.conversation.object) to their owning integration, then aggregating; this is a fan-out from the aggregate query, not a single-call rollup.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "coaching-effectiveness-and-score-trend": {
+        "description": "Measures whether coaching activity actually moves quality scores, rather than just reporting that coaching happened. Answers the question a QM/WFM director actually asks before renewing a coaching program: did it work?",
+        "datasetsInOrder": [
+          "coaching.get.appointments",
+          "quality.get.evaluations.query",
+          "quality.get.agents.activity",
+          "analytics.query.conversation.aggregates.agent.performance"
+        ],
+        "joinOn": "userId",
+        "groupBy": [
+          "userId",
+          "divisionId",
+          "coachingAppointmentStatus"
+        ],
+        "outputMetrics": [
+          "coachingSessionCount (completed, in window)",
+          "evalAvgScore (30-day trailing average before first completed coaching session)",
+          "evalAvgScore (30-day trailing average after last completed coaching session)",
+          "scoreDelta (after - before)",
+          "tHandle delta (after - before)",
+          "coachedCohortScoreDelta vs. uncoachedCohortScoreDelta"
+        ],
+        "executivePresentation": "Two-cohort comparison (coached vs. not-coached agents this period) with score-delta bars; per-agent before/after sparkline for the coached cohort only, to keep the view to a single decision-relevant page rather than every agent's full history",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "division-and-business-unit-rollup": {
+        "description": "Compare division-scoped queue and agent performance using an explicit customer-approved mapping from divisions to business units. Queue and user divisions can differ; division membership can change over time.",
+        "datasetsInOrder": [
+          "authorization.get.all.divisions",
+          "authorization.search.division.objects",
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.conversation.aggregates.division.performance",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.user.aggregates.performance.metrics",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "divisionId (queue and user rows resolved to divisionId via division-queues/division-agents membership)",
+        "groupBy": [
+          "divisionId",
+          "mediaType",
+          "day"
+        ],
+        "outputMetrics": [
+          "Queue offers, connected and abandoned counts (queue events are not distinct conversations)",
+          "Handle duration average from total duration divided by the corresponding handle metric count",
+          "Abandon rate with explicit denominator and short-abandon policy",
+          "Distinct user and queue counts at the snapshot timestamp",
+          "Evaluation averages with explicit score denominator and coverage"
+        ],
+        "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
+        "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -44177,6 +45039,29 @@
           "audit-logs (filter by service=Recording to see policy change events)",
           "alerting.get.rules (verify a recording-gap alert rule is configured)"
         ]
+      },
+      "integration-and-api-throttling-diagnostics": {
+        "description": "Investigate integration failures by correlating actual API response logs, 429 responses, OAuth client configuration and voice/media evidence. Rate limiting is a candidate cause, not an inference from a dropped conversation alone.",
+        "datasetsInOrder": [
+          "oauth.get.clients",
+          "usage.get.api.usage.by.client",
+          "usage.get.api.usage.organization.summary",
+          "analytics.query.rate.limit.aggregates",
+          "oauth.get.client.usage.query.results"
+        ],
+        "diagnosticSignals": [
+          "usage.get.api.usage.by.client sustained near the per-client rate ceiling for the integration's OAuth client id during the incident window → conversation injection calls are being throttled with HTTP 429, not silently dropped by the provider",
+          "analytics.query.rate.limit.aggregates nOverLimit > 0 in the incident window, correlated by time to reported missing/delayed conversations → confirms throttling as root cause rather than coincidence",
+          "usage.get.api.usage.organization.summary showing overall org usage near cap even when the integration's own client is well under its limit → a noisy-neighbor client, not the integration, is the actual cause",
+          "oauth.get.clients showing the integration's client missing the expected conversations/BYOI scope → failures are 403 authorization errors being misread as throttling",
+          "oauth.get.client.usage.query.results absent or empty for the client → the integration has stopped calling the API entirely (upstream/network issue on the provider's side, not a Genesys Cloud limit)"
+        ],
+        "enrichWith": [
+          "alerting.get.alerts (organization API-limit alert firing in the same window)",
+          "conversations.get.active.conversations (confirm whether injected conversations are actually landing in Genesys Cloud during the suspected throttling window)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     }
   }

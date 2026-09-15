@@ -14,7 +14,7 @@
       - GET  /health → server status and endpoint count
 
     To authenticate, use:
-      ****** demo-bearer-token-genesys-testplatform
+      Authorization: Bearer demo-bearer-token-genesys-testplatform
 
     To stop the server, press Ctrl+C in this terminal.
 
@@ -116,7 +116,7 @@ Write-Host '  Demo bearer token:' -ForegroundColor White
 Write-Host "    demo-bearer-token-genesys-testplatform" -ForegroundColor Yellow
 Write-Host ''
 Write-Host '  Quick connect from Genesys.Core:' -ForegroundColor White
-Write-Host '    $headers = @{ Authorization = "******" }' -ForegroundColor Gray
+Write-Host '    $headers = @{ Authorization = "Bearer demo-bearer-token-genesys-testplatform" }' -ForegroundColor Gray
 Write-Host "    Invoke-Dataset -Dataset users -BaseUri http://localhost:$Port -Headers `$headers" -ForegroundColor Gray
 Write-Host ''
 Write-Host '  Press Ctrl+C to stop.' -ForegroundColor DarkYellow

@@ -24,77 +24,80 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-# Configuration
-$MockPort      = 7778          # Use 7778 to avoid collisions with a running dev server
-$DemoToken     = 'demo-bearer-token-genesys-testplatform'
-$BaseUri       = "http://localhost:$MockPort"
-$RepoRoot      = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-$ModulePath    = Join-Path $RepoRoot 'modules/Genesys.Core/Genesys.Core.psd1'
-$ProjectPath   = Join-Path $RepoRoot 'tools/Genesys.MockServer/Genesys.MockServer.csproj'
-$OutputRoot    = Join-Path $env:TEMP "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
-$ServerProcess = $null
-
-# ─── Server lifecycle helpers ─────────────────────────────────────────────────
-
-function Start-MockServer {
-    Write-Host '[Integration] Starting Genesys.MockServer ...' -ForegroundColor Cyan
-
-    if (-not (Test-Path $ProjectPath)) {
-        throw "MockServer project not found at: $ProjectPath"
-    }
-
-    $env:MOCK_PORT           = $MockPort
-    $env:MOCK_POLLING_ROUNDS = '1'   # Fast: 1 poll before FULFILLED in tests
-
-    $script:ServerProcess = Start-Process -FilePath 'dotnet' `
-        -ArgumentList "run --project `"$ProjectPath`"" `
-        -PassThru -WindowStyle Hidden -RedirectStandardOutput ([System.IO.Path]::GetTempFileName())
-
-    # Wait up to 30 seconds for the server to become ready
-    $ready   = $false
-    $timeout = [datetime]::UtcNow.AddSeconds(30)
-    while ([datetime]::UtcNow -lt $timeout) {
-        Start-Sleep -Milliseconds 500
-        try {
-            $probe = Invoke-RestMethod -Uri "$BaseUri/health" -TimeoutSec 2 -ErrorAction Stop
-            if ($probe.status -eq 'ok') {
-                $ready = $true
-                break
-            }
-        } catch {
-            # Server not ready yet
-        }
-    }
-
-    if (-not $ready) {
-        Stop-MockServer
-        throw "Genesys.MockServer did not become ready within 30 seconds on port $MockPort"
-    }
-
-    Write-Host "[Integration] Mock server ready on $BaseUri" -ForegroundColor Green
-}
-
-function Stop-MockServer {
-    if ($null -ne $script:ServerProcess -and -not $script:ServerProcess.HasExited) {
-        $script:ServerProcess.Kill($true)
-        $script:ServerProcess.WaitForExit(5000) | Out-Null
-        Write-Host '[Integration] Mock server stopped.' -ForegroundColor DarkGray
-    }
-    $script:ServerProcess = $null
-}
-
 # ─── Pester suite ────────────────────────────────────────────────────────────
+
+# Configuration and the server lifecycle helpers live inside BeforeAll deliberately. Pester v5
+# evaluates a test file's body during discovery and then runs the blocks in a separate scope, so
+# anything defined at script level here is gone by the time BeforeAll executes. Assigning with
+# $script: inside BeforeAll puts these where the It blocks can still reach them.
 
 Describe 'Genesys.MockServer Integration Tests' {
 
     BeforeAll {
+        $script:MockPort      = 7778   # 7778 avoids colliding with a running dev server
+        $script:DemoToken     = 'demo-bearer-token-genesys-testplatform'
+        $script:BaseUri       = "http://localhost:$($script:MockPort)"
+        $script:RepoRoot      = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
+        $script:ModulePath    = Join-Path $script:RepoRoot 'modules/Genesys.Core/Genesys.Core.psd1'
+        $script:ProjectPath   = Join-Path $script:RepoRoot 'tools/Genesys.MockServer/Genesys.MockServer.csproj'
+        $script:OutputRoot    = Join-Path $env:TEMP "GenesysMockIntegration_$(Get-Date -Format 'yyyyMMddHHmmss')"
+        $script:ServerProcess = $null
+
+        function Start-MockServer {
+            Write-Host '[Integration] Starting Genesys.MockServer ...' -ForegroundColor Cyan
+
+            if (-not (Test-Path $script:ProjectPath)) {
+                throw "MockServer project not found at: $($script:ProjectPath)"
+            }
+
+            $env:MOCK_PORT           = $script:MockPort
+            $env:MOCK_POLLING_ROUNDS = '1'   # Fast: 1 poll before FULFILLED in tests
+
+            $script:ServerProcess = Start-Process -FilePath 'dotnet' `
+                -ArgumentList "run --project `"$($script:ProjectPath)`"" `
+                -PassThru -WindowStyle Hidden -RedirectStandardOutput ([System.IO.Path]::GetTempFileName())
+
+            # Wait up to 30 seconds for the server to become ready
+            $ready   = $false
+            $timeout = [datetime]::UtcNow.AddSeconds(30)
+            while ([datetime]::UtcNow -lt $timeout) {
+                Start-Sleep -Milliseconds 500
+                try {
+                    $probe = Invoke-RestMethod -Uri "$($script:BaseUri)/health" -TimeoutSec 2 -ErrorAction Stop
+                    if ($probe.status -eq 'ok') {
+                        $ready = $true
+                        break
+                    }
+                } catch {
+                    # Server not ready yet
+                }
+            }
+
+            if (-not $ready) {
+                Stop-MockServer
+                throw "Genesys.MockServer did not become ready within 30 seconds on port $($script:MockPort)"
+            }
+
+            Write-Host "[Integration] Mock server ready on $($script:BaseUri)" -ForegroundColor Green
+        }
+
+        function Stop-MockServer {
+            if ($null -ne $script:ServerProcess -and -not $script:ServerProcess.HasExited) {
+                $script:ServerProcess.Kill($true)
+                $script:ServerProcess.WaitForExit(5000) | Out-Null
+                Write-Host '[Integration] Mock server stopped.' -ForegroundColor DarkGray
+            }
+            $script:ServerProcess = $null
+        }
+
         Start-MockServer
 
-        Import-Module $ModulePath -Force -ErrorAction Stop
+        Import-Module $script:ModulePath -Force -ErrorAction Stop
 
-        $script:Headers    = @{ Authorization = "******" }
-        $script:OutputRoot = $OutputRoot
-        New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+        # The demo token is not a secret - the server prints it on startup and the README quotes
+        # it. It is declared above rather than inlined so there is one place to change it.
+        $script:Headers = @{ Authorization = "Bearer $($script:DemoToken)" }
+        New-Item -ItemType Directory -Path $script:OutputRoot -Force | Out-Null
     }
 
     AfterAll {
@@ -139,9 +142,17 @@ Describe 'Genesys.MockServer Integration Tests' {
             $manifest = Get-ChildItem -Path (Join-Path $OutputRoot 'users') `
                 -Filter 'manifest.json' -Recurse -ErrorAction Stop | Select-Object -First 1
             $manifest | Should -Not -BeNullOrEmpty
-            $m = $manifest.FullName | Get-Content | ConvertFrom-Json
-            $m.dataset | Should -Be 'users'
-            $m.totalItems | Should -BeGreaterThan 0
+            # Matches what Invoke-Dataset actually writes: datasetKey, runId, startedAtUtc,
+            # endedAtUtc, gitSha, counts, warnings. The previous assertions named 'dataset' and
+            # 'totalItems', which this manifest has never carried - they went unnoticed because
+            # the whole Describe failed in BeforeAll and never reached this test.
+            # -LiteralPath, not a pipe: Get-Content does not take a bare string from the pipeline
+            # (-Path is ValueFromPipelineByPropertyName only), so "$path | Get-Content" raises a
+            # parameter-binding error. Pester does not stop on that, so $m was silently $null and
+            # the failure read as a missing property rather than a failed read.
+            $m = Get-Content -LiteralPath $manifest.FullName -Raw | ConvertFrom-Json
+            $m.datasetKey | Should -Be 'users'
+            $m.counts.itemCount | Should -BeGreaterThan 0
         }
 
         It 'Events.jsonl contains records' {

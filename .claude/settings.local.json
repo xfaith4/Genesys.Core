@@ -13,10 +13,16 @@
       "Bash(pwsh -NoProfile -File /tmp/check2.ps1)",
       "Bash(python -c \":*)",
       "Bash(/tmp/check_ps.ps1:*)",
-      "Bash(pwsh -NoProfile -File /tmp/check_ps.ps1)"
+      "Bash(pwsh -NoProfile -File /tmp/check_ps.ps1)",
+      "PowerShell($PSVersionTable.PSVersion.ToString\\(\\); \\(Get-Module -ListAvailable Pester | Select-Object -First 3 Version\\).Version -join ', ')",
+      "PowerShell(Invoke-Pester *)",
+      "PowerShell($r = Invoke-Pester -Path 'tests/unit' -Output Normal -PassThru; \"PASSED=$\\($r.PassedCount\\) FAILED=$\\($r.FailedCount\\) SKIPPED=$\\($r.SkippedCount\\)\"; if \\($r.FailedCount -gt 0\\) { $r.Failed | ForEach-Object { \"FAIL: $\\($_.ExpandedPath\\)\" } })"
     ],
     "additionalDirectories": [
       "\\tmp"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "postgresql"
+  ]
 }

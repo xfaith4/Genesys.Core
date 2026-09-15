@@ -1,0 +1,49 @@
+{
+  "$comment": "Canonical list of shipped HTML surfaces held to WCAG 2.1 Level AA. Paths are repository-relative. Consumed by scripts/Invoke-AccessibilityAudit.ps1 and tests/unit/Accessibility.Wcag21.Tests.ps1.",
+  "conformanceLevel": "AA",
+  "surfaces": [
+    {
+      "path": "apps/OpsConsole/index.html",
+      "name": "Genesys Ops Console",
+      "kind": "operator-console"
+    },
+    {
+      "path": "apps/InvestigationConsole/index.html",
+      "name": "Genesys Investigation Console",
+      "kind": "operator-console"
+    },
+    {
+      "path": "apps/ConversationAnalysis/index.html",
+      "name": "Genesys Conversation Analysis",
+      "kind": "operator-console"
+    },
+    {
+      "path": "catalog/catalog-browser.html",
+      "name": "Dataset Browser",
+      "kind": "reference"
+    },
+    {
+      "path": "docs/architecture.html",
+      "name": "Architecture Map",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/training/genesys-onboarding.html",
+      "name": "Interactive Onboarding",
+      "kind": "documentation"
+    },
+    {
+      "path": "samples/demo-conversation-investigation/demo-conversation-investigation.html",
+      "name": "Conversation Investigation Package (sample export)",
+      "kind": "generated-report"
+    },
+    {
+      "path": "apps/GenesysDataClient/index.html",
+      "name": "Genesys Data Client (application shell)",
+      "kind": "application-shell",
+      "$comment": "React renders this page's content, so the static analyzer sees only the shell. The shell still owns real requirements - page language (SC 3.1.1), document title (SC 2.4.2) and a zoomable viewport (SC 1.4.4) - and those are enforced here.",
+      "excludeRules": ["A11Y004", "A11Y006", "A11Y019", "A11Y024"],
+      "$excludeReason": "These four describe the rendered DOM, which does not exist in a SPA shell: the <main> landmark and its skip-link id, the single <h1>, and the :focus-visible indicator are all produced by React from src/, and the stylesheet is an external module rather than an inline <style> block. They are audited against the running application by apps/GenesysDataClient/tests/accessibility.mjs, which drives a browser and runs axe-core over every skin, theme and accent. Excluding them here scopes the static check to what static analysis can actually see; it does not lower the bar for the application."
+    }
+  ]
+}

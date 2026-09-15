@@ -7724,14 +7724,24 @@ function Invoke-GenesysDataset {
     }
 
     function ConvertTo-GenesysHtmlTable {
+        <#
+        .SYNOPSIS
+            Renders rows as an accessible HTML data table.
+        .DESCRIPTION
+            Emits WCAG 2.1 conforming markup: a <caption> naming the table
+            (SC 1.3.1 / 2.4.6) and scoped column headers so assistive technology
+            can associate every cell with its header.
+        #>
         [CmdletBinding()]
         param(
             [object[]] $Rows,
-            [int] $Limit = 100
+            [int] $Limit = 100,
+            [string] $Caption = 'Records'
         )
 
+        $captionText = ConvertTo-GenesysOpsHtmlText $Caption
         $rowsArray = @($Rows | Select-Object -First $Limit)
-        if ($rowsArray.Count -eq 0) { return '<p class="empty">No records.</p>' }
+        if ($rowsArray.Count -eq 0) { return '<p class="empty">' + $captionText + ': no records.</p>' }
 
         $columns = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $rowsArray) {
@@ -7741,8 +7751,8 @@ function Invoke-GenesysDataset {
         }
 
         $sb = [System.Text.StringBuilder]::new()
-        [void]$sb.Append('<table><thead><tr>')
-        foreach ($column in $columns) { [void]$sb.Append('<th>' + (ConvertTo-GenesysOpsHtmlText $column) + '</th>') }
+        [void]$sb.Append('<table><caption>' + $captionText + '</caption><thead><tr>')
+        foreach ($column in $columns) { [void]$sb.Append('<th scope="col">' + (ConvertTo-GenesysOpsHtmlText $column) + '</th>') }
         [void]$sb.Append('</tr></thead><tbody>')
         foreach ($row in $rowsArray) {
             [void]$sb.Append('<tr>')
@@ -7784,10 +7794,15 @@ function Invoke-GenesysDataset {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Conversation Investigation Package - $conversationId</title>
 <style>
 :root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #17202a; background: #f7f8fa; }
 body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #17202a; padding: 10px 16px; border: 2px solid #17202a; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
 header { background: #17202a; color: #fff; padding: 28px 36px; }
 header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; letter-spacing: 0; }
 header p { margin: 0; color: #d7dee8; font-size: 14px; }
@@ -7807,11 +7822,12 @@ tr:last-child td { border-bottom: 0; }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <header>
 <h1>Conversation Investigation Package</h1>
 <p>Conversation $conversationId | Run $runId | Generated $generatedAt</p>
 </header>
-<main>
+<main id="main-content">
 <section>
 <h2>Investigation Summary</h2>
 <div class="grid">
@@ -7824,20 +7840,20 @@ tr:last-child td { border-bottom: 0; }
 </section>
 <section>
 <h2>Findings</h2>
-$(ConvertTo-GenesysHtmlTable -Rows $Findings -Limit 50)
+$(ConvertTo-GenesysHtmlTable -Rows $Findings -Limit 50 -Caption 'Investigation findings')
 </section>
 <section>
 <h2>Conversation and SIP Timeline</h2>
 <p class="meta">Rows combine conversation segments from Genesys analytics detail with parsed SIP trace messages when a trace file is supplied.</p>
-$(ConvertTo-GenesysHtmlTable -Rows $TimelineRows -Limit 200)
+$(ConvertTo-GenesysHtmlTable -Rows $TimelineRows -Limit 200 -Caption 'Conversation and SIP timeline')
 </section>
 <section>
 <h2>SIP Trace Breakdown</h2>
-$(ConvertTo-GenesysHtmlTable -Rows $SipRows -Limit 100)
+$(ConvertTo-GenesysHtmlTable -Rows $SipRows -Limit 100 -Caption 'SIP trace breakdown')
 </section>
 <section>
 <h2>Evidence Sections</h2>
-$(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200)
+$(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200 -Caption 'Evidence sections')
 </section>
 </main>
 </body>
@@ -8355,7 +8371,7 @@ $(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200)
             @"
 <section>
 <h2>$(ConvertTo-GenesysOpsHtmlText $section.Key)</h2>
-$(ConvertTo-GenesysHtmlTable -Rows @($section.Value) -Limit 100)
+$(ConvertTo-GenesysHtmlTable -Rows @($section.Value) -Limit 100 -Caption ([string]$section.Key))
 </section>
 "@
         }
@@ -8365,10 +8381,15 @@ $(ConvertTo-GenesysHtmlTable -Rows @($section.Value) -Limit 100)
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Investigation Package - $investigationKey</title>
 <style>
 :root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
 body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #15202b; padding: 10px 16px; border: 2px solid #133b2f; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
 header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
 header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
 header p { margin: 0; color: #deefe8; font-size: 14px; }
@@ -8389,11 +8410,12 @@ ul { margin: 0; padding-left: 20px; }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <header>
 <h1>Investigation Package</h1>
 <p>$investigationKey | $subjectType / $subjectId | Run $runId | Generated $generatedAt</p>
 </header>
-<main>
+<main id="main-content">
 <section>
 <h2>Overview</h2>
 <p class="meta">Window: $(if ($since -or $until) { "$since -> $until" } else { 'Not scoped' })</p>
@@ -8407,7 +8429,7 @@ ul { margin: 0; padding-left: 20px; }
 $warningHtml
 <section>
 <h2>Step Status</h2>
-$(ConvertTo-GenesysHtmlTable -Rows $StepRows -Limit 100)
+$(ConvertTo-GenesysHtmlTable -Rows $StepRows -Limit 100 -Caption 'Investigation step status')
 </section>
 $($sectionHtml -join [Environment]::NewLine)
 </main>

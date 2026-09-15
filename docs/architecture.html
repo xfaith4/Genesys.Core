@@ -22,6 +22,41 @@
       --yellow:  #d29922;
       --teal:    #2dd4bf;
     }
+
+    /* WCAG 2.1 SC 2.4.7 — visible keyboard focus on every control. */
+    :focus-visible {
+      outline: 3px solid var(--accent2);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* WCAG 2.1 SC 2.4.1 — keyboard bypass block. */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 500;
+      background: var(--bg2);
+      color: var(--text);
+      border: 2px solid var(--accent2);
+      padding: 12px 18px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .skip-link:focus { left: 0; }
+
+    /* Names available to assistive technology without visual weight. */
+    .visually-hidden {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
     [data-theme="light"] {
       --bg:      #f6f8fa;
       --bg2:     #ffffff;
@@ -102,7 +137,12 @@
       cursor: pointer;
       font-size: 0.82rem;
       color: var(--text2);
+      border: 0;
       border-left: 2px solid transparent;
+      background: none;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
       transition: all 0.12s;
       display: flex;
       align-items: center;
@@ -170,6 +210,11 @@
       cursor: pointer;
       user-select: none;
       font-weight: 600;
+      background: none;
+      border: 0;
+      padding: 0;
+      font-family: inherit;
+      font-size: inherit;
     }
     .ft-folder:hover { color: var(--orange); }
     .ft-children {
@@ -214,6 +259,8 @@
 </head>
 <body>
 
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
 <!-- ══ HEADER ══ -->
 <header>
   <div class="header-left">
@@ -221,7 +268,7 @@
     <div class="sub">PowerShell module call graph &amp; execution flows · 67 PS1 files · 3 modules</div>
   </div>
   <div class="header-right">
-    <button class="btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+    <button type="button" class="btn" id="themeBtn" onclick="toggleTheme()"><span aria-hidden="true">☀</span> Light</button>
   </div>
 </header>
 
@@ -229,31 +276,33 @@
 
 <!-- ══ SIDEBAR ══ -->
 <aside>
+<nav aria-label="Architecture sections">
   <div class="nav-group">Architecture</div>
-  <div class="nav-item active" data-target="overview"><span class="nav-icon">🗺</span>System Overview</div>
-  <div class="nav-item" data-target="modules"><span class="nav-icon">📦</span>Module Structure</div>
+  <button type="button" class="nav-item active" data-target="overview" aria-current="true"><span class="nav-icon" aria-hidden="true">🗺</span>System Overview</button>
+  <button type="button" class="nav-item" data-target="modules" aria-current="false"><span class="nav-icon" aria-hidden="true">📦</span>Module Structure</button>
 
   <div class="nav-group">Execution Flows</div>
-  <div class="nav-item" data-target="dataset-flow"><span class="nav-icon">▶</span>Dataset Execution</div>
-  <div class="nav-item" data-target="paging"><span class="nav-icon">📄</span>Paging Strategies</div>
-  <div class="nav-item" data-target="retry"><span class="nav-icon">🔄</span>Retry &amp; HTTP</div>
-  <div class="nav-item" data-target="async"><span class="nav-icon">⏳</span>Async Jobs</div>
+  <button type="button" class="nav-item" data-target="dataset-flow" aria-current="false"><span class="nav-icon" aria-hidden="true">▶</span>Dataset Execution</button>
+  <button type="button" class="nav-item" data-target="paging" aria-current="false"><span class="nav-icon" aria-hidden="true">📄</span>Paging Strategies</button>
+  <button type="button" class="nav-item" data-target="retry" aria-current="false"><span class="nav-icon" aria-hidden="true">🔄</span>Retry &amp; HTTP</button>
+  <button type="button" class="nav-item" data-target="async" aria-current="false"><span class="nav-icon" aria-hidden="true">⏳</span>Async Jobs</button>
 
   <div class="nav-group">Cross-cutting</div>
-  <div class="nav-item" data-target="auth"><span class="nav-icon">🔐</span>Authentication</div>
-  <div class="nav-item" data-target="output"><span class="nav-icon">💾</span>Run Output</div>
-  <div class="nav-item" data-target="catalog"><span class="nav-icon">📋</span>Catalog &amp; Config</div>
+  <button type="button" class="nav-item" data-target="auth" aria-current="false"><span class="nav-icon" aria-hidden="true">🔐</span>Authentication</button>
+  <button type="button" class="nav-item" data-target="output" aria-current="false"><span class="nav-icon" aria-hidden="true">💾</span>Run Output</button>
+  <button type="button" class="nav-item" data-target="catalog" aria-current="false"><span class="nav-icon" aria-hidden="true">📋</span>Catalog &amp; Config</button>
 
   <div class="nav-group">Reference</div>
-  <div class="nav-item" data-target="file-index"><span class="nav-icon">📂</span>File Index</div>
+  <button type="button" class="nav-item" data-target="file-index" aria-current="false"><span class="nav-icon" aria-hidden="true">📂</span>File Index</button>
+</nav>
 </aside>
 
 <!-- ══ MAIN CONTENT ══ -->
-<main>
+<main id="main-content">
 
 <!-- ─────────────────── OVERVIEW ─────────────────── -->
 <section id="overview" class="active">
-  <div class="sec-title">System Overview</div>
+  <h2 class="sec-title">System Overview</h2>
   <div class="sec-desc">
     End-to-end view of the three-module ecosystem. Callers authenticate via <strong>Genesys.Auth</strong>,
     invoke datasets through <strong>Genesys.Core</strong>, and receive results either directly or through the
@@ -262,17 +311,17 @@
   </div>
 
   <div class="legend">
-    <div class="leg"><div class="leg-dot" style="background:#7c3aed"></div>Caller</div>
-    <div class="leg"><div class="leg-dot" style="background:#b45309"></div>Auth</div>
-    <div class="leg"><div class="leg-dot" style="background:#1d4ed8"></div>Core Orchestration</div>
-    <div class="leg"><div class="leg-dot" style="background:#0f766e"></div>Dataset Handlers</div>
-    <div class="leg"><div class="leg-dot" style="background:#0369a1"></div>Paging</div>
-    <div class="leg"><div class="leg-dot" style="background:#166534"></div>HTTP / Retry</div>
-    <div class="leg"><div class="leg-dot" style="background:#9f1239"></div>Output</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#7c3aed"></div>Caller</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#b45309"></div>Auth</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#1d4ed8"></div>Core Orchestration</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#0f766e"></div>Dataset Handlers</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#0369a1"></div>Paging</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#166534"></div>HTTP / Retry</div>
+    <div class="leg"><div class="leg-dot" aria-hidden="true" style="background:#9f1239"></div>Output</div>
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Full System — End to End</div>
+    <h3 class="card-title">Full System — End to End</h3>
     <pre class="mermaid">
 flowchart TD
     classDef caller  fill:#7c3aed,stroke:#6d28d9,color:#fff
@@ -358,7 +407,7 @@ flowchart TD
 
 <!-- ─────────────────── MODULE STRUCTURE ─────────────────── -->
 <section id="modules">
-  <div class="sec-title">Module Structure</div>
+  <h2 class="sec-title">Module Structure</h2>
   <div class="sec-desc">
     Three PowerShell modules with clear separation of concerns. <strong>Genesys.Auth</strong> handles
     token lifecycle. <strong>Genesys.Core</strong> is the data-extraction engine with 3 public and ~25 private
@@ -367,7 +416,7 @@ flowchart TD
 
   <div class="cols">
     <div class="diagram-card">
-      <div class="card-title">Module Dependencies</div>
+      <h3 class="card-title">Module Dependencies</h3>
       <pre class="mermaid">
 flowchart LR
     classDef mod fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -408,7 +457,7 @@ flowchart LR
     </div>
 
     <div class="diagram-card">
-      <div class="card-title">Genesys.Core Private Subsystems</div>
+      <h3 class="card-title">Genesys.Core Private Subsystems</h3>
       <pre class="mermaid">
 flowchart TD
     classDef sub fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
@@ -463,7 +512,7 @@ flowchart TD
 
 <!-- ─────────────────── DATASET FLOW ─────────────────── -->
 <section id="dataset-flow">
-  <div class="sec-title">Dataset Execution Flow</div>
+  <h2 class="sec-title">Dataset Execution Flow</h2>
   <div class="sec-desc">
     The full step-by-step lifecycle of a single <code>Invoke-Dataset</code> call. Steps 1–3 set up the
     run context; step 4 dispatches to the appropriate dataset handler; steps 5–8 page through results,
@@ -471,7 +520,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Invoke-Dataset — Complete Execution Path</div>
+    <h3 class="card-title">Invoke-Dataset — Complete Execution Path</h3>
     <pre class="mermaid">
 flowchart TD
     classDef step   fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -555,7 +604,7 @@ flowchart TD
 
 <!-- ─────────────────── PAGING ─────────────────── -->
 <section id="paging">
-  <div class="sec-title">Paging Strategies</div>
+  <h2 class="sec-title">Paging Strategies</h2>
   <div class="sec-desc">
     <code>Invoke-CoreEndpoint</code> switches on the <code>paging.profile</code> field from the catalog endpoint
     spec. Each strategy handles a different Genesys Cloud API convention. All strategies share the same
@@ -569,7 +618,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">All Six Paging Profiles — Side by Side</div>
+    <h3 class="card-title">All Six Paging Profiles — Side by Side</h3>
     <pre class="mermaid">
 flowchart LR
     classDef head  fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -650,7 +699,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Dataset → Paging Profile Mapping</div>
+    <h3 class="card-title">Dataset → Paging Profile Mapping</h3>
     <pre class="mermaid">
 flowchart LR
     classDef ds fill:#0f766e,stroke:#0d6b62,color:#fff
@@ -668,7 +717,7 @@ flowchart LR
 
 <!-- ─────────────────── RETRY & HTTP ─────────────────── -->
 <section id="retry">
-  <div class="sec-title">Retry &amp; HTTP Layer</div>
+  <h2 class="sec-title">Retry &amp; HTTP Layer</h2>
   <div class="sec-desc">
     Every paging iteration goes through <code>Invoke-RequestWithRetry → Invoke-WithRetry → Invoke-GcRequest → Invoke-RestMethod</code>.
     The retry engine applies exponential backoff with jitter and honours <code>Retry-After</code> headers.
@@ -682,21 +731,21 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">HTTP Request Lifecycle with Retry</div>
+    <h3 class="card-title">HTTP Request Lifecycle with Retry</h3>
     <pre class="mermaid">
 flowchart TD
-    classDef call   fill:#166534,stroke:#15803d,color:#fff
+    classDef invoke fill:#166534,stroke:#15803d,color:#fff
     classDef decide fill:#854d0e,stroke:#a16207,color:#fff
     classDef err    fill:#7f1d1d,stroke:#991b1b,color:#fff
     classDef ok     fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
 
     START(["Paging strategy calls\nInvoke-RequestWithRetry"])
 
-    RRS["Resolve-RetryRuntimeSettings\nMerge catalog RetryProfile with defaults\nmaxRetries · baseDelay · maxDelay · jitter\nretryOnStatusCodes · retryOnMethods"]:::call
+    RRS["Resolve-RetryRuntimeSettings\nMerge catalog RetryProfile with defaults\nmaxRetries · baseDelay · maxDelay · jitter\nretryOnStatusCodes · retryOnMethods"]:::invoke
 
-    IWR["Invoke-WithRetry\n(attempt = 0)"]:::call
+    IWR["Invoke-WithRetry\n(attempt = 0)"]:::invoke
 
-    IGR["Invoke-GcRequest\n1. Protect-GcUri — redact ?token= ?secret= etc\n2. Invoke-RestMethod (PowerShell native)\n3. Return response object"]:::call
+    IGR["Invoke-GcRequest\n1. Protect-GcUri — redact ?token= ?secret= etc\n2. Invoke-RestMethod (PowerShell native)\n3. Return response object"]:::invoke
 
     API[("Genesys Cloud API")]
 
@@ -706,9 +755,9 @@ flowchart TD
 
     MAXED{"attempt >=\nmaxRetries?"}:::decide
 
-    RA["Get-GcRetryAfterSeconds\nParse Retry-After header\nor regex 'Retry the request in N seconds'\nor exponential backoff"]:::call
+    RA["Get-GcRetryAfterSeconds\nParse Retry-After header\nor regex 'Retry the request in N seconds'\nor exponential backoff"]:::invoke
 
-    SLEEP["Start-Sleep\ncalculated delay\nMin(base × 2^attempt + jitter, max)"]:::call
+    SLEEP["Start-Sleep\ncalculated delay\nMin(base × 2^attempt + jitter, max)"]:::invoke
 
     INCR["attempt++"]:::ok
 
@@ -727,7 +776,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Retry Profile Hierarchy</div>
+    <h3 class="card-title">Retry Profile Hierarchy</h3>
     <pre class="mermaid">
 flowchart LR
     classDef source fill:#374151,stroke:#4b5563,color:#e5e7eb
@@ -750,7 +799,7 @@ flowchart LR
 
 <!-- ─────────────────── ASYNC JOBS ─────────────────── -->
 <section id="async">
-  <div class="sec-title">Async Job Flow</div>
+  <h2 class="sec-title">Async Job Flow</h2>
   <div class="sec-desc">
     Used for <strong>audit-logs</strong> and <strong>analytics-conversation-details</strong>. The Genesys Cloud API
     requires a submit → poll → fetch results pattern. <code>Invoke-AsyncJob</code> orchestrates all three phases,
@@ -759,7 +808,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Async Job Lifecycle — Submit / Poll / Results</div>
+    <h3 class="card-title">Async Job Lifecycle — Submit / Poll / Results</h3>
     <pre class="mermaid">
 flowchart TD
     classDef phase  fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -800,7 +849,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Route Value Substitution</div>
+    <h3 class="card-title">Route Value Substitution</h3>
     <pre class="mermaid">
 flowchart LR
     classDef code fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
@@ -819,7 +868,7 @@ flowchart LR
 
 <!-- ─────────────────── AUTH ─────────────────── -->
 <section id="auth">
-  <div class="sec-title">Authentication Flows</div>
+  <h2 class="sec-title">Authentication Flows</h2>
   <div class="sec-desc">
     <strong>Genesys.Auth</strong> provides three OAuth2 flows. All three store the resulting
     <code>Authorization: Bearer …</code> header in module-scoped state and optionally in a
@@ -828,7 +877,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Three Authentication Paths</div>
+    <h3 class="card-title">Three Authentication Paths</h3>
     <pre class="mermaid">
 flowchart TD
     classDef flow   fill:#b45309,stroke:#a16207,color:#fff
@@ -871,7 +920,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Token Storage Architecture</div>
+    <h3 class="card-title">Token Storage Architecture</h3>
     <pre class="mermaid">
 flowchart LR
     classDef mem  fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -893,7 +942,7 @@ flowchart LR
 
 <!-- ─────────────────── RUN OUTPUT ─────────────────── -->
 <section id="output">
-  <div class="sec-title">Run Output Structure</div>
+  <h2 class="sec-title">Run Output Structure</h2>
   <div class="sec-desc">
     Every dataset run creates a self-contained folder under <code>out/&lt;datasetKey&gt;/&lt;runId&gt;/</code>.
     The <code>runId</code> is an ISO 8601 UTC timestamp. Four files are produced: a streaming data JSONL,
@@ -901,7 +950,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Run Output Files &amp; RunContext Object</div>
+    <h3 class="card-title">Run Output Files &amp; RunContext Object</h3>
     <pre class="mermaid">
 flowchart TD
     classDef ctx   fill:#1d4ed8,stroke:#1e40af,color:#fff
@@ -931,7 +980,7 @@ flowchart TD
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Redaction — Protect-RecordData</div>
+    <h3 class="card-title">Redaction — Protect-RecordData</h3>
     <pre class="mermaid">
 flowchart LR
     classDef bad fill:#7f1d1d,stroke:#991b1b,color:#fff
@@ -966,7 +1015,7 @@ flowchart LR
 
 <!-- ─────────────────── CATALOG ─────────────────── -->
 <section id="catalog">
-  <div class="sec-title">Catalog &amp; Configuration</div>
+  <h2 class="sec-title">Catalog &amp; Configuration</h2>
   <div class="sec-desc">
     The catalog (<code>catalog/genesys.catalog.json</code>) is the single source of truth for API metadata.
     It defines datasets, endpoints, and named profiles for paging and retry. All runtime settings are
@@ -974,7 +1023,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Catalog Resolution Chain</div>
+    <h3 class="card-title">Catalog Resolution Chain</h3>
     <pre class="mermaid">
 flowchart LR
     classDef src  fill:#374151,stroke:#4b5563,color:#e5e7eb
@@ -995,7 +1044,7 @@ flowchart LR
   </div>
 
   <div class="diagram-card">
-    <div class="card-title">Catalog Object Shape</div>
+    <h3 class="card-title">Catalog Object Shape</h3>
     <pre class="mermaid">
 flowchart TD
     classDef node fill:#1e3a5f,stroke:#2563eb,color:#e2e8f0
@@ -1025,7 +1074,7 @@ flowchart TD
 
 <!-- ─────────────────── FILE INDEX ─────────────────── -->
 <section id="file-index">
-  <div class="sec-title">File Index</div>
+  <h2 class="sec-title">File Index</h2>
   <div class="sec-desc">
     All 67 PowerShell files organised by module and subsystem. Click any file path to open it.
     <span style="color:var(--green)">★ entry</span> = public exported function ·
@@ -1037,10 +1086,10 @@ flowchart TD
 
       <!-- Genesys.Auth -->
       <div class="tree-item">
-        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Auth/</span>
+        <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> modules/Genesys.Auth/</button>
         <div class="ft-children">
           <div class="tree-item ft-file"><a href="../modules/Genesys.Auth/Genesys.Auth.psd1">Genesys.Auth.psd1</a><span class="ft-fn">— module manifest · exports 9 functions</span></div>
-          <div class="tree-item ft-file"><a href="../modules/Genesys.Auth/Genesys.Auth.psm1">Genesys.Auth.psm1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— OAuth2 flows · token lifecycle · DPAPI storage</span>
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Auth/Genesys.Auth.psm1">Genesys.Auth.psm1</a><span class="ft-badge badge-pub"><span aria-hidden="true">★</span> public</span><span class="ft-fn">— OAuth2 flows · token lifecycle · DPAPI storage</span>
             <div style="padding-left:16px;color:var(--text2);font-size:0.75rem">
               Connect-GenesysCloud · Connect-GenesysCloudApp · Connect-GenesysCloudPkce<br>
               Get-GenesysAuthContext · Get-StoredHeaders · Get-ConnectionInfo<br>
@@ -1054,93 +1103,93 @@ flowchart TD
 
       <!-- Genesys.Core Public -->
       <div class="tree-item">
-        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Core/</span>
+        <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> modules/Genesys.Core/</button>
         <div class="ft-children">
           <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Genesys.Core.psd1">Genesys.Core.psd1</a><span class="ft-fn">— module manifest · exports 3 functions</span></div>
 
           <div class="tree-item">
-            <span class="ft-folder" onclick="toggle(this)">▼ Public/</span>
+            <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Public/</button>
             <div class="ft-children">
-              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Invoke-Dataset.ps1">Invoke-Dataset.ps1</a><span class="ft-badge badge-pub">★ entry</span><span class="ft-fn">— main entry point · orchestrates full run</span></div>
-              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Assert-Catalog.ps1">Assert-Catalog.ps1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— validate catalog schema</span></div>
-              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Get-AuditServiceMapping.ps1">Get-AuditServiceMapping.ps1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— fetch audit service/entity/action metadata</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Invoke-Dataset.ps1">Invoke-Dataset.ps1</a><span class="ft-badge badge-pub"><span aria-hidden="true">★</span> entry</span><span class="ft-fn">— main entry point · orchestrates full run</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Assert-Catalog.ps1">Assert-Catalog.ps1</a><span class="ft-badge badge-pub"><span aria-hidden="true">★</span> public</span><span class="ft-fn">— validate catalog schema</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Public/Get-AuditServiceMapping.ps1">Get-AuditServiceMapping.ps1</a><span class="ft-badge badge-pub"><span aria-hidden="true">★</span> public</span><span class="ft-fn">— fetch audit service/entity/action metadata</span></div>
             </div>
           </div>
 
           <div class="tree-item">
-            <span class="ft-folder" onclick="toggle(this)">▼ Private/</span>
+            <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Private/</button>
             <div class="ft-children">
-              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1">Invoke-CoreEndpoint.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— paging profile dispatcher</span></div>
-              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-GcRequest.ps1">Invoke-GcRequest.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— HTTP wrapper + URI redaction</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-CoreEndpoint.ps1">Invoke-CoreEndpoint.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— paging profile dispatcher</span></div>
+              <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Invoke-GcRequest.ps1">Invoke-GcRequest.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— HTTP wrapper + URI redaction</span></div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Async/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Async/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AsyncJob.ps1">Invoke-AsyncJob.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— submit/poll/results orchestrator</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AuditTransaction.ps1">Invoke-AuditTransaction.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— audit-specific async transaction</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AsyncJob.ps1">Invoke-AsyncJob.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— submit/poll/results orchestrator</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Async/Invoke-AuditTransaction.ps1">Invoke-AuditTransaction.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— audit-specific async transaction</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Catalog/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Catalog/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1">Resolve-Catalog.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— load, validate &amp; normalise catalog.json</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Catalog/Resolve-Catalog.ps1">Resolve-Catalog.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— load, validate &amp; normalise catalog.json</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Datasets/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Datasets/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/DatasetRegistry.ps1">DatasetRegistry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— registry of 4 built-in dataset handlers</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Resolve-DatasetRuntime.ps1">Resolve-DatasetRuntime.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— time interval · endpoint URI building</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AuditLogsDataset.ps1">Invoke-AuditLogsDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— audit logs dataset handler</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AnalyticsConversationDetailsDataset.ps1">Invoke-AnalyticsConversationDetailsDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— analytics dataset handler</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-UsersDataset.ps1">Invoke-UsersDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— users dataset with presence/status join</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-RoutingQueuesDataset.ps1">Invoke-RoutingQueuesDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— routing queues with details</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-SimpleCollectionDataset.ps1">Invoke-SimpleCollectionDataset.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— generic fallback for catalog-defined datasets</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/DatasetRegistry.ps1">DatasetRegistry.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— registry of 4 built-in dataset handlers</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Resolve-DatasetRuntime.ps1">Resolve-DatasetRuntime.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— time interval · endpoint URI building</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AuditLogsDataset.ps1">Invoke-AuditLogsDataset.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— audit logs dataset handler</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-AnalyticsConversationDetailsDataset.ps1">Invoke-AnalyticsConversationDetailsDataset.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— analytics dataset handler</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-UsersDataset.ps1">Invoke-UsersDataset.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— users dataset with presence/status join</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-RoutingQueuesDataset.ps1">Invoke-RoutingQueuesDataset.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— routing queues with details</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Datasets/Invoke-SimpleCollectionDataset.ps1">Invoke-SimpleCollectionDataset.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— generic fallback for catalog-defined datasets</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Http/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Http/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Http/Join-EndpointUri.ps1">Join-EndpointUri.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— URI construction + route substitution</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Http/Join-EndpointUri.ps1">Join-EndpointUri.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— URI construction + route substitution</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Paging/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Paging/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1">Invoke-PagingNextUri.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— link-based nextUri paging</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1">Invoke-PagingPageNumber.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— offset/page-number paging</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1">Invoke-PagingBodyPaging.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— POST with pageNumber in body</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1">Invoke-PagingCursor.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— cursor-based paging</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingNextUri.ps1">Invoke-PagingNextUri.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— link-based nextUri paging</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingPageNumber.ps1">Invoke-PagingPageNumber.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— offset/page-number paging</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingBodyPaging.ps1">Invoke-PagingBodyPaging.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— POST with pageNumber in body</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Paging/Invoke-PagingCursor.ps1">Invoke-PagingCursor.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— cursor-based paging</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Redaction/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Redaction/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1">Protect-RecordData.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— recursive deep sanitization</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Redaction/Protect-RecordData.ps1">Protect-RecordData.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— recursive deep sanitization</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Retry/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Retry/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1">Invoke-WithRetry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— core retry loop · exponential backoff + jitter</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1">Invoke-RequestWithRetry.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— HTTP retry wrapper</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1">Resolve-RetryRuntimeSettings.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— merge catalog profile with defaults</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-WithRetry.ps1">Invoke-WithRetry.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— core retry loop · exponential backoff + jitter</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Invoke-RequestWithRetry.ps1">Invoke-RequestWithRetry.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— HTTP retry wrapper</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Retry/Resolve-RetryRuntimeSettings.ps1">Resolve-RetryRuntimeSettings.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— merge catalog profile with defaults</span></div>
                 </div>
               </div>
 
               <div class="tree-item">
-                <span class="ft-folder" onclick="toggle(this)">▼ Run/</span>
+                <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> Run/</button>
                 <div class="ft-children">
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/New-RunContext.ps1">New-RunContext.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— create run folder structure</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-RunEvent.ps1">Write-RunEvent.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— append JSONL event log</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Manifest.ps1">Write-Manifest.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— write final manifest.json</span></div>
-                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Jsonl.ps1">Write-Jsonl.ps1</a><span class="ft-badge badge-priv">◆</span><span class="ft-fn">— JSONL append helper</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/New-RunContext.ps1">New-RunContext.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— create run folder structure</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-RunEvent.ps1">Write-RunEvent.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— append JSONL event log</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Manifest.ps1">Write-Manifest.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— write final manifest.json</span></div>
+                  <div class="tree-item ft-file"><a href="../modules/Genesys.Core/Private/Run/Write-Jsonl.ps1">Write-Jsonl.ps1</a><span class="ft-badge badge-priv" role="img" aria-label="Private function">◆</span><span class="ft-fn">— JSONL append helper</span></div>
                 </div>
               </div>
             </div>
@@ -1152,10 +1201,10 @@ flowchart TD
 
       <!-- Genesys.Ops -->
       <div class="tree-item">
-        <span class="ft-folder" onclick="toggle(this)">▼ modules/Genesys.Ops/</span>
+        <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> modules/Genesys.Ops/</button>
         <div class="ft-children">
           <div class="tree-item ft-file"><a href="../modules/Genesys.Ops/Genesys.Ops.psd1">Genesys.Ops.psd1</a><span class="ft-fn">— module manifest · exports 100+ cmdlets</span></div>
-          <div class="tree-item ft-file"><a href="../modules/Genesys.Ops/Genesys.Ops.psm1">Genesys.Ops.psm1</a><span class="ft-badge badge-pub">★ public</span><span class="ft-fn">— high-level domain cmdlets · wraps Invoke-Dataset</span>
+          <div class="tree-item ft-file"><a href="../modules/Genesys.Ops/Genesys.Ops.psm1">Genesys.Ops.psm1</a><span class="ft-badge badge-pub"><span aria-hidden="true">★</span> public</span><span class="ft-fn">— high-level domain cmdlets · wraps Invoke-Dataset</span>
             <div style="padding-left:16px;color:var(--text2);font-size:0.75rem">
               Get-GenesysUser · Get-GenesysQueue · + 98 more<br>
               Internal: Invoke-GenesysDataset (bridge to Genesys.Core)
@@ -1168,7 +1217,7 @@ flowchart TD
 
       <!-- Catalog -->
       <div class="tree-item">
-        <span class="ft-folder" onclick="toggle(this)">▼ catalog/</span>
+        <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> catalog/</button>
         <div class="ft-children">
           <div class="tree-item ft-file"><a href="../catalog/genesys.catalog.json">genesys.catalog.json</a><span class="ft-fn">— datasets · endpoints · paging/retry/transaction profiles</span></div>
           <div class="tree-item ft-file"><a href="../catalog/schema/genesys.catalog.schema.json">schema/genesys.catalog.schema.json</a><span class="ft-fn">— JSON Schema for catalog validation</span></div>
@@ -1179,7 +1228,7 @@ flowchart TD
 
       <!-- Scripts -->
       <div class="tree-item">
-        <span class="ft-folder" onclick="toggle(this)">▼ scripts/</span>
+        <button type="button" class="ft-folder" aria-expanded="true"><span class="ft-caret" aria-hidden="true">▼</span> scripts/</button>
         <div class="ft-children">
           <div class="tree-item ft-file"><a href="../scripts/Invoke-GenesysCoreBridge.ps1">Invoke-GenesysCoreBridge.ps1</a><span class="ft-fn">— CLI bridge · load Core · invoke Invoke-Dataset</span></div>
           <div class="tree-item ft-file"><a href="../scripts/Invoke-MockRun.ps1">Invoke-MockRun.ps1</a><span class="ft-fn">— test harness without live auth</span></div>
@@ -1206,9 +1255,39 @@ flowchart TD
     securityLevel: 'loose'
   });
 
-  // Render all mermaid diagrams on load
+  // Give every rendered diagram the accessible name of the card that
+  // introduces it, so no diagram is an unlabelled graphic (WCAG 2.1 SC 1.1.1).
+  // This runs after mermaid renders rather than injecting accTitle into the
+  // diagram source: it cannot alter diagram syntax and does not depend on
+  // mermaid's own accessibility pass, which is inconsistent across diagrams.
+  function labelRenderedDiagrams() {
+    document.querySelectorAll('.mermaid').forEach(block => {
+      const svg = block.querySelector('svg');
+      if (!svg) return;
+      const card = block.closest('.diagram-card');
+      const title = card && card.querySelector('.card-title');
+      if (!title) return;
+
+      const name = title.textContent.trim().replace(/\s+/g, ' ');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', name);
+      // A stale mermaid-generated title/desc pair would outrank aria-label.
+      svg.removeAttribute('aria-labelledby');
+      svg.removeAttribute('aria-describedby');
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
-    await mermaid.run({ querySelector: '.mermaid' });
+    try {
+      await mermaid.run({ querySelector: '.mermaid' });
+    } catch (err) {
+      // A diagram that fails to parse must not leave the rest unlabelled.
+      console.error('[architecture] mermaid reported a render error', err);
+    } finally {
+      labelRenderedDiagrams();
+      // Some diagrams settle a frame later; label again once the queue drains.
+      setTimeout(labelRenderedDiagrams, 500);
+    }
   });
 
   // ── Navigation ──
@@ -1219,10 +1298,14 @@ flowchart TD
     item.addEventListener('click', () => {
       const target = item.dataset.target;
 
-      navItems.forEach(n => n.classList.remove('active'));
+      navItems.forEach(n => {
+        n.classList.remove('active');
+        n.setAttribute('aria-current', 'false');
+      });
       sections.forEach(s => s.classList.remove('active'));
 
       item.classList.add('active');
+      item.setAttribute('aria-current', 'true');
       const sec = document.getElementById(target);
       if (sec) sec.classList.add('active');
     });
@@ -1242,13 +1325,19 @@ flowchart TD
   }
 
   // ── File tree toggle ──
-  function toggle(el) {
-    const children = el.nextElementSibling;
-    if (!children) return;
-    const isOpen = el.textContent.startsWith('▼');
-    el.textContent = el.textContent.replace(isOpen ? '▼' : '▶', isOpen ? '▶' : '▼');
-    children.style.display = isOpen ? 'none' : '';
-  }
+  // Folders are buttons, so click and keyboard activation share one path and
+  // the open/closed state is exposed via aria-expanded (SC 2.1.1 / 4.1.2).
+  document.querySelectorAll('.ft-folder').forEach(folder => {
+    folder.addEventListener('click', () => {
+      const children = folder.nextElementSibling;
+      if (!children) return;
+      const isOpen = folder.getAttribute('aria-expanded') === 'true';
+      folder.setAttribute('aria-expanded', String(!isOpen));
+      const caret = folder.querySelector('.ft-caret');
+      if (caret) caret.textContent = isOpen ? '▶' : '▼';
+      children.style.display = isOpen ? 'none' : '';
+    });
+  });
 </script>
 
 </body>

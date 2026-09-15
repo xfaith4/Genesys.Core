@@ -1,533 +1,136 @@
 # Genesys.Core
 
-> Catalog-driven PowerShell execution engine for governed Genesys Cloud dataset collection and composed investigations — deterministic retry/paging, structured audit artifacts, and GitHub Actions automation.
+> A catalog-driven PowerShell execution engine optimizing Genesys Cloud data collection for automation and audit.
 
-[![CI](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-blue)](https://github.com/PowerShell/PowerShell)
+[![CI](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE) [![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-blue)](https://github.com/PowerShell/PowerShell)
 
-**Keywords:** genesys-cloud, powershell-module, dataset-export, audit-logs, analytics, catalog-driven, pager, retry, github-actions, automation, oauth, etl, workforce-management, contact-center
 
----
+## Overview
 
-## Why This Exists
+Genesys.Core streamlines data extraction from Genesys Cloud REST API, handling pagination, rate limits, and ensuring data security. It operates via a JSON catalog, separating operational logic from scripts and enabling consistent, auditable output suitable for compliance and CI. Featured investigations include Agent, Conversation, and Queue analyses, providing comprehensive insights tailored to individual users or instances.
 
-Extracting governed, reproducible data from the Genesys Cloud REST API is harder than it should be. Pagination strategies vary by endpoint, 429 rate-limits are inconsistent, async jobs need polling, and sensitive fields leak into logs.
+## Features
 
-Genesys.Core solves this with a **catalog-driven execution engine**: endpoint behavior (paging strategy, retry profile, async flow, redaction policy) lives in a single JSON catalog — not scattered across scripts. Every run produces identical, auditable output artifacts, making automation, compliance review, and CI integration straightforward.
-
-The Ops layer builds on that contract with **investigations**: subject-centred compositions that run multiple datasets and emit the same artifact shape under `out/<investigationKey>/<runId>/`. Three flagships ship today — Agent Investigation (1.0) uses scoped single-agent datasets and user/window analytics filters for identity/skills/queues/presence/routing status/utilization/activity/conversations/audit account changes, Conversation Investigation (1.1) joins one conversation with its participants/divisions/recordings/evaluations/surveys, and Queue Investigation (1.2) joins one queue with its members/wrap-up labels/observations/SLA/abandons/transfers/wrap-up distribution/active agents.
-
----
-
-## Key Features
-
-- **Catalog-as-source-of-truth** — 31 dataset keys, 74 endpoint definitions in `genesys.catalog.json`; schema-validated before every run
-- **Pluggable paging strategies** — `none`, `nextUri`, `pageNumber`, `cursor`, `bodyPaging`, `transactionResults` — selected per endpoint from the catalog
-- **Deterministic retry engine** — bounded jitter, `Retry-After` header parsing, message-based fallback; configurable per profile
-- **Async transaction pattern** — POST → poll → fetch results for audit logs and analytics jobs
-- **Structured run output contract** — every run writes `manifest.json`, `events.jsonl`, `summary.json`, and `data/*.jsonl` under `out/<datasetKey>/<runId>/`
-- **Investigation composition** — `Get-GenesysAgentInvestigation`, `Get-GenesysConversationInvestigation`, and `Get-GenesysQueueInvestigation` emit the same artifact set for joined, subject-centred investigations under `out/<investigationKey>/<runId>/`
-- **Operator-ready packaging** — `Export-GenesysInvestigationPackage` writes generic Markdown, CSV, and XLSX handoff packages for any investigation run
-- **Support diagnostics handoff** — `Export-GenesysInvestigationDiagnosticsBundle` emits redacted JSON bundles for support, incident review, and demos
-- **No secret leakage** — Authorization headers and token-like query parameters are redacted from all logged events
-- **GitHub Actions integration** — scheduled and on-demand workflows for `audit-logs` with artifact upload and configurable retention
-- **Ready-made frontend apps** — six sample apps in `apps/` demonstrate the custom-wrapper pattern (web SPAs, WPF consoles, operator dashboards); see [Apps](#apps) below
-- **Custom-wrapper friendly** — the core is designed so any GUI, web app, .NET service, or Go binary can use `Invoke-Dataset` as its backend data source with no forking required
-- **PS 5.1 and 7+ compatible** — runs on Windows PowerShell 5.1 and PowerShell 7+
-
----
+- **Catalog-driven**: 31 datasets and 74 endpoint definitions, schema-validated.
+- **Paging strategies**: Adjustable per endpoint, supporting six types.
+- **Retry engine**: Configurable, with jitter and `Retry-After` parsing.
+- **Async transactions**: Efficient logging and analytics job handling.
+- **Output contract**: Consistent artifact generation per run.
+- **Investigations**: Emissions of structured datasets for agents, conversations, and queues.
+- **Integration**: GitHub Actions workflows, ready-made apps, operator dashboards.
+- **Security**: Redaction of sensitive information from logs.
+- **Accessibility**: All shipped HTML surfaces conform to WCAG 2.1 Level AA, gated in CI.
+- **Compatibility**: Supports Windows PowerShell 5.1 and PowerShell 7+.
 
 ## Quickstart
 
-### 1 — Import the module
+### 1. Setup
 
+Import the module:
 ```powershell
 Set-Location <path-to-Genesys.Core>
 Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
-Get-Command -Module Genesys.Core   # Invoke-Dataset, Assert-Catalog
 ```
 
-### 2 — Acquire an OAuth token (client credentials)
-
+Acquire an OAuth token:
 ```powershell
-$region    = 'usw2.pure.cloud'           # e.g. usw2.pure.cloud, mypurecloud.de
-$baseUri   = "https://api.$($region)"
-$authUrl   = "https://login.$($region)/oauth/token"
-
-$authResponse = Invoke-RestMethod -Uri $authUrl -Method POST -Body @{
-    grant_type    = 'client_credentials'
-    client_id     = '<your-client-id>'
+$region = 'usw2.pure.cloud'
+$authResponse = Invoke-RestMethod -Uri "https://login.$($region)/oauth/token" -Method POST -Body @{
+    grant_type = 'client_credentials'
+    client_id = '<your-client-id>'
     client_secret = '<your-client-secret>'
 } -ContentType 'application/x-www-form-urlencoded'
 
 $headers = @{ Authorization = "Bearer $($authResponse.access_token)" }
 ```
 
-### 3 — Run a dataset
+### 2. Run
 
+Execute a dataset run:
 ```powershell
-# Dry run (no API calls)
-Invoke-Dataset -Dataset 'users' -WhatIf
-
-# Live run
-Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
+Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri "https://api.$($region)" -Headers $headers
 ```
 
-### 3b — Run an Agent Investigation
-
+For agent investigation:
 ```powershell
 Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
 Connect-GenesysCloud -AccessToken $authResponse.access_token -Region $region
-
 Get-GenesysAgentInvestigation -UserId '<genesys-user-guid>' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
 ```
 
-Agent Investigation is designed for production use against one user at a time. It avoids broad users/queues/skills enumeration by passing the selected user ID and time window into the catalog-backed datasets.
-
-### 4 — Inspect run output
-
+Inspect run output:
 ```powershell
 $runFolder = Get-ChildItem './out/users' -Directory | Sort-Object Name -Descending | Select-Object -First 1
 Get-Content (Join-Path $runFolder.FullName 'summary.json') | ConvertFrom-Json
 ```
 
-For full onboarding steps, see [docs/ONBOARDING.md](docs/ONBOARDING.md).
-For engineering integration/auth patterns across PowerShell, HTML/JS, .NET, and Go, see [docs/ENGINEER_INTEGRATIONS_AUTH.md](docs/ENGINEER_INTEGRATIONS_AUTH.md).
-For precise testing claims, see [docs/TEST_EVIDENCE_LEVELS.md](docs/TEST_EVIDENCE_LEVELS.md).
-
----
-
 ## Installation
 
-**Requirements:**
+**Requirements**:
 
-| Requirement | Version |
-|---|---|
-| Windows PowerShell | 5.1 |
-| PowerShell | 7+ (cross-platform) |
-| Pester (tests only) | 5.x |
-| Network | Genesys Cloud API access |
+| Requirement       | Version |
+| ----------------- | ------- |
+| Windows PowerShell| 5.1     |
+| PowerShell        | 7+      |
+| Pester (tests)    | 5.x     |
+| Network           | Genesys Cloud API access |
 
-**Steps:**
+**Steps**:
 
 ```powershell
-# Clone the repo
 git clone https://github.com/xfaith4/Genesys.Core.git
 Set-Location Genesys.Core
-
-# Import the module
 Import-Module ./modules/Genesys.Core/Genesys.Core.psd1 -Force
-
-# (Optional) Validate catalog schema
-Assert-Catalog -SchemaPath ./catalog/schema/genesys.catalog.schema.json
 ```
-
-No additional package installation is required for runtime use. Pester is only needed for running tests.
-
----
 
 ## Usage
 
-### List available dataset keys
-
+List available datasets:
 ```powershell
 $catalog = Get-Content -Raw ./catalog/genesys.catalog.json | ConvertFrom-Json
 $catalog.datasets.PSObject.Properties.Name | Sort-Object
 ```
 
-### Common dataset runs
-
+Common datasets:
 ```powershell
-# Audit logs (async transaction flow)
 Invoke-Dataset -Dataset 'audit-logs' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
-
-# Analytics conversation details (async job flow)
 Invoke-Dataset -Dataset 'analytics-conversation-details' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
-
-# Users (normalized user projection, paginated)
-Invoke-Dataset -Dataset 'users' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
-
-# Routing queues (normalized queue projection, paginated)
-Invoke-Dataset -Dataset 'routing-queues' -OutputRoot './out' -BaseUri $baseUri -Headers $headers
 ```
-
-All other keys in the catalog (27 additional) run via generic catalog-driven dispatch when endpoint metadata is present.
-
-### Investigation runs
-
-```powershell
-Import-Module ./modules/Genesys.Ops/Genesys.Ops.psd1 -Force
-Connect-GenesysCloud -AccessToken $env:GENESYS_BEARER_TOKEN -Region 'usw2.pure.cloud'
-
-# Agent — resolve by name in the wrapper, then compose by UserId.
-Get-GenesysAgentInvestigation -UserName 'Jane Doe' -Since (Get-Date).AddDays(-7) -OutputRoot './out'
-
-# Conversation — single subject, no window.
-$run = Get-GenesysConversationInvestigation -ConversationId '<conversation-guid>' -OutputRoot './out'
-
-# Conversation investigation package — HTML, CSV, XLSX, JSON metadata, SIP metadata, and PCAP.
-Export-GenesysConversationInvestigationPackage -RunFolder $run.RunFolder -OutputDirectory './out/conversation-package' -Force
-
-# Generic package — Markdown + CSV + XLSX for any investigation run.
-Export-GenesysInvestigationPackage -RunFolder $run.RunFolder -OutputDirectory './out/investigation-package' -Force
-
-# Offline demo package, no Genesys login required.
-pwsh -NoProfile -File ./scripts/New-DemoConversationInvestigationPackage.ps1 -Force
-
-# Queue — subject + window for the SLA / abandons / observations steps.
-Get-GenesysQueueInvestigation -QueueId '<queue-guid>' -Since (Get-Date).AddDays(-1) -OutputRoot './out'
-
-# Redacted diagnostics bundle for support handoff.
-pwsh -NoProfile -File ./scripts/Copy-InvestigationDiagnosticsBundle.ps1 -RunFolder @('./samples/demo-agent-investigation','./samples/demo-queue-investigation') -OutputPath './out/investigation-diagnostics.json'
-
-# Full demo-ready operator scenario.
-pwsh -NoProfile -File ./scripts/Invoke-GoldenPathDemo.ps1 -Destination './samples/golden-path-demo' -Force
-```
-
-Investigation output follows the same artifact contract as datasets, with an investigation manifest schema at `catalog/schema/investigation.manifest.schema.json`. See [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for the composition contract and release sequencing, and [docs/CONVERSATION_INVESTIGATION_PACKAGE.md](docs/CONVERSATION_INVESTIGATION_PACKAGE.md) for the package export workflow.
-
-### Standalone script invocation (dry runs / CI bootstrap)
-
-```powershell
-# WhatIf — validates catalog and prints plan; no API calls made
-pwsh -NoProfile -File ./modules/Genesys.Core/Public/Invoke-Dataset.ps1 -Dataset audit-logs -WhatIf
-```
-
-> **Note:** Script-level invocation now supports `-BaseUri`, `-Headers`, and `-DatasetParameters`, but importing the module is still recommended for reusable sessions.
-
-### Windows GUI
-
-```powershell
-# GenesysInterrogator — catalog validator / dataset tester (WPF, Windows)
-Set-Location .\apps\GenesysInterrogator
-.\App.ps1
-
-# AuditLogsConsole — audit log operator console (WPF, Windows PowerShell 5.1)
-Set-Location .\apps\AuditLogsConsole
-.\App.ps1
-
-# ConversationAnalyzer — full investigation workbench (WPF, PowerShell 7+, Windows)
-Set-Location .\apps\ConversationAnalyzer
-.\App.ps1
-```
-
-All WPF apps are Windows-only and require WPF to be available. `ConversationAnalyzer` requires PowerShell 7.2+; the others run on Windows PowerShell 5.1 or PowerShell 7+.
-
-### Web dashboards (browser, no server required)
-
-```
-apps/ConversationAnalysis/index.html   # conversation analytics SPA
-apps/OpsConsole/index.html             # ops visibility dashboard
-```
-
-Open either file directly in Chrome, Edge, Firefox, or Safari — no build step, no server.
-
----
 
 ## Configuration
 
-### Environment variables (GitHub Actions workflows)
+### Environment Variables
 
-| Name | Required | Description |
-|---|---|---|
-| `GENESYS_BEARER_TOKEN` | Yes (workflows) | OAuth bearer token injected as a GitHub Actions secret |
+| Name                  | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `GENESYS_BEARER_TOKEN`| OAuth token for GitHub Actions workflows         |
 
-### Key `Invoke-Dataset` parameters
+### Key Parameters
 
-| Parameter | Required | Description |
-|---|---|---|
-| `-Dataset` | Yes | Dataset key from the catalog (e.g. `users`, `audit-logs`) |
-| `-OutputRoot` | No | Root folder for run output (default: `./out`) |
-| `-BaseUri` | No* | Genesys Cloud API base URI (e.g. `https://api.mypurecloud.com`) |
-| `-Headers` | No* | Hashtable with `Authorization` bearer token |
-| `-WhatIf` | No | Dry run; validates catalog and prints plan without calling the API |
-| `-DatasetParameters` | No | Dataset runtime overrides (intervals, query overrides, dataset-specific knobs) |
-| `-StrictCatalog` | No | Retained as a backward-compatible no-op after mirror-catalog retirement |
+| Parameter         | Description                       |
+| ----------------- | --------------------------------- |
+| `-Dataset`        | Catalog dataset key               |
+| `-OutputRoot`     | Root folder for output (default: `./out`) |
+| `-BaseUri`        | Genesys Cloud API base URI        |
+| `-Headers`        | Authorization headers             |
+| `-WhatIf`         | Validates without API calls       |
 
-\* Required for live API runs.
+## Accessibility
 
-### Catalog loading precedence
-
-`Resolve-Catalog` loads catalogs in this order:
-
-1. Explicit `-CatalogPath` when supplied.
-2. `./catalog/genesys.catalog.json` ← **canonical**
-
-The legacy `genesys-core.catalog.json` mirror has been retired. If no catalog is found at the canonical path (and no explicit `-CatalogPath` is given) `Resolve-Catalog` throws.
-
----
-
-## Architecture
-
-### High-level flow
-
-```mermaid
-flowchart TD
-    A[Invoke-Dataset] --> B[Resolve-Catalog]
-    B --> C{Handler type?}
-    C -- curated --> D[Curated Dataset Handler\naudit-logs / analytics / users / queues]
-    C -- generic --> E[Invoke-SimpleCollectionDataset]
-    D & E --> F[Invoke-GcRequest + Retry Engine]
-    F --> G{Paging strategy\nfrom catalog}
-    G --> H[Collect pages]
-    H --> I[Redact + Normalize]
-    I --> J[Write out/<datasetKey>/<runId>/\nmanifest.json · events.jsonl · summary.json · data/*.jsonl]
-```
-
-### Run output contract
-
-Every run writes under `out/<datasetKey>/<runId>/`:
-
-| File | Description |
-|---|---|
-| `manifest.json` | Dataset key, time window, git SHA, start/end times, record counts, warnings |
-| `events.jsonl` | Structured events: retries, 429 backoffs, paging progress, async poll states |
-| `summary.json` | Fast "coffee view" of the run |
-| `data/*.jsonl` | Normalized, redacted dataset records (or `.jsonl.gz`) |
-
-### Repository layout
-
-```
-Genesys.Core/
-├── catalog/
-│   ├── genesys.catalog.json               # Canonical catalog (source of truth)
-│   └── schema/
-│       └── genesys.catalog.schema.json    # JSON Schema
-├── modules/
-│   ├── Genesys.Auth/                      # OAuth flows, token lifecycle
-│   │   ├── Genesys.Auth.psd1
-│   │   └── Genesys.Auth.psm1
-│   ├── Genesys.Core/                      # Catalog-driven runtime engine
-│   │   ├── Genesys.Core.psd1
-│   │   ├── Genesys.Core.psm1
-│   │   ├── Public/
-│   │   │   └── Invoke-Dataset.ps1         # Primary entrypoint
-│   │   └── Private/
-│   │       ├── Async/                     # Invoke-AsyncJob, poll, fetch
-│   │       ├── Catalog/                   # Resolve-Catalog, Assert-Catalog
-│   │       ├── Datasets/                  # Curated + generic handlers
-│   │       ├── Http/                      # Invoke-GcRequest, Invoke-CoreEndpoint
-│   │       ├── Paging/                    # Paging strategy plugins
-│   │       ├── Redaction/                 # Header/token redaction
-│   │       ├── Retry/                     # Retry engine with jitter
-│   │       └── Run/                       # Run contract writers
-│   └── Genesys.Ops/                       # IT-Ops convenience cmdlets
-│       ├── Genesys.Ops.psd1
-│       └── Genesys.Ops.psm1
-├── apps/
-│   ├── App_Builder_Template.md            # Prompt template for generating new Core-backed apps
-│   ├── ConversationAnalysis/
-│   │   ├── index.html                     # Web SPA — conversation analytics (no build, no server)
-│   │   └── README.md
-│   ├── ConversationAnalyzer/
-│   │   ├── App.ps1                        # WPF investigation workbench (PowerShell 7+, Windows)
-│   │   └── README.md
-│   ├── GenesysInterrogator/
-│   │   ├── App.ps1                        # WPF catalog validator / dataset tester (PS 5.1/7+)
-│   │   └── README.md
-│   ├── AuditLogsConsole/
-│   │   ├── App.ps1                        # WPF audit log operator console (PS 5.1+)
-│   │   └── README.md
-│   ├── InvestigationConsole/
-│   │   └── index.html                     # Web SPA — offline investigation operator console (no build, no server)
-│   └── OpsConsole/
-│       ├── index.html                     # Web SPA — Ops visibility dashboard (no build, no server)
-│       └── README.md
-├── scripts/
-│   ├── Invoke-Smoke.ps1                   # Smoke test runner
-│   ├── Invoke-Tests.ps1                   # Full test runner
-│   ├── Invoke-GenesysCoreBridge.ps1       # CLI bridge for non-PS wrappers
-│   ├── Update-CatalogFromSwagger.ps1      # Refresh catalog from Swagger
-│   └── Sync-SwaggerEndpoints.ps1
-├── tests/
-│   ├── unit/                              # 16 Pester test files
-│   └── integration/
-│       └── workflow-simulation.ps1
-├── docs/
-│   ├── ONBOARDING.md
-│   ├── ROADMAP.md
-│   ├── CHANGELOG.md
-│   ├── REPO_SCHEMATIC.md
-│   ├── ENGINEER_INTEGRATIONS_AUTH.md
-│   └── training/
-│       └── genesys-onboarding.html        # Interactive training page
-└── .github/workflows/
-    ├── ci.yml                             # Pester on pull_request + workflow_dispatch
-    ├── audit-logs.scheduled.yml           # Scheduled daily run
-    └── audit-logs.on-demand.yml           # Manual trigger with time-window inputs
-```
-
----
-
-## Apps
-
-Genesys.Core is designed as a **backend engine**: any GUI, web app, .NET service, or Go binary can call `Invoke-Dataset` (or `Get-GenesysAgentInvestigation`) and use the structured run output as its data source — no forking the core required.
-
-The `apps/` directory contains ready-made reference implementations that follow this pattern. Each app is independently runnable and has its own `README.md`.
-
-| App | Type | Purpose |
-|-----|------|---------|
-| [`ConversationAnalysis`](apps/ConversationAnalysis/README.md) | Web SPA (HTML, no build) | Explore, filter, and drilldown into conversation analytics run artifacts in the browser |
-| [`ConversationAnalyzer`](apps/ConversationAnalyzer/README.md) | WPF — PowerShell 7+, Windows | Full investigation workbench: SQLite case store, multi-run imports, population reports, saved views, findings |
-| [`GenesysInterrogator`](apps/GenesysInterrogator/README.md) | WPF — PS 5.1 / 7+, Windows | Catalog validator and dataset tester — one window, all datasets, live JSON parameter editor |
-| [`AuditLogsConsole`](apps/AuditLogsConsole/README.md) | WPF — PS 5.1+, Windows | Operator console for Audit Logs: run, browse, and reopen recent runs |
-| [`InvestigationConsole`](apps/InvestigationConsole/index.html) | Web SPA (HTML, no build) | Unified operator console for Agent, Conversation, and Queue investigations with run history, summary dashboard, and diagnostics workflow |
-| [`OpsConsole`](apps/OpsConsole/README.md) | Web SPA (HTML, no build) | Ops visibility dashboard: queue health, abandon rates, agent quality, edge/trunk status, change audit |
-
-`apps/App_Builder_Template.md` is a prompt template you can use to generate new Core-backed apps — paste it into a Copilot/LLM session with your business requirements to scaffold a fully compliant wrapper app.
-
-## Portfolio
-
-Release 1.4 turns the investigation stack into a demo-ready operator product:
-
-- `apps/InvestigationConsole/index.html` gives a no-build browser console for reviewing run folders, demo fixtures, run history, and support diagnostics.
-- `scripts/Export-InvestigationPackage.ps1` generates generic Markdown/XLSX evidence packs from any investigation run.
-- `scripts/Copy-InvestigationDiagnosticsBundle.ps1` generates a redacted JSON handoff for support or incident review.
-- `scripts/Invoke-GoldenPathDemo.ps1` assembles a repeatable end-to-end demo under `samples/golden-path-demo/`.
-
-Suggested screenshot set for README / portfolio use:
-
-1. Overview dashboard in `InvestigationConsole` with all three demo runs loaded.
-2. Conversation tab with recordings, evaluations, and surveys visible together.
-3. Queue tab with wrap-up distribution, transfer counts, and active-agent state.
-4. Diagnostics tab plus the generated Markdown/XLSX package outputs.
-
-### Architecture constraint (all apps)
-
-Every app must follow the **Core-first rule**:
-
-1. **No direct Genesys REST calls for data extraction** — no custom paging, retry, or job polling in the app.
-2. **All extraction via `Invoke-Dataset`** (or exported Ops-layer cmdlets) — keyed by catalog dataset key.
-3. **UI reads Core run artifacts** (`manifest.json`, `events.jsonl`, `summary.json`, `data/*.jsonl`) — it does not hold raw API responses in memory.
-
-This contract means swapping out the UI layer (WPF → web → CLI) never requires touching extraction logic, and Core improvements propagate to all apps automatically.
-
-### Release 1.4 operator loop
-
-```mermaid
-flowchart LR
-    A[Genesys.Ops investigation cmdlets] --> B[out/<investigationKey>/<runId>/]
-    B --> C[InvestigationConsole]
-    B --> D[Export-InvestigationPackage.ps1]
-    B --> E[Copy-InvestigationDiagnosticsBundle.ps1]
-    D --> F[Markdown + CSV + XLSX package]
-    E --> G[Redacted diagnostics JSON]
-    C --> H[Run history + detail views + demo workflow]
-```
-
-The architecture note for 1.4 is deliberate: the console does not bypass the artifact contract, and the export/diagnostics scripts operate on the same run folders that the browser app reads. That keeps demos, support handoff, and production investigation review on one file contract.
-
----
-
-## Development
-
-### Run tests (Pester)
+The operator consoles, dataset browser, documentation pages, and generated
+investigation reports are held to **WCAG 2.1 Level AA**. Conformance is enforced
+on every pull request by the `accessibility` CI job.
 
 ```powershell
-# Install Pester if not already installed
-Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
-
-# Run full test suite
-$config = . ./tests/PesterConfiguration.ps1
-Invoke-Pester -Configuration $config
+pwsh -NoProfile -File ./scripts/Invoke-AccessibilityAudit.ps1
 ```
 
-For a comprehensive testing guide, see [TESTING.md](TESTING.md).
-
-### Run smoke checks
-
-```powershell
-pwsh -NoProfile -File ./scripts/Invoke-Smoke.ps1
-```
-
-### Sync catalog from Swagger
-
-```powershell
-# Refresh from bundled Swagger snapshot
-pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -WriteLegacyCopy
-
-# Refresh from a custom Swagger file
-pwsh -NoProfile -File ./scripts/Update-CatalogFromSwagger.ps1 -SwaggerPath ./my/swagger.json -WriteLegacyCopy
-```
-
-### CI
-
-The `ci.yml` workflow runs Pester on every pull request and on manual dispatch using `ubuntu-latest` with PowerShell 7.
-
----
-
-## Roadmap
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap. Current status summary:
-
-- ✅ **Phase 0** — Module scaffold, catalog, schema, CI, workflow scaffolding
-- ✅ **Phase 1** — Retry engine, paging plugins, structured events, redaction
-- 🔄 **Phase 2** — Curated dataset handlers (4 complete; generic dispatch covers the rest); parameterization improvements in progress
-- 🔄 **Phase 3** — Catalog mirror consolidation; production workflow auth ergonomics
-- 📋 **Phase 4** — Endpoint expansion: `authorization/roles`, `oauth/clients`, `recordings`, `speechandtextanalytics`, and more
-
----
-
-## CI Testing Notes
-
-> **Why CI does not perform real Genesys Cloud calls**
-
-GitHub Actions runners in this repository have no access to a Genesys Cloud organisation, and no bearer token is stored as a secret (by design — storing production credentials in a public or shared repository is a security risk).
-
-To keep CI passing and still provide meaningful validation, all Genesys Cloud API interactions in the `audit-logs.scheduled.yml` and `audit-logs.on-demand.yml` workflows are **virtualized**:
-
-- The dataset run step creates the identical output folder structure (`manifest.json`, `events.jsonl`, `summary.json`, `data/audit.jsonl`) that a real run produces, populated with clearly-labelled mock records.
-- Every mocked action is prefixed with `MOCK:` in the workflow log so reviewers can instantly distinguish virtualized steps from real API activity.
-- The artifact upload step receives the mock output and succeeds normally, producing a downloadable artifact with the same schema as a real run.
-- The `events.jsonl` file includes a `mock.api.skipped` event as a permanent transparency marker.
-
-**What is still tested in CI:**
-
-| Check | How |
-|---|---|
-| Output folder/file structure | Created and validated in the mock step |
-| JSON schema of all output files | Written and structure-checked by the mock step |
-| Artifact upload / retention | `actions/upload-artifact` receives real files |
-| Pester unit tests (all 16 files) | Run via `ci.yml` on every PR; all API calls are already mocked via `RequestInvoker` |
-
-**Real integration tests** (live API calls with a valid bearer token) must be run locally or in an environment where the `GENESYS_BEARER_TOKEN` secret is available.
-Use [docs/TEST_EVIDENCE_LEVELS.md](docs/TEST_EVIDENCE_LEVELS.md) when interpreting "all tests pass"; CI success does not mean every Genesys Cloud endpoint has passed live `Invoke-Dataset` acceptance.
-
----
-
-## Contributing
-
-Contributions are welcome. Please follow these steps:
-
-1. Fork the repository and create a feature branch.
-2. Make your changes; ensure `Invoke-Pester` passes with no failures.
-3. Add or update catalog entries with valid `paging` and `retry` profile fields.
-4. Verify PS 5.1 and PS 7 compatibility (avoid PS 7-only features).
-5. Open a pull request against `main`.
-
-Pull request checklist (from [.agents/AGENTS.md](.agents/AGENTS.md)):
-
-- [ ] Catalog entry added/updated with schema-valid fields
-- [ ] Paging profile exists and is tested/mocked
-- [ ] No secrets or PII in logs
-- [ ] PS 5.1 + 7+ compatible
-- [ ] Run outputs follow contract; artifact upload only includes the run folder
-
----
-
-## Security
-
-If you discover a security vulnerability, please **do not open a public issue**. Instead, contact the maintainers privately via GitHub's [private vulnerability reporting](https://github.com/xfaith4/Genesys.Core/security/advisories/new).
-
-The engine enforces the following data safety rules:
-
-- `Authorization` headers are always redacted from logged events.
-- Token-like query parameters are redacted before persistence.
-- Raw payload storage is opt-in and never the default.
-
----
+The analyzer in `tools/Genesys.Accessibility` is dependency-free PowerShell, so
+the audit runs offline on Windows PowerShell 5.1 and PowerShell 7+ with no
+Node/npm toolchain. See [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) for the
+conformance statement, the enforced rule set, and the manual checklist covering
+criteria that require a rendered viewport.
 
 ## License
 
-[MIT](./LICENSE) — Copyright (c) 2026 Genesys.Core contributors
+[MIT License](./LICENSE)

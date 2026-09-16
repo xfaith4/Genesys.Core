@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-16  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -36,7 +36,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Transfer-Loop, Failed-Handoff, and Agent×Queue Intersection](#10-transfer-loop-failed-handoff-and-agentqueue-intersection)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -441,7 +442,64 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Transfer-Loop, Failed-Handoff, and Agent×Queue Intersection
+
+Two gaps remained after Release 1.3: the roadmap's "repeat-contact, transfer-loop, and
+failed-handoff analysis" opportunity had no catalog recipe, and there was no pattern for a
+complaint that names *both* a specific agent and a specific queue (agent-investigation and
+queue-investigation each pull in the subject's *other* queues/agents, diluting the picture).
+
+### 10a. Transfer-Loop and Failed-Handoff Analysis
+
+**Subject:** One `queueId` (or `divisionId` fan-out, or `userId` filter) + time window
+**Core question:** *Are contacts being bounced between the same queues, or dropped right after a hand-off?*
+
+`analytics.query.conversation.aggregates.transfer.metrics` reports *that* transfers happened, not
+whether a customer looped through Billing → Retention → Billing, or was disconnected immediately
+after being handed to a second queue. Both signals require reconstructing each conversation's
+distinct-queue hop sequence from `analytics-conversation-details-query` segment data — there is no
+endpoint that returns a loop or failed-handoff flag directly. This mirrors the
+`report_transfer_flows` / `report_transfer_chains` derivation already implemented locally in the
+ConversationAnalyzer app (`App.Database.psm1` → `Import-TransferReport`); this section documents
+that derivation as a reusable catalog combination.
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `routing-queues` | seed → `id` | Queue ID → name map for every queue that can appear in a chain |
+| 2 | `analytics.query.conversation.aggregates.transfer.metrics` | `queueId` | Baseline transfer volume (the denominator) |
+| 3 | `analytics-conversation-details-query` | `conversationId` | Per-conversation segments with `queueId`, `segmentStart`, `disconnectType` — the only source for chain reconstruction |
+
+**Derivation:** sort each conversation's queue-bearing segments chronologically, collapse
+consecutive repeats, and the resulting ordered list is the hop chain (`hopCount` = its length). A
+queue reappearing non-adjacently in that chain is a **loop**. A transfer segment immediately
+followed by a `disconnectType` of `client`/`peer` with no subsequent `CONNECTED` segment on the
+receiving queue is a **failed handoff**. Transfer type (blind vs. consult) is inferred at the
+chain level from the presence of a `consult` segment or an `internal`/`peer` participant purpose —
+Genesys Cloud does not emit a per-hop transfer-type flag, so document this as an inference, not a
+fact, wherever the metric is reported.
+
+Executive metrics: `transferLoopRate%`, `avgHopCount`, `failedHandoffRate%`, worst-offending queue
+pairs. See `combinations.investigationRecipes.transfer-loop-and-failed-handoff-analysis`, the
+`transfer-loop-and-escalation-kpis` executive playbook, and the
+`transfer-chain-and-failed-handoff-forensics` voice-engineer playbook in the JSON catalog.
+
+### 10b. Agent × Queue Intersection Investigation
+
+**Subject:** One `userId` **and** one `queueId` + time window
+**Core question:** *How did this specific agent perform, specifically in this specific queue?*
+
+Filtering `analytics-conversation-details-query` by `participantUserId` alone pulls in the agent's
+other queues; filtering by `queueId` alone pulls in every other agent on the queue. Both
+predicates must apply together. Report each metric three ways — agent-in-queue, agent's own
+org-wide baseline (from Agent Investigation), and the queue's own org-wide baseline (from Queue
+Investigation) — so a gap is attributable to the agent, the queue, or neither. See
+`combinations.investigationRecipes.agent-queue-intersection-investigation` in the JSON catalog for
+the full step list (membership check, skill cross-reference, scoped conversations, scoped
+aggregate performance, scoped evaluations).
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.

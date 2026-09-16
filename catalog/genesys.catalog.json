@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-16T13:09:16.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -44552,6 +44552,121 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "transfer-loop-and-failed-handoff-analysis": {
+        "description": "Detects queue-hopping ('transfer-loop') and abrupt post-transfer disconnects ('failed handoff') within a queue or division over a window, by reconstructing each conversation's distinct queue-hop sequence from segment data rather than relying on a single transfer-count aggregate. Flagged in the roadmap as a follow-on to queue-investigation and wrapup-and-transfer-analysis: raw nTransferred tells you a transfer happened, not whether the customer was bounced between the same queues repeatedly or dropped immediately after a hand-off. Mirrors the report_transfer_flows/report_transfer_chains derivation already implemented locally in the ConversationAnalyzer app (App.Database.psm1 Import-TransferReport) — this recipe documents that pattern as a reusable catalog combination.",
+        "subjectParam": "queueId",
+        "subjectAlt": "divisionId (fan out over authorization.search.division.objects queueId list) or userId (filter conversations to one agent's participation)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "queue-context",
+            "dataset": "routing-queues",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "queueId → name map for every queue that can appear in a hop sequence",
+            "description": "Resolves queue IDs found in conversation segments to human-readable names. Pull for every queue expected to appear in hop chains, not just the seed queue, since a chain by definition crosses queue boundaries."
+          },
+          {
+            "step": "transfer-aggregate-baseline",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "filterBy": "queueId + investigation window",
+            "joinKey": "queueId",
+            "provides": "nConnected, nTransferred, nBlindTransferred, nConsultTransferred, nOffered (denominator when present)",
+            "description": "Baseline transfer volume from queue-investigation / wrapup-and-transfer-analysis. Used only as the reporting denominator — this dataset cannot distinguish a single transfer from a repeated loop; the chain reconstruction below does that."
+          },
+          {
+            "step": "conversation-segments",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "queueId (or participantUserId, or divisionId's queueId list) + investigation window",
+            "joinKey": "conversationId",
+            "provides": "participants[].sessions[].segments[] with segmentType, queueId, segmentStart/segmentEnd, disconnectType",
+            "description": "The only source for chain reconstruction. For each conversationId, collect every segment that carries a queueId (any segmentType), sort by segmentStart, and reduce to the distinct-queue sequence in visit order — that sequence is the hop chain. A queue appearing more than once non-adjacently in the sequence is a loop (e.g. Billing → Retention → Billing)."
+          }
+        ],
+        "derivation": {
+          "hopChain": "For each conversationId: sort queue-bearing segments chronologically, collapse consecutive repeats of the same queueId, and record the resulting ordered queue list as the chain. hopCount = chain length.",
+          "loopDetection": "loopDetected = true when any queueId appears more than once in the chain with at least one different queueId between the two occurrences. This is the queue-hopping pattern raw nTransferred cannot surface.",
+          "failedHandoffDetection": "failedHandoff = true when a transfer segment is immediately followed by a session-level disconnectType of 'client' or 'peer' with no subsequent CONNECTED segment for the receiving queue — the customer was handed off and then dropped rather than reaching an agent in the target queue. Cross-check disconnectType from analytics-conversation-details-query against the same field surfaced by conversations.get.conversation.object for the individual conversations flagged.",
+          "transferTypeCaveat": "Genesys Cloud's segment model does not emit a per-hop transfer-type flag. A conversation is pragmatically labelled 'consult' if it contains any segment with segmentType=consult or a participant with purpose in (internal, peer); otherwise the whole chain is labelled 'blind'. Document this inference alongside any reported metric — it is a chain-level label, not a per-hop one."
+        },
+        "joinSequence": "queue-context (seed) → transfer-aggregate-baseline (queueId) → conversation-segments (queueId/window) → local chain/loop/failed-handoff derivation (conversationId)",
+        "diagnosticSignals": [
+          "hopCount >= 3 on a rising trend for one queue pair → a routing rule or skill mismatch is bouncing contacts rather than resolving them; check the receiving queue's skill requirements and the sending flow's transfer decision logic",
+          "loopDetected conversations concentrated on one wrapUpCode → cross-check against wrapup-and-transfer-analysis; a specific call reason may be mis-routed by design, not by accident",
+          "failedHandoff rate elevated for consult-labelled chains specifically → the consulted agent is not completing the transfer (abandoning the conference) rather than the customer disconnecting; correlate with telephony.get.sip.messages.for.conversation for the affected conversationIds",
+          "failedHandoff concentrated at hand-off to one specific queue → that queue's ACD auto-answer or station registration may be failing; cross-reference agent-not-responding-autoanswer for the receiving queue's agent cohort"
+        ],
+        "executiveMetrics": [
+          "transferLoopRate% = conversations with loopDetected / total transferred conversations",
+          "avgHopCount (chains with hopCount > 1 only)",
+          "failedHandoffRate% = conversations with failedHandoff / total transferred conversations",
+          "worstQueuePair (queueFrom, queueTo, count) ranked by loop frequency"
+        ],
+        "enrichWith": [
+          "conversations.get.conversation.object (full participant/session detail for any single flagged conversationId, to confirm the derived chain by eye before reporting it)",
+          "telephony.get.sip.messages.for.conversation (SIP evidence for failedHandoff conversations on voice — confirms whether the disconnect was BYE from the customer leg or the consult leg)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. The hop-chain/loop/failed-handoff derivation is computed client-side from segment data — there is no Genesys Cloud endpoint that returns it directly."
+      },
+      "agent-queue-intersection-investigation": {
+        "description": "Scopes the agent-investigation and queue-investigation recipes to their intersection: this agent's conversations specifically within this queue. Used when a complaint or QM review names both a specific agent and a specific queue (e.g. 'this agent mishandled billing-queue transfers') and a full per-agent or per-queue investigation would pull in irrelevant volume from the agent's other queues or the queue's other agents.",
+        "subjectParam": "userId + queueId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "membership-check",
+            "dataset": "users.get.user.queue.memberships",
+            "role": "seed",
+            "filterBy": "userId",
+            "joinKey": "queueId",
+            "provides": "confirms the agent is (or was) a member of the target queue, with joined date",
+            "description": "Establishes membership context before pulling conversation data — an agent can still have handled conversations in a queue they've since been removed from, so absence here is informative but not disqualifying."
+          },
+          {
+            "step": "skills-for-queue",
+            "dataset": "users.get.user.routing.skills",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "skillName, proficiencyRating",
+            "description": "Cross-reference against the queue's skill-based routing configuration to check whether the agent met the queue's skill requirements at all, or was routed a mismatched interaction."
+          },
+          {
+            "step": "intersection-conversations",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participantUserId=userId AND queueId=queueId + investigation window",
+            "joinKey": "conversationId",
+            "provides": "conversationId, wrapUpCode, tTalk, tHandle, tAcw, mediaType, disconnectType — restricted to interactions where this agent handled this queue",
+            "description": "The core dataset for this recipe. Both filter predicates must be applied in the same query (or applied client-side to the agent's full conversation list) — filtering by userId alone pulls in the agent's other queues, and filtering by queueId alone pulls in every other agent on the queue."
+          },
+          {
+            "step": "agent-performance-in-queue",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId + queueId + investigation window",
+            "joinKey": "userId+queueId",
+            "provides": "nConnected, tHandle (avg), tTalk (avg), tAcw (avg) scoped to this agent-queue pair",
+            "description": "Aggregate comparison point: how this agent's handle time in this queue compares to their own org-wide average (from agent-investigation) and to the queue's overall average (from queue-investigation)."
+          },
+          {
+            "step": "evaluations-in-scope",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "agentUserId=userId, conversationId in (intersection-conversations)",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed, evaluatorId",
+            "description": "Quality scores restricted to evaluations against conversations in this specific intersection — avoids diluting the picture with the agent's evaluations from unrelated queues."
+          }
+        ],
+        "joinSequence": "membership-check (userId) → skills-for-queue (userId) → intersection-conversations (userId+queueId) → agent-performance-in-queue (userId+queueId) → evaluations-in-scope (conversationId subset)",
+        "comparisonPattern": "Report three numbers side by side for each metric: this agent in this queue, this agent org-wide (agent-investigation performance-aggregates step), and this queue org-wide (queue-investigation performance step). A large gap between the first and either baseline is the finding — a large gap between the two baselines with the intersection close to one of them tells you which side the anomaly belongs to.",
+        "executiveMetrics": [
+          "tHandle (agent-in-queue vs. agent-baseline vs. queue-baseline)",
+          "evalAvgScore (agent-in-queue subset)",
+          "criticalItemFailCount (agent-in-queue subset)",
+          "conversationShare% = intersection conversation count / queue total conversation count for the window"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44919,6 +45034,28 @@
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "transfer-loop-and-escalation-kpis": {
+        "description": "Executive-facing rollup of the transfer-loop-and-failed-handoff-analysis recipe — how often contacts are bounced between the same queues or dropped after a hand-off, expressed as a rate rather than a raw transfer count. Complements wrapup-and-transfer-analysis, which reports transfer volume but not loop or failed-handoff behavior.",
+        "datasetsInOrder": [
+          "routing-queues",
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics-conversation-details-query"
+        ],
+        "joinOn": "queueId, then conversationId for the client-side chain derivation",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "week"
+        ],
+        "outputMetrics": [
+          "transferLoopRate% = conversations with a repeated non-adjacent queue in their hop chain / total transferred conversations",
+          "failedHandoffRate% = conversations disconnected immediately after a transfer segment, before reaching CONNECTED in the destination queue / total transferred conversations",
+          "avgHopCount for chains with hopCount > 1",
+          "top 5 worst-offending queue pairs by loop frequency"
+        ],
+        "derivationNote": "transferLoopRate% and failedHandoffRate% are not returned by any single Genesys Cloud endpoint — they are computed by reconstructing each conversation's queue-hop sequence from analytics-conversation-details-query segment data, per the derivation logic documented in the transfer-loop-and-failed-handoff-analysis recipe.",
+        "executivePresentation": "Trend line of transferLoopRate% and failedHandoffRate% over the reporting window, with a queue-pair heatmap for the current period. Present alongside the wrapup-and-transfer-analysis transfer-rate chart rather than replacing it — one shows how much transferring happens, the other shows how much of that transferring is actually working."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45062,6 +45199,27 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "transfer-chain-and-failed-handoff-forensics": {
+        "description": "Voice-engineer drilldown for a specific customer complaint of the form 'I got bounced between departments' or 'I was transferred and then the call just died.' Starts from a conversationId or a short list of candidate conversationIds for the affected customer and reconstructs the exact queue-hop sequence and disconnect evidence, rather than relying on the aggregate transferLoopRate% from the executive rollup.",
+        "subjectParam": "conversationId (or externalContactId to enumerate candidates via customer-360-contact-history conversation-history step)",
+        "datasetsInOrder": [
+          "conversations.get.conversation.object",
+          "analytics.get.single.conversation.analytics",
+          "telephony.get.sip.messages.for.conversation",
+          "analytics.query.conversation.aggregates.transfer.metrics"
+        ],
+        "diagnosticSignals": [
+          "participants[].sessions[].segments[] show queueId A → B → A with no agent-CONNECTED segment on the middle hop → the customer was round-tripped through a queue that never actually staffed the interaction; check that queue's real-time staffing at the segment timestamp",
+          "a transfer segment immediately followed by disconnectType=peer with no subsequent alerting segment → the receiving agent's client/station dropped the consult leg; correlate to that agent's station-registration state (see agent-not-responding-autoanswer station-registration step)",
+          "SIP trace shows a second INVITE (re-INVITE for the transfer target) with no matching 200 OK before a BYE → the transfer signaling itself failed at the SIP layer, not at the ACD routing layer — this is a trunk/edge issue, not a routing-rule issue",
+          "disconnectType=client on the customer's leg immediately after the first ALERT on the second queue → the customer hung up while waiting again, i.e. this reads as an abandon in aggregate metrics but is actually a failed transfer from the customer's perspective"
+        ],
+        "enrichWith": [
+          "quality.get.evaluations.query (was this conversation evaluated — a failed handoff is a strong candidate for a calibration sample)",
+          "coaching.get.appointments (for the consult-leg agent, if the failure traces to a dropped consult rather than a system fault)"
+        ],
+        "relatedRollup": "transfer-loop-and-escalation-kpis (executiveReportingPlaybooks) — use this forensics playbook to confirm root cause on the specific conversations sampled from that rollup's worst-offending queue pairs."
       }
     }
   }

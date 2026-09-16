@@ -33,7 +33,11 @@ See [acceptance gates](docs/PRODUCT_VALUE.md#recommended-next-release-explain-wh
 
 ## Following opportunities
 
-1. Repeat-contact, transfer-loop, and failed-handoff analysis.
+1. Repeat-contact, transfer-loop, and failed-handoff analysis. Catalog pattern documented
+   (`transfer-loop-and-failed-handoff-analysis`, `transfer-loop-and-escalation-kpis`,
+   `transfer-chain-and-failed-handoff-forensics` in `catalog/genesys.catalog.json` /
+   [ENDPOINT_COMBINATIONS.md §10a](docs/ENDPOINT_COMBINATIONS.md#10a-transfer-loop-and-failed-handoff-analysis));
+   not yet wired into a runtime cmdlet or app feature.
 2. Scheduled business-unit scorecards with stable KPI definitions.
 3. Configuration drift and division-access evidence.
 4. Bot/AI outcome and cost assurance.

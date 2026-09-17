@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-09-17
+
+### Added
+
+- Added three investigation recipes and one executive reporting playbook to
+  `catalog/genesys.catalog.json`'s `combinations`, closing gaps identified by
+  reviewing the Genesys Developer Center API Explorer, the Embeddable
+  Framework condensed-conversation-info guide, and the BYOI integration
+  guides against the existing recipe set:
+  - `investigationRecipes.outbound-campaign-investigation` — single-campaign
+    dial-health investigation (config, live progress, call-outcome stats,
+    diagnostics, line/trunk distribution, contact-list and DNC linkage, and
+    the conversations the campaign generated). Complements the existing
+    `outbound-campaign-performance` executive playbook, which rolls up
+    across campaigns rather than diagnosing one.
+  - `investigationRecipes.case-investigation` — single Case Management case
+    investigation (detail, workflow stage, comment history, associations,
+    caseplan definition, sibling cases for the same external contact). Enters
+    either by `caseId` or, when the case is not yet known, by resolving case
+    associations for a `conversationId` — the join point from
+    `single-conversation-investigation` into a linked case.
+  - `investigationRecipes.knowledge-effectiveness-and-deflection-analysis` —
+    correlates Knowledge Base search activity (chunk search, unanswered
+    phrase groups, knowledge aggregates) with live-agent conversation topic
+    volume (via `speechandtextanalytics.get.topics`) to identify content gaps
+    that are actually driving contact volume, versus gaps with no material
+    impact yet.
+  - `executiveReportingPlaybooks.case-management-caseload-and-resolution-kpis`
+    — org/division caseload, backlog trend, and resolution-time rollup built
+    on `postAnalyticsCasemanagementAggregatesQuery`, noted as the only
+    verified org-wide case rollup source since no bulk case-search/list
+    endpoint exists in this catalog's inventory.
+
+  Every new `dataset` reference resolves to an existing `datasets` or
+  `endpoints` entry in the same catalog file (all raw `endpoints`
+  operationIds for this addition, verified against the live inventory before
+  writing each recipe) and the file passes both
+  `tests/unit/Catalog.CombinationReferences.Tests.ps1` assertions —
+  reference resolution and the "no fabricated generic provider call
+  injection route" guard — plus `catalog/schema/genesys.catalog.schema.json`
+  validation.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

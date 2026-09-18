@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-18T13:08:28.4970000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -44552,6 +44552,249 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "agent-group-investigation": {
+        "description": "Cross-queue, cross-division rollup scoped to a Genesys Cloud Group (/api/v2/groups) — the collaboration/ACD grouping primitive distinct from both Division (data-access boundary) and Team (supervisor roster). A group's membership is independent of division and queue assignment, so it is the correct entry point when the investigation boundary is an ad hoc cohort (e.g. 'Spanish Speakers', 'Tier 2 Escalation', 'New Hire Cohort Sept 2026') that was explicitly assembled to span multiple divisions and queues.",
+        "subjectParam": "groupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "group-detail",
+            "dataset": "getGroup",
+            "role": "seed",
+            "joinKey": "id",
+            "provides": "name, description, type, memberCount, dateModified",
+            "description": "Group metadata — confirms the group exists and its declared type (official/social) before pulling membership."
+          },
+          {
+            "step": "group-members",
+            "dataset": "getGroupMembers",
+            "joinKey": "groupId",
+            "provides": "userId list of every member of the group",
+            "description": "Definitive membership roster — drives every per-agent join below. Group membership can span every division and queue in the org; do not assume a shared division or queue set."
+          },
+          {
+            "step": "group-profile",
+            "dataset": "getGroupProfile",
+            "joinKey": "groupId",
+            "provides": "extended profile attributes — custom fields configured for this group type",
+            "description": "Supplementary group attributes beyond the base group-detail object; useful when the group was configured with custom classification fields."
+          },
+          {
+            "step": "member-division-crosscut",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "divisionId per member",
+            "description": "Breaks the roster out by division — the first signal of whether this group is a single-division cohort or a genuinely cross-division grouping."
+          },
+          {
+            "step": "member-queue-memberships",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId (fan-out over group-members)",
+            "joinKey": "userId",
+            "provides": "queueId, queueName per member",
+            "description": "Confirms which queues the group's members actually serve — a group name like 'Spanish Speakers' implies a skill/language cohort, not a queue, so queue coverage must be checked rather than assumed."
+          },
+          {
+            "step": "agent-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per member for the window",
+            "description": "Performance aggregates for the group cohort — the rollup input for a group-level scorecard."
+          },
+          {
+            "step": "quality-by-group",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "evalCount, avgScore per member",
+            "description": "Quality coverage and scores for the group, for pairing with agent-performance in a single group scorecard."
+          }
+        ],
+        "joinSequence": "seed (group-detail) → group-members (groupId) → member-division-crosscut (userId) → member-queue-memberships (userId) → agent-performance (userId) → quality-by-group (userId)",
+        "groupVsDivisionVsTeamNote": "Three distinct grouping primitives answer three distinct questions: Division (authorization.get.all.divisions) is the data-access/permission boundary; Team (getTeams) is a supervisor's direct-report roster or scheduling crew; Group (getGroup/getGroupMembers) is an ad hoc collaboration cohort — skill-based, project-based, or organisational — that Genesys Cloud explicitly does not tie to division or queue membership. A single agent commonly belongs to one division, one or more teams, and several groups simultaneously. Use this recipe when the investigation boundary was defined by group membership specifically (e.g. an audit of 'everyone in the Spanish Speakers group'), not when the boundary is business-unit reporting (division-investigation) or a supervisor's roster (team-investigation).",
+        "executiveMetrics": [
+          "memberCount",
+          "nConnected (group total)",
+          "tHandle (group avg)",
+          "evalAvgScore (group avg)",
+          "distinctDivisionCount (cross-division spread of membership)",
+          "distinctQueueCount (cross-queue spread of membership)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "division-access-security-audit": {
+        "description": "Access-governance audit of who can act within a division and why. Complements division-investigation (which covers operational performance) with the security question an org's compliance or security team actually asks: which subjects hold which roles here, is any of that access unscoped/org-wide rather than division-limited, and has it changed recently.",
+        "subjectParam": "divisionId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "division-detail",
+            "dataset": "authorization.get.all.divisions",
+            "role": "seed",
+            "filterBy": "divisionId",
+            "joinKey": "id",
+            "provides": "name, description, homeDivision flag",
+            "description": "Division metadata — confirms the division exists and whether it is the org's home (default) division."
+          },
+          {
+            "step": "division-grants",
+            "dataset": "authorization.get.division.grants",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "subjectId, subjectType, roleId, grantMadeAt",
+            "description": "The division-scoped grant list — who has what role specifically in this division."
+          },
+          {
+            "step": "role-catalog",
+            "dataset": "authorization.get.roles",
+            "provides": "roleId -> name, description, permission policies",
+            "description": "Resolves the roleId values in division-grants to human-readable role names and the permissions each carries."
+          },
+          {
+            "step": "role-subject-grants",
+            "dataset": "getAuthorizationRoleSubjectgrants",
+            "filterBy": "roleId (fan-out from division-grants)",
+            "joinKey": "roleId",
+            "provides": "the authoritative subject+division+role grant record per role",
+            "description": "Cross-validates division-grants against the role's own grant list — the source of truth behind the division-scoped view."
+          },
+          {
+            "step": "role-users",
+            "dataset": "getAuthorizationRoleUsers",
+            "filterBy": "roleId (fan-out from division-grants)",
+            "joinKey": "roleId",
+            "provides": "every user holding this role, independent of division scoping",
+            "description": "Catches users who hold the role org-wide (unscoped) rather than through a division-specific grant — org-wide grants implicitly cover this division too and will not appear in division-grants."
+          },
+          {
+            "step": "subject-full-access",
+            "dataset": "getAuthorizationSubject",
+            "filterBy": "subjectId (fan-out from division-grants)",
+            "joinKey": "subjectId",
+            "provides": "every role+division grant the subject holds across the entire org, not just this division",
+            "description": "The privilege-sprawl check — a subject with grants across many unrelated divisions is a stronger audit finding than any single division-grants row shows in isolation."
+          },
+          {
+            "step": "grant-change-audit",
+            "dataset": "audit-logs",
+            "filterBy": "EntityType=Division or serviceName=Authorization + EntityId=divisionId + investigation window",
+            "joinKey": "divisionId",
+            "provides": "timestamp, action, actor, changed subject/role",
+            "description": "The who-changed-what trail for grants in this division during the audit window — distinguishes a longstanding grant from a recent, possibly unreviewed, change."
+          }
+        ],
+        "joinSequence": "seed (division-detail) → division-grants (divisionId) → role-catalog (label resolution) → role-subject-grants (roleId) → role-users (roleId) → subject-full-access (subjectId) → grant-change-audit (divisionId)",
+        "diagnosticSignals": [
+          "subject-full-access shows grants spanning many unrelated divisions for one subjectId → privilege-sprawl candidate; confirm business justification or scope the grant down",
+          "role-users includes a user with no matching row in division-grants → that user's access to this division comes from an org-wide (unscoped) role grant, not a division-specific one — broader access than the division-grants view alone suggests",
+          "grant-change-audit shows a grant added shortly before an unrelated incident or data-access complaint → correlate grant timing with the incident timeline before assuming a configuration-only cause",
+          "division-grants entries with grantMadeAt outside the audit window and no corresponding grant-change-audit row → expected; the grant predates this pass and was not itself reviewed here"
+        ],
+        "executiveMetrics": [
+          "grantCount",
+          "uniqueSubjectCount",
+          "roleCount",
+          "orgWideRoleGrantCount (subjects with unscoped access that also covers this division)",
+          "grantChangeCountInWindow"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-work-investigation": {
+        "description": "Investigation of a single Task Management work item — Genesys Cloud's back-office/non-conversational routed-work object (a case, form, or process step queued and assigned like a conversation but carrying no call/chat/email media). Complements single-conversation-investigation for the 'digital work' side of blended agent workload: back-office queues, case processing, and outbound follow-up tasks that never appear in conversation analytics.",
+        "subjectParam": "workitemId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "workitem-detail",
+            "dataset": "getTaskmanagementWorkitem",
+            "role": "seed",
+            "joinKey": "workitemId",
+            "provides": "status, priority, assigneeId, workbinId, worktypeId, dateCreated, dateDue, dateModified",
+            "description": "Base work item object — current status, assignment, and the worktype/workbin it belongs to."
+          },
+          {
+            "step": "workitem-history",
+            "dataset": "getTaskmanagementWorkitemHistory",
+            "joinKey": "workitemId",
+            "provides": "full state-change timeline — assignment, status, and priority transitions with timestamps",
+            "description": "The work-item equivalent of a conversation's segment timeline; reconstructs exactly when the item moved between agents or statuses."
+          },
+          {
+            "step": "workitem-wrapups",
+            "dataset": "getTaskmanagementWorkitemWrapups",
+            "joinKey": "workitemId",
+            "provides": "wrapUpCode(s) recorded for the item",
+            "description": "Wrapup outcome for the work item, analogous to a conversation participant wrapup."
+          },
+          {
+            "step": "user-wrapup",
+            "dataset": "getTaskmanagementWorkitemUserWrapups",
+            "joinKey": "workitemId+userId",
+            "provides": "wrapUpCode recorded specifically by one assigned user",
+            "description": "Needed when a work item was reassigned across multiple users — isolates which user recorded which wrapup."
+          },
+          {
+            "step": "worktype-definition",
+            "dataset": "getTaskmanagementWorktype",
+            "filterBy": "worktypeId (from workitem-detail)",
+            "joinKey": "worktypeId",
+            "provides": "default duration, schema reference, routing configuration for this class of work",
+            "description": "Resolves what kind of work this item represents and its configured SLA/duration expectations."
+          },
+          {
+            "step": "worktype-statuses",
+            "dataset": "getTaskmanagementWorktypeStatuses",
+            "filterBy": "worktypeId",
+            "joinKey": "worktypeId",
+            "provides": "the valid status catalog for this worktype",
+            "description": "Decodes the status values seen in workitem-history against the worktype's configured status list."
+          },
+          {
+            "step": "workbin-detail",
+            "dataset": "getTaskmanagementWorkbin",
+            "filterBy": "workbinId (from workitem-detail)",
+            "joinKey": "workbinId",
+            "provides": "workbin name and division — the queue-equivalent grouping for digital work",
+            "description": "A workbin is the routing/backlog container for work items, functionally analogous to a queue for conversations."
+          },
+          {
+            "step": "assignee-identity",
+            "dataset": "users.get.user.details.with.full.expansion",
+            "filterBy": "assigneeId (from workitem-detail)",
+            "joinKey": "assigneeId",
+            "provides": "assignee name, division, state",
+            "description": "Resolves the assignee to a named agent for reporting and escalation."
+          },
+          {
+            "step": "assignee-blended-workload-crosscheck",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participantUserId=assigneeId, window bounded by workitem-detail.dateCreated → dateModified",
+            "joinKey": "userId",
+            "provides": "any live conversations the assignee handled while this item was open",
+            "description": "Blended-work capacity check — confirms whether the item sat idle because the assignee was fully occupied on conversations, versus a routing/assignment gap."
+          }
+        ],
+        "joinSequence": "seed (workitem-detail) → workitem-history (workitemId) → workitem-wrapups / user-wrapup (workitemId) → worktype-definition (worktypeId) → worktype-statuses (worktypeId) → workbin-detail (workbinId) → assignee-identity (assigneeId) → assignee-blended-workload-crosscheck (userId, time-bounded)",
+        "digitalWorkHighlights": [
+          "cycleTimeMinutes = workitem-history close timestamp - dateCreated; compare against worktype-definition's configured duration/SLA to flag an aged item",
+          "workitem-history showing repeated reassignment (assigneeId changes) without a status change → possible routing/skill-matching gap on this worktype",
+          "assignee-blended-workload-crosscheck showing the assignee fully booked on conversations for the item's entire open duration → capacity, not process, explains the delay",
+          "workitem-wrapups absent on a status=Closed item → item closed without a recorded outcome; a data-quality gap for downstream throughput reporting"
+        ],
+        "executiveMetrics": [
+          "cycleTimeMinutes",
+          "statusTransitionCount",
+          "reassignmentCount",
+          "wrapUpCode",
+          "backlogAgeAtSnapshot (for an open item)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44919,6 +45162,33 @@
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-work-throughput-and-cycle-time": {
+        "description": "Executive rollup of Task Management (digital work item) throughput — volume created and closed, average cycle time, and backlog aging by workbin/worktype/division. The back-office equivalent of the voice service-level-and-abandon-kpis playbook, for non-conversational routed work.",
+        "datasetsInOrder": [
+          "postTaskmanagementWorkitemsQuery",
+          "postAnalyticsTaskmanagementAggregatesQuery",
+          "postAnalyticsTaskmanagementMetricsQuery",
+          "getTaskmanagementWorktypeStatuses"
+        ],
+        "joinOn": "workbinId / worktypeId",
+        "groupBy": [
+          "workbinId",
+          "worktypeId",
+          "divisionId",
+          "day"
+        ],
+        "outputMetrics": [
+          "nCreated",
+          "nClosed",
+          "avgCycleTimeMinutes = mean(dateClosed - dateCreated) over nClosed",
+          "backlogCount (open at snapshot)",
+          "agedBacklogCount (open items exceeding the worktype's configured duration/SLA)",
+          "throughputRate% = nClosed / nCreated"
+        ],
+        "executivePresentation": "Backlog-aging bar chart per workbin + a throughput trend line, presented alongside (not merged into) the voice SLA/abandon KPI cards — digital work has no caller waiting on a line, so its urgency signal is backlog age, not real-time wait time.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45004,7 +45274,9 @@
           "flows.get.flow.outcomes",
           "flows.get.flow.milestones",
           "analytics.query.flow.aggregates.execution.metrics",
-          "analytics.query.flow.observations"
+          "analytics.query.flow.observations",
+          "getAnalyticsBotflowSessions",
+          "getAnalyticsBotflowDivisionsReportingturns"
         ],
         "diagnosticSignals": [
           "nFlowOutcomeFailed spike → IVR routing error, missing menu option, or backend API timeout",
@@ -45012,11 +45284,13 @@
           "oFlow high with zero queue activity → calls stuck in flow loop or dead-end branch",
           "Flow outcome = 'Default Exit' > 5% → unmatched input causing fallthrough to default branch",
           "Bot flow nFlowOutcomeFailed / nFlow > 0.10 → NLU intent model degradation; retest utterances",
-          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)"
+          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)",
+          "getAnalyticsBotflowSessions shows sessions ending with no matching flows.get.flow.outcomes success record → the bot flow itself completed a turn sequence but the Architect flow's outcome tracking never fired; check for a missing Set Flow Outcome action at the bot's exit node"
         ],
         "enrichWith": [
           "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)",
+          "getAnalyticsBotflowDivisionsReportingturns (division-scoped bot turn volume and containment — use when comparing bot flow effectiveness across divisions rather than a single flow's aggregate)"
         ]
       },
       "recording-compliance-audit": {

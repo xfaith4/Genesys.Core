@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-18  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -545,4 +545,37 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 `/api/v2/conversations/messages/inbound/open` is deprecated, with removal announced for
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
+
+## September 2026 reconciliation, round two: groups, division access, digital work
+
+Four items previously logged under `heldForMissingCatalogReferences` were unblocked by
+substituting the raw endpoint operationId already present in the catalog for the
+originally proposed (and never-registered) dotted dataset name — see
+[proposal decisions](reconciliation/proposal-decisions.json) for the exact substitutions.
+
+- **`agent-group-investigation`** (investigationRecipes) — a Genesys Cloud **Group**
+  (`getGroup`/`getGroupMembers`) is a third organisational grouping primitive alongside
+  Division and Team. Division is the data-access boundary; Team is a supervisor's roster;
+  Group is an ad hoc cohort (skill-based, project-based) whose membership is independent
+  of both division and queue. Use this recipe when the investigation boundary was defined
+  by group membership specifically.
+- **`division-access-security-audit`** (investigationRecipes) — the access-governance
+  counterpart to `division-investigation`: who holds a role in a division, whether any of
+  that access is actually unscoped/org-wide, and what changed recently
+  (`getAuthorizationSubject`, `getAuthorizationRoleSubjectgrants`,
+  `getAuthorizationRoleUsers`, `audit-logs`).
+- **`digital-work-investigation`** (investigationRecipes) and
+  **`digital-work-throughput-and-cycle-time`** (executiveReportingPlaybooks) — Task
+  Management work items (`getTaskmanagementWorkitem*`, `postTaskmanagementWorkitemsQuery`,
+  `postAnalyticsTaskmanagementAggregatesQuery`) are Genesys Cloud's back-office,
+  non-conversational routed-work object. This domain had no catalog coverage at all
+  before this round; it is the digital-work counterpart to `queue-investigation` and
+  `service-level-and-abandon-kpis` for blended-work reporting.
+- **`flow-and-ivr-diagnostics`** (voiceEngineerPlaybooks) — extended with
+  `getAnalyticsBotflowSessions` and `getAnalyticsBotflowDivisionsReportingturns` to close
+  the gap between bot-flow turn/session telemetry and Architect flow outcome tracking.
+
+All four carry `validationStatus: reference-only` like the rest of the reconciled
+recipes — endpoint contracts, joins, permissions and metric definitions still need
+tenant validation before implementation.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).

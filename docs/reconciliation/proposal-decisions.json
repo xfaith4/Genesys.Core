@@ -124,6 +124,42 @@
       "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
       "section": "executiveReportingPlaybooks",
       "key": "division-and-business-unit-rollup"
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "investigationRecipes",
+      "key": "agent-group-investigation",
+      "resolvedVia": "getGroup, getGroupMembers, getGroupProfile (raw endpoint operationIds) in place of the originally proposed groups.get.group.members / groups.get.single.group dataset names, which were never registered."
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "investigationRecipes",
+      "key": "division-access-security-audit",
+      "resolvedVia": "getAuthorizationSubject in place of the originally proposed authorization.get.subject.access.scope, which was never registered."
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "resolvedVia": "getTaskmanagementWorkitem, getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, getTaskmanagementWorkitemUserWrapups, getTaskmanagementWorktype, getTaskmanagementWorktypeStatuses, getTaskmanagementWorkbin (raw endpoint operationIds) in place of the originally proposed taskmanagement.* dataset names, which were never registered."
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "resolvedVia": "postTaskmanagementWorkitemsQuery, postAnalyticsTaskmanagementAggregatesQuery, postAnalyticsTaskmanagementMetricsQuery in place of the originally proposed taskmanagement.query.workitems, which was never registered."
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "resolvedVia": "getAnalyticsBotflowSessions, getAnalyticsBotflowDivisionsReportingturns in place of the originally proposed analytics.get.botflow.* dataset names, which were never registered."
+    },
+    {
+      "commit": "846ab3656d2d235ec08d51f6fd56aedb7b176a80",
+      "section": "investigationRecipes",
+      "key": "queue-investigation",
+      "resolvedVia": "getVoicemailQueueMessages, already referenced in this recipe's enrichWith list, in place of the originally proposed voicemail.get.queue.messages. Recorded here because the earlier commit that added it did not update this decisions log."
     }
   ],
   "heldForMissingCatalogReferences": [
@@ -151,58 +187,6 @@
       "missingReferences": [
         "externalcontacts.get.contact",
         "externalcontacts.get.organization"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "agent-group-investigation",
-      "missingReferences": [
-        "groups.get.group.members",
-        "groups.get.single.group"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "division-access-security-audit",
-      "missingReferences": [
-        "authorization.get.subject.access.scope"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "queue-investigation",
-      "missingReferences": [
-        "voicemail.get.queue.messages"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
       ]
     }
   ],

@@ -45,6 +45,19 @@ Merge commits `53f453f` and `79f486a` preserve history; no reset or force push w
   runtime additions rather than enabling untested paging/retry/redaction behavior.
   For example, the work-item proposal requests `rateLimitAware`, while the current
   catalog defines only the `default` retry profile.
+  **2026-09-19 update:** `rateLimitAware` already resolves — `Resolve-CatalogProfile`
+  matches a retry profile name against a candidate's `mode` field when no profile of
+  that exact name exists, and the `default` retry profile's `mode` is `rateLimitAware`;
+  dozens of already-merged datasets (e.g. `users.get.user.routing.skills`) use this
+  exact pattern and pass `Assert-Catalog`. With that clarified, eight of the nine held
+  recipes have been registered: the missing curated `datasets` entries (wrapping
+  already-catalogued swagger operations for External Contacts, Groups, Voicemail, Task
+  Management, and Bot Flow) were added, and `division-access-security-audit`'s two
+  genuinely nonexistent endpoint references were corrected to the equivalent entries
+  `division-investigation` already uses. See
+  [endpoint combinations](ENDPOINT_COMBINATIONS.md#september-2026-reconciliation-part-2--held-recipes-promoted)
+  and the updated [proposal decisions](reconciliation/proposal-decisions.json). Only the
+  unrelated `agent-investigation` / `(derived)` entry remains held.
 - Corrected unverified generic provider-call injection guidance, externalTag origin
   assumptions, and Open Messaging deprecation guidance using the official source linked
   from [endpoint combinations](ENDPOINT_COMBINATIONS.md#open-messaging-correction).

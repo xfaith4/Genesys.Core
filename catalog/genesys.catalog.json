@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-19T13:12:53.0000000Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -1297,6 +1297,216 @@
       },
       "redactionProfile": "agent-investigation-conversations",
       "validationStatus": "unvalidated"
+    },
+    "taskmanagement.query.workitems": {
+      "description": "Task Management work items (digital/back-office work — cases, tickets, outbound follow-ups) via an async query-submit/poll/results job, filtered by queue, division, status, or date range. Enables queue- and division-scoped investigation of non-conversational work alongside the existing voice/chat/email investigations.",
+      "endpoint": "postTaskmanagementWorkitemsQueryJobs",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "workitems_query_jobs"
+      },
+      "retry": {
+        "profile": "rateLimitAware"
+      },
+      "transaction": {
+        "profile": "workitems_query_jobs"
+      },
+      "validationStatus": "unvalidated — Task Management endpoints are catalog-registered but not yet exercised against a live org; treat result field names as best-effort pending live validation."
+    },
+    "taskmanagement.get.workitem": {
+      "description": "Full detail for a single Task Management work item — schema-defined custom attributes, current assignment, status, and queue/division.",
+      "endpoint": "getTaskmanagementWorkitem",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "taskmanagement.get.workitem.history": {
+      "description": "Change history for a single work item — status transitions, reassignments, and attribute changes with timestamps and actor. Digital-work equivalent of audit-logs for one item; fetch on demand for a specific stuck/aged-item drilldown, not fanned out across a whole queue.",
+      "endpoint": "getTaskmanagementWorkitemHistory",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "taskmanagement.get.workitem.wrapups": {
+      "description": "Wrap-up codes recorded by every user who worked a work item — the digital-work equivalent of conversation wrap-up codes.",
+      "endpoint": "getTaskmanagementWorkitemWrapups",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.sessions": {
+      "description": "Bot Flow (digital/voice conversational-AI bot) sessions in reverse chronological order — session-level containment and outcome for a specific bot flow. Complements flows.get.flow.outcomes / flows.get.flow.milestones when self-service is implemented as a Bot Flow rather than (or in addition to) a classic Architect inbound flow.",
+      "endpoint": "getAnalyticsBotflowSessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "analytics.get.botflow.divisions.reportingturns": {
+      "description": "Division-aware turn-by-turn detail for a bot flow session — each customer utterance/action and the bot's response, grouped by session. Definitive source for diagnosing self-service containment failures: repeated no-match/no-input turns immediately before an escalation to a queue.",
+      "endpoint": "getAnalyticsBotflowDivisionsReportingturns",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "nextUri_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "voicemail.get.queue.messages": {
+      "description": "Voicemail messages left in a queue's shared mailbox — relevant when a queue routes overflow or after-hours callers to voicemail instead of abandoning. Complements analytics.query.conversation.aggregates.abandon.metrics: some \"not answered\" outcomes are captured voicemails, not lost contacts.",
+      "endpoint": "getVoicemailQueueMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "voicemail.get.user.messages": {
+      "description": "Voicemail messages left for a specific agent's mailbox — caller ANI, duration, read status, and conversationId linkage when the voicemail resulted from an unanswered routed interaction. Missed-call follow-up evidence for agent investigations.",
+      "endpoint": "getVoicemailUserMessages",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.search.groups": {
+      "description": "Search Genesys Cloud Groups by name, member, or id. Groups are ad hoc, cross-queue, cross-division member collections (e.g. \"Tier 2 Escalation\", \"Bilingual Agents\") distinct from Division/Team membership. Seed step for skill- or team-based investigations that span organisational boundaries.",
+      "endpoint": "postGroupsSearch",
+      "itemsPath": "$.results",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.single.group": {
+      "description": "Full configuration for a single Group — name, description, group type (official/social), and state. Seed step for group-scoped investigations once a groupId is known.",
+      "endpoint": "getGroup",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "groups.get.group.members": {
+      "description": "Roster of a Group's members — individuals, owners, and dynamically-included people (rule-based membership). Drives the userId fan-out for group-scoped performance rollups; a member's queue and division assignments are resolved separately per userId.",
+      "endpoint": "getGroupMembers",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "pageNumber_default"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "authorization.get.subject.access.scope": {
+      "description": "Roles and division-scoped grants for a single subject (agent or service account) — the authoritative answer to \"what can this agent see or do, and in which divisions.\" Pairs with authorization.get.division.grants to reconcile the division-side and subject-side views of the same access-control relationship.",
+      "endpoint": "getAuthorizationSubject",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact": {
+      "description": "External contact identity record for a customer — resolved CRM/identity fields carried on the conversation's participants[].externalContactId. The authoritative source for who a customer is, beyond the raw ANI/DNIS or BYOI custom attributes.",
+      "endpoint": "getExternalcontactsContact",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.organization": {
+      "description": "External organization record linked to a contact — company/account-level context (name, industry, external system IDs) for B2B investigations.",
+      "endpoint": "getExternalcontactsOrganization",
+      "itemsPath": "$",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.sessions": {
+      "description": "Digital journey sessions (web/app visits) recorded against an external contact prior to or around the conversation — device, channel, and page-view context for the customer's self-service path before reaching an agent.",
+      "endpoint": "getExternalcontactsContactJourneySessions",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.journey.segments": {
+      "description": "Journey segment assignments for an external contact — marketing/behavioral segments the customer qualified for (e.g. 'At Risk', 'High Value') at the time of contact.",
+      "endpoint": "getExternalcontactsContactJourneySegments",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "validationStatus": "unvalidated"
+    },
+    "externalcontacts.get.contact.notes": {
+      "description": "Free-text notes recorded against an external contact by prior agents or integrations — case history and prior-contact context for the customer.",
+      "endpoint": "getExternalcontactsContactNotes",
+      "itemsPath": "$.entities",
+      "paging": {
+        "profile": "none"
+      },
+      "retry": {
+        "profile": "default"
+      },
+      "redactionProfile": "external-contact-identity",
+      "validationStatus": "unvalidated"
     }
   },
   "profiles": {
@@ -1367,6 +1577,10 @@
         "type": "cursor",
         "cursorPath": "$.cursor",
         "cursorParam": "cursor"
+      },
+      "workitems_query_jobs": {
+        "type": "transactionResults",
+        "transactionIdPath": "$.id"
       }
     },
     "transaction": {
@@ -1433,6 +1647,24 @@
         ],
         "statusEndpointRef": "getUsageQueryExecutionIdResults",
         "resultsEndpointRef": "getUsageQueryExecutionIdResults"
+      },
+      "workitems_query_jobs": {
+        "transactionIdPath": "$.id",
+        "pollIntervalSeconds": 2.0,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStates": [
+          "Fulfilled",
+          "Failed"
+        ],
+        "successStates": [
+          "Fulfilled"
+        ],
+        "submittedEventType": "taskmanagement.job.submitted",
+        "pollEventType": "taskmanagement.job.poll",
+        "jobLabel": "Task Management work items query job",
+        "statusEndpointRef": "getTaskmanagementWorkitemsQueryJob",
+        "resultsEndpointRef": "getTaskmanagementWorkitemsQueryJobResults"
       }
     },
     "redaction": {
@@ -1564,6 +1796,22 @@
           "phraseText",
           "rawText",
           "detectedPhrases"
+        ]
+      },
+      "external-contact-identity": {
+        "mode": "pii-restrictive",
+        "description": "Applied to externalcontacts.get.contact, externalcontacts.get.organization, and externalcontacts.get.contact.notes when joined into a Conversation or BYOI investigation. Hashes direct identity fields (still joinable/comparable across runs) and removes social-handle and image fields that add no investigative value, while preserving journey/organization linkage and note timestamps.",
+        "removeFields": [
+          "twitterId",
+          "lineId",
+          "whatsAppId",
+          "facebookId",
+          "photos"
+        ],
+        "hashFields": [
+          "phoneNumbers",
+          "emails",
+          "addresses"
         ]
       }
     }
@@ -43123,6 +43371,26 @@
             "description": "Base conversation object with media type, state, and full participant roster"
           },
           {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "participants[].externalContactId",
+            "conditional": "Only runs when conversation-base returns a non-null participants[].externalContactId (identity-resolved conversations: BYOI, webchat/messaging with contact match, or agent-linked voice calls). Skip silently otherwise — do not fan out to unrelated conversations.",
+            "provides": "resolved customer identity beyond ANI/DNIS — name, external system IDs",
+            "description": "Authoritative customer identity for the participant; complements (does not replace) BYOI custom attributes"
+          },
+          {
+            "step": "external-contact-journey",
+            "dataset": "externalcontacts.get.contact.journey.segments",
+            "joinKey": "externalContactId",
+            "audience": [
+              "qm-analyst",
+              "voice-engineer"
+            ],
+            "conditional": "Runs only after external-contact resolves a contactId",
+            "provides": "journey segments the customer qualified for at time of contact (e.g. 'At Risk', 'High Value')",
+            "description": "Behavioral/marketing context for why this customer may have been routed or prioritized a particular way See customer-journey-and-external-contact-enrichment for the deeper drilldown (journey-events, pageviews) when this signal warrants it."
+          },
+          {
             "step": "participant-wrapup",
             "dataset": "conversations.get.conversation.participant.wrapup",
             "joinKey": "conversationId+participantId",
@@ -43234,7 +43502,9 @@
           "getConversationsCallback (callback-type conversations only — scheduled callback time, attempt count, callback number; join on conversationId)",
           "getConversationsMessage + getConversationsMessageDetails (digital/message-type conversations only — full message thread and content beyond the generic conversation object)",
           "getConversationRecordingAnnotations (QM annotation markers on an existing recording; join on conversationId+recordingId from recording-metadata)",
-          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)"
+          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)",
+          "externalcontacts.get.contact.journey.sessions (digital self-service path — web/app visits before the customer reached an agent; join on externalContactId once external-contact resolves)",
+          "externalcontacts.get.contact.notes (prior-agent case notes for this customer; join on externalContactId once external-contact resolves)"
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
@@ -43555,6 +43825,18 @@
             "description": "Abandon volume and timing — short abandons may indicate IVR issues, long abandons indicate understaffing"
           },
           {
+            "step": "voicemail-fallback",
+            "dataset": "voicemail.get.queue.messages",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "audience": [
+              "executive",
+              "voice-engineer"
+            ],
+            "provides": "voicemail message count and timestamps for calls routed to voicemail instead of an agent",
+            "description": "Conditional — only meaningful for queues with a voicemail policy configured. Reconciles the abandon count against voicemail fallback so an abandon-rate KPI is not inflated by callers who chose to leave a message rather than wait."
+          },
+          {
             "step": "transfers",
             "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
             "filterBy": "queueId",
@@ -43587,7 +43869,7 @@
             "description": "Quality evaluations for conversations that touched this queue"
           }
         ],
-        "joinSequence": "seed (queue-config) → members (queueId) → real-time-observations → estimated-wait-time → performance → sla → abandons → transfers → wrapup-distribution",
+        "joinSequence": "seed (queue-config) → members (queueId) → real-time-observations → estimated-wait-time → performance → sla → abandons → transfers → wrapup-distribution → voicemail-fallback (conditional)",
         "executiveMetrics": [
           "nOffered",
           "nConnected",
@@ -43600,10 +43882,10 @@
           "transferRate%",
           "estWaitTimeSecs",
           "oOnQueueUsers",
-          "oWaiting"
+          "oWaiting",
+          "nVoicemail"
         ],
         "enrichWith": [
-          "getVoicemailQueueMessages (queue voicemail backlog; join on queueId, only relevant for queues with voicemail enabled)",
           "getRoutingQueueMediatypeEstimatedwaittime (per-mediaType EWT — finer-grained than the estimated-wait-time step for queues that mix voice, chat, and email with different EWT profiles)"
         ],
         "validationStatus": "reference-only",
@@ -43833,6 +44115,22 @@
             "joinKey": "conversationId",
             "provides": "provider-set custom attributes — CRM case ID, intent label, external call ID",
             "description": "Custom attributes set by the BYOI provider at injection time; the primary link back to the external system's case/ticket"
+          },
+          {
+            "step": "external-contact",
+            "dataset": "externalcontacts.get.contact",
+            "joinKey": "participants[].externalContactId",
+            "conditional": "Only runs when conversation-object resolves a non-null participants[].externalContactId. Genesys-side identity resolution is common for providers that pre-match the caller to an existing contact record.",
+            "provides": "Genesys-side resolved identity record for the external participant, distinct from the provider's own custom attributes",
+            "description": "Cross-checks the provider's CRM case ID (custom-attributes step) against Genesys Cloud's own contact match — useful when the two systems disagree on who the customer is For B2C journey/notes context beyond identity, run customer-journey-and-external-contact-enrichment alongside this recipe."
+          },
+          {
+            "step": "external-organization",
+            "dataset": "externalcontacts.get.organization",
+            "joinKey": "externalOrganizationId",
+            "conditional": "Only runs when external-contact resolves an externalOrganizationId (B2B contacts)",
+            "provides": "account/company-level context for the contact",
+            "description": "Adds the parent organization for B2B scenarios (e.g. a business customer calling through a partner PBX or a B2B messaging integration)"
           },
           {
             "step": "participant-attributes",
@@ -44552,6 +44850,189 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-work-investigation": {
+        "description": "Investigation of digital/back-office work handled through Task Management work items (cases, tickets, outbound follow-ups) — the non-conversational counterpart to the Queue and Division investigations. A Task Management work queue is a queue in the same operational sense as an ACD queue: it has membership, a division, and throughput/SLA characteristics, so this recipe mirrors the shape of queue-investigation rather than introducing a new mental model.",
+        "subjectParam": "queueId or divisionId (Task Management work queue/division, not an ACD queue)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "workitems",
+            "dataset": "taskmanagement.query.workitems",
+            "role": "seed",
+            "joinKey": "queueId or divisionId",
+            "provides": "work item id, type, status/statusCategory, priority, queue, division, assignee, dateCreated, dateDue, dateClosed",
+            "description": "Async query job over work items scoped to the subject queue or division and the requested window; the seed list for every other step"
+          },
+          {
+            "step": "assignee-identity",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "joinKey": "assignee.id",
+            "provides": "assignee name, division, and location for each work item's current owner",
+            "description": "Resolves the numeric assignee id on each work item to a named agent and their division — links digital work back to the same division/agent-group model used by the voice Division Investigation"
+          },
+          {
+            "step": "wrapups",
+            "dataset": "taskmanagement.get.workitem.wrapups",
+            "joinKey": "workitemId",
+            "audience": [
+              "voice-engineer",
+              "executive"
+            ],
+            "provides": "wrap-up code(s) recorded by every user who worked the item",
+            "description": "Conditional, on-demand per work item — the digital-work equivalent of conversation wrap-up codes; do not fan out across an entire queue by default, only for flagged/aged items"
+          },
+          {
+            "step": "history",
+            "dataset": "taskmanagement.get.workitem.history",
+            "joinKey": "workitemId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "status transitions, reassignments, and attribute changes with timestamps and actor",
+            "description": "Conditional, on-demand per work item — used for root-cause on a specific stuck or reassigned item, not run for every item in the queue"
+          }
+        ],
+        "joinSequence": "seed (workitems) → assignee-identity (assignee.id) → wrapups (workitemId, on-demand) → history (workitemId, on-demand)",
+        "voiceEngineerHighlights": [
+          "A work item with dateDue in the past and statusCategory still Open is an SLA breach — equivalent to nOverSla for conversations",
+          "history on a single stuck item reveals reassignment loops the same way a SIP trace reveals call-setup loops"
+        ],
+        "executiveMetrics": [
+          "nWorkitemsCreated",
+          "nWorkitemsClosed",
+          "backlogCount = nWorkitemsCreated - nWorkitemsClosed (open at window end)",
+          "avgCycleTimeHours = mean(dateClosed - dateCreated) for items closed in the window",
+          "nOverdue = count(dateDue < now AND statusCategory != Closed)",
+          "throughputByAssignee = nWorkitemsClosed grouped by assignee.id"
+        ],
+        "validationStatus": "unvalidated — Task Management endpoints are catalog-registered but not yet exercised against a live org; treat field names (statusCategory, dateDue, assignee.id) as best-effort pending live validation.",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "agent-group-investigation": {
+        "description": "Cross-queue, cross-division analysis scoped to a Genesys Cloud Group rather than a Division or Team. A Group is an ad hoc member collection (e.g. \"Tier 2 Escalation\", \"Bilingual Agents\", \"Night Shift\") that can include agents from multiple divisions and multiple queues at once. Divisions are the RBAC/data-scoping boundary; Teams are the supervisor/shift-crew boundary (see team-investigation); Groups are the skill- or ad hoc team-scoping boundary. Use this recipe when the investigation subject is defined by a named skill collective rather than by reporting line or organisational division.",
+        "subjectParam": "groupId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "group-detail",
+            "dataset": "groups.get.single.group",
+            "role": "seed",
+            "filterBy": "groupId",
+            "joinKey": "id",
+            "provides": "name, description, type, memberCount",
+            "description": "Group metadata — name, description, and type (official/social). Use groups.search.groups instead when the group is known by name rather than groupId."
+          },
+          {
+            "step": "group-members",
+            "dataset": "groups.get.group.members",
+            "filterBy": "groupId",
+            "joinKey": "groupId",
+            "provides": "userId list with name and email",
+            "description": "All members of the group — individuals, owners, and rule-included people. Drives the userId fan-out below."
+          },
+          {
+            "step": "member-divisions",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "userId list from group-members",
+            "joinKey": "id",
+            "provides": "divisionId per member",
+            "description": "Which division each group member belongs to — a group can span several divisions; report this distribution rather than assuming one."
+          },
+          {
+            "step": "member-queue-memberships",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "queueId list per member",
+            "description": "Which queues each group member actually serves — a group can span several queues; use this to enumerate the definitive queue set for the group's conversation volume."
+          },
+          {
+            "step": "member-performance",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId list from group-members",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per member",
+            "description": "Performance aggregates for the group as a whole and per member over the window"
+          },
+          {
+            "step": "member-quality",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId list from group-members",
+            "joinKey": "user.id",
+            "provides": "evalCount, avgScore per member",
+            "description": "Quality evaluation coverage and scores for the group's members"
+          }
+        ],
+        "divisionNote": "A Group's membership is independent of Division and queue membership. Report divisionId and queueId distributions explicitly rather than assuming the group maps 1:1 to either — a mismatch (e.g. a 'Bilingual Agents' group spanning three divisions) is itself often the finding.",
+        "executiveMetrics": [
+          "memberCount",
+          "divisionSpread (distinct divisionId count)",
+          "queueSpread (distinct queueId count)",
+          "nConnected (group total)",
+          "tHandle (group avg)",
+          "evalAvgScore"
+        ],
+        "validationStatus": "unvalidated",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "division-access-security-audit": {
+        "description": "RBAC/compliance audit of a division's access boundary: who has a role grant in the division, and — for a specific agent under review — what their full access scope actually is. Use when the investigation question is about data exposure or permission correctness rather than operational performance (e.g. a compliance reviewer verifying least-privilege after a role change, or an incident review of who could have seen a sensitive conversation).",
+        "subjectParam": "divisionId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "division-detail",
+            "dataset": "authorization.get.division.details",
+            "role": "seed",
+            "filterBy": "divisionId",
+            "joinKey": "id",
+            "provides": "name, description, homeDivision flag",
+            "description": "Division metadata for the audited scope"
+          },
+          {
+            "step": "division-grants",
+            "dataset": "authorization.get.division.grants",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "subjectId, subjectType, roleId, grantMadeAt",
+            "description": "Every role grant that touches this division — the authoritative access list. subjectType distinguishes a directly-granted user from a granted Group (see agent-group-investigation) whose members inherit the grant."
+          },
+          {
+            "step": "grantee-subject-scope",
+            "dataset": "authorization.get.subject.access.scope",
+            "filterBy": "subjectId list from division-grants (subjectType = PC_USER)",
+            "joinKey": "id",
+            "provides": "full role/division grant list per grantee",
+            "description": "For each user-type grantee, their complete access scope — confirms whether the division grant found above is their only elevated access or one of several, which changes the risk read of the finding."
+          },
+          {
+            "step": "division-queues",
+            "dataset": "authorization.search.division.objects",
+            "filterBy": "divisionId",
+            "queryParam": "objectType=QUEUE",
+            "joinKey": "divisionId",
+            "provides": "queueId list within this division",
+            "description": "What the grant actually exposes — the queues (and by extension the conversations) in scope for this division"
+          },
+          {
+            "step": "audit-trail",
+            "dataset": "audit-logs",
+            "filterBy": "divisionId (service=Authorization)",
+            "joinKey": "divisionId",
+            "provides": "role/grant change events with actor, timestamp, before/after",
+            "description": "Who changed this division's access and when — required to answer 'was this grant intentional and by whom' rather than just 'does this grant exist'"
+          }
+        ],
+        "executiveMetrics": [
+          "grantCount (division total)",
+          "distinctGranteeCount",
+          "groupGrantedSubjectCount (grants via Group membership, not direct)",
+          "queueCount exposed by this division",
+          "grantChangeCount (window, from audit-logs)"
+        ],
+        "validationStatus": "unvalidated",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44919,6 +45400,30 @@
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "digital-work-throughput-and-cycle-time": {
+        "description": "Digital/back-office work throughput and SLA health from Task Management work items — the non-conversational counterpart to service-level-and-abandon-kpis. Closes the executive reporting gap where every other playbook covers voice/chat/email conversations but the organisation also runs case/ticket work through Task Management queues.",
+        "datasetsInOrder": [
+          "taskmanagement.query.workitems"
+        ],
+        "joinOn": "queueId or divisionId",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "workitemType",
+          "assignee.id"
+        ],
+        "granularity": "P1D or P1W",
+        "outputMetrics": [
+          "nWorkitemsCreated",
+          "nWorkitemsClosed",
+          "backlogCount = nWorkitemsCreated - nWorkitemsClosed (open at period end)",
+          "avgCycleTimeHours = mean(dateClosed - dateCreated) for items closed in the period",
+          "overdueRate% = nOverdue / nWorkitemsCreated",
+          "throughputByAssignee = nWorkitemsClosed grouped by assignee.id"
+        ],
+        "executivePresentation": "Backlog trend line + cycle-time distribution; throughput leaderboard by assignee/division for workforce planning alongside voice AHT",
+        "validationStatus": "unvalidated — pending live validation of the Task Management query-job endpoints"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45004,7 +45509,9 @@
           "flows.get.flow.outcomes",
           "flows.get.flow.milestones",
           "analytics.query.flow.aggregates.execution.metrics",
-          "analytics.query.flow.observations"
+          "analytics.query.flow.observations",
+          "analytics.get.botflow.sessions",
+          "analytics.get.botflow.divisions.reportingturns"
         ],
         "diagnosticSignals": [
           "nFlowOutcomeFailed spike → IVR routing error, missing menu option, or backend API timeout",
@@ -45012,11 +45519,15 @@
           "oFlow high with zero queue activity → calls stuck in flow loop or dead-end branch",
           "Flow outcome = 'Default Exit' > 5% → unmatched input causing fallthrough to default branch",
           "Bot flow nFlowOutcomeFailed / nFlow > 0.10 → NLU intent model degradation; retest utterances",
-          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)"
+          "nFlow drop without corresponding queue drop → calls not reaching the flow (DID routing issue)",
+          "Bot flow nFlowOutcomeFailed / nFlow > 0.10 → NLU intent model degradation; retest utterances",
+          "Repeated no-match/no-input turns (from botflow.divisions.reportingturns) immediately before session end → intent model gap for that utterance; candidate for retraining"
         ],
         "enrichWith": [
           "analytics.query.conversation.details.today (to correlate flow failures to specific conversations)",
-          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)"
+          "telephony.get.sip.message.for.conversation (for IVR-originated SIP failures)",
+          "analytics.get.botflow.sessions (session-level containment/outcome when self-service is a Bot Flow rather than a classic Architect inbound flow)",
+          "analytics.get.botflow.divisions.reportingturns (turn-by-turn utterance/response detail for a specific failing session)"
         ]
       },
       "recording-compliance-audit": {

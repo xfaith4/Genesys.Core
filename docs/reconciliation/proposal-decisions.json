@@ -124,6 +124,62 @@
       "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
       "section": "executiveReportingPlaybooks",
       "key": "division-and-business-unit-rollup"
+    },
+    {
+      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+      "section": "investigationRecipes",
+      "key": "single-conversation-investigation",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered externalcontacts.get.contact and externalcontacts.get.contact.journey.segments as curated datasets (wrapping the already-catalogued getExternalcontactsContact / getExternalcontactsContactJourneySegments swagger operations) and added the external-contact / external-contact-journey steps."
+    },
+    {
+      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+      "section": "investigationRecipes",
+      "key": "byoi-conversation-enrichment",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered externalcontacts.get.contact and externalcontacts.get.organization as curated datasets and added the external-contact / external-organization steps."
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "agent-group-investigation",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered groups.search.groups, groups.get.single.group and groups.get.group.members as curated datasets (wrapping postGroupsSearch / getGroup / getGroupMembers) and added the recipe as a new entry, distinct from division-investigation (RBAC boundary) and team-investigation (supervisor/shift-crew boundary)."
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "division-access-security-audit",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered authorization.get.subject.access.scope as a curated dataset (wrapping getAuthorizationSubject) and added the recipe. The draft's authorization.get.single.division and authorization.list.division.queues references did not exist in the catalog under those names and were corrected to the existing authorization.get.division.details and authorization.search.division.objects (objectType=QUEUE) entries used by division-investigation."
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "investigationRecipes",
+      "key": "queue-investigation",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered voicemail.get.queue.messages as a curated dataset (wrapping getVoicemailQueueMessages) and promoted it from an enrichWith suggestion to a real voicemail-fallback step plus an nVoicemail executive metric."
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered taskmanagement.query.workitems (async query job wrapping postTaskmanagementWorkitemsQueryJobs, with a new workitems_query_jobs paging/transaction profile pair), taskmanagement.get.workitem.wrapups and taskmanagement.get.workitem.history as curated datasets, then added the recipe."
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Depends on taskmanagement.query.workitems, registered alongside digital-work-investigation."
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "resolvedBy": "2026-09-19 reconciliation",
+      "note": "Registered analytics.get.botflow.sessions and analytics.get.botflow.divisions.reportingturns as curated datasets (wrapping the already-catalogued getAnalyticsBotflowSessions / getAnalyticsBotflowDivisionsReportingturns swagger operations) and merged them into the existing recipe's datasetsInOrder, diagnosticSignals and enrichWith."
     }
   ],
   "heldForMissingCatalogReferences": [
@@ -133,76 +189,6 @@
       "key": "agent-investigation",
       "missingReferences": [
         "(derived)"
-      ]
-    },
-    {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "single-conversation-investigation",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.contact.journey.segments"
-      ]
-    },
-    {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "byoi-conversation-enrichment",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.organization"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "agent-group-investigation",
-      "missingReferences": [
-        "groups.get.group.members",
-        "groups.get.single.group"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "division-access-security-audit",
-      "missingReferences": [
-        "authorization.get.subject.access.scope"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "queue-investigation",
-      "missingReferences": [
-        "voicemail.get.queue.messages"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
       ]
     }
   ],

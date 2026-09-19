@@ -546,3 +546,60 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## September 2026 reconciliation, part 2 — held recipes promoted
+
+Four recipes proposed in earlier scheduled passes were held back because they referenced
+dataset keys that had not yet been registered in `catalog/genesys.catalog.json` (see
+[proposal decisions](reconciliation/proposal-decisions.json)). Every referenced raw operation
+already existed in the catalog's swagger-derived `endpoints` inventory — only the curated
+`datasets` wrapper (description, paging/retry profile, redaction) was missing. That gap is now
+closed and the following are active:
+
+- **Queue Investigation** gained a `voicemail-fallback` step
+  (`voicemail.get.queue.messages`) and an `nVoicemail` executive metric, so an abandon-rate KPI
+  is not inflated by callers who left a voicemail instead of actually abandoning. This was
+  previously only an `enrichWith` suggestion on the recipe; it is now a first-class step.
+- **Single Conversation Investigation** and **BYOI External Conversation Enrichment** both
+  gained `external-contact` (and, where relevant, `external-contact-journey` /
+  `external-organization`) steps using the new `externalcontacts.get.contact`,
+  `externalcontacts.get.organization`, and `externalcontacts.get.contact.journey.segments`
+  datasets, conditional on a resolved `participants[].externalContactId`. For the full
+  pre-contact digital journey (page views, journey events), still run
+  `customer-journey-and-external-contact-enrichment` alongside these — that recipe is unchanged
+  and remains the deeper drilldown.
+- **Voice Engineer Flow & IVR Diagnostics** gained `analytics.get.botflow.sessions` and
+  `analytics.get.botflow.divisions.reportingturns` to diagnose self-service containment
+  failures when the flow is a Bot Flow rather than a classic Architect inbound flow — repeated
+  no-match/no-input turns immediately before an escalation are the signal to watch.
+- **New: Digital Work Investigation** (`digital-work-investigation`) and its executive
+  counterpart **Digital Work Throughput & Cycle Time** (`digital-work-throughput-and-cycle-time`)
+  cover non-conversational work handled through Task Management work items (cases, tickets,
+  outbound follow-ups) — the async `taskmanagement.query.workitems` query job, seeded by
+  queue or division, with on-demand `taskmanagement.get.workitem.wrapups` and
+  `taskmanagement.get.workitem.history` drilldowns. A Task Management work queue is a queue in
+  the same operational sense as an ACD queue (membership, division, throughput/SLA), so this
+  recipe mirrors `queue-investigation` rather than introducing a new mental model. Key
+  executive metrics: `backlogCount`, `avgCycleTimeHours`, `nOverdue`, and
+  `throughputByAssignee`.
+- **New: Agent Group Investigation** (`agent-group-investigation`) covers Genesys Cloud Groups
+  (`/api/v2/groups` — ad hoc, rule-based member collections such as "Bilingual Agents" or "Tier
+  2 Escalation") as a third organisational-grouping concept distinct from Division (the
+  RBAC/data-scoping boundary) and Team (the supervisor/shift-crew boundary covered by
+  `team-investigation`). A group can span multiple divisions and queues at once; the recipe
+  reports that spread explicitly rather than assuming a 1:1 mapping, since the mismatch is
+  often itself the finding.
+- **New: Division Access Security Audit** (`division-access-security-audit`) answers a
+  compliance/RBAC question rather than a performance question: who holds a role grant in a
+  division (`authorization.get.division.grants`), what their full access scope is
+  (`authorization.get.subject.access.scope`), which queues that grant actually exposes
+  (`authorization.search.division.objects` with `objectType=QUEUE`), and — via `audit-logs`
+  filtered to `service=Authorization` — who changed that access and when. Use this instead of
+  `division-investigation` when the question is about data exposure or least-privilege rather
+  than operational metrics.
+
+All newly registered datasets carry `validationStatus: unvalidated` and the recipes carry the
+same `reference-only` / `validationNote` disclaimer as the rest of the catalog: field names,
+join behavior, and permissions should be confirmed against a live org before automation is
+built on top of them. `tests/unit/Catalog.CombinationReferences.Tests.ps1` confirms every
+`dataset`/`endpoint` reference in `combinations` resolves to a real catalog entry.

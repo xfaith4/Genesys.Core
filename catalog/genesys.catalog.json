@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-09-06T07:02:11.8904678Z",
+  "generatedAt": "2026-09-20T13:11:41.851Z",
   "datasets": {
     "analytics-conversation-details": {
       "description": "Analytics conversation details using async job submit/poll/results flow.",
@@ -44552,6 +44552,85 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "outbound-compliance-and-dnc-audit": {
+        "description": "Compliance forensics for an outbound dialer campaign — cross-references the campaign's configured DNC lists, callable time windows, and attempt limits against the actual dial events the campaign generated, to surface TCPA/regulatory-style violations (calls placed outside the callable window, contacts exceeding the configured attempt limit, or numbers dialed despite DNC-list membership). Used by compliance officers and dialer administrators investigating a specific campaign after a complaint or as part of a periodic audit; distinct from outbound-campaign-performance, which measures reach/ROI rather than regulatory exposure.",
+        "subjectParam": "campaignId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "campaign-config",
+            "dataset": "getOutboundCampaign",
+            "role": "seed",
+            "joinKey": "campaignId",
+            "provides": "callableTimeSetId, dncListIds, ruleSetIds, campaignRuleIds, contactListId, dialingMode",
+            "description": "Configured compliance controls attached to the campaign at audit time; an absent callableTimeSetId or empty dncListIds is itself a governance finding, independent of the dial-events below"
+          },
+          {
+            "step": "dnc-lists",
+            "dataset": "getOutboundDnclist",
+            "filterBy": "dncListIds from campaign-config",
+            "joinKey": "dncListId",
+            "provides": "dncSourceType (internal/rule/uploaded), name, division",
+            "description": "Every DNC list wired to the campaign; an externally-sourced list with a stale sync is a common root cause of DNC leakage"
+          },
+          {
+            "step": "callable-time-set",
+            "dataset": "getOutboundCallabletimeset",
+            "filterBy": "callableTimeSetId from campaign-config",
+            "joinKey": "callableTimeSetId",
+            "provides": "per-timezone callable windows (start/stop time by day of week)",
+            "description": "The legal contact window the campaign should have honored; join against dial-events timestamps translated to each contact's timezone column"
+          },
+          {
+            "step": "attempt-limits",
+            "dataset": "getOutboundAttemptlimit",
+            "filterBy": "attemptLimitsId from campaign-config",
+            "joinKey": "attemptLimitsId",
+            "provides": "maxAttemptsPerContact/PerNumber, recallEnabled, timeZoneId",
+            "description": "Configured ceiling on contact attempts; compare against actual per-contact attempt counts from dial-events"
+          },
+          {
+            "step": "campaign-rules",
+            "dataset": "getOutboundCampaignrule",
+            "filterBy": "campaignRuleIds from campaign-config",
+            "joinKey": "campaignRuleId",
+            "provides": "condition/action pairs (e.g. auto-stop on abandon-rate threshold)",
+            "description": "Automated guardrails such as auto-stop-on-abandon-rate; a rule present but not firing during a known violation window points to a rule-engine or threshold misconfiguration, not a missing control"
+          },
+          {
+            "step": "dial-events",
+            "dataset": "outbound.get.events",
+            "filterBy": "campaignId + investigation window",
+            "joinKey": "campaignId",
+            "provides": "per-attempt timestamp, dialed number, contactId, disposition, agentless/agent-connected flag",
+            "description": "Ground truth of what the dialer actually did; every compliance check below is a comparison against this step"
+          },
+          {
+            "step": "violation-crosscheck",
+            "dataset": "(derived)",
+            "joinKey": "contactId+phoneNumber",
+            "provides": "dncViolation, windowViolation, attemptLimitViolation flags per dial-events row",
+            "description": "Local cross-reference of dial-events against the three compliance datasets above — no single Genesys Cloud endpoint returns this; it must be computed client-side from the joined records"
+          }
+        ],
+        "joinSequence": "seed (campaign-config) → dnc-lists / callable-time-set / attempt-limits / campaign-rules (parallel, by id) → dial-events (window) → violation-crosscheck (derived join)",
+        "complianceSignals": [
+          "Any dial-events row whose dialed number matches a phone number on an attached DNC list → DNC violation, independent of disposition",
+          "Any dial-events row whose local timestamp (converted using the contact's timezone) falls outside every window in callable-time-set → callable-window violation",
+          "Contact attempt count in dial-events exceeding attemptLimits.maxAttemptsPerContact within the reset period → attempt-limit violation; check recallEnabled before flagging legitimate re-attempts",
+          "campaign-config with no callableTimeSetId or empty dncListIds → missing-control finding regardless of dial-events content",
+          "campaign-rules present but an abandon-rate/complaint-triggered auto-stop rule never fired during a known incident window → rule-engine or condition-threshold misconfiguration"
+        ],
+        "executiveMetrics": [
+          "dncViolationCount",
+          "callableWindowViolationCount",
+          "attemptLimitViolationCount",
+          "contactsPerDncList",
+          "campaignsWithoutCallableTimeSet (governance gap count)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Field names for the campaign/DNC-list/callable-time-set/attempt-limit objects are drawn from the general Outbound API model and must be verified against the live schema (API Explorer) and tenant configuration before automating compliance determinations — false negatives here carry regulatory risk."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44919,6 +44998,59 @@
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "ai-assist-and-knowledge-effectiveness": {
+        "description": "Measures whether Agent Copilot suggestions and Knowledge article usage actually move handle time, evaluation scores, and CSAT — the AI-assist ROI question a CX or platform-investment executive asks before expanding a Copilot/Knowledge license footprint.",
+        "datasetsInOrder": [
+          "postAnalyticsAgentcopilotsAggregatesQuery",
+          "postAnalyticsKnowledgeAggregatesQuery",
+          "analytics.query.user.aggregates.performance.metrics",
+          "quality.get.evaluations.query",
+          "quality.get.conversation.surveys"
+        ],
+        "joinOn": "userId / queueId (copilot and knowledge aggregates are queryable grouped by user, queue, or flow; join to performance/quality metrics on the same dimension)",
+        "groupBy": [
+          "userId",
+          "queueId",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "copilot suggestion offered/accepted counts and acceptanceRate% (exact metric identifiers must be confirmed against the live Analytics metrics reference — not asserted here)",
+          "knowledge article view count and in-conversation usage count",
+          "tHandle for copilot-assisted vs. non-assisted conversations",
+          "evalAvgScore for copilot-assisted vs. non-assisted conversations",
+          "csatScore for copilot-assisted vs. non-assisted conversations",
+          "adoptionRate% by userId/queueId (assisted conversations / total conversations)"
+        ],
+        "executivePresentation": "Assisted-vs-unassisted cohort comparison (tHandle, evalAvgScore, csatScore deltas) plus an adoption-rate leaderboard by queue/division to target rollout coaching where acceptance is lagging",
+        "validationStatus": "reference-only",
+        "validationNote": "Requires an active Agent Copilot and/or Knowledge license with usage in the tenant; the synchronous aggregate query endpoints return empty result sets otherwise. These aggregate endpoints return grouped totals, not per-conversation rows — confirm against the live response schema whether conversationId is present before building the assisted/non-assisted cohort split; if not, the cohort split must be derived from a per-conversation copilot/knowledge-usage flag on the conversation object instead of the aggregate query directly. Catalog references resolve locally; validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "workforce-forecast-accuracy": {
+        "description": "Forecast-vs-actual variance for a business unit's short-term forecast — the planning KPI a workforce management director reviews to decide whether the forecasting model needs retuning. Distinct from wfm-adherence-and-occupancy, which measures whether agents followed the schedule that was built from the forecast, not whether the forecast itself was accurate.",
+        "datasetsInOrder": [
+          "workforce.get.business.units",
+          "getWorkforcemanagementBusinessunitWeekShorttermforecasts",
+          "getWorkforcemanagementBusinessunitWeekShorttermforecastData",
+          "getWorkforcemanagementBusinessunitWeekShorttermforecastStaffingrequirement",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "businessUnitId → planningGroupId/queueId → interval",
+        "groupBy": [
+          "businessUnitId",
+          "weekDateId",
+          "planningGroupId"
+        ],
+        "outputMetrics": [
+          "forecastedOfferedVolume vs. nOffered (actual) per interval",
+          "forecastedAht vs. avgHandleTime (actual) per interval",
+          "volumeForecastBiasPct = (actual - forecast) / forecast",
+          "MAPE (mean absolute percentage error) across the week's intervals",
+          "forecastedStaffingRequirement vs. actual scheduled/available agent count (cross-reference wfm-adherence-and-occupancy's scheduledShiftMinutes)"
+        ],
+        "executivePresentation": "Forecast-vs-actual overlay line chart per interval with a single weekly MAPE% headline number; over-forecast and under-forecast are called out separately since the staffing consequence differs",
+        "validationStatus": "reference-only",
+        "validationNote": "Short-term forecast data is keyed by planning group while conversation aggregates are keyed by queue; a planning-group-to-queue mapping (sourced from business unit/planning group configuration, not yet a catalog dataset) is required to join the two cleanly. Catalog references resolve locally; validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45062,6 +45194,28 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "bot-flow-containment-diagnostics": {
+        "description": "Bot-flow-specific diagnostics using the dedicated bot analytics endpoints (session- and turn-level) rather than the generic Architect flow aggregates used in flow-and-ivr-diagnostics — surfaces NLU intent-match failures, escalation-to-agent triggers, and abandoned bot sessions at the granularity a conversational-AI/voice engineer needs to retrain or re-author a specific bot flow.",
+        "datasetsInOrder": [
+          "flows.get.all.flows",
+          "getAnalyticsBotflowSessions",
+          "getAnalyticsBotflowDivisionsReportingturns",
+          "analytics.query.flow.aggregates.execution.metrics"
+        ],
+        "diagnosticSignals": [
+          "High turn count per session with no successful outcome → looping menu/intent confusion; inspect turn-level utterance/intent pairs for repeated fallback responses",
+          "escalation-to-agent rate rising week-over-week for one bot flow while nFlow stays flat → NLU model or content drift, not a volume/staffing issue",
+          "Sessions with a single turn and immediate disconnect → greeting/first-prompt failure (TTS outage or misconfigured entry action); check before assuming caller abandonment",
+          "getAnalyticsBotflowDivisionsReportingturns empty for a division known to route through the bot → division-scoping misconfiguration on the bot flow rather than a bot health issue",
+          "Continued reliance on the deprecated getAnalyticsBotflowReportingturns (non-division-aware) endpoint → migrate to the division-aware endpoint before its documented removal date (confirm current timeline in the API Explorer)"
+        ],
+        "enrichWith": [
+          "telephony.get.sip.message.for.conversation (voice bot escalation — correlate the SIP transfer leg to the escalation turn)",
+          "analytics.get.single.conversation.analytics (confirm post-escalation queue/agent handling for a specific escalated session)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Bot flow analytics endpoints retain data for approximately, but not less than, 10 days per the endpoint's own documented retention — a diagnostic pull scheduled less frequently than that window will silently lose sessions. Field names (escalation flag, turn/session shape) are drawn from the general bot-flow analytics model and must be confirmed against the live response schema before automating alerting thresholds."
       }
     }
   }

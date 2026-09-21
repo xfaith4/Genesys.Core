@@ -44552,6 +44552,114 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "repeat-contact-transfer-loop-and-failed-handoff-diagnosis": {
+        "description": "Cross-conversation diagnosis for a single customer identifier (ANI or externalContactId) across a time window — chains every conversation the customer touched, the transfer legs within each one, and the gap between conversations to distinguish a clean multi-step resolution from a repeat contact caused by a transfer loop or a failed handoff (agent answers, call drops with near-zero talk time, customer calls back). Complements single-conversation-investigation (one call in isolation) and customer-360-contact-history (relationship/profile enrichment) by focusing on the sequence and outcome across calls. Used by CX/operations leaders for cohort-level repeat-contact KPIs and by voice engineers and supervisors to root-cause a specific customer's bad experience.",
+        "subjectParam": "customerIdentifier (ANI or externalContactId) + window",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "candidate-conversations",
+            "dataset": "analytics-conversation-details-query",
+            "role": "seed",
+            "joinKey": "ani or participant.address",
+            "filterBy": "participant address/ANI (or externalContactId predicate) within window",
+            "provides": "conversationId list ordered by conversationStart, queueId, direction, mediaType per contact",
+            "description": "Synchronous conversation-details query filtered to one customer's address/contact across the window — the ordered list of every conversation attributed to the same customer is the seed for repeat-contact detection"
+          },
+          {
+            "step": "per-conversation-analytics",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "full segment timeline, tTalk/tHeld/tAcw per participant, transfer segment types",
+            "description": "Fetched once per candidate conversationId — the segment timeline is where a transfer loop (multiple TRANSFER segments) or a failed handoff (post-transfer segment with tTalk≈0) is actually visible"
+          },
+          {
+            "step": "conversation-base",
+            "dataset": "conversations.get.specific.conversation.details",
+            "joinKey": "conversationId",
+            "provides": "participantRoster, ANI, DNIS, originatingDirection, disconnectType per participant",
+            "description": "disconnectType (e.g. transfer, peer, client, endpoint) confirms how the leg actually ended, distinguishing an agent-initiated transfer from a customer hangup"
+          },
+          {
+            "step": "participant-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrapUpCode per agent participant per leg",
+            "description": "Wrapup code at each leg of each conversation — a changing wrapup code across legs (or across repeat conversations) indicates the issue was not resolved on the first attempt"
+          },
+          {
+            "step": "call-detail",
+            "dataset": "conversations.get.call.detail",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "hold/transfer events, DNIS routing path per call leg",
+            "description": "Voice-specific transfer/hold event log; compares the DNIS/routing path between the original and the repeat conversation to confirm whether the customer re-entered the same broken routing path"
+          },
+          {
+            "step": "queue-transfer-baseline",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "filterBy": "queueId (each queue touched by the candidate conversations)",
+            "joinKey": "queueId",
+            "provides": "nTransferred, nBlindTransferred, nConsultTransferred for the queue over the same window",
+            "description": "Baseline transfer rate for the queue(s) involved — confirms whether this customer's transfer count is an outlier against normal queue behaviour or reflects a systemic routing problem"
+          },
+          {
+            "step": "wrapup-codes",
+            "dataset": "routing.get.all.wrapup.codes",
+            "joinKey": "wrapUpCode",
+            "provides": "wrapUpCode display name",
+            "description": "Decodes wrapup codes captured in participant-wrapup into human-readable reason text"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId (each candidate conversation)",
+            "joinKey": "conversationId",
+            "provides": "evaluationScore, criticalItemFailed per evaluated leg",
+            "description": "Flags whether any leg of the repeat-contact chain was already caught by QA — useful to confirm whether the failure was previously known"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "audience": [
+              "voice-engineer"
+            ],
+            "provides": "SIP INVITE/BYE/REFER/CANCEL/4xx/5xx messages per leg",
+            "description": "For voice failed handoffs, the SIP trace on the receiving leg (REFER followed by an immediate BYE/CANCEL) is the definitive signal that the transfer failed at the trunk/SIP layer rather than being an agent decision"
+          }
+        ],
+        "joinSequence": "seed (candidate-conversations by customer identifier) → per-conversation-analytics (each conversationId) → conversation-base → participant-wrapup → call-detail → queue-transfer-baseline (touched queueIds) → evaluation (filter)",
+        "derivedSignals": [
+          "repeatContactCount = count of distinct conversationId sharing the same ANI/externalContactId in the window",
+          "interContactGapSeconds = conversationStart[n] - conversationEnd[n-1] for consecutive conversations from the same customer; gaps under ~30 minutes are the strongest repeat-contact signal",
+          "transferLoopFlag = per-conversation-analytics segment count with segmentType=TRANSFER >= 2 before a resolved (non-transfer) disconnect",
+          "failedHandoffFlag = a TRANSFER segment immediately followed by a segment with tTalk≈0 and disconnectType indicating customer/system hangup rather than agent wrapup",
+          "wrapUpCodeChurn = distinct wrapUpCode values across the customer's conversations in the window (>1 suggests the issue was mis-diagnosed on an earlier attempt)"
+        ],
+        "voiceEngineerHighlights": [
+          "call-detail: compare DNIS/routing path between the original and repeat conversation — an identical broken path confirms a configuration issue rather than agent error",
+          "sip-trace: REFER immediately followed by BYE/CANCEL on the receiving leg is the SIP-layer signature of a failed warm transfer",
+          "per-conversation-analytics: tTalk≈0 on the leg following a TRANSFER segment confirms the receiving party never actually connected",
+          "queue-transfer-baseline: this customer's transfer count materially above the queue's nBlindTransferred/nConnected baseline points to a customer-specific routing/skill mismatch rather than a systemic queue issue"
+        ],
+        "executiveMetrics": [
+          "repeatContactCount",
+          "repeatContactRate% (customers with >1 conversation in window / total customers)",
+          "transferLoopRate% (conversations with transferLoopFlag / total conversations)",
+          "failedHandoffRate% (conversations with failedHandoffFlag / total transferred conversations)",
+          "avgInterContactGapMinutes"
+        ],
+        "enrichWith": [
+          "getExternalcontactsContactNotes (prior agent-left context on the contact, when the customer resolves to an externalContactId — read before assuming the repeat contact is a new issue)",
+          "conversations.search.participant.attributes (custom participant attributes such as caseId or ticketId that may already link the legs the customer sees as one issue)",
+          "customer-360-contact-history (run alongside when externalContactId is known, for the full relationship view beyond this window)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. ANI-based customer matching is unreliable for shared/masked numbers and for digital channels; prefer externalContactId when available."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44917,6 +45025,33 @@
         ],
         "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "repeat-contact-and-failed-handoff-kpis": {
+        "description": "Rollup of repeat-contact, transfer-loop and failed-handoff volume across queues and divisions — the executive-facing counterpart to repeat-contact-transfer-loop-and-failed-handoff-diagnosis. Answers how much of contact volume is customers calling back because the first attempt failed, rather than diagnosing any single customer's chain.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics.query.conversation.aggregates.wrapup.distribution",
+          "analytics-conversation-details-query",
+          "authorization.get.all.divisions",
+          "users.division.analysis.get.users.with.division.info"
+        ],
+        "joinOn": "queueId (resolved to divisionId via queue/user division membership for the division rollup view)",
+        "groupBy": [
+          "divisionId",
+          "queueId",
+          "day"
+        ],
+        "outputMetrics": [
+          "repeatContactRate% (distinct customer identifiers with >1 conversation in the window / total distinct customer identifiers, computed from the conversation-details-query population, not the aggregate)",
+          "transferRate% and blindTransferRate% from transfer.metrics, as the leading indicator component of failed handoffs",
+          "wrapUpCode volatility (share of repeat customers whose wrapUpCode differs between their first and last conversation in the window) as a proxy for unresolved-on-first-contact",
+          "estimated failedHandoffRate% (sampled from the diagnosis recipe on a subset of transferred conversations; not directly computable from aggregates alone)"
+        ],
+        "executivePresentation": "One row per division/queue with repeatContactRate and transferRate side by side, ranked by repeatContactRate; a queue or division high on both is the strongest candidate for a root-cause deep dive using repeat-contact-transfer-loop-and-failed-handoff-diagnosis on a sample of its repeat customers. Pairs with division-and-business-unit-rollup for the division-level headline view and wrapup-and-transfer-analysis for the queue-level transfer detail.",
+        "measurementCaveat": "repeatContactRate and wrapUpCode volatility require iterating the raw conversation-details-query population grouped by customer identifier — they are not exposed as a queue/conversation aggregate metric by the platform, so this rollup is more expensive than a pure aggregates-only playbook and should be computed on a sampled or scheduled (not ad hoc) basis for large queues.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }

@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-09-21
+
+### Added
+
+- Added a new cross-conversation investigation pattern to
+  `catalog/genesys.catalog.json`'s `combinations`:
+  `investigationRecipes.repeat-contact-transfer-loop-and-failed-handoff-diagnosis`
+  (chains every conversation a customer touched in a window, using
+  `analytics-conversation-details-query` as the seed and per-conversation
+  `analytics.get.single.conversation.analytics` segment timelines to detect
+  transfer loops and failed handoffs — a transfer segment immediately
+  followed by a receiving leg with `tTalk`≈0) and its executive-facing
+  counterpart `executiveReportingPlaybooks.repeat-contact-and-failed-handoff-kpis`
+  (repeat-contact/transfer/failed-handoff rate rollup by queue and division).
+  This fills the "Repeat-contact and failed-handoff analysis" gap ranked #2
+  in `docs/PRODUCT_VALUE.md`'s future-feature table and item 1 of
+  `ROADMAP.md`'s "Following opportunities" — it was previously touched only
+  as a single output metric inside `customer-360-contact-history`, not as
+  its own diagnosis path. Every `dataset` reference in both new recipes was
+  checked against the same reference-integrity walk used in the 2026-08-15
+  addition and resolves to an existing `datasets` or `endpoints` entry; no
+  new endpoints were fabricated.
+- Documented the same pattern in `docs/ENDPOINT_COMBINATIONS.md` as a new
+  numbered section (10), cross-referenced to the JSON recipe keys, keeping
+  the human-readable and machine-readable catalog descriptions in parity as
+  established by the 2026-08-15 entry below.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

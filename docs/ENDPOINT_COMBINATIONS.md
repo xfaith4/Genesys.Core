@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-21  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -19,7 +19,9 @@ recipes carry the same step/joinKey/dataset shape as this document plus `executi
 `voiceEngineerHighlights` arrays intended for direct consumption by reporting/investigation
 tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
-`byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
+`byoi-conversation-enrichment` recipe key; Pattern 10 (Repeat-Contact/Transfer-Loop/Failed-Handoff)
+maps to the `repeat-contact-transfer-loop-and-failed-handoff-diagnosis` recipe key. Every `dataset`
+value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
 there is no third namespace.
 
@@ -36,7 +38,8 @@ there is no third namespace.
 7. [Agent Investigation Extensions](#7-agent-investigation-extensions-release-13)
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
-10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+10. [Repeat-Contact, Transfer-Loop, and Failed-Handoff Diagnosis](#10-repeat-contact-transfer-loop-and-failed-handoff-diagnosis)
+11. [Dataset Combination Reference Matrix](#11-dataset-combination-reference-matrix)
 
 ---
 
@@ -441,7 +444,76 @@ complete the picture.
 
 ---
 
-## 10. Dataset Combination Reference Matrix
+## 10. Repeat-Contact, Transfer-Loop, and Failed-Handoff Diagnosis
+
+**Subject:** One customer identifier (`ani` or `externalContactId`) + time window
+**Use case:** A customer contacted the centre more than once about what looks like the same issue,
+or a supervisor suspects a queue is bouncing customers between agents without resolving them. This
+pattern is the single-customer, cross-conversation counterpart to Pattern 1 (which stops at one
+conversation) and the sequence-and-outcome counterpart to Pattern 6/Customer 360 (which is about
+relationship and profile context, not diagnosing *why* the customer came back).
+
+**Core question:** *Did this customer's issue get resolved on the first attempt, and if not, where
+in the transfer chain did the handoff actually fail?*
+
+### Dataset Steps (ordered)
+
+| Step | Dataset Key | Join Key | What It Adds |
+|------|-------------|----------|--------------|
+| 1 | `analytics-conversation-details-query` (address/ANI or externalContactId filter) | seed → customer identifier | Ordered list of every `conversationId` attributed to the customer in the window, with queueId/direction/mediaType |
+| 2 | `analytics.get.single.conversation.analytics` | `conversationId` (per candidate) | Segment timeline — reveals transfer segments and the talk time of the leg that received each transfer |
+| 3 | `conversations.get.specific.conversation.details` | `conversationId` | `disconnectType` per participant — distinguishes an agent-initiated transfer from a customer hangup |
+| 4 | `conversations.get.conversation.participant.wrapup` | `conversationId` + `participantId` | Wrapup code per leg — a changing wrapup code across the customer's conversations flags a misdiagnosed first attempt |
+| 5 *(voice)* | `conversations.get.call.detail` | `conversationId` | Hold/transfer event log and DNIS routing path per leg — compare path across repeat calls |
+| 6 | `analytics.query.conversation.aggregates.transfer.metrics` (queueId filter) | `queueId` | Queue-level transfer baseline — is this customer's transfer count an outlier or systemic? |
+| 7 | `quality.get.evaluations.query` (conversationId filter) | `conversationId` | Confirms whether any leg was already caught by QA |
+| 8 *(voice)* | `telephony.get.sip.messages.for.conversation` | `conversationId` | REFER immediately followed by BYE/CANCEL on the receiving leg is the SIP-layer signature of a failed warm transfer |
+
+### Key Joins
+
+```
+analytics-conversation-details-query[].conversationId (ordered by conversationStart, same customer)
+  → analytics.get.single.conversation.analytics.conversationId (per-conversation segment detail)
+  → conversations.get.call.detail.conversationId (voice routing path, per leg)
+  → analytics.query.conversation.aggregates.transfer.metrics.queueId (baseline for every queueId touched)
+```
+
+### Derived Signals
+
+- **repeatContactCount** — distinct `conversationId` sharing the same ANI/externalContactId in the window.
+- **interContactGapSeconds** — gap between one conversation's end and the next one's start from the
+  same customer; gaps under roughly 30 minutes are the strongest repeat-contact signal.
+- **transferLoopFlag** — a conversation with 2+ TRANSFER segments before a non-transfer disconnect.
+- **failedHandoffFlag** — a TRANSFER segment immediately followed by a segment with `tTalk` ≈ 0 and a
+  disconnect that is not an agent wrapup.
+- **wrapUpCodeChurn** — count of distinct wrapup codes across the customer's conversations in the
+  window; more than one suggests the issue was not correctly diagnosed on an earlier attempt.
+
+### Analytical Questions Answered
+
+- How many times did this customer contact us for what is likely the same issue?
+- Where in the chain did a transfer fail to actually connect the customer to the next agent?
+- Is the customer's transfer count normal for this queue, or is it a routing/skill mismatch specific
+  to this contact?
+- Did the routing path repeat identically on the second call (config issue) or differ (agent error)?
+
+### Executive Rollup Counterpart
+
+The aggregate view — `repeatContactRate%`, `transferLoopRate%`, and `failedHandoffRate%` per queue and
+division — is the `repeat-contact-and-failed-handoff-kpis` playbook in
+`combinations.executiveReportingPlaybooks`. Because `repeatContactRate` requires grouping the raw
+conversation population by customer identifier rather than reading a single aggregate metric, treat it
+as a scheduled/sampled rollup rather than an ad hoc one for large queues. Pair it with Pattern 4
+(Executive Reporting Rollup) for headline volume/SLA context and with Pattern 3's division rollup to
+see which business unit owns the affected queues.
+
+**Machine-readable counterpart:** `repeat-contact-transfer-loop-and-failed-handoff-diagnosis` under
+`combinations.investigationRecipes` and `repeat-contact-and-failed-handoff-kpis` under
+`combinations.executiveReportingPlaybooks`.
+
+---
+
+## 11. Dataset Combination Reference Matrix
 
 The matrix below shows which datasets are used across which investigations and reporting patterns.
 `●` = used, `○` = optional/conditional, blank = not applicable.

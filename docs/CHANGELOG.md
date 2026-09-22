@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-22
+
+### Added
+
+- Added two investigation recipes to `catalog/genesys.catalog.json`'s
+  `combinations.investigationRecipes`, closing the "Flow" and "Outbound
+  Campaign" flagship-investigation candidates named as open in
+  `docs/ROADMAP.md` § Release 1.3 "Next":
+  - `outbound-campaign-investigation` (subject: `campaignId`) — campaign
+    config, dialing progress/stats, diagnostics (the root-cause source for
+    "campaign not dialing" incidents), line/trunk distribution for a voice
+    engineer's contention analysis, windowed performance KPIs, skill
+    combinations for skills-based campaigns, contact-list penetration, and
+    the target queue's/agents' performance. Cross-links back to the
+    existing `outbound-campaign-performance` executive playbook (multi-
+    campaign rollup this recipe drills into) and forward to
+    `single-conversation-investigation` and `queue-investigation` for
+    further drilldown.
+  - `flow-ivr-investigation` (subject: `flowId`) — flow config, execution
+    volume/outcome aggregates, the org-wide outcome/milestone reference
+    catalogs needed to decode those aggregate IDs, real-time flow
+    observations, per-branch execution detail, bot-flow NLU intent health
+    (conditional on flow type), Journey path correlation for digital
+    flows, and a single-conversation forensic step for one caller's path
+    through the flow. Cross-links back to the existing
+    `flow-and-ivr-performance` executive playbook and
+    `flow-and-ivr-diagnostics` voice-engineer playbook (both multi-flow
+    rollups this recipe drills into).
+
+  Every `dataset` reference in both new recipes was checked against the
+  same catalog file's `datasets` and `endpoints` maps (the same rule
+  `tests/unit/Catalog.CombinationReferences.Tests.ps1` enforces) and all
+  resolve — no new catalog entries were required; both recipes compose
+  existing curated datasets and raw endpoint operationIds (e.g.
+  `getOutboundCampaign`, `getFlowVersionHealth`) that were already present
+  but previously uncomposed into a subject-centred investigation.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

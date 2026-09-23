@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-23  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -37,6 +37,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Groups, Security Audit, and Digital Work Extensions](#11-groups-security-audit-and-digital-work-extensions-september-2026)
 
 ---
 
@@ -546,3 +547,65 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## 11. Groups, Security Audit, and Digital Work Extensions (September 2026)
+
+Four items from the [held-for-missing-references](reconciliation/proposal-decisions.json) list were
+resolved this pass: every referenced endpoint already existed in `catalog/genesys.catalog.json`
+under its raw swagger `operationId` (the original proposals used a dotted dataset-key naming
+convention that was never added), so the fix was to write the recipes against the existing
+`endpoints` entries rather than add new catalog entries. One additional playbook
+(`flow-and-ivr-diagnostics`) was extended in place rather than replaced.
+
+### 11a. Agent Group Investigation (new `investigationRecipes.agent-group-investigation`)
+
+**Subject:** One `groupId`. Genesys Cloud has three independent, non-interchangeable grouping
+mechanisms, and the catalog previously only covered two of them:
+
+| Mechanism | Catalog recipe | Scope | Boundary type |
+|---|---|---|---|
+| Division | `division-investigation` | Queues + agents assigned to a business unit | Data/security boundary |
+| Team | `team-investigation` | Supervisor/shift-crew roster (`/api/v2/teams`) | Reporting-line grouping |
+| **Group** | **`agent-group-investigation`** | Org-wide user collection (`/api/v2/groups`), independent of division/queue | Free-form (distribution lists, skill communities) |
+
+Steps: `getGroup` (seed) → `getGroupMembers` → `users.division.analysis.get.users.with.division.info`
+(cross-cut membership by division) → `analytics.query.conversation.aggregates.agent.performance` →
+`quality.get.agents.activity`. A group's members can span every division and queue in the org, which
+is precisely the case a division- or team-scoped investigation cannot answer.
+
+### 11b. Division Access Security Audit (new `investigationRecipes.division-access-security-audit`)
+
+**Subject:** One `subjectId` (a `userId` or `groupId`). This is the *reverse* question from
+`division-investigation` (which starts at a division and lists its grants) — it starts at a person
+or group and asks what they can actually do across the whole org. Built on
+`getAuthorizationSubject` (the authoritative grants list: `{division, role}` pairs),
+`getAuthorizationDivisionspermittedPagedSubjectId` (divisions permitted for one permission),
+`getAuthorizationSubjectsRolecounts` (fast outlier detection across a cohort), and
+`authorization.get.all.divisions` for name resolution. Used for access-creep complaints,
+pre-offboarding reviews, and least-privilege audits — the finding is a grant whose division sits
+outside the subject's expected business unit, not the raw grant count.
+
+### 11c. Digital Work (Task Management) Investigation and Rollup
+
+Task Management work items (`/api/v2/taskmanagement/workitems`) are asynchronous, queue-routed
+back-office work — they have no participants, sessions, or media type and never appear in
+`analytics-conversation-details-query`. Two additions cover them:
+
+- `investigationRecipes.digital-work-investigation` — `postTaskmanagementWorkitemsQuery` (seed
+  fan-out by workbin/assignee/queue/type) → `getTaskmanagementWorkitem` →
+  `getTaskmanagementWorkitemHistory` (the reassignment/status-change trail — the actual root-cause
+  source) → `getTaskmanagementWorkitemWrapups` → `postTaskmanagementWorktypesQuery` for schema/SLA
+  context.
+- `executiveReportingPlaybooks.digital-work-throughput-and-cycle-time` —
+  `postAnalyticsTaskmanagementAggregatesQuery` + `postAnalyticsTaskmanagementMetricsQuery` rolled up
+  by worktype/queue/division, presented as a single nCreated-vs-nClosed trend line (backlog is
+  growing whenever created sits above closed) rather than a per-work-item list.
+
+### 11d. Bot Flow Turn Diagnostics (extends `voiceEngineerPlaybooks.flow-and-ivr-diagnostics`)
+
+Added `getAnalyticsBotflowSessions` and `getAnalyticsBotflowDivisionsReportingturns` to the existing
+flow diagnostics playbook for NLU-turn-level root cause on bot flows (a session with many reporting
+turns and no successful outcome means the caller is stuck re-prompting the same turn).
+`getAnalyticsBotflowReportingturns` (non-division-aware) is deprecated by Genesys in favor of the
+`.../divisions/reportingturns` variant; the playbook now calls that out explicitly. Bot flow session
+and turn data is not retained past ~10 days, so this diagnostic must run close to the incident.

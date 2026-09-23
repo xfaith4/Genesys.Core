@@ -124,6 +124,42 @@
       "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
       "section": "executiveReportingPlaybooks",
       "key": "division-and-business-unit-rollup"
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "investigationRecipes",
+      "key": "agent-group-investigation",
+      "note": "Originally held for groups.get.group.members / groups.get.single.group. Both already existed as raw swagger endpoints (getGroupMembers, getGroup); the proposal's dotted dataset-key names were never added under those names. Written against the existing endpoint keys."
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "investigationRecipes",
+      "key": "division-access-security-audit",
+      "note": "Originally held for authorization.get.subject.access.scope, which does not exist under that name. The equivalent subject-grants data is getAuthorizationSubject (grants/roles per subject), paired with getAuthorizationDivisionspermittedPagedSubjectId and getAuthorizationSubjectsRolecounts, all pre-existing catalog endpoints."
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "note": "Originally held for taskmanagement.get.workitem.history / .wrapups / taskmanagement.query.workitems. All three already existed as raw swagger endpoints (getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, postTaskmanagementWorkitemsQuery)."
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "note": "Originally held for taskmanagement.query.workitems (postTaskmanagementWorkitemsQuery, already present); rollup also draws on the pre-existing postAnalyticsTaskmanagementAggregatesQuery / postAnalyticsTaskmanagementMetricsQuery endpoints."
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "note": "Extended in place (not a new key) for analytics.get.botflow.divisions.reportingturns / .sessions, both already present as getAnalyticsBotflowDivisionsReportingturns / getAnalyticsBotflowSessions. Also notes that the non-division-aware getAnalyticsBotflowReportingturns is deprecated by Genesys."
+    },
+    {
+      "commit": "939017ecdd2437b81156440ae57972a1ed73fa6f",
+      "section": "investigationRecipes",
+      "key": "queue-investigation",
+      "note": "Re-verified: the voicemail.get.queue.messages hold was already resolved in an earlier pass (queue-investigation.enrichWith references getVoicemailQueueMessages, which exists in catalog/genesys.catalog.json). No change made in this pass; recorded here only to close out the held-list entry."
     }
   ],
   "heldForMissingCatalogReferences": [
@@ -133,77 +169,8 @@
       "key": "agent-investigation",
       "missingReferences": [
         "(derived)"
-      ]
-    },
-    {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "single-conversation-investigation",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.contact.journey.segments"
-      ]
-    },
-    {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "byoi-conversation-enrichment",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.organization"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "agent-group-investigation",
-      "missingReferences": [
-        "groups.get.group.members",
-        "groups.get.single.group"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "division-access-security-audit",
-      "missingReferences": [
-        "authorization.get.subject.access.scope"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "queue-investigation",
-      "missingReferences": [
-        "voicemail.get.queue.messages"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
-      ]
+      ],
+      "note": "Not a real gap: '(derived)' is a literal placeholder marker for a computed/joined value, not an endpoint or dataset reference. The Catalog.CombinationReferences Pester test explicitly excludes this literal from its resolution check. Left held for documentation purposes only."
     }
   ],
   "runtimeDatasetChanges": "Not imported: proposed runtime definitions need profile, paging, redaction and fixture validation.",

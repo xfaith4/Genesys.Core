@@ -538,6 +538,27 @@ The accepted references expand operational alerts, callback/overflow investigati
 customer/team context, skill coverage, coaching outcomes and business-unit reporting.
 Validate joins, metric denominators, permissions and endpoint behavior before implementation.
 
+### Repeat-contact / transfer-loop / failed-handoff (new)
+
+Closes roadmap item "Repeat-contact, transfer-loop, and failed-handoff analysis"
+(`ROADMAP.md` → Following opportunities #1). Added as
+`combinations.investigationRecipes.repeat-contact-and-transfer-loop-analysis` and
+`combinations.executiveReportingPlaybooks.transfer-loop-and-failed-handoff-kpis` in
+`catalog/genesys.catalog.json`. Seeds on `analytics.get.single.conversation.analytics`
+and walks each segment's `destinationConversationId`/`sourceConversationId` (verified
+against the `AnalyticsConversationSegment` schema in `GenesysCloudAPIEndpoints.json`) to
+reconstruct a conversation's full transfer chain across the separate `conversationId`s
+Genesys Cloud creates for ACD/consult/conference transfers, using each segment's
+`disconnectType` (`transfer`, `consultTransfer`, `conferenceTransfer`, `forwardTransfer`,
+`noAnswerTransfer`, `notAvailableTransfer`) to distinguish a completed handoff from a
+failed one. Cross-references `analytics-conversation-details-query` filtered by the
+seed's `participants[].externalContactId` to separate true repeat contacts (a customer
+calling back later) from transfer-chain legs (one contact bouncing internally) — two
+patterns that look identical in a raw contact-frequency count. The executive playbook
+notes explicitly that chain-depth and queue-revisit rate are not native aggregate-query
+metrics and must be computed by walking the chain over the reporting window's
+conversation population, not queried directly.
+
 ### Open Messaging correction
 
 Use `POST /api/v2/conversations/messages/{integrationId}/inbound/open/message`, with

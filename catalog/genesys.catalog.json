@@ -44552,6 +44552,69 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "repeat-contact-and-transfer-loop-analysis": {
+        "description": "Walks a conversation's ACD/consult/conference transfer chain across the multiple conversationIds Genesys Cloud creates for it, then cross-references the customer's broader contact history to separate 'this one call bounced across several transfers' from 'this customer called back again later about the same issue.' Closes the gap between wrapup-and-transfer-analysis (aggregate, queue-level transfer rates) and customer-360-contact-history (identity/notes) — this recipe is the individual-chain-level tool for a supervisor or voice engineer investigating 'the customer says they were transferred five times and had to repeat themselves every time.'",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "seed-detail",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "participants[].sessions[].segments[] with disconnectType, destinationConversationId, sourceConversationId, queueId, wrapUpCode/wrapUpNote/wrapUpTags, requestedRoutingUserIds; participants[].externalContactId",
+            "description": "AnalyticsConversationSegment.disconnectType (transfer, consultTransfer, conferenceTransfer, forwardTransfer, noAnswerTransfer, notAvailableTransfer, dndTransfer) paired with destinationConversationId is the ground truth for whether, and how, this leg handed off into a new conversation. wrapUpCode/wrapUpNote/wrapUpTags are already embedded per-segment here, so no separate participant-wrapup call is needed for this recipe."
+          },
+          {
+            "step": "chain-follow",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "destinationConversationId -> conversationId (recursive)",
+            "provides": "same segment shape for every downstream leg",
+            "description": "Re-invoke the seed dataset once per destinationConversationId surfaced in the previous leg's segments, and confirm each hop is mutual via the new conversation's own sourceConversationId, until a leg's segments carry no further destinationConversationId. The ordered conversationId list produced is the full transfer chain, not just the seed conversation's own two-line summary of it."
+          },
+          {
+            "step": "queue-labels",
+            "dataset": "routing-queues",
+            "joinKey": "queueId (from every segment in the chain)",
+            "provides": "queue name per queueId",
+            "description": "Resolves each chain segment's queueId to a human-readable queue name for the investigation report, and lets a queue-repeat within the chain (e.g. Queue A -> Queue B -> Queue A) be flagged by name rather than GUID."
+          },
+          {
+            "step": "repeat-contact-cross-check",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participants[].externalContactId + trailing window (e.g. 24-72h)",
+            "joinKey": "externalContactId",
+            "provides": "every other conversationId for this contact in the window that is NOT already part of the transfer chain",
+            "description": "externalContactId comes from the seed step's participants[] at no extra call (see customer-360-contact-history sourcingNote). Conversations this query returns that fall outside the chain from chain-follow are true repeat contacts — the customer came back separately — versus chain members, which are one interaction that bounced internally. The two look identical in a raw contact-frequency count but call for different fixes (routing/skilling vs. issue resolution)."
+          },
+          {
+            "step": "transfer-baseline",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "joinKey": "queueId (each queue touched by the chain)",
+            "provides": "queue-scoped nTransferred/nBlindTransferred/nConsultTransferred baseline",
+            "description": "Contextualises this chain's length against the normal transfer rate for the queue(s) involved, so a 3-leg chain on a queue whose baseline transfer rate is already high reads differently from the same chain length on a queue that rarely transfers."
+          }
+        ],
+        "joinSequence": "seed-detail (conversationId) -> chain-follow (destinationConversationId, recursive) -> queue-labels (queueId) -> repeat-contact-cross-check (externalContactId + window) -> transfer-baseline (queueId, for context)",
+        "diagnosticSignals": [
+          "chain length (distinct conversationIds linked by destinationConversationId) >= 3 is a transfer loop; a repeated queueId within the chain (customer routed back to a queue that already could not help) is the clearest single indicator of a routing/skilling gap rather than a legitimate escalation path",
+          "a leg disconnecting via noAnswerTransfer or notAvailableTransfer, immediately followed by a very short next leg, is a failed handoff — the receiving agent or queue could not actually take the interaction, distinct from a completed transfer the customer simply disliked",
+          "wrapUpCode/wrapUpNote diverging in intent across chain legs (e.g. an early leg wrapped as misroute, a later leg wrapped as resolved) is the receiving agent's own confirmation that the earlier routing was wrong",
+          "repeat-contact-cross-check surfacing 3+ conversations outside the chain within 24h is an unresolved-issue signal that needs escalation beyond a routing fix, separate from the transfer chain itself — see customer-360-contact-history"
+        ],
+        "executiveMetrics": [
+          "avgTransferChainDepth (legs per conversation that has >=1 transfer)",
+          "failedHandoffRate% = legs disconnecting via noAnswerTransfer/notAvailableTransfer / total transferred legs",
+          "queueRevisitRate% = chains where a queueId appears more than once / total transferred chains",
+          "repeatContactWithinWindowRate% (distinct from chain depth — see customer-360-contact-history for the tenant-wide version of this metric)"
+        ],
+        "enrichWith": [
+          "customer-360-contact-history",
+          "single-conversation-investigation"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44917,6 +44980,30 @@
         ],
         "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "transfer-loop-and-failed-handoff-kpis": {
+        "description": "Rollup of repeat-contact-and-transfer-loop-analysis for CX strategy and routing-quality reporting. Fills the roadmap gap between wrapup-and-transfer-analysis (raw transfer volume/rate) and queue-overflow-and-deflection-kpis (abandon disposition): this playbook answers whether the transfers a queue does complete are landing the customer somewhere that resolves the contact, or bouncing them around.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics-conversation-details-query",
+          "routing-queues"
+        ],
+        "joinOn": "queueId (chain depth and queue-revisit are computed per-conversation from analytics-conversation-details-query segment fields, then rolled up to queueId)",
+        "groupBy": [
+          "queueId",
+          "divisionId",
+          "day"
+        ],
+        "outputMetrics": [
+          "transferRate% (from wrapup-and-transfer-analysis)",
+          "avgTransferChainDepth",
+          "failedHandoffRate%",
+          "queueRevisitRate%"
+        ],
+        "executivePresentation": "Layer chain-depth and queue-revisit rate under the existing transfer-rate KPI card as a 'transfer quality' sub-metric; flag queues where transferRate% is average but queueRevisitRate% is elevated — those queues transfer a normal amount but a disproportionate share of it fails to land, which raw transfer-rate reporting alone does not surface.",
+        "computationNote": "avgTransferChainDepth, failedHandoffRate%, and queueRevisitRate% are not native Genesys Cloud aggregate-query metrics — analytics.query.conversation.aggregates.transfer.metrics reports transfer counts, not chain outcomes. They must be computed by walking destinationConversationId/sourceConversationId across analytics-conversation-details-query results for the reporting window, as in repeat-contact-and-transfer-loop-analysis. For tenant-wide daily reporting this is a batch computation over the window's conversation population, not a single API call; consider scoping the first implementation to a flagged cohort (e.g. conversations with nTransferred > 0) rather than the full population.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }

@@ -44552,6 +44552,241 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "change-to-incident-correlation": {
+        "description": "Joins configuration/access audit changes to the queue or flow they touched and to before/after KPI windows, so a supervisor or platform engineer can test whether a specific change is temporally associated with a service deterioration. This is the audit-to-KPI counterpart of alert-root-cause-drilldown (which starts from a firing alert, not a change record) and of division-investigation's access-grant step (which is a point-in-time snapshot, not a change history).",
+        "subjectParam": "queueId or flowId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "change-history",
+            "dataset": "audits.query.audit.logs.user.actions",
+            "role": "seed",
+            "filterBy": "EntityType in [Queue, Flow, RoutingQueue, Authorization] + EntityId=subjectId + investigation window (widened to include several days before the suspected incident)",
+            "joinKey": "entityId",
+            "provides": "timestamp, action (Create/Update/Delete), actor, propertyChanges (before/after values)",
+            "description": "The seed record: every configuration change made to the resource, in order, with who made it and exactly what changed"
+          },
+          {
+            "step": "queue-config-current",
+            "dataset": "routing-queues",
+            "filterBy": "queueId (when subjectParam is a queue)",
+            "joinKey": "id",
+            "provides": "the live configuration — compare against the most recent change-history entry's after-state to confirm the audit record and current config agree",
+            "description": "Live queue config snapshot, used as the diff target for the latest recorded change"
+          },
+          {
+            "step": "flow-config-version",
+            "dataset": "getFlowVersion",
+            "filterBy": "flowId + versionId (from change-history propertyChanges, when subjectParam is a flow)",
+            "joinKey": "flowId",
+            "provides": "the specific flow version published at or around the change timestamp",
+            "description": "Branch taken only when the audited entity is a Flow; getFlowLatestconfiguration is the equivalent lookup when only the current published version is needed"
+          },
+          {
+            "step": "baseline-performance",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId (or the queue(s) served by flowId) + a comparable window immediately before the change timestamp",
+            "joinKey": "queueId",
+            "provides": "nOffered, nConnected, tHandle, tTalk, tAcw for the pre-change baseline",
+            "description": "The 'before' side of the comparison — window length and day-of-week alignment must match the incident window to be comparable"
+          },
+          {
+            "step": "incident-performance",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId (or the queue(s) served by flowId) + the window starting at the change timestamp",
+            "joinKey": "queueId",
+            "provides": "nOffered, nConnected, tHandle, tTalk, tAcw for the post-change window",
+            "description": "The 'after' side of the comparison; join to baseline-performance on queueId to compute deltas"
+          },
+          {
+            "step": "baseline-and-incident-sla",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "queueId + both baseline and incident windows",
+            "joinKey": "queueId",
+            "provides": "oServiceLevel, nOverSla for each window",
+            "description": "Run twice (baseline, incident) — the SLA delta is usually the fastest signal a director will ask for"
+          },
+          {
+            "step": "baseline-and-incident-abandon",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "filterBy": "queueId + both baseline and incident windows",
+            "joinKey": "queueId",
+            "provides": "nAbandoned, tAbandon, tShortAbandon for each window",
+            "description": "A short-abandon spike right after a flow/IVR change points at the change itself rather than staffing"
+          },
+          {
+            "step": "representative-conversations",
+            "dataset": "analytics.query.conversation.details.by.queue",
+            "filterBy": "queueId + incident window",
+            "joinKey": "queueId",
+            "provides": "a sample of conversationIds from the incident window",
+            "description": "Seeds for single-conversation-investigation drilldown on the specific interactions that look worst after the change"
+          }
+        ],
+        "joinSequence": "seed (change-history) → queue-config-current or flow-config-version (confirm current state matches audit) → baseline-performance / incident-performance (queueId, matched windows) → baseline-and-incident-sla → baseline-and-incident-abandon → representative-conversations",
+        "correlationCaveat": "Temporal proximity between a change and a KPI shift is a hypothesis to investigate, not proof of causation — always report both the change and the KPI delta together, and check for other changes to the same resource or its dependencies (skills, wrapup codes, division reassignment) in the same window before attributing the deterioration to a single change.",
+        "executiveMetrics": [
+          "changeCount (in window, by service/entity type)",
+          "nOffered delta% (incident vs baseline)",
+          "serviceLevelPct delta (incident vs baseline)",
+          "abandonRate% delta (incident vs baseline)",
+          "avgHandleTime delta (incident vs baseline)",
+          "changesWithMeasurableKpiShift (count of changes whose incident window crossed a defined KPI threshold)"
+        ],
+        "enrichWith": [
+          "getFlowHistoryHistoryId (the specific flow publish event referenced by a change-history entry, when the audit record alone doesn't carry the full diff)",
+          "authorization.get.division.grants (when the audited change is an access/permission grant rather than a routing or flow config change — pairs this recipe with division-investigation's access-control step)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "repeat-contact-and-transfer-loop-investigation": {
+        "description": "Finds customers who contacted the organization multiple times for what looks like the same unresolved issue, and conversations that looped between queues or agents without resolving. Used by CX/operations leaders to size 'recoverable work' — volume that a first-contact-resolution or routing fix would eliminate — and by voice/queue engineers to spot a specific routing rule sending callers in circles.",
+        "subjectParam": "externalContactId (single-contact mode) or queueId (cohort/queue mode)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "contact-lookup",
+            "dataset": "postExternalcontactsContactsSearch",
+            "role": "seed",
+            "filterBy": "ANI, email, or other identifier when the investigation starts from a phone number rather than a known contactId",
+            "joinKey": "id",
+            "provides": "contactId resolved from a raw identifier",
+            "description": "Alternate seed used only when the investigator has a phone number or email rather than a contactId; skip straight to contact-conversations when contactId is already known"
+          },
+          {
+            "step": "contact-detail",
+            "dataset": "getExternalcontactsContact",
+            "filterBy": "contactId",
+            "joinKey": "id",
+            "provides": "contact identity, associated identifiers, organization",
+            "description": "Confirms the contact record and surfaces any linked identifiers (alternate phone numbers/emails) that widen the conversation search"
+          },
+          {
+            "step": "contact-conversation-history",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "participant externalContactId (or ANI, for single-contact mode) / queueId (for cohort mode) + investigation window",
+            "joinKey": "externalContactId or queueId",
+            "provides": "conversationId, startTime, queueId, mediaType, wrapUpCode, transferCount per conversation",
+            "description": "The core dataset: every conversation this contact had (or every conversation in this queue) in the window, ordered by time — a cluster of 2+ conversations within a short span for the same contact is the repeat-contact signal"
+          },
+          {
+            "step": "transfer-metrics",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "filterBy": "queueId list from contact-conversation-history",
+            "joinKey": "queueId",
+            "provides": "nTransferred, nBlindTransferred, nConsultTransferred by queue",
+            "description": "Queue-level transfer rate context — a repeat-contact cluster concentrated in a queue with an elevated blind-transfer rate points at a routing/skill-matching problem rather than an agent knowledge gap"
+          },
+          {
+            "step": "per-conversation-wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "filterBy": "conversationId+participantId, iterated over the conversations from contact-conversation-history",
+            "joinKey": "conversationId",
+            "provides": "wrapUpCode selected on each conversation in the cluster",
+            "description": "Repeat conversations sharing the same wrapUpCode (or a code family like 'callback requested'/'escalate') is strong evidence the first contact did not actually resolve the issue"
+          },
+          {
+            "step": "callback-attempts",
+            "dataset": "getConversationsCallbacks",
+            "filterBy": "queueId or contact identifier + investigation window",
+            "joinKey": "queueId",
+            "provides": "scheduled callback records, attempt counts, and outcomes",
+            "description": "A customer who abandoned, was offered a callback, and then called back directly anyway is a failed-handoff pattern distinct from a simple repeat contact"
+          },
+          {
+            "step": "journey-sessions",
+            "dataset": "getExternalcontactsContactJourneySessions",
+            "filterBy": "contactId",
+            "joinKey": "contactId",
+            "provides": "cross-channel session list (web, voice, digital) for the contact",
+            "description": "Extends the pattern beyond voice/queue conversations — a contact who browsed a support article, abandoned web chat, then called is a channel-switch repeat pattern, not just a voice repeat-call"
+          },
+          {
+            "step": "journey-outcome-scores",
+            "dataset": "getJourneySessionOutcomescores",
+            "filterBy": "sessionId (from journey-sessions)",
+            "joinKey": "sessionId",
+            "provides": "configured outcome/goal scores achieved (or not) per session",
+            "description": "Where journey outcomes are configured, a low/zero outcome score on the first session followed by a second session is a corroborating non-resolution signal"
+          }
+        ],
+        "joinSequence": "contact-lookup (optional) → contact-detail → contact-conversation-history (externalContactId or queueId) → per-conversation-wrapup (per conversationId) → transfer-metrics (queueId) → callback-attempts → journey-sessions (contactId) → journey-outcome-scores (sessionId)",
+        "identificationRule": "A 'repeat contact' is 2+ conversations from the same externalContactId (or the same ANI, when externalContactId is not populated) within an operator-defined recontact window (commonly 24-72 hours for voice, longer for digital/billing issues). A 'transfer loop' is a single conversation with 2+ queue transfers where the final wrapUpCode is not a resolution code. Both thresholds are business definitions the catalog does not fix — state the window and definition used in any reported metric.",
+        "executiveMetrics": [
+          "repeatContactRate% (contacts with 2+ conversations in window / total contacts in window)",
+          "avgConversationsPerRepeatingContact",
+          "transferLoopRate% (conversations with 2+ transfers before a terminal wrapup)",
+          "sameWrapupRepeatRate% (repeat conversations sharing the first conversation's wrapUpCode)",
+          "callbackThenDirectRepeatCount (failed-handoff signal)",
+          "recoverableConversationVolume (repeat conversations beyond the first, per cohort — the volume a fix would eliminate)"
+        ],
+        "enrichWith": [
+          "quality.get.evaluations.query (join on conversationId from contact-conversation-history to see whether repeat-contact conversations were also QA-flagged)",
+          "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation (agent/customer sentiment on the first conversation in a repeat cluster often shows the miss before the repeat call happens)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "configuration-drift-and-division-access-evidence": {
+        "description": "Periodic (not incident-triggered) review recipe for platform/security teams: diffs the current live configuration and division access grants for a set of resources against their audit change history, to confirm every live setting and every standing grant is explained by a recorded, attributable change. Distinct from change-to-incident-correlation, which starts from a suspected KPI deterioration — this recipe runs on a schedule regardless of whether anything looks broken, and its finding is a coverage gap (an unexplained grant or setting), not a KPI delta.",
+        "subjectParam": "divisionId (access review) or queueId/flowId (config review)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "change-log",
+            "dataset": "audits.query.audit.logs.user.actions",
+            "role": "seed",
+            "filterBy": "ServiceName in [Routing, Architect, Authorization, Telephony] + review window",
+            "joinKey": "entityId",
+            "provides": "every recorded change to routing, flow, authorization, and telephony entities in the window, with actor and before/after values",
+            "description": "The authoritative change record the rest of this recipe reconciles against"
+          },
+          {
+            "step": "division-grants-current",
+            "dataset": "authorization.get.division.grants",
+            "filterBy": "divisionId",
+            "joinKey": "divisionId",
+            "provides": "subjectId, subjectType, roleId, grantMadeAt for every current grant in the division",
+            "description": "Live grant snapshot; any grant whose grantMadeAt has no corresponding entry in change-log for that subject/role is an evidence gap worth flagging — audit retention windows are shorter than most grants' lifetime, so a gap is not automatically a finding, only a prompt to check the grant's original approval record outside the API"
+          },
+          {
+            "step": "division-objects-current",
+            "dataset": "authorization.search.division.objects",
+            "filterBy": "divisionId",
+            "queryParam": "objectType=QUEUE or objectType=FLOW",
+            "joinKey": "divisionId",
+            "provides": "the current queue/flow-to-division assignment",
+            "description": "Confirms which resources are actually in scope for the division being reviewed before pulling their config"
+          },
+          {
+            "step": "queue-config-current",
+            "dataset": "routing-queues",
+            "filterBy": "queueId list from division-objects-current",
+            "joinKey": "id",
+            "provides": "live queue configuration",
+            "description": "Diffed against the last matching change-log entry for each queueId; a live setting with no corresponding change-log entry inside the retained audit window means the setting predates the review window and should be noted as unverified rather than assumed compliant"
+          },
+          {
+            "step": "flow-config-current",
+            "dataset": "getFlowLatestconfiguration",
+            "filterBy": "flowId list from division-objects-current",
+            "joinKey": "flowId",
+            "provides": "currently published flow configuration",
+            "description": "Same reconciliation as queue-config-current, for flows; getFlowVersion resolves a specific historical version referenced in a change-log propertyChanges block"
+          }
+        ],
+        "joinSequence": "seed (change-log) → division-grants-current / division-objects-current (divisionId) → queue-config-current or flow-config-current (resource id list from division-objects-current)",
+        "findingDefinition": "A finding is a live setting or standing grant that the retained audit window cannot explain — report it as 'unverified in window', not as unauthorized; escalate to a manual access review only when the resource is also flagged sensitive by the tenant's own classification. This recipe never asserts unauthorized access on API evidence alone.",
+        "executiveMetrics": [
+          "changeCount by service and division",
+          "grantsUnverifiedInWindow (count, by division)",
+          "queueOrFlowSettingsUnverifiedInWindow (count, by division)",
+          "divisionsReviewedThisCycle / totalDivisions (review coverage)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -44917,6 +45152,36 @@
         ],
         "executivePresentation": "Division-by-division scorecard (one row per business unit/territory) ranked by volume or abandon rate, with a drill-down to the per-queue breakdown for any division a director flags as an outlier. Pairs with the queue.performance executive rollup: start at the division level for the headline view, drop to queue level only for divisions that need explanation — keeps the top-level report to one row per business unit instead of one row per queue.",
         "alternateQueueEnumeration": "getRoutingQueuesDivisionviews (GET /api/v2/routing/queues/divisionviews) is a more direct, queue-domain-native alternative to authorization.search.division.objects for resolving the queueId list for a division, when the caller already has routing:queue:view but not authorization:division:view scope.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "bot-and-ai-outcome-cost-assurance": {
+        "description": "Compares bot/automation containment against later live-agent recontact, and pairs Agent Copilot adoption with billable usage, so automation owners can tell 'this bot resolves the issue' from 'this bot merely defers the issue to a human, later.' The recontact join is what distinguishes this from a plain containment-rate report: a high containment rate with a high same-contact recontact rate in the following days is the specific failure mode this playbook is built to surface.",
+        "datasetsInOrder": [
+          "postAnalyticsBotsAggregatesQuery",
+          "getAnalyticsBotflowReportingturns",
+          "getFlowsOutcomes",
+          "analytics-conversation-details-query",
+          "getJourneySessionOutcomescores",
+          "postAnalyticsAgentcopilotsAggregatesQuery",
+          "getBillingReportsBillableusage"
+        ],
+        "joinOn": "botFlowId/flowId and day for bot metrics; externalContactId (or ANI) for the recontact join between a contained bot session and any live-agent conversation in the N days that follow it",
+        "groupBy": [
+          "botFlowId",
+          "flowOutcome (contained vs. escalated vs. abandoned)",
+          "day"
+        ],
+        "outputMetrics": [
+          "containmentRate% (sessions ending in a contained outcome / total bot sessions, from postAnalyticsBotsAggregatesQuery grouped by flowOutcome)",
+          "recontactWithinNDaysRate% (contained sessions whose contact appears in a live-agent conversation within an operator-defined N days — the automation-shifted-work signal; N is a business definition, not a platform default)",
+          "escalationRate% (bot sessions handed to a live agent within the same session)",
+          "copilotAdoptionRate% (agent conversations with Copilot engaged / total agent conversations, from postAnalyticsAgentcopilotsAggregatesQuery)",
+          "copilotSuggestionAcceptanceRate%",
+          "billableUsageByFeature (raw usage units from getBillingReportsBillableusage — the catalog does not map usage units to a currency cost; that mapping is a customer-supplied input)"
+        ],
+        "executivePresentation": "One row per bot flow, ranked by recontactWithinNDaysRate% descending so the automations that quietly generate downstream agent work surface first, with containment rate and billable usage as the next two columns so a reviewer can immediately see whether a high-recontact flow is also high-cost. A second, smaller table shows Copilot adoption and acceptance trend for the same period to keep human-assisted AI and fully-automated bot flows visible on one page instead of two separate reports.",
+        "costCaveat": "getBillingReportsBillableusage and postUsageAggregatesQueryJobs return usage units (minutes, sessions, API calls), not a dollar figure — attaching a cost-per-contained-session number requires the tenant's own rate card as an external input. Report usage units natively; do not silently convert to a currency estimate without that input documented alongside the number.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }

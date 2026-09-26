@@ -49,6 +49,17 @@ The ranking favors reuse of existing tested collection and investigation capabil
 breadth of business use, and a measurable operational outcome. It does not imply that all
 contact centers need the same feature or that a catalog recipe is an implemented composer.
 
+Ranks 1, 2, 4 and 5 now have a corresponding design-stage recipe in
+`catalog/genesys.catalog.json`'s `combinations` block —
+`investigationRecipes.change-to-incident-correlation`,
+`investigationRecipes.repeat-contact-and-transfer-loop-investigation`,
+`investigationRecipes.configuration-drift-and-division-access-evidence`, and
+`executiveReportingPlaybooks.bot-and-ai-outcome-cost-assurance` respectively. Each recipe
+composes only from endpoints/datasets already present in the catalog's `endpoints`/`datasets`
+inventory and states its own definitional caveats (recontact window, cost-unit mapping,
+what counts as an access-review finding). They are dataset/join references for the eventual
+composer and UI work below, not a runtime feature — see each recipe's `validationNote`.
+
 ## Recommended next release: explain what changed when service deteriorated
 
 Start with a **read-only queue incident investigation** in the Data Client:

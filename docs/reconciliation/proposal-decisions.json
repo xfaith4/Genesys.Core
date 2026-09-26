@@ -134,75 +134,66 @@
       "missingReferences": [
         "(derived)"
       ]
-    },
+    }
+  ],
+  "acceptedWithEndpointsAddedOnPathConfirmedBasis": [
     {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "single-conversation-investigation",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.contact.journey.segments"
-      ]
-    },
-    {
-      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
-      "section": "investigationRecipes",
-      "key": "byoi-conversation-enrichment",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.organization"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "agent-group-investigation",
-      "missingReferences": [
-        "groups.get.group.members",
-        "groups.get.single.group"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "division-access-security-audit",
-      "missingReferences": [
-        "authorization.get.subject.access.scope"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "queue-investigation",
-      "missingReferences": [
-        "voicemail.get.queue.messages"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
+      "date": "2026-09-26",
+      "note": "The nine endpoints these recipes were held on are now registered in catalog/genesys.catalog.json. Paths were confirmed against the MyPureCloud platform-client-sdk-cli generated command set (SWAGGER_OVERRIDE path annotations, which mirror the official Genesys Cloud OpenAPI spec) and cross-checked against the Go/PHP/Java PureCloud SDK method signatures, since developer.genesys.cloud and api.mypurecloud.com are not reachable from this environment's egress proxy. Response shapes and field names are still unvalidated against a live tenant (validationStatus: unvalidated on the new dataset/endpoint entries).",
+      "pathCorrections": [
+        "externalcontacts.get.contact.journey.sessions and externalcontacts.get.contact.journey.segments use the singular path segment 'journey' (/api/v2/externalcontacts/contacts/{contactId}/journey/sessions|segments), not the plural 'journeys' used in the original held proposal.",
+        "analytics.get.botflow.reportingturns (org-wide, /api/v2/analytics/botflows/{botFlowId}/reportingturns) is a distinct endpoint from analytics.get.botflow.divisions.reportingturns (division-scoped, /divisions/reportingturns) — both exist as separate SDK commands and are now both catalogued.",
+        "authorization.get.division.grants was already present in the catalog at the path this research independently confirmed (/api/v2/authorization/divisions/{divisionId}/grants); no change needed there."
+      ],
+      "resolved": [
+        {
+          "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+          "section": "investigationRecipes",
+          "key": "single-conversation-investigation",
+          "addedReferences": ["externalcontacts.get.contact", "externalcontacts.get.contact.notes", "externalcontacts.get.contact.journey.segments", "conversations.get.conversation.recording.annotations"]
+        },
+        {
+          "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+          "section": "investigationRecipes",
+          "key": "byoi-conversation-enrichment",
+          "addedReferences": ["externalcontacts.get.contact", "externalcontacts.get.organization"]
+        },
+        {
+          "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+          "section": "investigationRecipes",
+          "key": "agent-group-investigation",
+          "addedReferences": ["groups.get.group.members", "groups.get.single.group"]
+        },
+        {
+          "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+          "section": "investigationRecipes",
+          "key": "division-access-security-audit",
+          "addedReferences": ["authorization.get.subject.access.scope"]
+        },
+        {
+          "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+          "section": "investigationRecipes",
+          "key": "queue-investigation",
+          "addedReferences": ["voicemail.get.queue.messages"]
+        },
+        {
+          "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+          "section": "investigationRecipes",
+          "key": "digital-work-investigation",
+          "addedReferences": ["taskmanagement.get.workitem.history", "taskmanagement.get.workitem.wrapups", "taskmanagement.query.workitems"]
+        },
+        {
+          "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+          "section": "executiveReportingPlaybooks",
+          "key": "digital-work-throughput-and-cycle-time",
+          "addedReferences": ["taskmanagement.query.workitems"]
+        },
+        {
+          "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+          "section": "voiceEngineerPlaybooks",
+          "key": "flow-and-ivr-diagnostics",
+          "addedReferences": ["analytics.get.botflow.divisions.reportingturns", "analytics.get.botflow.sessions", "analytics.get.botflow.reportingturns"]
+        }
       ]
     }
   ],

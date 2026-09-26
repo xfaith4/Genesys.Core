@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-09-26 (endpoint catalog expansion — External Contacts, Groups, Access Audit, Digital Work, Bot Flow)
+
+### Added
+
+- Registered nine previously-held endpoints in `catalog/genesys.catalog.json`: External Contacts
+  (`externalcontacts.get.contact`, `.get.organization`, `.get.contact.notes`,
+  `.get.contact.journey.sessions`, `.get.contact.journey.segments`), Groups
+  (`groups.search.groups`, `.get.single.group`, `.get.group.members`),
+  `authorization.get.subject.access.scope`, `voicemail.get.user.messages`,
+  `voicemail.get.queue.messages`, `conversations.get.conversation.recording.annotations`,
+  the Task Management work-item query-job flow (`taskmanagement.query.workitems` and its
+  create/status/results/workitem/history/wrapups endpoints), and Bot Flow diagnostics
+  (`analytics.get.botflow.sessions`, `.get.botflow.reportingturns`,
+  `.get.botflow.divisions.reportingturns`). Paths were confirmed against the MyPureCloud
+  `platform-client-sdk-cli` generated command set since `developer.genesys.cloud` and
+  `api.mypurecloud.com` are unreachable from this environment's egress proxy; all new entries
+  carry `validationStatus: unvalidated` pending a live-tenant exercise.
+- Added the `external-contact-identity` redaction profile and the `workitems_query_jobs`
+  paging/transaction profiles.
+- Added investigation recipes `agent-group-investigation`, `division-access-security-audit`,
+  and `digital-work-investigation`, and executive playbook
+  `digital-work-throughput-and-cycle-time`, unblocking recipes that had been held in
+  `docs/reconciliation/proposal-decisions.json` for missing catalog references.
+- Extended `single-conversation-investigation` and `byoi-conversation-enrichment` with a
+  conditional External Contacts identity/notes/journey-segment/organization branch; extended
+  `queue-investigation` with a voicemail-fallback reconciliation step; extended
+  `flow-and-ivr-diagnostics` with Bot Flow session/turn diagnostics; formalized the
+  conversation recording-annotations `enrichWith` hint into a resolvable catalog step.
+- Documented all of the above in `docs/ENDPOINT_COMBINATIONS.md` §11 and
+  `docs/reconciliation/proposal-decisions.json`.
+
+### Corrected
+
+- The External Contacts journey endpoints use the singular path segment `journey`
+  (`/api/v2/externalcontacts/contacts/{contactId}/journey/sessions|segments`), not the plural
+  `journeys` used in an earlier held proposal.
+- Confirmed `analytics.get.botflow.reportingturns` (org-wide) and
+  `analytics.get.botflow.divisions.reportingturns` (division-scoped) are two distinct,
+  legitimate endpoints rather than a duplicate/typo of one another; both are now catalogued.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

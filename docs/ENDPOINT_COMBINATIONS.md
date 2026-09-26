@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-26  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -21,7 +21,10 @@ tooling. Pattern 5 (Real-Time Operations Monitoring) maps to the
 `real-time-operations-monitoring` recipe key; Pattern 6 (BYOI Enrichment) maps to the
 `byoi-conversation-enrichment` recipe key. Every `dataset` value in a JSON recipe resolves to
 either a curated `datasets` entry or a raw `endpoints` operationId in the same catalog file —
-there is no third namespace.
+there is no third namespace. `agent-group-investigation`, `division-access-security-audit`,
+and `digital-work-investigation` (with its companion executive playbook
+`digital-work-throughput-and-cycle-time`) are additional recipe keys with no numbered pattern
+of their own — see [§11](#september-2026-update--external-contacts-groups-access-audit-digital-work-bot-flow-diagnostics).
 
 ---
 
@@ -37,6 +40,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [September 2026 update — External Contacts, Groups, Access Audit, Digital Work, Bot Flow diagnostics](#september-2026-update--external-contacts-groups-access-audit-digital-work-bot-flow-diagnostics)
 
 ---
 
@@ -546,3 +550,105 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+---
+
+## September 2026 update — External Contacts, Groups, Access Audit, Digital Work, Bot Flow diagnostics
+
+`developer.genesys.cloud` and `api.mypurecloud.com` are unreachable from this environment's
+network egress proxy, so the nine endpoints previously held in
+[proposal decisions](reconciliation/proposal-decisions.json) under
+`heldForMissingCatalogReferences` were instead path-confirmed against the MyPureCloud
+`platform-client-sdk-cli` generated command set (`SWAGGER_OVERRIDE` path annotations, which
+mirror the official Genesys Cloud OpenAPI spec) and cross-checked against the Go/PHP/Java
+PureCloud SDK method signatures. All are now registered in `catalog/genesys.catalog.json`
+with `validationStatus: unvalidated` — paths are believed correct, but response shapes have
+not been exercised against a live tenant. Two path corrections came out of this pass: the
+External Contacts journey endpoints use the singular `journey` path segment
+(`/api/v2/externalcontacts/contacts/{contactId}/journey/sessions|segments`), not the plural
+`journeys` used in the original held proposal; and `analytics.get.botflow.reportingturns`
+(org-wide) and `analytics.get.botflow.divisions.reportingturns` (division-scoped) are
+confirmed as two distinct endpoints, not a duplicate/typo of one another — both are now
+catalogued.
+
+This unblocked the following recipes, previously held for missing catalog references:
+
+| Recipe | Section | Newly available datasets |
+|---|---|---|
+| `single-conversation-investigation` | investigationRecipes | `externalcontacts.get.contact`, `externalcontacts.get.contact.notes`, `externalcontacts.get.contact.journey.segments`, `conversations.get.conversation.recording.annotations` |
+| `byoi-conversation-enrichment` | investigationRecipes | `externalcontacts.get.contact`, `externalcontacts.get.organization` |
+| `agent-group-investigation` | investigationRecipes | `groups.get.single.group`, `groups.get.group.members` |
+| `division-access-security-audit` | investigationRecipes | `authorization.get.subject.access.scope` |
+| `queue-investigation` | investigationRecipes | `voicemail.get.queue.messages` |
+| `digital-work-investigation` | investigationRecipes | `taskmanagement.query.workitems`, `taskmanagement.get.workitem.history`, `taskmanagement.get.workitem.wrapups` |
+| `digital-work-throughput-and-cycle-time` | executiveReportingPlaybooks | `taskmanagement.query.workitems` |
+| `flow-and-ivr-diagnostics` | voiceEngineerPlaybooks | `analytics.get.botflow.sessions`, `analytics.get.botflow.reportingturns`, `analytics.get.botflow.divisions.reportingturns` |
+
+### Agent Group Investigation (Groups vs. Divisions)
+
+A Genesys Cloud **Group** (`groups.get.single.group` / `groups.get.group.members`) is an ad
+hoc, cross-queue, cross-division member collection — e.g. "Tier 2 Escalation", "Bilingual
+Agents", "Night Shift". It is a distinct scoping boundary from a **Division**: a Division is
+the RBAC/data-scoping boundary described in Pattern 3 above; a Group is the skill- or
+team-scoping boundary. The new `agent-group-investigation` recipe seeds from `groupId`, fans
+out to member `userId`s via `groups.get.group.members`, and reports `divisionId` and
+`queueId` spread explicitly rather than assuming the group maps 1:1 to either — a group that
+spans several divisions is itself often the finding.
+
+### Division Access / Security Audit
+
+The new `division-access-security-audit` recipe answers a different question than the
+operational Division Investigation (Pattern 3): not "how did this division perform" but "who
+can see this division's data, and is that intentional." It joins
+`authorization.get.division.grants` (who has a role grant on the division) with
+`authorization.get.subject.access.scope` (that grantee's complete access footprint, to tell a
+sole elevated grant from one of several) and `audit-logs` filtered to
+`service=Authorization` (when the grant was made and by whom). Use this recipe for
+least-privilege reviews and incident response ("who could have seen this conversation"),
+not for routine performance reporting.
+
+### Digital Work Investigation (Task Management)
+
+Genesys Cloud Task Management work items (cases, tickets, outbound follow-ups) are handled
+through the same queue/division/membership model as ACD conversations, but through a
+separate async job API rather than the Analytics query endpoints. The synchronous
+`/api/v2/taskmanagement/workitems/query` endpoint is deprecated; the supported flow is
+`POST /api/v2/taskmanagement/workitems/query/jobs` → poll
+`GET .../query/jobs/{jobId}` → `GET .../query/jobs/{jobId}/results` (catalogued as
+`taskmanagement.query.workitems`, mirroring the same submit/poll/results shape already used
+by `analytics-conversation-details`). The new `digital-work-investigation` recipe mirrors
+`queue-investigation`'s shape: a work-item list seed, assignee identity resolution back to
+the voice Division model, and on-demand `history`/`wrapups` drilldown for a single stuck or
+aged item — not fanned out across a whole queue by default. The companion executive
+playbook, `digital-work-throughput-and-cycle-time`, gives backlog, cycle-time, and
+overdue-rate metrics as the non-conversational counterpart to
+`service-level-and-abandon-kpis`.
+
+### Bot Flow Turn-Level Diagnostics
+
+`flow-and-ivr-diagnostics` (Pattern voiceEngineerPlaybooks) now includes
+`analytics.get.botflow.sessions` (session-level containment/outcome) and both
+`analytics.get.botflow.reportingturns` (org-wide) and
+`analytics.get.botflow.divisions.reportingturns` (division-scoped) turn-by-turn
+utterance/response detail. Repeated no-match/no-input turns immediately before a session
+ends indicate an NLU intent-model gap for that utterance; a material divergence between the
+org-wide and a specific division's turn detail indicates the division is running its own
+bot flow variant, translation, or NLU tuning that under-performs the org baseline.
+
+### External Contacts Identity Enrichment
+
+`single-conversation-investigation` and `byoi-conversation-enrichment` both gained a
+conditional External Contacts branch: when the seed conversation resolves a non-null
+`participants[].externalContactId`, `externalcontacts.get.contact` provides the
+Genesys-side resolved customer identity (distinct from — and a cross-check against — any
+BYOI provider custom attributes), `externalcontacts.get.contact.notes` surfaces prior
+agent/integration case notes, and `externalcontacts.get.contact.journey.segments` surfaces
+the marketing/behavioral segments the customer qualified for at contact time. For a
+resolved `externalOrganizationId` (B2B contacts), `externalcontacts.get.organization` adds
+account/company-level context. All four are conditional — skip silently when no
+`externalContactId` resolves; do not fan out to unrelated conversations. The identity and
+notes datasets carry the new `external-contact-identity` redaction profile (hashes
+phone/email/address, drops social-handle and photo fields) when joined into an
+investigation. Separately, `single-conversation-investigation`'s recording step gained
+`conversations.get.conversation.recording.annotations`, formalizing what was previously
+only a free-text `enrichWith` hint into a resolvable catalog reference.

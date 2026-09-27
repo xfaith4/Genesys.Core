@@ -124,6 +124,36 @@
       "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
       "section": "executiveReportingPlaybooks",
       "key": "division-and-business-unit-rollup"
+    },
+    {
+      "commit": "PENDING-2026-09-27-scheduled-run",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "resolvedMissingReferences": [
+        "taskmanagement.get.workitem.history",
+        "taskmanagement.get.workitem.wrapups",
+        "taskmanagement.query.workitems"
+      ],
+      "note": "Missing endpoints registered in catalog.endpoints (already present from prior Swagger sync: postTaskmanagementWorkitemsQueryJobs, getTaskmanagementWorkitemsQueryJob(Results), getTaskmanagementWorkitem, getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, getAnalyticsBotflowSessions, getAnalyticsBotflowDivisionsReportingturns) and wired into a curated dataset (taskmanagement.query.workitems) plus this recipe/playbook. validationStatus remains reference-only/unvalidated pending live tenant exercise."
+    },
+    {
+      "commit": "PENDING-2026-09-27-scheduled-run",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "resolvedMissingReferences": [
+        "taskmanagement.query.workitems"
+      ],
+      "note": "Missing endpoints registered in catalog.endpoints (already present from prior Swagger sync: postTaskmanagementWorkitemsQueryJobs, getTaskmanagementWorkitemsQueryJob(Results), getTaskmanagementWorkitem, getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, getAnalyticsBotflowSessions, getAnalyticsBotflowDivisionsReportingturns) and wired into a curated dataset (taskmanagement.query.workitems) plus this recipe/playbook. validationStatus remains reference-only/unvalidated pending live tenant exercise."
+    },
+    {
+      "commit": "PENDING-2026-09-27-scheduled-run",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "resolvedMissingReferences": [
+        "analytics.get.botflow.divisions.reportingturns",
+        "analytics.get.botflow.sessions"
+      ],
+      "note": "Missing endpoints registered in catalog.endpoints (already present from prior Swagger sync: postTaskmanagementWorkitemsQueryJobs, getTaskmanagementWorkitemsQueryJob(Results), getTaskmanagementWorkitem, getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, getAnalyticsBotflowSessions, getAnalyticsBotflowDivisionsReportingturns) and wired into a curated dataset (taskmanagement.query.workitems) plus this recipe/playbook. validationStatus remains reference-only/unvalidated pending live tenant exercise."
     }
   ],
   "heldForMissingCatalogReferences": [
@@ -177,35 +207,9 @@
       "missingReferences": [
         "voicemail.get.queue.messages"
       ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
-      ]
     }
   ],
   "runtimeDatasetChanges": "Not imported: proposed runtime definitions need profile, paging, redaction and fixture validation.",
-  "correctionSource": "https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/"
+  "correctionSource": "https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/",
+  "resolvedElsewhereNote": "Several 2026-09 held items were closed by later work under different, more thorough recipes rather than their originally proposed shape: single-conversation-investigation/byoi-conversation-enrichment's need for externalcontacts.get.contact(+journey) is covered by the accepted customer-360-contact-history and customer-journey-and-external-contact-enrichment recipes (getExternalcontactsContact, ContactNotes, ContactIdentifiers, JourneySessions, JourneyOutcomes). queue-investigation's voicemail.get.queue.messages need is covered by the accepted queue-overflow-and-deflection-analysis recipe and the queue-overflow-and-deflection-kpis playbook (getVoicemailQueueMessages). These are left off acceptedAsReferenceRecipesOnly here because they were resolved under recipe keys not present in the original held entries, not because this run made the change. agent-group-investigation's need for groups.get.single.group/groups.get.group.members remains genuinely open: team-investigation covers the Genesys Teams API (/api/v2/teams), which is a materially different grouping concept from ad hoc, cross-division Groups (/api/v2/groups) \u2014 getGroup and getGroupMembers exist in catalog.endpoints but are not yet wired into a Groups-specific recipe. division-access-security-audit's authorization.get.subject.access.scope was added as a grantee-subject-scope step on the accepted configuration-drift-and-division-access-evidence recipe (using catalog.endpoints.getAuthorizationSubject) in the 2026-09-27 scheduled run, rather than as a separate recipe."
 }

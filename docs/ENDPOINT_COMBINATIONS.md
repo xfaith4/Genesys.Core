@@ -1,7 +1,7 @@
 # Endpoint Combinations — Investigation Patterns & Executive Rollups
 
 > Status: Active  
-> Last updated: 2026-08-15  
+> Last updated: 2026-09-27  
 > Companion to: [INVESTIGATIONS.md](INVESTIGATIONS.md), [ROADMAP.md](ROADMAP.md)
 
 This document describes how catalog datasets combine into coherent investigations and executive
@@ -37,6 +37,9 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Digital Work (Task Management) Investigation](#11-digital-work-task-management-investigation--new)
+12. [Bot Flow Diagnostics](#12-bot-flow-diagnostics--extension-to-voice-engineer-playbook-4)
+13. [Subject-Side Access Scope](#13-subject-side-access-scope--extension-to-pattern-10s-security-audit-recipe)
 
 ---
 
@@ -546,3 +549,93 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## September 2026 reconciliation, part 2 (2026-09-27 scheduled evaluation)
+
+This run's network egress to `developer.genesys.cloud` and `help.genesys.cloud` was blocked
+by the environment's proxy policy, so nothing below could be checked against the live API
+Explorer or help site this cycle. All additions instead close gaps that were already flagged
+in [proposal decisions](reconciliation/proposal-decisions.json) as `heldForMissingCatalogReferences`,
+using endpoint definitions already present in `catalog/genesys.catalog.json` from an earlier
+Swagger sync (`scripts/Get-GenesysSwagger.ps1` / `scripts/Sync-SwaggerEndpoints.ps1`) — no new
+endpoint paths were invented. Everything added carries `validationStatus: reference-only` or
+`unvalidated` per the existing convention; treat it as design input, not a validated Ops command.
+
+### 11. Digital Work (Task Management) Investigation — new
+
+**Subject:** One Task Management work queue or division + time window
+**Use case:** Genesys Cloud's Task Management module handles non-conversational digital/back-office
+work — cases, tickets, outbound follow-ups — through its own queues and divisions, which behave
+operationally like ACD queues (membership, throughput, SLA) but were previously absent from every
+investigation and executive playbook in this catalog, even though the underlying endpoints have
+been in `catalog/genesys.catalog.json` since the last Swagger sync.
+
+**Core question:** *How is digital/back-office work moving through this queue or division, and is
+anything stuck or overdue?*
+
+New curated dataset `taskmanagement.query.workitems` wraps the async job flow
+(`POST /api/v2/taskmanagement/workitems/query/jobs` → poll `GET .../jobs/{jobId}` → fetch
+`GET .../jobs/{jobId}/results`), mirroring the existing `analytics-conversation-details` job
+pattern. The new `investigationRecipes.digital-work-investigation` recipe seeds from that dataset,
+resolves each work item's `assignee.id` through the existing
+`users.division.analysis.get.users.with.division.info` dataset (the same identity step the Division
+Investigation uses), and adds three on-demand, per-item drilldowns: `getTaskmanagementWorkitem`
+(full detail), `getTaskmanagementWorkitemWrapups` (outcome codes — the digital-work equivalent of
+conversation wrap-up codes), and `getTaskmanagementWorkitemHistory` (status/assignment change
+timeline — the digital-work equivalent of a SIP trace or `audit-logs` for one item). A companion
+`executiveReportingPlaybooks.digital-work-throughput-and-cycle-time` playbook rolls the same dataset
+up to backlog, cycle-time, overdue-rate, and per-assignee throughput metrics, positioned as the
+non-conversational counterpart to `service-level-and-abandon-kpis`.
+
+**Voice engineer relevance:** a work item with `dateDue` in the past and `statusCategory` still
+`Open` is an SLA breach exactly like `nOverSla` for a conversation; running `history` on one stuck
+item reveals reassignment loops the same way a SIP trace reveals call-setup loops.
+
+### 12. Bot Flow diagnostics — extension to Voice Engineer Playbook 4
+
+`voiceEngineerPlaybooks.flow-and-ivr-diagnostics` previously covered only classic Architect flows
+(`flows.get.all.flows`, `flows.get.flow.outcomes`, `flows.get.flow.milestones`,
+`analytics.query.flow.aggregates.execution.metrics`, `analytics.query.flow.observations`). When
+self-service is implemented as a conversational-AI **Bot Flow** instead of (or alongside) a classic
+Architect flow, two already-catalogued endpoints now enrich the same playbook:
+
+- `getAnalyticsBotflowSessions` (`GET /api/v2/analytics/botflows/{botFlowId}/sessions`) — session-level
+  containment/outcome, in reverse chronological order.
+- `getAnalyticsBotflowDivisionsReportingturns`
+  (`GET /api/v2/analytics/botflows/{botFlowId}/divisions/reportingturns`) — turn-by-turn detail
+  (each customer utterance/action and the bot's response) grouped by session; the definitive source
+  for diagnosing containment failures such as repeated no-match/no-input turns immediately before an
+  escalation to a queue. Genesys's own catalog metadata marks the non-division-aware equivalent,
+  `getAnalyticsBotflowReportingturns`, deprecated in favor of this one — use the division-aware
+  endpoint.
+
+New diagnostic signal added: *repeated no-match/no-input turns immediately before session end →
+intent model gap for that utterance; candidate for retraining.*
+
+### 13. Subject-side access scope — extension to Pattern 10's security audit recipe
+
+`investigationRecipes.configuration-drift-and-division-access-evidence` previously answered "who has
+a grant in this division" (`authorization.get.division.grants`) but not "what else can that grantee
+see" from the grantee's own side. A new on-demand `grantee-subject-scope` step, run per flagged
+grantee rather than fanned out org-wide, calls the already-catalogued `getAuthorizationSubject`
+(`GET /api/v2/authorization/subjects/{subjectId}`) to pull that subject's complete role/division
+grant list. This reconciles the division-side and subject-side views of the same access-control
+relationship: it confirms whether a division grant under review is a grantee's only elevated access
+or one of several, which materially changes the risk read of an "unverified in window" finding.
+
+### Still-open gaps (unchanged this cycle)
+
+- **Groups-based (not Teams-based) agent investigation.** `groups.get.single.group` /
+  `groups.get.group.members` (Genesys **Groups**, `/api/v2/groups` — ad hoc, cross-division member
+  collections such as "Tier 2 Escalation" or "Bilingual Agents") remain unresolved. The accepted
+  `team-investigation` recipe covers a related but distinct concept, Genesys **Teams**
+  (`/api/v2/teams`, a WFM/org-structure grouping), and does not substitute for a Groups-scoped
+  investigation. The raw endpoints (`getGroup`, `getGroupMembers`, `postGroupsSearch`) are already in
+  `catalog.endpoints`; composing an `agent-group-investigation` recipe from them is future work.
+- **BYOI's own ingestion endpoint** is still not confirmed in the live API Explorer (see the
+  `byoi-conversation-enrichment` recipe's `identificationRule` note) — this cycle's egress block means
+  it remains unconfirmed rather than resolved.
+
+See [proposal decisions](reconciliation/proposal-decisions.json) for the full ledger, including a
+`resolvedElsewhereNote` explaining which originally-held gaps were actually closed by earlier,
+more thorough recipes under different keys than first proposed.

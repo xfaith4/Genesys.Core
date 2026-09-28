@@ -1,0 +1,211 @@
+{
+  "acceptedAsReferenceRecipesOnly": [
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "investigationRecipes",
+      "key": "real-time-operations-monitoring"
+    },
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "investigationRecipes",
+      "key": "customer-journey-and-external-contact-enrichment"
+    },
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "investigationRecipes",
+      "key": "queue-overflow-and-deflection-analysis"
+    },
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "investigationRecipes",
+      "key": "realtime-notification-channel-strategy"
+    },
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "executiveReportingPlaybooks",
+      "key": "customer-journey-attribution"
+    },
+    {
+      "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+      "section": "executiveReportingPlaybooks",
+      "key": "queue-overflow-and-deflection-kpis"
+    },
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "investigationRecipes",
+      "key": "single-conversation-investigation"
+    },
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "investigationRecipes",
+      "key": "queue-investigation"
+    },
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "investigationRecipes",
+      "key": "division-investigation"
+    },
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "investigationRecipes",
+      "key": "real-time-operations-monitoring"
+    },
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "executiveReportingPlaybooks",
+      "key": "wfm-adherence-and-occupancy"
+    },
+    {
+      "commit": "30486f8f115b08a3c57eba139b3b33dd0490c052",
+      "section": "investigationRecipes",
+      "key": "embeddable-framework-digital-engagement-investigation"
+    },
+    {
+      "commit": "851c671f73feba7ef683f432cf51f2537fc1672a",
+      "section": "investigationRecipes",
+      "key": "customer-360-contact-history"
+    },
+    {
+      "commit": "851c671f73feba7ef683f432cf51f2537fc1672a",
+      "section": "investigationRecipes",
+      "key": "team-investigation"
+    },
+    {
+      "commit": "851c671f73feba7ef683f432cf51f2537fc1672a",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-journey-conversion-attribution"
+    },
+    {
+      "commit": "c209dcac2e8661a3427f1878f02d151ab2248353",
+      "section": "investigationRecipes",
+      "key": "byoi-conversation-enrichment"
+    },
+    {
+      "commit": "c209dcac2e8661a3427f1878f02d151ab2248353",
+      "section": "investigationRecipes",
+      "key": "open-messaging-digital-injection-investigation"
+    },
+    {
+      "commit": "c209dcac2e8661a3427f1878f02d151ab2248353",
+      "section": "executiveReportingPlaybooks",
+      "key": "byoi-and-messaging-integration-coverage"
+    },
+    {
+      "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+      "section": "investigationRecipes",
+      "key": "skill-coverage-gap-analysis"
+    },
+    {
+      "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+      "section": "investigationRecipes",
+      "key": "alert-root-cause-drilldown"
+    },
+    {
+      "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+      "section": "investigationRecipes",
+      "key": "digital-engagement-journey-correlation"
+    },
+    {
+      "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+      "section": "executiveReportingPlaybooks",
+      "key": "coaching-effectiveness-and-score-trend"
+    },
+    {
+      "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+      "section": "voiceEngineerPlaybooks",
+      "key": "integration-and-api-throttling-diagnostics"
+    },
+    {
+      "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
+      "section": "investigationRecipes",
+      "key": "byoi-conversation-enrichment"
+    },
+    {
+      "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
+      "section": "executiveReportingPlaybooks",
+      "key": "division-and-business-unit-rollup"
+    }
+  ],
+  "heldForMissingCatalogReferences": [
+    {
+      "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+      "section": "investigationRecipes",
+      "key": "agent-investigation",
+      "missingReferences": [
+        "(derived)"
+      ]
+    },
+    {
+      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+      "section": "investigationRecipes",
+      "key": "single-conversation-investigation",
+      "missingReferences": [
+        "externalcontacts.get.contact",
+        "externalcontacts.get.contact.journey.segments"
+      ]
+    },
+    {
+      "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+      "section": "investigationRecipes",
+      "key": "byoi-conversation-enrichment",
+      "missingReferences": [
+        "externalcontacts.get.contact",
+        "externalcontacts.get.organization"
+      ]
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "agent-group-investigation",
+      "missingReferences": [
+        "groups.get.group.members",
+        "groups.get.single.group"
+      ]
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "division-access-security-audit",
+      "missingReferences": [
+        "authorization.get.subject.access.scope"
+      ]
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "investigationRecipes",
+      "key": "queue-investigation",
+      "missingReferences": [
+        "voicemail.get.queue.messages"
+      ]
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "missingReferences": [
+        "taskmanagement.get.workitem.history",
+        "taskmanagement.get.workitem.wrapups",
+        "taskmanagement.query.workitems"
+      ]
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "missingReferences": [
+        "taskmanagement.query.workitems"
+      ]
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "missingReferences": [
+        "analytics.get.botflow.divisions.reportingturns",
+        "analytics.get.botflow.sessions"
+      ]
+    }
+  ],
+  "runtimeDatasetChanges": "Not imported: proposed runtime definitions need profile, paging, redaction and fixture validation.",
+  "correctionSource": "https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/"
+}

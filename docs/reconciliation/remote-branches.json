@@ -1,0 +1,1507 @@
+[
+  {
+    "branch": "origin/codex/perform-code-review-and-complete-tasks",
+    "commit": "9ac4d668cb9232415171c740d1891f9b13b50a48",
+    "date": "2026-02-17",
+    "title": "Remove PowerShell setup from CI workflow",
+    "changedPaths": [
+      ".github/workflows/ci.yml"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-Pis9o",
+    "commit": "5d990993e1d816aaf6fd7d8930d32b0d079340f3",
+    "date": "2026-05-03",
+    "title": "feat(catalog): add 29 datasets, 6 endpoints, and combinations enrichments",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-42hUB",
+    "commit": "466b8c60cffa7c8496a7c8a255a1934c22f0055e",
+    "date": "2026-05-05",
+    "title": "feat: add 9 new endpoint combinations covering unused datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-g2Wlp",
+    "commit": "f8bbfda883b2839598888e02451b8d7d52a94c29",
+    "date": "2026-05-06",
+    "title": "feat: endpoint evaluation \u2014 25 new datasets, division investigation, investigation recipes",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/INVESTIGATIONS.md",
+      "docs/INVESTIGATION_RECIPES.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-9ud93",
+    "commit": "c26afeeafab3051bea1c3eb35c177ff3308fc156",
+    "date": "2026-05-08",
+    "title": "Add 29 investigation-enrichment datasets and endpoint combination playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-P5NsD",
+    "commit": "485f1385d7ac91837960f20d73fa91a835546dcc",
+    "date": "2026-05-11",
+    "title": "Add 10 new endpoint combinations covering gaps in catalog coverage",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-3DiMs",
+    "commit": "1bcff3370e019045689dcb9aa971391b004e02b1",
+    "date": "2026-05-14",
+    "title": "Add 14 datasets, 8 endpoint defs, 5 combos; expand ENDPOINT_COMBINATIONS.md",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-fquzY",
+    "commit": "6db057fb8417b0abf6c5e48f11fc8c92c46a781b",
+    "date": "2026-05-15",
+    "title": "Add 22 new catalog datasets and 9 new endpoint combination patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-sKVIU",
+    "commit": "1513cb0239e5036fd32e85cef3f8dc5c29a949de",
+    "date": "2026-05-16",
+    "title": "Catalog enrichment: 27 new datasets, 4 investigation recipes, 3 reporting playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-V3PO7",
+    "commit": "195d3920b03256de6d9a7d8c62fba455b8d896f4",
+    "date": "2026-05-17",
+    "title": "Add 9 new catalog datasets and 4 investigation combination patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-OGZIv",
+    "commit": "178da75f3c3dfa054c72273f98414cfa2cb9686c",
+    "date": "2026-05-18",
+    "title": "feat: add 10 new catalog datasets and 8 investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ouXkI",
+    "commit": "94ddf99eeb789b34ca0254d978c97e876b91e32d",
+    "date": "2026-05-19",
+    "title": "feat: add 32 new catalog datasets and 9 new investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-Yj5Bi",
+    "commit": "eb0a291fe1bcc24423a5cd74148d0c07a3b4e833",
+    "date": "2026-05-20",
+    "title": "feat: Add 14 new investigation datasets and 3 new endpoint combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-gnVaq",
+    "commit": "d5ba56d05c8393f4a38c74afdcf8f37329cb348b",
+    "date": "2026-05-21",
+    "title": "feat: Add 10 enrichment datasets, 9 endpoints, and 4 investigation patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-u0k0R",
+    "commit": "92c3f62bb4aada6af456a95ee3b0af98f92a16fc",
+    "date": "2026-05-22",
+    "title": "Add 15 new catalog datasets and 4 new investigation patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-wZZqt",
+    "commit": "8de45d72d0b1bee7a9f049e54b34e8aba9968f6d",
+    "date": "2026-05-23",
+    "title": "Add 12 new catalog datasets and 4 high-value endpoint combination patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-xL2ss",
+    "commit": "48a712ffe06dc9421e1521cdcd03005d704dac93",
+    "date": "2026-05-24",
+    "title": "Add 18 missing datasets, campaign-investigation recipe, and update combination docs",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-OGd7B",
+    "commit": "bfa97becf2c6b745623a6996d24cb1ec08e90384",
+    "date": "2026-05-25",
+    "title": "feat: enrich catalog with investigation tags and document 4 new combination patterns",
+    "changedPaths": [
+      "catalog/catalog-browser.html",
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-WUmIC",
+    "commit": "1e9d7c3a8d9b0e81780336730810cbad3f25b2cb",
+    "date": "2026-05-26",
+    "title": "Add 22 new datasets, 3 investigation recipes, and 3 executive playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-3USK5",
+    "commit": "397cb525a26853f971022276a82f2639d7559610",
+    "date": "2026-05-27",
+    "title": "feat(catalog): enrich catalog with investigation combinations, missing datasets, and new endpoints",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-gTzmy",
+    "commit": "99b48963146ec36121eaf19a6280e59d5b53cc26",
+    "date": "2026-05-28",
+    "title": "Add 6 investigation combinations and expand dataset coverage to 82/111",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-luR69",
+    "commit": "c1475d4792937ac444dacebaea74f4740297a109",
+    "date": "2026-05-29",
+    "title": "feat: add 15 datasets and 6 combinations to catalog (v1.1.0)",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "scripts/Update-CatalogCombinations.py"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-xSZwK",
+    "commit": "764851de557a8576dd08507493d91b422ee2bf9b",
+    "date": "2026-05-30",
+    "title": "Add 32 catalog datasets, redaction profile, and 6 new endpoint combination patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ryKFJ",
+    "commit": "464b02da5c7e14f89c40d0eb90863c5ef86d7209",
+    "date": "2026-05-31",
+    "title": "catalog: add 30 datasets, 6 recipes, 2 rollups; expand ENDPOINT_COMBINATIONS",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-HkdwD",
+    "commit": "ade041ec7119d84db19864f690eddeec97e2a5a0",
+    "date": "2026-06-01",
+    "title": "feat: Add 20 new catalog datasets and expand endpoint combination documentation",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-0MbD3",
+    "commit": "6a1752625f2ccfa2f3a1daa5ada6788087ebd994",
+    "date": "2026-06-02",
+    "title": "catalog: add 24 new investigation datasets; expand endpoint combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-EeAak",
+    "commit": "0b798ae51859fd45898c7b89319e8d04d6b7a243",
+    "date": "2026-06-03",
+    "title": "Add 17 new datasets, 9 combinations, and expanded ENDPOINT_COMBINATIONS documentation",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-WP9qf",
+    "commit": "b8243d8356f60ec97a0f5a6107ed87a53d24982a",
+    "date": "2026-06-04",
+    "title": "Add 10 datasets, 4 investigation recipes, 4 executive playbooks, 3 voice-engineer playbooks, and expand combination reference matrix",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-OfhSt",
+    "commit": "0d4c56b42a8b468f3470f3b720d06cf99b67be48",
+    "date": "2026-06-05",
+    "title": "feat: Add enrichment datasets, investigation recipes, and playbooks for digital, AI, bot, and compliance patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-y6wvu",
+    "commit": "fb247c3b965688409b0466b27c0492c544a0483f",
+    "date": "2026-06-06",
+    "title": "feat: Add 22 new datasets, 12 endpoint defs, and 6 investigation combinations for BYOI, digital channels, QM calibration, predictive routing, knowledge analytics, and WFM adherence",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-8X0xj",
+    "commit": "2390b826865ac6eb21eb7986b901a2969e8d45c6",
+    "date": "2026-06-07",
+    "title": "Add 15 new catalog datasets and 5 investigation patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-Cf14e",
+    "commit": "769a2d0f2fff320f7bef18e72d6b390a1ae49963",
+    "date": "2026-06-08",
+    "title": "Add 14 enrichment datasets and expand endpoint combinations documentation",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-d325pt",
+    "commit": "1e3e729803c7769db111a7f8b7b118cd2cb38ad0",
+    "date": "2026-06-09",
+    "title": "scripts: add update-catalog-additions.py migration script",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "scripts/update-catalog-additions.py"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-q0xaqu",
+    "commit": "83d80068180c9a9e078980ec7cb4b87a75fa6ab4",
+    "date": "2026-06-10",
+    "title": "Add 23 datasets, 8 new combination recipes, and extended endpoint matrix",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-73yua2",
+    "commit": "bd02bc70b45a8b1c42c0b2da3887de75be5de244",
+    "date": "2026-06-11",
+    "title": "catalog: add 17 datasets, 4 endpoints, 6 combinations, 1 redaction profile",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-kezrgf",
+    "commit": "a17f21d1dfd3ede6cf635d3dfab35876c662eb0b",
+    "date": "2026-06-12",
+    "title": "Add 9 enrichment datasets and 7 investigation patterns to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-m6lhrd",
+    "commit": "cff9692729740f078b3480e8f67618a1c27104f6",
+    "date": "2026-06-13",
+    "title": "Expand endpoint catalog and combination patterns for investigation and reporting",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-35l32q",
+    "commit": "9d11babc64c4c4e57cece4dec05643188db59aa1",
+    "date": "2026-06-14",
+    "title": "Add 13 datasets, 4 endpoints, and 5 combination patterns to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-9vlv6z",
+    "commit": "71add296caa52493a359cc216941716ace8f517d",
+    "date": "2026-06-15",
+    "title": "Add 17 new datasets and 5 new investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-evglj8",
+    "commit": "5e5fa10671cb0fe39af6d579641fa5472c6c839f",
+    "date": "2026-06-16",
+    "title": "feat: add 25 datasets, 6 endpoints, and 4 new combination patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-xygprp",
+    "commit": "eb5e19880c499f8c9b6b37a54da4ce29f205e963",
+    "date": "2026-06-17",
+    "title": "Add 14 missing catalog datasets and fix broken dataset-key references",
+    "changedPaths": [
+      "apps/InvestigationConsole/index.html",
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md",
+      "modules/Genesys.Ops/Genesys.Ops.psm1",
+      "samples/demo-conversation-investigation-run/events.jsonl",
+      "samples/demo-conversation-investigation-run/manifest.json",
+      "samples/golden-path-demo/runs/conversation-investigation/events.jsonl",
+      "samples/golden-path-demo/runs/conversation-investigation/manifest.json",
+      "scripts/New-DemoConversationInvestigation.ps1",
+      "scripts/New-DemoConversationInvestigationPackage.ps1",
+      "tests/integration/ConversationInvestigation.Tests.ps1",
+      "tests/integration/ConversationInvestigationPackage.Tests.ps1"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-uinvp5",
+    "commit": "506f32576cdc2413c0b72168d978a4abb831812b",
+    "date": "2026-06-18",
+    "title": "feat(catalog): add BYOI conversation-injection investigation recipe and datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-tftvtr",
+    "commit": "c28fe8a5f3ca4a9fbd7424d8d1373b425accb4bd",
+    "date": "2026-06-19",
+    "title": "Reconcile catalog combinations gaps and document new datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md",
+      "progress.md",
+      "task_plan.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-8gggrc",
+    "commit": "2e1bdfb1ab2e358620f49935e769386707949ddf",
+    "date": "2026-06-20",
+    "title": "Fix broken catalog.combinations dataset-key references and add 10 new investigation datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-662svc",
+    "commit": "cd1a9fdc1df98b59663e79e8049ff74ae836e0c4",
+    "date": "2026-06-21",
+    "title": "Add transcript search, call-detail, and WFM datasets; fix broken combo references",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-r9i3l1",
+    "commit": "13dc247cff55f1e62dc6c1ea0e6d11e4d4cec04a",
+    "date": "2026-06-22",
+    "title": "Fix catalog combinations references and document new investigation endpoints",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md",
+      "progress.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-jxjv36",
+    "commit": "2e6a6ee3757aa9aad6eacb6d52bd53215630c28a",
+    "date": "2026-06-23",
+    "title": "Document outbound campaign, WFM adherence, and reference-layer combinations",
+    "changedPaths": [
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-m3esjt",
+    "commit": "e86b973cc1a748569d275b2433c6825573729849",
+    "date": "2026-06-24",
+    "title": "docs: remove unverifiable BYOI endpoint citation from ENDPOINT_COMBINATIONS.md",
+    "changedPaths": [
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-nocrym",
+    "commit": "f022fe934198de14264ce6acffe95a6e489a665a",
+    "date": "2026-06-25",
+    "title": "Verify and harden endpoint-combinations docs against live API spec",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "progress.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-kr4yk8",
+    "commit": "c9ceaa2529b9893599f019a9eba160275223e676",
+    "date": "2026-06-26",
+    "title": "Add high-value endpoint combinations for conversation/queue/division investigations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "findings.md",
+      "progress.md",
+      "task_plan.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-q3slqq",
+    "commit": "ac860cb06086eae59e2e15ba7c7fc8b0df9644f1",
+    "date": "2026-06-27",
+    "title": "Add BYOI/external-contact enrichment and real-time wallboard playbook",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-t3350z",
+    "commit": "fc1a626f5192996ac3b493c37ece9e6f72681452",
+    "date": "2026-06-28",
+    "title": "Fix BYOI doc inaccuracy, division-investigation seed, add 2 catalog combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-itlo2o",
+    "commit": "7ec994c1517c9e4a6c16f373570f29048264093f",
+    "date": "2026-06-29",
+    "title": "Add BYOI/Open Messaging and Embeddable Framework investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-qr747p",
+    "commit": "c49bab5606fab7c8ce95136fab8ca5afe0bdb6d5",
+    "date": "2026-06-30",
+    "title": "Fix broken catalog references and enrich investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-8r0ihq",
+    "commit": "b9532f26e10aae67586523c4623186240be153c4",
+    "date": "2026-07-01",
+    "title": "Document Campaign Investigation and skill-group combinations in ENDPOINT_COMBINATIONS.md",
+    "changedPaths": [
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-0jy21e",
+    "commit": "bdc7daf8edbe9d35a136610d9644258f890b4167",
+    "date": "2026-07-02",
+    "title": "Add directory Groups datasets and cross-queue team investigation recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-cvbvkb",
+    "commit": "d95340d0eaaedda8bd23a3e6374cb517d974a7de",
+    "date": "2026-07-03",
+    "title": "Validate BYOI/real-time endpoint combinations, fix broken dataset wiring, add two investigation recipes",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-92khs6",
+    "commit": "93ee59f05112617a5d561c6feda3dd5565b7d870",
+    "date": "2026-07-04",
+    "title": "Scope Division Investigation and close endpoint-combination gaps",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ige6o6",
+    "commit": "8cca70b3b49cf5848f81b36e4f6fca7d5ecaba29",
+    "date": "2026-07-05",
+    "title": "Enrich investigation catalog with BYOI/attribute and live-drilldown combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-su3abr",
+    "commit": "51396ba24e52503c6682c70d33729597fab512d2",
+    "date": "2026-07-06",
+    "title": "Evaluate Genesys endpoint combinations for investigations; close catalog gaps",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ltdtlj",
+    "commit": "da968dd438b9a0bbe1d534c8b8346a60a9433733",
+    "date": "2026-07-07",
+    "title": "feat(catalog): add BYOI/Open Messaging conversation-injection endpoints and playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-pohdvq",
+    "commit": "717e9b0a2e9bde8adcceb75ac555727af01cdf5a",
+    "date": "2026-07-08",
+    "title": "Add Division Investigation flagship \u2014 closes cross-queue org grouping gap",
+    "changedPaths": [
+      "README.md",
+      "catalog/schema/investigation.manifest.schema.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md",
+      "modules/Genesys.Ops/Genesys.Ops.psd1",
+      "modules/Genesys.Ops/Genesys.Ops.psm1",
+      "tests/integration/DivisionInvestigation.Tests.ps1"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-5no96v",
+    "commit": "83e6225d84f2dbf72b6934d7722fdcb6c0028e90",
+    "date": "2026-07-10",
+    "title": "Add Embeddable Framework conversation-injection enrichment recipe; correct BYOI endpoint claim",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-md0n4e",
+    "commit": "4039812ea1125e911e2dfcc7c5347e7c971c9a9a",
+    "date": "2026-07-12",
+    "title": "Fix fabricated BYOI endpoint claim; add external-conversation reverse-lookup combination",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-x7bz4a",
+    "commit": "c8179effc8f35f38e4e9749f6edce7e9da3d9ca4",
+    "date": "2026-07-13",
+    "title": "Fix Conversation Investigation dataset key bug; document rollup/audit combinations",
+    "changedPaths": [
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md",
+      "modules/Genesys.Ops/Genesys.Ops.psm1",
+      "samples/demo-conversation-investigation-run/events.jsonl",
+      "samples/demo-conversation-investigation-run/manifest.json",
+      "samples/golden-path-demo/runs/conversation-investigation/events.jsonl",
+      "samples/golden-path-demo/runs/conversation-investigation/manifest.json",
+      "scripts/New-DemoConversationInvestigation.ps1",
+      "scripts/New-DemoConversationInvestigationPackage.ps1",
+      "tests/integration/ConversationInvestigation.Tests.ps1",
+      "tests/integration/ConversationInvestigationPackage.Tests.ps1"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-t251hn",
+    "commit": "004d93222af20b7570729576413c405fb0b3db58",
+    "date": "2026-07-14",
+    "title": "feat(catalog): add BYOI/Open Messaging investigation coverage",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-c7s3ot",
+    "commit": "015e653c62be0251f5b67476ecaaf0a6f35b01c0",
+    "date": "2026-07-15",
+    "title": "feat(catalog): add digital/BYOI investigation recipes and playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-gx8yzx",
+    "commit": "f1b254fae1098291173d4bec3be50c8184f1945f",
+    "date": "2026-07-16",
+    "title": "Add Open Messaging identity-resolution investigation combos to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-smi3vw",
+    "commit": "fa16f60937b16ab2e4ac0a689513d80c5d4ee4e0",
+    "date": "2026-07-17",
+    "title": "feat(catalog): add CRM/journey enrichment and cross-queue group investigation datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-nv6z9c",
+    "commit": "4703a0db020319b909dd81faa8aa4798ad72919f",
+    "date": "2026-07-18",
+    "title": "feat(catalog): add BYOI/external-contact and outbound-campaign investigation recipes",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-pyt5p1",
+    "commit": "8c36e1fde2d0797f91b1140ab078fce402f9c78d",
+    "date": "2026-07-19",
+    "title": "Reconcile catalog investigation combinations with executable datasets",
+    "changedPaths": [
+      "README.md",
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-siegx9",
+    "commit": "edfdf4ab069f10c99ac12dc4c072af31574449b2",
+    "date": "2026-07-20",
+    "title": "Add verified executive-rollup and real-time-monitoring catalog recipes; correct fabricated BYOI endpoint",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ivcxd2",
+    "commit": "cb04fa6626e3952cd200f24261a8296649ed081c",
+    "date": "2026-07-21",
+    "title": "Add BYOI/Open Messaging datasets and close catalog reference gaps",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-tqm7z8",
+    "commit": "9b43c7273645236f231cbf2f9395342e4ec518bc",
+    "date": "2026-07-22",
+    "title": "fix(catalog): correct fabricated BYOI endpoint, wire real Open Messaging datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ubragb",
+    "commit": "767d4761e09d745da999725c4df50ef0c077b5a3",
+    "date": "2026-07-23",
+    "title": "Add Flow/IVR investigation recipe to endpoint combinations catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-jsdcap",
+    "commit": "f91996cc70be43d3d517518d0a9fb6a20c270a24",
+    "date": "2026-07-24",
+    "title": "Add External Contacts catalog datasets and customer-history investigation recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-jgscq8",
+    "commit": "e6b6a7af93f639792ce5fe21b53e351a8af509ec",
+    "date": "2026-07-25",
+    "title": "feat(catalog): add BYOI/Open Messaging digital-conversation investigation combo",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "progress.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-81hd8p",
+    "commit": "befa5554c3d3d1d81447d2415454e83573f66bcd",
+    "date": "2026-07-26",
+    "title": "Fix broken dataset references in investigation recipes; add division/conversation datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-vno7f8",
+    "commit": "efc1edb35ab970ce4332ac0b75d8ac34e4c74c9c",
+    "date": "2026-07-27",
+    "title": "feat(catalog): fix broken combo dataset refs, add BYOI/digital investigation",
+    "changedPaths": [
+      "README.md",
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-1ekfk9",
+    "commit": "894f06aa71b9f616bdbf0f2e7f57f81dae376a32",
+    "date": "2026-07-28",
+    "title": "Close dataset-registry gaps in investigation recipes; add BYOI recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-dyc33s",
+    "commit": "9e0518be800c6b75f641f4c1c4d8f088a6c050da",
+    "date": "2026-07-29",
+    "title": "feat(catalog): add campaign-investigation recipe to combinations catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ypx77z",
+    "commit": "536938a4bc7fae97060cbea5ef80a706568e453c",
+    "date": "2026-07-30",
+    "title": "Fix broken catalog recipe references and add missing division/conversation endpoints",
+    "changedPaths": [
+      "README.md",
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ibpg77",
+    "commit": "450935d1f0ce732ecd99dbef28cb9255aa32e153",
+    "date": "2026-07-31",
+    "title": "Evaluate Genesys endpoint combinations for investigations and rollups",
+    "changedPaths": [
+      "README.md",
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-unagkl",
+    "commit": "f0d388a1df89f23084f39720da4202c4714f63a2",
+    "date": "2026-08-01",
+    "title": "Add BYOI/Open Messaging datasets and digital investigation combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-8xemwx",
+    "commit": "a80f13b347c482e4b352a875c7ebc9186f988fb5",
+    "date": "2026-08-02",
+    "title": "Add investigation-enrichment datasets and close 19 dangling catalog refs",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-vs6rof",
+    "commit": "3772c62abecc5334f83b37bef7f4a7dba5b2f23e",
+    "date": "2026-08-03",
+    "title": "Add org-wide real-time wallboard recipe to catalog combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-6bh56m",
+    "commit": "3d3f5a6cf736c2ba4aa686c2d8f3e41a29c57418",
+    "date": "2026-08-04",
+    "title": "Add BYOI and Embeddable Framework integration playbooks to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-urkonk",
+    "commit": "9400d9ea6af475e9e8b9b5a17d287002ae872f73",
+    "date": "2026-08-05",
+    "title": "Close catalog gaps in investigation-recipe dataset references; add division agent-group endpoints",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-cs5kkb",
+    "commit": "cb76af7d69fe64255e85e673d8656872f4a8497c",
+    "date": "2026-08-06",
+    "title": "docs: document unwired catalog datasets as investigation combinations",
+    "changedPaths": [
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-bm3li3",
+    "commit": "8c64105ba75b59fab9c3b32d64f3abffb8e61927",
+    "date": "2026-08-07",
+    "title": "Add BYOI/Open Messaging and customer-journey endpoint combinations to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-sl0fq8",
+    "commit": "4495bd4c3f66d3e97bb68139c80171f253e0d899",
+    "date": "2026-08-08",
+    "title": "Fix broken combo dataset refs; add External Contact enrichment recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-g3lbcs",
+    "commit": "4fb3fed5c52e4f64ef27ce3449bda561a06c185c",
+    "date": "2026-08-09",
+    "title": "Audit and repair catalog investigation-combination references",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-63ii30",
+    "commit": "4c0a4cc0473c421bd379bd759a3adcbe8207ee94",
+    "date": "2026-08-10",
+    "title": "Add customer journey enrichment combination to investigation catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-4bxigj",
+    "commit": "5906f83d78c8d2ea36e872fee89a045f70212bad",
+    "date": "2026-08-11",
+    "title": "feat(catalog): add campaign and BYOI investigation recipes",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-xisg4a",
+    "commit": "49a70d92b288c39a889c1dd9572335292180ef95",
+    "date": "2026-08-12",
+    "title": "Add campaign investigation recipe and close endpoint-combinations doc gaps",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-li751z",
+    "commit": "057ce79dc62ffcb46ccb2131955ac61634801108",
+    "date": "2026-08-13",
+    "title": "Close catalog.combinations reference-integrity gap (19 dataset refs)",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-d2r01a",
+    "commit": "dfdcdbcb4b8c204731efd1e635d8260dcafcc7f6",
+    "date": "2026-08-14",
+    "title": "feat(catalog): fill investigation-recipe dataset gaps, add BYOI/digital-channel combos",
+    "changedPaths": [
+      "catalog/genesys.catalog.json"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-jhhpmp",
+    "commit": "1db40866a0c2ad9d8f942ab0e996144d9df4ce0e",
+    "date": "2026-08-16",
+    "title": "Add callback and digital-channel investigation recipes, knowledge-base deflection playbook",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-jorbdq",
+    "commit": "6941689c8aadc48b1e06aa207885eafc82e3ac45",
+    "date": "2026-08-18",
+    "title": "Add Division Investigation flagship, mapping agent groups across queues",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "catalog/schema/investigation.manifest.schema.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md",
+      "modules/Genesys.Ops/Genesys.Ops.psd1",
+      "modules/Genesys.Ops/Genesys.Ops.psm1",
+      "samples/demo-division-investigation/data/agentPerformance.jsonl",
+      "samples/demo-division-investigation/data/agents.jsonl",
+      "samples/demo-division-investigation/data/division.jsonl",
+      "samples/demo-division-investigation/data/divisionPerformance.jsonl",
+      "samples/demo-division-investigation/data/grants.jsonl",
+      "samples/demo-division-investigation/data/qualityScores.jsonl",
+      "samples/demo-division-investigation/data/queuePerformance.jsonl",
+      "samples/demo-division-investigation/data/queues.jsonl",
+      "samples/demo-division-investigation/events.jsonl",
+      "samples/demo-division-investigation/manifest.json",
+      "samples/demo-division-investigation/summary.json",
+      "scripts/New-DemoDivisionInvestigation.ps1",
+      "tests/integration/DivisionInvestigation.Tests.ps1"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-h7pywq",
+    "commit": "9e7ee53bd0e86be10ffae5348f61ef3feff2e892",
+    "date": "2026-08-19",
+    "title": "Add External Contact / Customer 360 investigation pattern",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-lbnfrt",
+    "commit": "ead7608f2f5d2618f963e23e4f7db170edf27481",
+    "date": "2026-08-20",
+    "title": "Add campaign-investigation recipe closing the last undocumented flagship investigation",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-shd6h8",
+    "commit": "c674930152f32cacc82b86f1fccfaa0354272fc8",
+    "date": "2026-08-22",
+    "title": "Add Campaign Investigation recipe and BYOI reverse-lookup to endpoint catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ejdke7",
+    "commit": "67a35cf8797a0934e4ea2663f690df52ebf6cae2",
+    "date": "2026-08-23",
+    "title": "Add division/business-unit comparison to executive reporting playbooks",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-nqaojn",
+    "commit": "1bf10aeafc8b50ca329a01364a82ec31b9d40bf5",
+    "date": "2026-08-25",
+    "title": "Wire 25 unused catalog endpoints into investigation/reporting recipes",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-5h27gt",
+    "commit": "550aa4a4ad04be89be0f61476923801088a28446",
+    "date": "2026-08-26",
+    "title": "Add campaign-investigation recipe to close catalog/doc parity gap",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-encdja",
+    "commit": "362562656a34bdc14af9c8ea9f8b772099c45d09",
+    "date": "2026-08-27",
+    "title": "Add AI summary and callback/voicemail overflow combinations to the catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-joo67p",
+    "commit": "9a34ca7e46dbdb81d12ac153b604dc254f64ba98",
+    "date": "2026-08-28",
+    "title": "Add external-contact, bot-flow turn, and knowledge-deflection combos to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-q5opg0",
+    "commit": "37739b510ae5755114d56de24c60c474be25b466",
+    "date": "2026-08-29",
+    "title": "Add transcript keyword search endpoint to catalog and investigation docs",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ela1rw",
+    "commit": "36361bb1aac6eed4af6ad37ac07882b4fdfda647",
+    "date": "2026-08-30",
+    "title": "Sync endpoint combination docs with catalog investigation/reporting recipes",
+    "changedPaths": [
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-c27qnw",
+    "commit": "a66010d7ff026117cc6681fa01e597b290868416",
+    "date": "2026-08-31",
+    "title": "Fix broken combos dataset refs, curate 13 more datasets for investigations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ap9j1o",
+    "commit": "2534b2f5fd42acc9b04f8459c24943070c80dd4b",
+    "date": "2026-09-01",
+    "title": "Add PCAP evidence-flow and Edge diagnostic datasets to catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-l2hcrh",
+    "commit": "2a33d4364e0b4cfe661806c5b072453b4d654cd4",
+    "date": "2026-09-02",
+    "title": "Add real-time active-conversation drilldown to endpoint combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Historical unmerged proposal; preserved on remote and inventoried, not adopted as shipped code"
+  },
+  {
+    "branch": "origin/claude/determined-brown-j3bz51",
+    "commit": "008852557acf6af25246cfa3ad18698aa4cd4000",
+    "date": "2026-09-03",
+    "title": "Fix MockServer integration test temp path fallback",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "tests/integration/MockServer.Integration.Tests.ps1"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted. Portable temp-path fix adapted to current Pester scope and validated."
+  },
+  {
+    "branch": "origin/claude/determined-brown-5hrk1h",
+    "commit": "2e9e036f153f008fb36e2ea08ed5683120cb5978",
+    "date": "2026-09-03",
+    "title": "Enrich investigation recipes with conditional endpoints for callback, message, voicemail, WFM schedule, and division-group data",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  },
+  {
+    "branch": "origin/claude/determined-brown-5am8bd",
+    "commit": "79534ac71b32be71eacce15080fb66b2bb12b51c",
+    "date": "2026-09-04",
+    "title": "Document the auto-answer/NOT_RESPONDING recipe, sync combination reference audit",
+    "changedPaths": [
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Recent catalog/documentation proposal preserved in recent-proposals.json; not enabled as validated runtime functionality"
+  },
+  {
+    "branch": "origin/claude/determined-brown-h2os8h",
+    "commit": "30486f8f115b08a3c57eba139b3b33dd0490c052",
+    "date": "2026-09-05",
+    "title": "Add Embeddable Framework digital-engagement investigation recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  },
+  {
+    "branch": "origin/dependabot/npm_and_yarn/apps/GenesysDataClient/multi-ef7bd7b2b5",
+    "commit": "6bf03862dbd9e2784f6354f15a76e951f66bd59f",
+    "date": "2026-09-06",
+    "title": "chore(deps): bump esbuild, vite and vitest in /apps/GenesysDataClient",
+    "changedPaths": [
+      "apps/GenesysDataClient/package-lock.json",
+      "apps/GenesysDataClient/package.json"
+    ],
+    "disposition": "Dependency intent consolidated into Node 24 / Vite 8 / Vitest 5 upgrade"
+  },
+  {
+    "branch": "origin/claude/determined-brown-6lofct",
+    "commit": "0b0bd2b2d409cb68b870f2418bc42de69eedc4a1",
+    "date": "2026-09-06",
+    "title": "Audit endpoint-combination catalog, fix stale roadmap entries",
+    "changedPaths": [
+      "docs/CHANGELOG.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Recent catalog/documentation proposal preserved in recent-proposals.json; not enabled as validated runtime functionality"
+  },
+  {
+    "branch": "origin/claude/determined-brown-ykap91",
+    "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
+    "date": "2026-09-07",
+    "title": "Add External Contacts identity/journey enrichment to conversation catalog",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Recent catalog/documentation proposal preserved in recent-proposals.json; not enabled as validated runtime functionality"
+  },
+  {
+    "branch": "origin/claude/determined-brown-mj3jdx",
+    "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+    "date": "2026-09-08",
+    "title": "Add Groups, division-access, voicemail, and recording-annotation datasets",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "progress.md"
+    ],
+    "disposition": "Recent catalog/documentation proposal preserved in recent-proposals.json; not enabled as validated runtime functionality"
+  },
+  {
+    "branch": "origin/dependabot/npm_and_yarn/apps/GenesysDataClient/multi-27d25d0ce1",
+    "commit": "fcc226868075fadbaf84627f2482ce9b01ea9a58",
+    "date": "2026-09-09",
+    "title": "chore(deps): bump @vitest/mocker and vitest in /apps/GenesysDataClient",
+    "changedPaths": [
+      "apps/GenesysDataClient/package-lock.json",
+      "apps/GenesysDataClient/package.json"
+    ],
+    "disposition": "Dependency intent consolidated into Node 24 / Vite 8 / Vitest 5 upgrade"
+  },
+  {
+    "branch": "origin/claude/determined-brown-zjuskk",
+    "commit": "851c671f73feba7ef683f432cf51f2537fc1672a",
+    "date": "2026-09-09",
+    "title": "Add Customer 360, Team, and Journey attribution investigation patterns",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "progress.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  },
+  {
+    "branch": "origin/claude/determined-brown-km4eun",
+    "commit": "c209dcac2e8661a3427f1878f02d151ab2248353",
+    "date": "2026-09-11",
+    "title": "Fix unverified BYOI injection endpoint, add Open Messaging injection recipe",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  },
+  {
+    "branch": "origin/claude/determined-brown-mx0qnl",
+    "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+    "date": "2026-09-12",
+    "title": "Add digital-work investigation, voicemail and bot-flow endpoint combinations",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md",
+      "docs/INVESTIGATIONS.md",
+      "docs/ROADMAP.md"
+    ],
+    "disposition": "Recent catalog/documentation proposal preserved in recent-proposals.json; not enabled as validated runtime functionality"
+  },
+  {
+    "branch": "origin/claude/determined-brown-c308x4",
+    "commit": "17e0a5809723f7f1ea4bec0ede063474befbd186",
+    "date": "2026-09-13",
+    "title": "Add 5 endpoint combinations: skill coverage, alert drilldown, journey correlation, coaching ROI, integration throttling",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  },
+  {
+    "branch": "origin/claude/determined-brown-dmmbfi",
+    "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
+    "date": "2026-09-14",
+    "title": "Fix BYOI injection endpoint inaccuracy, add division/BU executive rollup",
+    "changedPaths": [
+      "catalog/genesys.catalog.json",
+      "docs/CHANGELOG.md",
+      "docs/ENDPOINT_COMBINATIONS.md"
+    ],
+    "disposition": "Reference recipes consolidated where dependencies resolve; remaining changes preserved as proposals. See proposal-decisions.json; no new runtime dataset or live-validation claims accepted."
+  }
+]

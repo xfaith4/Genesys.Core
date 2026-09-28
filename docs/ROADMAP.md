@@ -1,5 +1,8 @@
 # Genesys.Core - Product & Engineering Roadmap
 
+Current priorities: [root roadmap](../ROADMAP.md). This file retains detailed release
+history and acceptance gates; unchecked live/operator gates remain open.
+
 > Status: Active
 >
 > Last updated: 2026-06-08
@@ -16,7 +19,8 @@ The next product step is **investigation composition**: combining the
 existing per-dataset queries into joined, subject-centred records — for example,
 matching an agent's identity, division, location, skills, and queue
 assignments to the conversations on which they were alerted or engaged.
-The raw datasets exist; the composition layer does not.
+The Agent, Conversation, Queue, and Campaign composition workflows exist.
+Current work should close tenant acceptance gaps and extend evidence correlation.
 
 Audience: contact-centre operators, platform admins, compliance reviewers, and
 the engineering teams that automate against them.
@@ -27,6 +31,18 @@ the engineering teams that automate against them.
 
 ### Completed
 
+- [x] WCAG 2.1 Level AA conformance (2026-09-02): all seven shipped HTML
+      surfaces (three operator consoles, dataset browser, architecture map,
+      onboarding page, and the generated investigation package report) now pass
+      a 25-rule static audit with zero violations. Added the dependency-free
+      analyzer `tools/Genesys.Accessibility`, the `scripts/Invoke-AccessibilityAudit.ps1`
+      gate, the surface manifest `config/accessibility-surfaces.json`,
+      `tests/unit/Accessibility.Wcag21.Tests.ps1`, an `accessibility` CI job,
+      and the conformance statement in `docs/ACCESSIBILITY.md`. The PowerShell
+      HTML generators in `Genesys.Ops` and `AuditLogsConsole` emit conforming
+      markup, and a pre-existing mermaid parse failure in `docs/architecture.html`
+      was fixed. Manual criteria (reflow, text spacing, rendered chart contrast,
+      screen-reader pass) remain on the checklist in `docs/ACCESSIBILITY.md`.
 - [x] Release 1.3 checkpoint evidence closure (2026-06-08): promoted the
       Session 20 trend checkpoint from static presence checks to release
       evidence with `tests/unit/ConversationAnalyzer.TrendCheckpoint.Tests.ps1`

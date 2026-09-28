@@ -52,3 +52,17 @@
 - Live conversation packaging must not require a manually supplied SIP trace path. The current workflow now gets the seed conversation first through `conversations.get.specific.conversation.details`, derives `<start>/<end>` for the required analytics details query interval, then exports SIP metadata and a `.pcap` through the telephony SIP trace APIs.
 - The package now records PCAP evidence explicitly: `.pcap`, `.pcap-metadata.csv`, workbook `PCAP Metadata` sheet, package JSON `pcapDownloadId`, warning list, PCAP file references, and counts for SIP metadata rows.
 - PowerShell download hooks can emit byte arrays as enumerated byte objects. The binary save helper now writes both direct `[byte[]]` results and enumerated byte arrays so fixture/demo package generation does not fall through to the signed URL.
+
+## 2026-09-15 Reconciliation findings
+
+- HEAD 705a1d6 has one local commit; unfinished merge targets 77b1ad9. Fresh origin/main is 65e39c5.
+- Semantic comparison against merge target shows no unique local application logic; differences are conflicted README/editor settings and generated mock build metadata. Most unstaged changes are CRLF-only.
+- Latest GitHub adds React/TypeScript GenesysDataClient and mock OAuth/metadata capabilities absent locally. Root ROADMAP.md contains unrelated SereneHarmony boilerplate and requires correction.
+
+### Source-backed review and validation
+
+- Consolidated 25 recent reference recipe updates, held 9 updates with unresolved catalog references, and preserved original deltas. Recipes explicitly remain reference-only. No new unvalidated runtime datasets enabled.
+- Confirmed official Open Messaging deprecation notice removes catch-all inbound endpoint on 2026-10-05; corrected active guidance and unverified provider-call injection claims.
+- Unit baseline: 204 passed / 1 skipped (swagger unavailable); integrations after Linux portability fix: 74 passed / 1 live skip; .NET mock server 38 passed; Analyzer 272 passed / 2 SQLite skips.
+- npm major upgrade initially failed against the old lock; regenerated the lock from the aligned Node 24/Vite 8/Vitest 5/plugin-react 6 package manifest without peer overrides.
+- New combination reference guard identified the pre-existing literal (derived) placeholder; explicitly excluded that non-endpoint marker.

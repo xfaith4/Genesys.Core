@@ -24,6 +24,13 @@
       --warn:      #c8860a;
       --ok:        #0d9f6e;
       --danger:    #c0392b;
+      /* Text-safe variants. The tokens above are graphical (dots, borders,
+         chart fills) and only need WCAG 2.1 SC 1.4.11's 3:1; these reach the
+         4.5:1 required by SC 1.4.3 on --surface, --surface2 and --bg. */
+      --ok-text:     #087a54;
+      --warn-text:   #8a6300;
+      --danger-text: #c0392b;
+      --accent-text: #087a54;
       --stroke:    #d0dbd4;
       --stroke2:   #b8ccc0;
       --shadow-sm: 0 2px 8px rgba(13,32,26,.08);
@@ -59,9 +66,44 @@
     /* ─── Utility ───────────────────────────────────────────────── */
     .hide  { display: none !important; }
     .muted { color: var(--muted); }
-    .ok    { color: var(--ok); }
-    .warn  { color: var(--warn); }
-    .danger{ color: var(--danger); }
+    .ok    { color: var(--ok-text); }
+    .warn  { color: var(--warn-text); }
+    .danger{ color: var(--danger-text); }
+
+    /* WCAG 2.1 SC 2.4.7 — visible keyboard focus on every control. */
+    :focus-visible {
+      outline: 3px solid var(--accent2);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    #nav :focus-visible { outline-color: #7ff0c0; }
+
+    /* WCAG 2.1 SC 2.4.1 — keyboard bypass block. */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 300;
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--accent-dk);
+      padding: 12px 18px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .skip-link:focus { left: 0; }
+
+    /* Names available to assistive technology without visual weight. */
+    .visually-hidden {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
     .bold  { font-weight: 600; }
     .mono  { font-family: "Cascadia Code","Consolas","IBM Plex Mono",monospace; font-size: .85em; }
     .flex  { display: flex; }
@@ -178,7 +220,7 @@
       flex-shrink: 0;
     }
     .tab-btn:hover { color: var(--ink); background: var(--surface2); }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn.active { color: var(--accent-text); border-bottom-color: var(--accent); }
 
     .tab-dot {
       width: 7px; height: 7px;
@@ -233,8 +275,9 @@
       font-size: .88rem; font-weight: 600;
       cursor: pointer; border: none; transition: all .18s;
     }
-    .btn-primary   { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-dk); }
+    /* SC 1.4.3: white on --accent is 3.39:1; --accent-dk reaches 5.35:1. */
+    .btn-primary   { background: var(--accent-dk); color: #fff; }
+    .btn-primary:hover { background: #05603f; }
     .btn-secondary { background: var(--surface2); color: var(--ink2); border: 1px solid var(--stroke); }
     .btn-secondary:hover { background: var(--stroke); }
     .btn-sm   { padding: 5px 12px; font-size: .8rem; }
@@ -428,8 +471,8 @@
       user-select: none;
       white-space: nowrap;
     }
-    .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .filter-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+    .filter-chip.active { background: var(--accent-dk); border-color: var(--accent-dk); color: #fff; }
+    .filter-chip:hover:not(.active) { border-color: var(--accent); color: var(--accent-text); }
 
     /* ─── Rank badge ────────────────────────────────────────────── */
     .rank     { font-size: .74rem; font-weight: 700; color: var(--muted); padding: 2px 6px; background: var(--surface2); border-radius: 4px; display: inline-block; min-width: 26px; text-align: center; }
@@ -469,40 +512,41 @@
   </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 <div id="app">
 
   <!-- ═══ Navigation ════════════════════════════════════════════ -->
   <header id="nav">
-    <div class="nav-logo">Genesys <span>Ops</span>Console</div>
-    <div class="nav-sep"></div>
-    <div id="nav-status">
-      <div id="nav-status-dot"></div>
+    <h1 class="nav-logo">Genesys <span>Ops</span>Console</h1>
+    <div class="nav-sep" aria-hidden="true"></div>
+    <p id="nav-status" role="status">
+      <span id="nav-status-dot" aria-hidden="true"></span>
       <span id="nav-status-text">No data loaded</span>
-    </div>
+    </p>
     <div class="spacer"></div>
-    <button class="nav-btn" onclick="loadDemo()" title="Load sample data across all dashboards">📊 Demo Data</button>
-    <button class="nav-btn" onclick="clearAll()"  title="Clear all loaded data">🗑 Clear</button>
+    <button type="button" class="nav-btn" onclick="loadDemo()" title="Load sample data across all dashboards"><span aria-hidden="true">📊</span> Demo Data</button>
+    <button type="button" class="nav-btn" onclick="clearAll()"  title="Clear all loaded data"><span aria-hidden="true">🗑</span> Clear</button>
   </header>
 
   <!-- ═══ Tab bar ════════════════════════════════════════════════ -->
-  <div id="tab-bar">
-    <button class="tab-btn active"  data-tab="overview"      onclick="switchTab('overview')">
-      <span class="tab-dot" id="dot-overview"></span>🏠 Overview
+  <div id="tab-bar" role="tablist" aria-label="Operations dashboards">
+    <button type="button" class="tab-btn active" data-tab="overview" role="tab" id="tabbtn-overview" aria-controls="pane-overview" aria-selected="true" tabindex="0" onclick="switchTab('overview')">
+      <span class="tab-dot" id="dot-overview" aria-hidden="true"></span><span aria-hidden="true">🏠</span> Overview
     </button>
-    <button class="tab-btn" data-tab="queue-health"  onclick="switchTab('queue-health')">
-      <span class="tab-dot" id="dot-queue-health"></span>🏥 Queue Health
+    <button type="button" class="tab-btn" data-tab="queue-health" role="tab" id="tabbtn-queue-health" aria-controls="pane-queue-health" aria-selected="false" tabindex="-1" onclick="switchTab('queue-health')">
+      <span class="tab-dot" id="dot-queue-health" aria-hidden="true"></span><span aria-hidden="true">🏥</span> Queue Health
     </button>
-    <button class="tab-btn" data-tab="abandon"       onclick="switchTab('abandon')">
-      <span class="tab-dot" id="dot-abandon"></span>📉 Abandon Rates
+    <button type="button" class="tab-btn" data-tab="abandon" role="tab" id="tabbtn-abandon" aria-controls="pane-abandon" aria-selected="false" tabindex="-1" onclick="switchTab('abandon')">
+      <span class="tab-dot" id="dot-abandon" aria-hidden="true"></span><span aria-hidden="true">📉</span> Abandon Rates
     </button>
-    <button class="tab-btn" data-tab="agent-quality" onclick="switchTab('agent-quality')">
-      <span class="tab-dot" id="dot-agent-quality"></span>👤 Agent Quality
+    <button type="button" class="tab-btn" data-tab="agent-quality" role="tab" id="tabbtn-agent-quality" aria-controls="pane-agent-quality" aria-selected="false" tabindex="-1" onclick="switchTab('agent-quality')">
+      <span class="tab-dot" id="dot-agent-quality" aria-hidden="true"></span><span aria-hidden="true">👤</span> Agent Quality
     </button>
-    <button class="tab-btn" data-tab="edge"          onclick="switchTab('edge')">
-      <span class="tab-dot" id="dot-edge"></span>🌐 Edge &amp; Trunks
+    <button type="button" class="tab-btn" data-tab="edge" role="tab" id="tabbtn-edge" aria-controls="pane-edge" aria-selected="false" tabindex="-1" onclick="switchTab('edge')">
+      <span class="tab-dot" id="dot-edge" aria-hidden="true"></span><span aria-hidden="true">🌐</span> Edge &amp; Trunks
     </button>
-    <button class="tab-btn" data-tab="audit"         onclick="switchTab('audit')">
-      <span class="tab-dot" id="dot-audit"></span>🔔 Change Audit
+    <button type="button" class="tab-btn" data-tab="audit" role="tab" id="tabbtn-audit" aria-controls="pane-audit" aria-selected="false" tabindex="-1" onclick="switchTab('audit')">
+      <span class="tab-dot" id="dot-audit" aria-hidden="true"></span><span aria-hidden="true">🔔</span> Change Audit
     </button>
   </div>
 
@@ -512,18 +556,18 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Overview                                              -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane active" id="pane-overview">
+    <div class="tab-pane active" id="pane-overview" role="tabpanel" aria-labelledby="tabbtn-overview" tabindex="0">
 
       <div class="load-zone" id="lz-overview">
-        <div class="lz-icon">📊</div>
+        <div class="lz-icon" aria-hidden="true">📊</div>
         <div class="lz-title">Load Operations Report</div>
         <div class="lz-sub">
           Drop your <code>ops-report.json</code> here, or click Browse.<br>
           Generate it with:
         </div>
         <code class="lz-cmd">Invoke-GenesysOperationsReport -OutputPath "ops-report.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('ops-report')">📂 Browse for File…</button>
-        <input type="file" id="file-ops-report" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('ops-report')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-ops-report" accept=".json" style="display:none" aria-label="Operations report JSON file"
                onchange="handleFileInput('ops-report',this)">
         <div class="lz-hint">Or click <strong>Demo Data</strong> above to see a sample dashboard instantly.</div>
       </div>
@@ -534,11 +578,11 @@
         <div class="charts-grid">
           <div class="chart-card">
             <div class="chart-header"><h2>Service Level Status</h2></div>
-            <div class="chart-canvas-wrap"><canvas id="chart-overview-sla"></canvas></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-overview-sla" role="img" aria-label="Bar chart: queue service level status. The same figures appear in the Queue Health table."></canvas></div>
           </div>
           <div class="chart-card">
             <div class="chart-header"><h2>WebRTC Disconnects by Error Code</h2></div>
-            <div class="chart-canvas-wrap"><canvas id="chart-overview-webrtc"></canvas></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-overview-webrtc" role="img" aria-label="Bar chart: WebRTC disconnects grouped by error code."></canvas></div>
           </div>
         </div>
 
@@ -571,15 +615,15 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Queue Health                                          -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane" id="pane-queue-health">
+    <div class="tab-pane" id="pane-queue-health" role="tabpanel" aria-labelledby="tabbtn-queue-health" tabindex="0">
 
       <div class="load-zone" id="lz-queue-health">
-        <div class="lz-icon">🏥</div>
+        <div class="lz-icon" aria-hidden="true">🏥</div>
         <div class="lz-title">Load Queue Health Snapshot</div>
         <div class="lz-sub">Drop your <code>queue-health.json</code> here, or click Browse.</div>
         <code class="lz-cmd">Get-GenesysQueueHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "queue-health.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('queue-health')">📂 Browse for File…</button>
-        <input type="file" id="file-queue-health" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('queue-health')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-queue-health" accept=".json" style="display:none" aria-label="Queue health snapshot JSON file"
                onchange="handleFileInput('queue-health',this)">
       </div>
 
@@ -588,27 +632,28 @@
 
         <div class="chart-card wide">
           <div class="chart-header"><h2>Queue Service Level (30-second target %)</h2></div>
-          <div class="chart-canvas-wrap tall"><canvas id="chart-qh-sla"></canvas></div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-qh-sla" role="img" aria-label="Bar chart: queue service level against the 30-second target. The same figures appear in the table below."></canvas></div>
         </div>
 
         <div class="filter-bar">
-          <input type="text" class="search-input" id="search-qh" placeholder="Search queue name…"
+          <label class="visually-hidden" for="search-qh">Search queue name</label><input type="text" class="search-input" id="search-qh" placeholder="Search queue name…"
                  oninput="renderQueueHealthTable()">
-          <button class="filter-chip active" id="chip-qh-ALL"    onclick="setQhFilter('ALL')">All</button>
-          <button class="filter-chip"        id="chip-qh-GREEN"  onclick="setQhFilter('GREEN')" style="color:var(--ok)">🟢 Green</button>
-          <button class="filter-chip"        id="chip-qh-AMBER"  onclick="setQhFilter('AMBER')" style="color:var(--warn)">🟡 Amber</button>
-          <button class="filter-chip"        id="chip-qh-RED"    onclick="setQhFilter('RED')"   style="color:var(--danger)">🔴 Red</button>
+          <button class="filter-chip active" type="button" aria-pressed="true" id="chip-qh-ALL"    onclick="setQhFilter('ALL')">All</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-qh-GREEN"  onclick="setQhFilter('GREEN')" ><span aria-hidden="true">🟢</span> Green</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-qh-AMBER"  onclick="setQhFilter('AMBER')" ><span aria-hidden="true">🟡</span> Amber</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-qh-RED"    onclick="setQhFilter('RED')"   ><span aria-hidden="true">🔴</span> Red</button>
         </div>
 
         <div class="table-card">
           <table class="data-table">
+            <caption class="visually-hidden">Queue health by queue: media type, status, waiting and interacting counts, agents on queue, 30-second service level, and offered volume.</caption>
             <thead><tr>
-              <th>Queue</th><th>Media</th><th>Status</th>
-              <th title="Contacts currently waiting">⏳ Waiting</th>
-              <th title="Agents currently interacting">🗣 Interacting</th>
-              <th title="Agents on-queue">👥 On Queue</th>
-              <th>SLA 30s %</th>
-              <th>Offered</th>
+              <th scope="col">Queue</th><th scope="col">Media</th><th scope="col">Status</th>
+              <th scope="col" title="Contacts currently waiting"><span aria-hidden="true">⏳</span> Waiting</th>
+              <th scope="col" title="Agents currently interacting"><span aria-hidden="true">🗣</span> Interacting</th>
+              <th scope="col" title="Agents on-queue"><span aria-hidden="true">👥</span> On Queue</th>
+              <th scope="col">SLA 30s %</th>
+              <th scope="col">Offered</th>
             </tr></thead>
             <tbody id="tbody-qh"></tbody>
           </table>
@@ -620,15 +665,15 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Abandon Rates                                         -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane" id="pane-abandon">
+    <div class="tab-pane" id="pane-abandon" role="tabpanel" aria-labelledby="tabbtn-abandon" tabindex="0">
 
       <div class="load-zone" id="lz-abandon">
-        <div class="lz-icon">📉</div>
+        <div class="lz-icon" aria-hidden="true">📉</div>
         <div class="lz-title">Load Abandon Rate Dashboard</div>
         <div class="lz-sub">Drop your <code>abandon-dashboard.json</code> here, or click Browse.</div>
         <code class="lz-cmd">Get-GenesysAbandonRateDashboard | ConvertTo-Json -Depth 5 | Set-Content "abandon-dashboard.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('abandon')">📂 Browse for File…</button>
-        <input type="file" id="file-abandon" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('abandon')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-abandon" accept=".json" style="display:none" aria-label="Abandon rate dashboard JSON file"
                onchange="handleFileInput('abandon',this)">
       </div>
 
@@ -639,17 +684,18 @@
           <div class="chart-header"><h2>Abandon Rate by Queue (%)</h2>
             <span class="muted" style="font-size:.78rem">sorted highest → lowest · red &gt;10%, amber 5–10%, green &lt;5%</span>
           </div>
-          <div class="chart-canvas-wrap tall"><canvas id="chart-abandon-bar"></canvas></div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-abandon-bar" role="img" aria-label="Bar chart: abandon rate by queue, highest first. The same figures appear in the Queue Abandon Detail table below."></canvas></div>
         </div>
 
         <div class="table-card">
           <div class="table-card-header"><h2>Queue Abandon Detail</h2></div>
           <table class="data-table">
+            <caption class="visually-hidden">Queue abandon detail: media type, offered and abandoned volume, abandon rate, average abandon time, and real-time waiting count.</caption>
             <thead><tr>
-              <th>Queue</th><th>Media</th>
-              <th>Offered</th><th>Abandoned</th>
-              <th>Abandon Rate</th><th>Avg Abandon (s)</th>
-              <th title="Real-time waiting count">⏳ Waiting (rt)</th>
+              <th scope="col">Queue</th><th scope="col">Media</th>
+              <th scope="col">Offered</th><th scope="col">Abandoned</th>
+              <th scope="col">Abandon Rate</th><th scope="col">Avg Abandon (s)</th>
+              <th scope="col" title="Real-time waiting count"><span aria-hidden="true">⏳</span> Waiting (rt)</th>
             </tr></thead>
             <tbody id="tbody-abandon"></tbody>
           </table>
@@ -661,15 +707,15 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Agent Quality                                         -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane" id="pane-agent-quality">
+    <div class="tab-pane" id="pane-agent-quality" role="tabpanel" aria-labelledby="tabbtn-agent-quality" tabindex="0">
 
       <div class="load-zone" id="lz-agent-quality">
-        <div class="lz-icon">👤</div>
+        <div class="lz-icon" aria-hidden="true">👤</div>
         <div class="lz-title">Load Agent Quality Snapshot</div>
         <div class="lz-sub">Drop your <code>agent-quality.json</code> here, or click Browse.</div>
         <code class="lz-cmd">Get-GenesysAgentQualitySnapshot | ConvertTo-Json -Depth 5 | Set-Content "agent-quality.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('agent-quality')">📂 Browse for File…</button>
-        <input type="file" id="file-agent-quality" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('agent-quality')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-agent-quality" accept=".json" style="display:none" aria-label="Agent quality snapshot JSON file"
                onchange="handleFileInput('agent-quality',this)">
       </div>
 
@@ -678,13 +724,13 @@
 
         <div class="chart-card wide">
           <div class="chart-header"><h2>Top Agents — Handle Time vs ACW (highest first)</h2></div>
-          <div class="chart-canvas-wrap tall"><canvas id="chart-aq-bar"></canvas></div>
+          <div class="chart-canvas-wrap tall"><canvas id="chart-aq-bar" role="img" aria-label="Bar chart: agent handle time against after-call work, highest first. The same figures appear in the table below."></canvas></div>
         </div>
 
         <div class="filter-bar">
-          <input type="text" class="search-input" id="search-aq" placeholder="Search agent name / ID…"
+          <label class="visually-hidden" for="search-aq">Search agent name or ID</label><input type="text" class="search-input" id="search-aq" placeholder="Search agent name / ID…"
                  oninput="renderAgentTable()">
-          <select class="search-input" id="sort-aq" style="min-width:auto" onchange="renderAgentTable()">
+          <label class="visually-hidden" for="sort-aq">Sort agents by</label><select class="search-input" id="sort-aq" style="min-width:auto" onchange="renderAgentTable()">
             <option value="AvgHandleSec">Sort: Avg Handle Time ↓</option>
             <option value="ConversationsHandled">Sort: Conversations ↓</option>
             <option value="AvgAcwSec">Sort: Avg ACW ↓</option>
@@ -694,9 +740,10 @@
 
         <div class="table-card">
           <table class="data-table">
+            <caption class="visually-hidden">Agent quality: conversations handled with average handle, talk, and after-call work time per agent.</caption>
             <thead><tr>
-              <th>#</th><th>Agent</th><th>Conversations</th>
-              <th>Avg Handle (s)</th><th>Avg Talk (s)</th><th>Avg ACW (s)</th>
+              <th scope="col"><span class="visually-hidden">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Agent</th><th scope="col">Conversations</th>
+              <th scope="col">Avg Handle (s)</th><th scope="col">Avg Talk (s)</th><th scope="col">Avg ACW (s)</th>
             </tr></thead>
             <tbody id="tbody-aq"></tbody>
           </table>
@@ -708,15 +755,15 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Edge & Trunks                                         -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane" id="pane-edge">
+    <div class="tab-pane" id="pane-edge" role="tabpanel" aria-labelledby="tabbtn-edge" tabindex="0">
 
       <div class="load-zone" id="lz-edge">
-        <div class="lz-icon">🌐</div>
+        <div class="lz-icon" aria-hidden="true">🌐</div>
         <div class="lz-title">Load Edge Health Snapshot</div>
         <div class="lz-sub">Drop your <code>edge-health.json</code> here, or click Browse.</div>
         <code class="lz-cmd">Get-GenesysEdgeHealthSnapshot | ConvertTo-Json -Depth 5 | Set-Content "edge-health.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('edge')">📂 Browse for File…</button>
-        <input type="file" id="file-edge" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('edge')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-edge" accept=".json" style="display:none" aria-label="Edge health snapshot JSON file"
                onchange="handleFileInput('edge',this)">
       </div>
 
@@ -726,11 +773,11 @@
         <div class="charts-grid">
           <div class="chart-card">
             <div class="chart-header"><h2>Edge Appliance Status</h2></div>
-            <div class="chart-canvas-wrap"><canvas id="chart-edge-donut"></canvas></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-edge-donut" role="img" aria-label="Doughnut chart: edge appliance status counts."></canvas></div>
           </div>
           <div class="chart-card">
             <div class="chart-header"><h2>SIP Trunk Status</h2></div>
-            <div class="chart-canvas-wrap"><canvas id="chart-trunk-donut"></canvas></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-trunk-donut" role="img" aria-label="Doughnut chart: SIP trunk status counts."></canvas></div>
           </div>
         </div>
 
@@ -742,15 +789,15 @@
     <!-- ────────────────────────────────────────────────────────── -->
     <!-- Tab: Change Audit                                          -->
     <!-- ────────────────────────────────────────────────────────── -->
-    <div class="tab-pane" id="pane-audit">
+    <div class="tab-pane" id="pane-audit" role="tabpanel" aria-labelledby="tabbtn-audit" tabindex="0">
 
       <div class="load-zone" id="lz-audit">
-        <div class="lz-icon">🔔</div>
+        <div class="lz-icon" aria-hidden="true">🔔</div>
         <div class="lz-title">Load Change Audit Feed</div>
         <div class="lz-sub">Drop your <code>change-audit.json</code> here, or click Browse.</div>
         <code class="lz-cmd">Get-GenesysChangeAuditFeed | ConvertTo-Json -Depth 5 | Set-Content "change-audit.json"</code>
-        <button class="btn btn-primary" onclick="triggerLoad('audit')">📂 Browse for File…</button>
-        <input type="file" id="file-audit" accept=".json" style="display:none"
+        <button class="btn btn-primary" onclick="triggerLoad('audit')"><span aria-hidden="true">📂</span> Browse for File…</button>
+        <input type="file" id="file-audit" accept=".json" style="display:none" aria-label="Change audit feed JSON file"
                onchange="handleFileInput('audit',this)">
       </div>
 
@@ -758,20 +805,21 @@
         <div class="kpi-strip" id="kpis-audit"></div>
 
         <div class="filter-bar">
-          <input type="text" class="search-input" id="search-audit"
+          <label class="visually-hidden" for="search-audit">Search change audit entries</label><input type="text" class="search-input" id="search-audit"
                  placeholder="Search summary, actor, action, entity…"
                  oninput="renderAuditTable()">
-          <button class="filter-chip active" id="chip-audit-ALL"    onclick="setAuditFilter('ALL')">All</button>
-          <button class="filter-chip"        id="chip-audit-HIGH"   onclick="setAuditFilter('HIGH')"   style="color:var(--danger)">🔴 High</button>
-          <button class="filter-chip"        id="chip-audit-MEDIUM" onclick="setAuditFilter('MEDIUM')" style="color:var(--warn)">🟡 Medium</button>
-          <button class="filter-chip"        id="chip-audit-LOW"    onclick="setAuditFilter('LOW')"    style="color:var(--ok)">🟢 Low</button>
+          <button class="filter-chip active" type="button" aria-pressed="true" id="chip-audit-ALL"    onclick="setAuditFilter('ALL')">All</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-audit-HIGH"   onclick="setAuditFilter('HIGH')"   ><span aria-hidden="true">🔴</span> High</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-audit-MEDIUM" onclick="setAuditFilter('MEDIUM')" ><span aria-hidden="true">🟡</span> Medium</button>
+          <button class="filter-chip"        type="button" aria-pressed="false" id="chip-audit-LOW"    onclick="setAuditFilter('LOW')"    ><span aria-hidden="true">🟢</span> Low</button>
         </div>
 
         <div class="table-card">
           <table class="data-table">
+            <caption class="visually-hidden">Change audit feed: time, risk level, entity type, action, actor, and summary for each change.</caption>
             <thead><tr>
-              <th>Time</th><th>Risk</th><th>Entity Type</th>
-              <th>Action</th><th>Actor</th><th>Summary</th>
+              <th scope="col">Time</th><th scope="col">Risk</th><th scope="col">Entity Type</th>
+              <th scope="col">Action</th><th scope="col">Actor</th><th scope="col">Summary</th>
             </tr></thead>
             <tbody id="tbody-audit"></tbody>
           </table>
@@ -783,7 +831,7 @@
   </main>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ═══ Application Script ════════════════════════════════════════ -->
 <script>
@@ -834,12 +882,38 @@ const THRESHOLDS = {
 };
 
 // ─── Tab switching ────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+function switchTab(name, focusTab) {
+  // Keep ARIA tab state in step with the visual state (SC 4.1.2) and use a
+  // roving tabindex so the tablist is one stop in the tab order (SC 2.4.3).
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const selected = b.dataset.tab === name;
+    b.classList.toggle('active', selected);
+    b.setAttribute('aria-selected', String(selected));
+    b.tabIndex = selected ? 0 : -1;
+    if (selected && focusTab) b.focus();
+  });
   document.querySelectorAll('.tab-pane')
     .forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
 }
+
+// Arrow / Home / End navigation, per the WAI-ARIA tabs pattern (SC 2.1.1).
+document.addEventListener('DOMContentLoaded', () => {
+  const tabBar = document.getElementById('tab-bar');
+  if (!tabBar) return;
+  tabBar.addEventListener('keydown', e => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(e.key)) return;
+    const tabs = Array.from(tabBar.querySelectorAll('.tab-btn'));
+    const current = tabs.findIndex(b => b.getAttribute('aria-selected') === 'true');
+    let next = current;
+    if (e.key === 'ArrowLeft')  next = (current - 1 + tabs.length) % tabs.length;
+    if (e.key === 'ArrowRight') next = (current + 1) % tabs.length;
+    if (e.key === 'Home')       next = 0;
+    if (e.key === 'End')        next = tabs.length - 1;
+    e.preventDefault();
+    switchTab(tabs[next].dataset.tab, true);
+  });
+});
 
 // ─── File loading ─────────────────────────────────────────────────
 function triggerLoad(type) {
@@ -1180,7 +1254,10 @@ function renderQueueHealth() {
 function setQhFilter(val) {
   qhFilter = val;
   ['ALL','GREEN','AMBER','RED'].forEach(v => {
-    document.getElementById('chip-qh-' + v)?.classList.toggle('active', v === val);
+    const chip = document.getElementById('chip-qh-' + v);
+    if (!chip) return;
+    chip.classList.toggle('active', v === val);
+    chip.setAttribute('aria-pressed', String(v === val));
   });
   renderQueueHealthTable();
 }
@@ -1430,7 +1507,10 @@ function renderAudit() {
 function setAuditFilter(val) {
   auditFilter = val;
   ['ALL','HIGH','MEDIUM','LOW'].forEach(v => {
-    document.getElementById('chip-audit-' + v)?.classList.toggle('active', v === val);
+    const chip = document.getElementById('chip-audit-' + v);
+    if (!chip) return;
+    chip.classList.toggle('active', v === val);
+    chip.setAttribute('aria-pressed', String(v === val));
   });
   renderAuditTable();
 }

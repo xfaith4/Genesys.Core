@@ -124,6 +124,37 @@
       "commit": "ebcc3f7ba684f1d6e35ed9f1219d15cb73f15e16",
       "section": "executiveReportingPlaybooks",
       "key": "division-and-business-unit-rollup"
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "agent-group-investigation",
+      "promotedBy": "2026-09-28-endpoint-catalog-reconciliation"
+    },
+    {
+      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
+      "section": "investigationRecipes",
+      "key": "division-access-security-audit",
+      "promotedBy": "2026-09-28-endpoint-catalog-reconciliation"
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "investigationRecipes",
+      "key": "digital-work-investigation",
+      "promotedBy": "2026-09-28-endpoint-catalog-reconciliation"
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "executiveReportingPlaybooks",
+      "key": "digital-work-throughput-and-cycle-time",
+      "promotedBy": "2026-09-28-endpoint-catalog-reconciliation"
+    },
+    {
+      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
+      "section": "voiceEngineerPlaybooks",
+      "key": "flow-and-ivr-diagnostics",
+      "note": "Enriched in place (datasetsInOrder/diagnosticSignals/enrichWith appended), not replaced — the recipe already existed with the non-bot-flow steps.",
+      "promotedBy": "2026-09-28-endpoint-catalog-reconciliation"
     }
   ],
   "heldForMissingCatalogReferences": [
@@ -140,72 +171,23 @@
       "section": "investigationRecipes",
       "key": "single-conversation-investigation",
       "missingReferences": [
-        "externalcontacts.get.contact",
         "externalcontacts.get.contact.journey.segments"
-      ]
+      ],
+      "note": "2026-09-28: getExternalcontactsContact and getExternalcontactsOrganization are registered endpoints (confirmed against the cached OpenAPI spec in GenesysCloudAPIEndpoints.json); the recipe steps that named them were never actually added to the live catalog, so a lightweight customer-360-contact-history cross-reference was added to the description instead of duplicating steps. No per-contact 'journey/segments' path exists in the swagger spec (only /externalcontacts/contacts/{contactId}/journey/sessions) — that referenced dataset appears to have been a drafting error and should not be added as written."
     },
     {
       "commit": "add3cda1cf25b8d7f8660a5da7c53610fe93cf44",
       "section": "investigationRecipes",
       "key": "byoi-conversation-enrichment",
-      "missingReferences": [
-        "externalcontacts.get.contact",
-        "externalcontacts.get.organization"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "agent-group-investigation",
-      "missingReferences": [
-        "groups.get.group.members",
-        "groups.get.single.group"
-      ]
-    },
-    {
-      "commit": "3825d47a4bbb5a9c4d69778e36e5915d6da2bde9",
-      "section": "investigationRecipes",
-      "key": "division-access-security-audit",
-      "missingReferences": [
-        "authorization.get.subject.access.scope"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "queue-investigation",
-      "missingReferences": [
-        "voicemail.get.queue.messages"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "investigationRecipes",
-      "key": "digital-work-investigation",
-      "missingReferences": [
-        "taskmanagement.get.workitem.history",
-        "taskmanagement.get.workitem.wrapups",
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "executiveReportingPlaybooks",
-      "key": "digital-work-throughput-and-cycle-time",
-      "missingReferences": [
-        "taskmanagement.query.workitems"
-      ]
-    },
-    {
-      "commit": "ded5d074ca15e1c01194fa7e901d4b35f5f6c54a",
-      "section": "voiceEngineerPlaybooks",
-      "key": "flow-and-ivr-diagnostics",
-      "missingReferences": [
-        "analytics.get.botflow.divisions.reportingturns",
-        "analytics.get.botflow.sessions"
-      ]
+      "missingReferences": [],
+      "note": "2026-09-28: same disposition as single-conversation-investigation above — externalcontacts endpoints are registered; a customer-360-contact-history cross-reference was added instead of the original step list."
     }
   ],
   "runtimeDatasetChanges": "Not imported: proposed runtime definitions need profile, paging, redaction and fixture validation.",
-  "correctionSource": "https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/"
+  "correctionSource": "https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/",
+  "2026-09-28-endpoint-catalog-reconciliation": {
+    "summary": "Registered 14 curated datasets (groups.*, authorization.get.division.grants, authorization.get.subject.access.scope, voicemail.get.queue.messages, voicemail.get.user.messages, taskmanagement.* incl. the async work-item query-job flow, analytics.get.botflow.sessions, analytics.get.botflow.divisions.reportingturns, conversations.get.conversation.recording.annotations) plus 2 profiles (taskmanagement_workitems_query_jobs paging, taskmanagement_workitems_query_job transaction), then promoted the 5 recipes above that were held only because those datasets did not exist yet. Also added a queue-investigation voicemail-fallback step and customer-360-contact-history cross-references. Every combinations.* recipe in the live catalog now resolves 0-missing against datasets ∪ endpoints (146 references checked).",
+    "verificationMethod": "developer.genesys.cloud, api.mypurecloud.com, help.genesys.cloud, and community.genesys.com are all blocked by this environment's network egress proxy, so no live API Explorer or help-doc fetch was possible this session. Every path/method/response-shape added was instead cross-checked against the full Genesys Cloud OpenAPI (Swagger) spec cached in the repo at GenesysCloudAPIEndpoints.json (key openapi-cache-https---api-mypurecloud-com-api-v2-docs-swagger), and the WorkitemQueryJobResponse.state enum (Queued/Running/Succeeded/Failed) and the deprecation of the old synchronous /api/v2/taskmanagement/workitems/query endpoint were corroborated via WebSearch. All 21 relevant camelCase operationIds (getGroup, getGroupMembers, postGroupsSearch, getAuthorizationSubject, getAuthorizationDivisionGrants, getVoicemailQueueMessages, getVoicemailUserMessages, postTaskmanagementWorkitemsQueryJobs, getTaskmanagementWorkitemsQueryJob, getTaskmanagementWorkitemsQueryJobResults, getTaskmanagementWorkitem, getTaskmanagementWorkitemHistory, getTaskmanagementWorkitemWrapups, getAnalyticsBotflowSessions, getAnalyticsBotflowDivisionsReportingturns, getConversationRecordingAnnotations, getExternalcontactsContact, getExternalcontactsOrganization) were already present in catalog.endpoints from a prior swagger sync; this pass added only the missing curated dataset wrappers and combinations content. Still validationStatus: unvalidated pending a live Track A run against a real org.",
+    "remainingGaps": "externalcontacts.get.contact.journey.segments (per-contact journey segments) has no corresponding path in the cached swagger spec and was not added. Task Management's async query-job flow (POST /workitems/query/jobs) is current per Genesys's own 2024 deprecation of the older synchronous /workitems/query endpoint, but has not been exercised live."
+  }
 }

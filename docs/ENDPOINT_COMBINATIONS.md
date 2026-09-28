@@ -37,6 +37,7 @@ there is no third namespace.
 8. [Conversation Investigation Extensions](#8-conversation-investigation-extensions-release-13)
 9. [Queue Investigation Extensions](#9-queue-investigation-extensions-release-13)
 10. [Dataset Combination Reference Matrix](#10-dataset-combination-reference-matrix)
+11. [Group, Access-Audit, and Digital-Work Investigations](#11-group-access-audit-and-digital-work-investigations-september-2026)
 
 ---
 
@@ -546,3 +547,89 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## 11. Group, access-audit, and digital-work investigations (September 2026)
+
+Three investigation boundaries were previously undocumented in the machine-readable
+catalog even though the underlying data existed: **Groups** as a cross-division,
+cross-queue team boundary distinct from Division and Team; **division access/security
+audit** as a compliance-scoped variant of the Division Investigation; and **Task
+Management work items** (cases, tickets, back-office work) as the non-conversational
+counterpart to the Queue Investigation. All three are now registered in
+`catalog/genesys.catalog.json` under `combinations.investigationRecipes` /
+`executiveReportingPlaybooks` with their datasets fully resolvable — see
+`docs/reconciliation/proposal-decisions.json` → `"2026-09-28-endpoint-catalog-reconciliation"`
+for the exact endpoints added and how they were verified.
+
+### Group vs. Division vs. Team
+
+Genesys Cloud has three overlapping-but-distinct ways to group agents, and picking the
+wrong one produces a misleading investigation:
+
+| Boundary | What it actually is | Use it when |
+|---|---|---|
+| **Division** (`divisionId`) | The RBAC / data-scoping boundary. Every queue, user, and most other objects belong to exactly one division. | The investigation question is about data access, business-unit ownership, or "which queues does this business unit own." |
+| **Group** (`groupId`) | An ad hoc, admin-managed member collection ("Tier 2 Escalation", "Bilingual Agents", "Night Shift"). Can span multiple divisions and queues at once; membership is independent of both. | The investigation subject is a named team or skill collective, not an org-chart or RBAC boundary. |
+| **Team** (`teamId`) | A lighter-weight supervisory/scheduling grouping (WFM-oriented). Members are not required to share a division or queue set. | The boundary is "who reports to this supervisor" or "which shift crew," not data access. |
+
+Recipe: `agent-group-investigation` (`combinations.investigationRecipes`). Seed step
+`groups.get.single.group` → `groups.get.group.members` fans out to per-member division
+(`users.division.analysis.get.users.with.division.info`), queue membership
+(`users.get.user.queue.memberships`), performance
+(`analytics.query.conversation.aggregates.agent.performance`), and quality
+(`quality.get.agents.activity`). Report `divisionSpread` and `queueSpread` explicitly —
+a group spanning several divisions is often itself the finding, not a data quality bug.
+
+### Division access / security audit
+
+**Core question:** *Who can see or manage this division's data, and was that access
+change intentional?*
+
+Recipe: `division-access-security-audit`. Distinct from the operational Division
+Investigation (§3) — this one answers an RBAC/compliance question, not a performance
+question. Seed `authorization.get.single.division` → `authorization.get.division.grants`
+(every role grant touching the division, including grants made to a Group rather than a
+user — cross-reference `agent-group-investigation` when `subjectType` is a group) →
+`authorization.get.subject.access.scope` per user-type grantee (their *complete* access
+scope, so a reviewer can tell whether this grant is the only elevated access that
+subject has) → `authorization.list.division.queues` (what the grant actually exposes) →
+`audit-logs` filtered to `service=Authorization` (who changed access, and when).
+
+### Digital work (Task Management) investigation
+
+**Core question:** *How is our back-office/case work performing, alongside voice?*
+
+Every executive and voice-engineer pattern in this document up to now covers
+conversations (voice/chat/email/message). Organizations that also route case- or
+ticket-style work through Genesys Cloud **Task Management** work queues have an
+equivalent, parallel set of questions — backlog, cycle time, overdue items, throughput
+by assignee — that conversation-shaped analytics cannot answer.
+
+Recipe: `digital-work-investigation` (mirrors the shape of the Queue Investigation
+rather than introducing a new mental model) and the executive playbook
+`digital-work-throughput-and-cycle-time`. Both are seeded by
+`taskmanagement.query.workitems`, an **async job** dataset
+(`POST /api/v2/taskmanagement/workitems/query/jobs` → poll
+`GET .../query/jobs/{jobId}` → `GET .../query/jobs/{jobId}/results`) — Genesys
+deprecated the older synchronous-style `/api/v2/taskmanagement/workitems/query`
+endpoint, so the job-based flow is the current, correct pattern. Per-item drilldown
+(`taskmanagement.get.workitem.history`, `taskmanagement.get.workitem.wrapups`) is
+on-demand for a single flagged/aged item, not fanned out across a whole queue — the
+same "don't fan out everything" discipline used in the SIP-trace and evaluation steps
+of the Conversation Investigation.
+
+Key executive metric: `backlogCount = nWorkitemsCreated - nWorkitemsClosed` (open at
+period end) and `avgCycleTimeHours` — the digital-work equivalents of queue AHT and
+abandon rate.
+
+### Bot Flow diagnostics added to `flow-and-ivr-diagnostics`
+
+The voice-engineer playbook `flow-and-ivr-diagnostics` (§Appendix matrix, Voice
+Engineer Playbooks) now also pulls `analytics.get.botflow.sessions` (session-level
+containment/outcome) and `analytics.get.botflow.divisions.reportingturns`
+(turn-by-turn utterance/response detail, division-filtered) when self-service is
+implemented as a Genesys Digital Bot Flow rather than a classic Architect inbound
+flow. Repeated no-match/no-input turns immediately before session end is the bot-flow
+equivalent of a "Default Exit" spike in a classic IVR — both indicate an intent/menu
+gap worth fixing before the next deploy. Genesys retains bot-flow session/turn records
+for approximately 10 days only; pull them promptly after an incident.

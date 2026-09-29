@@ -44787,6 +44787,163 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "rollup-to-conversation-triage-funnel": {
+        "description": "A drill-down ladder that keeps an investigation small: start from cheap aggregates, keep only the queue-intervals and conversations that breach a threshold, and pull expensive per-conversation evidence (SIP, transcripts, sentiment) for at most a capped sample. Prevents the 'dump every conversation' failure mode for queue, agent-group and division investigations.",
+        "subjectParam": "queueId | divisionId | userId",
+        "windowRequired": true,
+        "referenceStatus": "reference-only",
+        "steps": [
+          {
+            "step": "scope",
+            "dataset": "routing.get.single.queue.config",
+            "filterBy": "queueId",
+            "joinKey": "queueId",
+            "provides": "queue SLA target, media types, division",
+            "description": "Level 0 (1 call): resolves the subject and the SLA/threshold the funnel compares against",
+            "role": "seed"
+          },
+          {
+            "step": "level1-aggregate",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId + 1h or 1d granularity",
+            "joinKey": "queueId+interval",
+            "provides": "nOffered, nConnected, tHandle, tAcw",
+            "description": "Level 1 (1 call, no per-conversation data): find WHICH intervals look abnormal versus the window median"
+          },
+          {
+            "step": "level1-sla-abandon",
+            "dataset": "analytics.query.queue.aggregates.service.level",
+            "filterBy": "queueId",
+            "joinKey": "queueId+interval",
+            "provides": "oServiceLevel, nOverSla",
+            "description": "Level 1: intervals below SLA target become the only intervals drilled further"
+          },
+          {
+            "step": "level2-candidates",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "queueId + breach intervals only",
+            "joinKey": "conversationId",
+            "provides": "conversationId, segment timings, wrapUpCode, transfer count",
+            "description": "Level 2: pull details only for breach intervals; rank by longest wait, most transfers, shortest abandon; keep top N (default 25)"
+          },
+          {
+            "step": "level3-timing",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "filterBy": "conversationId (top N only)",
+            "joinKey": "conversationId",
+            "provides": "per-segment IVR/ACD/talk/hold/ACW",
+            "description": "Level 3: full segment timeline for the capped sample"
+          },
+          {
+            "step": "level3-voice",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "filterBy": "conversationId (voice, only when segments show disconnect/short-abandon anomalies)",
+            "joinKey": "conversationId",
+            "provides": "SIP signalling",
+            "description": "Level 3: definitive evidence for setup failure/one-way audio; skip when analytics already explains the outcome"
+          },
+          {
+            "step": "level3-sentiment",
+            "dataset": "speech.and.text.analytics.get.sentiment.for.conversation",
+            "filterBy": "conversationId (only when STA enabled)",
+            "joinKey": "conversationId",
+            "provides": "sentiment timeline",
+            "description": "Level 3: adds customer-impact weight to the shortlist"
+          }
+        ],
+        "joinSequence": "scope -> level1 (interval filter) -> level2 (conversation shortlist, capped) -> level3 (evidence for top N)",
+        "outputContract": "One page: the breach intervals, the top-N conversations with a single-line cause each (queue wait, transfer loop, trunk failure, agent handle), and links to the evidence artifacts. Never emit raw per-conversation rows for the full window.",
+        "executiveMetrics": [
+          "oServiceLevel",
+          "abandon rate",
+          "nOverSla",
+          "count of breach intervals",
+          "top-N conversation causes by category"
+        ]
+      },
+      "cross-queue-agent-group-investigation": {
+        "description": "Investigates an agent group that is not one queue: a division's users, a skill-based cohort, or the members of several queues. Agents can belong to many queues and one division while the queues sit in other divisions, so the group is resolved first and metrics are then attributed by queue, so a busy agent is not double counted.",
+        "subjectParam": "divisionId | queueId list | skillId",
+        "windowRequired": true,
+        "referenceStatus": "reference-only",
+        "steps": [
+          {
+            "step": "resolve-group",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "filterBy": "divisionId",
+            "joinKey": "userId",
+            "provides": "userId list with division",
+            "description": "Group by division ownership of the user",
+            "role": "seed"
+          },
+          {
+            "step": "resolve-queues",
+            "dataset": "authorization.search.division.objects",
+            "filterBy": "divisionId (objectType=QUEUE)",
+            "joinKey": "queueId",
+            "provides": "queues owned by the division",
+            "description": "Queue division and user division can differ; carry both into the report"
+          },
+          {
+            "step": "membership",
+            "dataset": "users.get.user.queue.memberships",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "queue memberships, joined flag",
+            "description": "Shows agents serving queues outside their division and agents in no queue at all"
+          },
+          {
+            "step": "skills",
+            "dataset": "users.get.user.routing.skills",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "skill and proficiency",
+            "description": "Explains why an agent is or is not receiving a queue's traffic"
+          },
+          {
+            "step": "agent-by-queue",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "filterBy": "userId + queueId grouping",
+            "joinKey": "userId+queueId",
+            "provides": "nConnected, tHandle by agent and queue",
+            "description": "Attribute handled volume per agent per queue; sum across queues only for distinct-agent totals"
+          },
+          {
+            "step": "time-in-state",
+            "dataset": "analytics.query.user.aggregates.login.activity",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "on-queue, idle, off-queue time",
+            "description": "Occupancy denominator for the group"
+          },
+          {
+            "step": "quality",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId",
+            "joinKey": "userId",
+            "provides": "evaluation counts and average scores",
+            "description": "Coverage and score for the group"
+          },
+          {
+            "step": "outliers",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "userId for flagged outliers only",
+            "joinKey": "conversationId",
+            "provides": "case-level conversations",
+            "description": "Drill only into agents beyond 1.5 standard deviations of the group on handle time, transfer rate or score"
+          }
+        ],
+        "joinSequence": "resolve-group -> resolve-queues -> membership/skills -> agent-by-queue -> time-in-state -> quality -> outliers",
+        "outputContract": "Group summary row, per-queue contribution table, and a short outlier list (max 10 agents) with the metric that flagged each.",
+        "executiveMetrics": [
+          "distinct agents",
+          "nConnected by queue",
+          "tHandle (avg)",
+          "occupancy pct",
+          "evalAvgScore",
+          "agents serving out-of-division queues"
+        ]
       }
     },
     "executiveReportingPlaybooks": {
@@ -45327,6 +45484,30 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "media-quality-and-call-setup-triage": {
+        "description": "Answers 'is this a carrier, trunk, Edge or agent-side problem' for a group of complaint calls before opening any single SIP trace. Compare the affected calls against Edge and trunk state in the same window; open SIP traces only for a small sample.",
+        "referenceStatus": "reference-only",
+        "subjectParam": "conversationId list | edgeId | trunkId + window",
+        "datasetsInOrder": [
+          "analytics.get.single.conversation.analytics",
+          "telephony.get.sip.messages.for.conversation",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.edge.performance.metrics",
+          "alerting.get.alerts"
+        ],
+        "diagnosticSignals": [
+          "Complaints cluster on one edge or trunk -> infrastructure issue; open the Edge log job",
+          "Complaints spread across edges with the same carrier -> carrier or SBC issue; compare SIP responses",
+          "Short calls with BYE from the far end and no error -> customer side or carrier hangup",
+          "Alerts firing in the same window as the cluster -> use alert start time as the incident start",
+          "No infrastructure signal and one agent common to all calls -> agent device or network; use agent investigation"
+        ],
+        "enrichWith": [
+          "telephony.get.edges",
+          "telephony.get.trunks"
+        ],
+        "outputContract": "Cluster verdict (carrier / trunk / Edge / agent / none found), affected counts, and 3 representative SIP traces at most."
       }
     }
   }

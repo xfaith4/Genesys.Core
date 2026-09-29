@@ -546,3 +546,20 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+
+## Triage funnel, cross-queue groups and media triage (September 2026)
+
+Three reference-only recipes were added to `catalog/genesys.catalog.json`. The Genesys developer
+documentation could not be fetched in this run because the egress proxy blocked it. The recipes
+therefore combine only endpoints already in the catalog. Check them against the current docs
+before implementing.
+
+- `rollup-to-conversation-triage-funnel` (investigation): queue aggregates first, then details for
+  breach intervals only, then SIP and sentiment for a capped top-N. This keeps a queue, group or
+  division investigation to one page instead of a dump of every conversation.
+- `cross-queue-agent-group-investigation` (investigation): resolves a division, skill or
+  multi-queue group and attributes volume per agent per queue. Users and queues can sit in
+  different divisions. Only outliers are drilled to case level.
+- `media-quality-and-call-setup-triage` (voice engineer): clusters complaint calls against
+  Edge, trunk and alert state to decide carrier, trunk, Edge or agent-side before opening any SIP trace.

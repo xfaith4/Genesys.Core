@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-30 (endpoint combination evaluation)
+
+### Added
+
+- `catalog/genesys.catalog.json` `combinations`: `disclosurePolicy` (tiered, trigger-driven
+  enrichment), `cohortResolution` (division/team/group/skill-group/queue to userId+queueId sets),
+  five investigation recipes, three executive playbooks and one voice engineer playbook. All are
+  `reference-only`; see `docs/ENDPOINT_COMBINATIONS.md`.
+- Genesys developer-portal pages could not be fetched (egress blocked), so this is catalog-derived.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

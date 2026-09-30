@@ -546,3 +546,55 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## October 2026 evaluation: progressive disclosure and cohort resolution
+
+> Method note: the Genesys developer-portal pages (API Explorer, BYOI guide, conversation
+> injection, embeddable framework condensed conversation info, blueprints) were not reachable from
+> the automated run (egress blocked). This pass is derived from the Swagger-generated endpoint
+> catalog and the existing recipes. Re-check against the portal when access is available. All new
+> entries are `validationStatus: reference-only`.
+
+The catalog already had recipes for a conversation, a queue, an agent and a division. The gaps were
+(1) no rule for *how much* to pull, (2) no shared way to treat divisions, teams, groups and skill
+groups as one cohort, and (3) several high-value endpoints that were in the catalog but in no recipe.
+
+### `combinations.disclosurePolicy`
+
+Four tiers keep output informative rather than exhaustive: **0 headline** (aggregates), **1 timeline**
+(one analytics call per conversation), **2 conditional enrichment** (only when a named trigger fires,
+e.g. SIP messages only for voice error disconnects), **3 artifacts** (SIP trace downloads, edge logs,
+recordings; explicit operator request). Cohort work ranks at Tier 0 and drills into the top N outliers
+only (default 10 subjects, 25 exemplar conversations each).
+
+### `combinations.cohortResolution`
+
+Queue, division, team, group and skill group all resolve to the same pair: a `userId` set and a
+`queueId` set, snapshotted with a timestamp. A user's division and a queue's division are
+independent, so a division rollup must say which one a metric is cut by. Agent division access
+(`getAuthorizationDivisionspermittedPagedSubjectId`) explains missing visibility; it is not a
+performance cohort.
+
+### New investigation recipes
+
+| Recipe | Question it answers | Newly used endpoints |
+|---|---|---|
+| `agent-cohort-investigation` | Person, queue or division-wide problem? | cohort resolvers, divisions-permitted |
+| `ivr-flow-execution-trace` | What happened inside Architect? | `getFlowsExecution`, schedule and emergency groups, flow aggregates |
+| `voice-signaling-escalation` | Cause still unclear after SIP messages | SIP trace search/download, edge log jobs, edge diagnostics |
+| `conversation-quality-evidence-trail` | Was it reviewed, what did the customer feel? | per-conversation sentiments, annotations |
+| `async-channel-conversation-investigation` | Callback, voicemail, email conversations | callback detail, email messages, voicemail |
+
+### New reporting playbooks
+
+- `executive-one-page-scorecard`: ten KPIs, one source and one denominator each, one division per row,
+  every breach linked to exactly one drill-down recipe. This is the answer to "not a data dump".
+- `quality-and-csat-aggregate-rollup`: evaluation and survey aggregates instead of per-conversation loops.
+- `wfm-historical-adherence-rollup`: asynchronous bulk adherence job.
+- Voice engineer: `no-answer-and-misroute-triage` (DID/queue outward, stops at first cause).
+
+### Caveats
+
+- Edge log jobs and edge diagnostics are operational actions, not pure reads; they are Tier 3 and need operator approval.
+- SIP traces and voicemail media contain PII; use the existing `voice-engineer-sip` redaction profile.
+- Not yet covered: the exact BYOI/Open Messaging conversation-injection field mapping (see the correction above); re-verify against the portal.

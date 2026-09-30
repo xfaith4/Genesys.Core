@@ -44787,6 +44787,384 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "agent-cohort-investigation": {
+        "description": "Investigates any named group of agents — division, team, group, skill group or queue — as one cohort, including divisions that span several queues. Resolves the cohort to userId/queueId sets once (see combinations.cohortResolution), ranks members against the cohort on a small fixed KPI set, and drills down only for outliers. Answers 'is this a person problem, a queue problem, or a division-wide problem?'",
+        "subjectParam": "cohortType + cohortId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "resolve-cohort",
+            "dataset": "(derived)",
+            "role": "seed",
+            "provides": "userId set, queueId set, resolver, timestamp",
+            "description": "Apply the matching resolver from cohortResolution; snapshot the result so later steps use the same membership"
+          },
+          {
+            "step": "cohort-headline",
+            "dataset": "analytics.query.user.aggregates.performance.metrics",
+            "filterBy": "userId set",
+            "joinKey": "userId",
+            "provides": "nConnected, tHandle, tTalk, tAcw per agent",
+            "description": "Tier 0: per-agent volume and handle time; compute cohort median and flag agents beyond 1.5x IQR instead of listing everyone"
+          },
+          {
+            "step": "cohort-queue-context",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "filterBy": "queueId set",
+            "joinKey": "queueId",
+            "provides": "nOffered, nConnected, abandon, handle by queue",
+            "description": "Separates 'this agent is slow' from 'every agent on this queue is slow'"
+          },
+          {
+            "step": "cohort-status",
+            "dataset": "postAnalyticsUsersAggregatesQuery",
+            "filterBy": "userId set",
+            "joinKey": "userId",
+            "optional": true,
+            "provides": "tOrganizationPresence, tAgentRoutingStatus",
+            "description": "On-queue vs. off-queue time; explains low volume without any handling problem"
+          },
+          {
+            "step": "cohort-adherence",
+            "dataset": "workforce.get.adherence.bulk",
+            "filterBy": "userId set",
+            "joinKey": "userId",
+            "optional": true,
+            "provides": "adherence state per user (real-time)",
+            "description": "Only when the cohort maps to a WFM management unit"
+          },
+          {
+            "step": "cohort-quality",
+            "dataset": "quality.get.agents.activity",
+            "filterBy": "userId set",
+            "joinKey": "userId",
+            "optional": true,
+            "provides": "evaluation counts and average scores",
+            "description": "Coverage-aware quality read; report evaluation count next to every average"
+          },
+          {
+            "step": "outlier-exemplars",
+            "dataset": "analytics-conversation-details-query",
+            "filterBy": "userId of each outlier, capped per disclosurePolicy.cohortRules",
+            "joinKey": "userId",
+            "provides": "worst N conversationIds per outlier",
+            "description": "Tier 1 hand-off: feeds single-conversation-investigation"
+          },
+          {
+            "step": "access-explanation",
+            "dataset": "getAuthorizationDivisionspermittedPagedSubjectId",
+            "filterBy": "userId",
+            "joinKey": "subjectId",
+            "optional": true,
+            "provides": "divisions the agent can act in",
+            "description": "Use when an agent reports not seeing queues/conversations that the cohort headline includes"
+          }
+        ],
+        "voiceEngineerHighlights": [
+          "Agent with high handle time only on one queue → skill/knowledge gap for that queue, not a general agent issue",
+          "Cohort-wide low on-queue % after a schedule change → check architect schedules and WFM before coaching",
+          "Division whose agents serve queues in other divisions → report both cuts; do not present user-division metrics as queue-division metrics"
+        ],
+        "executiveMetrics": [
+          "Cohort volume and handle-time median with outlier count",
+          "On-queue utilisation %",
+          "Evaluation coverage and average (with count)"
+        ],
+        "enrichWith": [
+          "getRoutingSkillgroupMembersDivisions",
+          "users.get.user.routing.skills",
+          "getUserSkillgroups"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "ivr-flow-execution-trace": {
+        "description": "Explains what a caller experienced inside Architect before (or instead of) reaching a queue: which flow ran, which schedule/emergency group steered it, how it ended, and which outcomes/milestones fired. Triggered by a short abandon, an abnormal flow disconnect, or a complaint about 'the menu'.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "timeline",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "flow segments with flowId, flowName, flowVersion, entryType, exitReason, flow outcomes, queue segments",
+            "description": "Locate ivr/flow segments and the flowInstanceId/flowExecutionId to pivot on"
+          },
+          {
+            "step": "flow-execution",
+            "dataset": "getFlowsExecution",
+            "filterBy": "flowExecutionId from timeline",
+            "joinKey": "flowExecutionId",
+            "provides": "execution status and completion detail",
+            "description": "Tier 2: only when the flow segment ended abnormally"
+          },
+          {
+            "step": "flow-definition",
+            "dataset": "flows.get.all.flows",
+            "filterBy": "flowId",
+            "joinKey": "id",
+            "optional": true,
+            "provides": "flow name, type, division, published version",
+            "description": "Confirms which published version was live; compare with audit history for recent changes"
+          },
+          {
+            "step": "outcomes-and-milestones",
+            "dataset": "flows.get.flow.outcomes",
+            "optional": true,
+            "provides": "outcome definitions",
+            "description": "Decode outcomeId values seen in the flow segment; pair with flows.get.flow.milestones"
+          },
+          {
+            "step": "schedule-context",
+            "dataset": "getArchitectSchedulegroups",
+            "optional": true,
+            "provides": "open/closed/holiday schedule groups",
+            "description": "Why was the caller sent to closed/holiday treatment; check with getArchitectSchedules and getArchitectEmergencygroups"
+          },
+          {
+            "step": "flow-aggregate-context",
+            "dataset": "analytics.query.flow.aggregates.execution.metrics",
+            "filterBy": "flowId + window",
+            "joinKey": "flowId",
+            "provides": "nFlow, nFlowOutcome, tFlow, disconnect breakdown",
+            "description": "Is this one caller or a pattern; turns an anecdote into a rate"
+          },
+          {
+            "step": "change-evidence",
+            "dataset": "audit_query_transaction_then_results.results",
+            "optional": true,
+            "filterBy": "entityType=Flow/Schedule/ScheduleGroup/EmergencyGroup + window",
+            "joinKey": "entityId",
+            "provides": "who changed the flow or schedule and when",
+            "description": "Correlate onset of the pattern with an Architect publish"
+          }
+        ],
+        "voiceEngineerHighlights": [
+          "Flow exits with error at the same step for many callers → deployment regression; correlate with audit publish time",
+          "Short abandons clustered at menu prompts → prompt length/hold-music issue rather than staffing",
+          "Calls landing in emergency group unexpectedly → emergency group left active"
+        ],
+        "executiveMetrics": [
+          "IVR containment %",
+          "Flow error rate",
+          "Short-abandon rate before queue entry"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "voice-signaling-escalation": {
+        "description": "Deep signaling evidence for a voice conversation once the standard single-call-forensics still leaves the cause unclear. Escalates in strict order: per-conversation SIP messages, trunk/edge health at the time, then downloadable SIP traces and edge logs. Never runs across a cohort — one conversation or one edge/trunk at a time.",
+        "subjectParam": "conversationId (or edgeId/trunkId for infrastructure mode)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "timeline",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "segment timing, mediaEndpointStats (MOS, packet loss, codec), edgeId, sipResponseCode/errorCode, disconnectType",
+            "description": "Extract the edgeId and time of failure"
+          },
+          {
+            "step": "sip-messages",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "INVITE/BYE sequence with response codes",
+            "description": "Tier 2: read the disconnect initiator and last response code"
+          },
+          {
+            "step": "trunk-health",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "joinKey": "trunkId",
+            "provides": "calls, registration, error counts, capacity",
+            "description": "Was the trunk saturated or unregistered at the time"
+          },
+          {
+            "step": "edge-metrics",
+            "dataset": "telephony.get.edge.metrics",
+            "filterBy": "edgeId from timeline",
+            "joinKey": "edgeId",
+            "provides": "CPU, memory, call counts",
+            "description": "Edge resource pressure at the time"
+          },
+          {
+            "step": "sip-trace-search",
+            "dataset": "getTelephonySiptraces",
+            "filterBy": "conversationId/ANI/DNIS + time window",
+            "joinKey": "conversationId",
+            "optional": true,
+            "provides": "matching trace entries",
+            "description": "Tier 3: only if messages above do not explain the failure"
+          },
+          {
+            "step": "sip-trace-download",
+            "dataset": "postTelephonySiptracesDownload",
+            "optional": true,
+            "provides": "downloadId for trace archive",
+            "description": "Tier 3 artifact; poll getTelephonySiptracesDownloadDownloadId. Traces contain phone numbers; treat as PII"
+          },
+          {
+            "step": "edge-log-job",
+            "dataset": "postTelephonyProvidersEdgeLogsJobs",
+            "optional": true,
+            "filterBy": "edgeId",
+            "joinKey": "edgeId",
+            "provides": "log-collection job id",
+            "description": "Tier 3: request edge logs for vendor escalation; follow with getTelephonyProvidersEdgeLogsJob and postTelephonyProvidersEdgeLogsJobUpload. Writes an operational job, so require explicit operator approval"
+          },
+          {
+            "step": "edge-diagnostics",
+            "dataset": "getTelephonyProvidersEdgeDiagnosticPing",
+            "optional": true,
+            "filterBy": "edgeId + target",
+            "provides": "reachability check",
+            "description": "Reachability probes: start with the matching POST (postTelephonyProvidersEdgeDiagnosticPing; also ...Route, ...Nslookup) and read with the GET. They generate network traffic from the edge, so require operator approval"
+          }
+        ],
+        "voiceEngineerHighlights": [
+          "MOS <3.5 or packet loss >1% in mediaEndpointStats with healthy trunk → network path/codec, not carrier",
+          "BYE from carrier immediately after 200 OK → far-end media negotiation failure",
+          "Error concentrated on one edgeId → edge-specific fault; compare edge-metrics before and after"
+        ],
+        "executiveMetrics": [
+          "Voice error-disconnect rate by edge/trunk",
+          "Customer-impacting minutes lost to trunk/edge incidents"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "conversation-quality-evidence-trail": {
+        "description": "Assembles the evidence a QA lead needs for a single conversation: sentiment shape, categories, evaluation(s), survey, annotations and recording metadata, without downloading media. Also answers 'was this conversation ever reviewed and what happened as a result'.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "timeline",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "agent(s), queue, wrap-up, duration",
+            "description": "Identify the agent to attribute quality to"
+          },
+          {
+            "step": "sentiment",
+            "dataset": "speech.and.text.analytics.get.sentiment.data.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "sentiment over time per participant",
+            "description": "Shows when the conversation turned negative — usually more useful than the single overall score"
+          },
+          {
+            "step": "categories",
+            "dataset": "speechandtextanalytics.get.conversation.categories",
+            "joinKey": "conversationId",
+            "provides": "matched topics/programs",
+            "description": "What the conversation was about"
+          },
+          {
+            "step": "evaluations",
+            "dataset": "quality.get.evaluations.query",
+            "filterBy": "conversationId",
+            "joinKey": "conversationId",
+            "provides": "evaluation ids, status, score, evaluator",
+            "description": "Was it reviewed; if so pull the detail with quality.get.conversation.evaluation"
+          },
+          {
+            "step": "survey",
+            "dataset": "quality.get.conversation.surveys",
+            "joinKey": "conversationId",
+            "optional": true,
+            "provides": "customer survey answers and scores",
+            "description": "Customer's own view to contrast with internal score"
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, duration, retention, archive/delete dates",
+            "description": "Confirms recording exists and is not about to expire; media download is Tier 3"
+          },
+          {
+            "step": "annotations",
+            "dataset": "getConversationRecordingAnnotations",
+            "filterBy": "conversationId+recordingId",
+            "joinKey": "recordingId",
+            "optional": true,
+            "provides": "reviewer markers with time offsets",
+            "description": "Where reviewers flagged issues"
+          }
+        ],
+        "voiceEngineerHighlights": [
+          "Recording missing for a voice conversation with STA data → recording policy gap, not STA",
+          "Retention deleteDate inside investigation window → export metadata now"
+        ],
+        "executiveMetrics": [
+          "Evaluation coverage %",
+          "Score vs. CSAT divergence"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "async-channel-conversation-investigation": {
+        "description": "Single-conversation investigation for callback, voicemail and email conversations, where the voice-centric recipes produce nothing. Confirms the object exists, who touched it, and whether the customer's request was fulfilled.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "timeline",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "mediaType, segments, queue, agent, wrap-up",
+            "description": "Branch on mediaType"
+          },
+          {
+            "step": "callback-detail",
+            "dataset": "getConversationsCallback",
+            "filterBy": "mediaType=callback",
+            "joinKey": "conversationId",
+            "optional": true,
+            "provides": "callback numbers, scheduled time, participants",
+            "description": "Scheduled vs. actual callback time; see getConversationsCallbackParticipantWrapup for disposition"
+          },
+          {
+            "step": "email-thread",
+            "dataset": "getConversationsEmailMessages",
+            "filterBy": "mediaType=email",
+            "joinKey": "conversationId",
+            "optional": true,
+            "provides": "message list with sender/time",
+            "description": "Reply latency and who replied"
+          },
+          {
+            "step": "voicemail",
+            "dataset": "getVoicemailMessage",
+            "filterBy": "mediaType=voicemail",
+            "joinKey": "messageId",
+            "optional": true,
+            "provides": "voicemail metadata; media via getVoicemailMessageMedia (Tier 3)",
+            "description": "Was the voicemail listened to / deleted"
+          },
+          {
+            "step": "wrapup",
+            "dataset": "conversations.get.conversation.participant.wrapup",
+            "joinKey": "conversationId+participantId",
+            "provides": "wrap-up code and notes",
+            "description": "Disposition"
+          }
+        ],
+        "voiceEngineerHighlights": [
+          "Callback created but never connected → check outbound dialing/queue callback settings via queue-investigation",
+          "Email with long first-reply gap → queue email SLA and routing, not agent speed"
+        ],
+        "executiveMetrics": [
+          "Callback fulfilment %",
+          "Email first-response time",
+          "Voicemail time-to-listen"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -45184,6 +45562,93 @@
         "costCaveat": "getBillingReportsBillableusage and postUsageAggregatesQueryJobs return usage units (minutes, sessions, API calls), not a dollar figure — attaching a cost-per-contained-session number requires the tenant's own rate card as an external input. Report usage units natively; do not silently convert to a currency estimate without that input documented alongside the number.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "executive-one-page-scorecard": {
+        "description": "The deliberately small headline view for executives: a fixed set of ten KPIs, each with one source dataset and one explicit denominator, plus the single drill-down recipe to use when a KPI is out of range. Everything else in the catalog is drill-down, not headline.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.queue.aggregates.service.level",
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics.query.user.aggregates.performance.metrics",
+          "quality.get.agents.activity",
+          "postAnalyticsSurveysAggregatesQuery",
+          "postAnalyticsEvaluationsAggregatesQuery",
+          "analytics.query.flow.aggregates.execution.metrics",
+          "telephony.get.trunk.metrics.summary"
+        ],
+        "joinOn": "day + mediaType + divisionId (via cohortResolution.division)",
+        "groupBy": [
+          "day",
+          "mediaType",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "1 Offered volume (nOffered, queue events)",
+          "2 Answer rate (nConnected / nOffered)",
+          "3 Service level % (with target and interval)",
+          "4 Abandon rate (nAbandoned / nOffered; short-abandon reported separately)",
+          "5 Average handle time (tHandle total / handle-metric count, not nConnected)",
+          "6 Transfer rate (nTransferred / nConnected)",
+          "7 Customer satisfaction (survey score with response count)",
+          "8 Evaluation score (with evaluated-conversation count)",
+          "9 IVR containment % (flow outcome based)",
+          "10 Voice infrastructure incidents (trunk/edge error count)"
+        ],
+        "executivePresentation": "One row per division, ten columns, colour only on breaches. Each breached KPI links to exactly one drill-down: 1-4 → queue-investigation, 5-6 → agent-cohort-investigation, 7-8 → conversation-quality-evidence-trail, 9 → ivr-flow-execution-trace, 10 → voice-signaling-escalation. No conversation-level data appears on the scorecard.",
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "quality-and-csat-aggregate-rollup": {
+        "description": "Scale-safe quality and customer-satisfaction rollup using the aggregate endpoints rather than iterating evaluations or surveys per conversation.",
+        "datasetsInOrder": [
+          "postAnalyticsEvaluationsAggregatesQuery",
+          "postAnalyticsSurveysAggregatesQuery",
+          "quality.get.agents.activity",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "queueId, userId or divisionId + day",
+        "groupBy": [
+          "queueId",
+          "userId",
+          "evaluationFormId",
+          "day"
+        ],
+        "outputMetrics": [
+          "Average evaluation score with nEvaluations",
+          "Critical-score share",
+          "Survey score with nSurveysAnswered",
+          "Evaluation coverage % (nEvaluations / nConnected)",
+          "Score-vs-CSAT gap per agent (outlier detection)"
+        ],
+        "executivePresentation": "Coverage first, score second: a score with coverage under an agreed threshold is greyed out. Drill from division to agent only for agents with a score-vs-CSAT gap beyond the cohort norm; then use conversation-quality-evidence-trail.",
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+      },
+      "wfm-historical-adherence-rollup": {
+        "description": "Historical (not real-time) adherence and off-queue explanation for a management unit, using the asynchronous bulk job rather than polling per user.",
+        "datasetsInOrder": [
+          "getWorkforcemanagementManagementunits",
+          "postWorkforcemanagementAdherenceHistoricalBulk",
+          "getWorkforcemanagementAdherenceHistoricalBulkJob",
+          "postAnalyticsUsersAggregatesQuery",
+          "getWorkforcemanagementTimeoffrequests"
+        ],
+        "joinOn": "userId + day",
+        "groupBy": [
+          "managementUnitId",
+          "userId",
+          "day"
+        ],
+        "outputMetrics": [
+          "Adherence % with scheduled minutes as denominator",
+          "Exception minutes by reason",
+          "On-queue % vs. scheduled on-queue",
+          "Time-off share of unavailable time"
+        ],
+        "executivePresentation": "Management-unit level trend line; agent-level detail suppressed unless a supervisor drills in. Job-based: submit, poll the job, then read results; do not loop synchronous per-agent calls.",
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45327,7 +45792,191 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "no-answer-and-misroute-triage": {
+        "description": "Typical first-hour voice engineer question: 'callers say it rings out / goes to the wrong place'. Works from the DID or queue outward to configuration and then to samples, and stops as soon as the cause is identified.",
+        "subjectParam": "DNIS or queueId",
+        "datasetsInOrder": [
+          "analytics-conversation-details-query",
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "getArchitectSchedulegroups",
+          "getArchitectEmergencygroups",
+          "flows.get.all.flows",
+          "routing.get.queue.members.with.status",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.sip.message.for.conversation",
+          "audit_query_transaction_then_results.results"
+        ],
+        "diagnosticSignals": [
+          "Abandons concentrated within seconds of entry → flow/schedule problem, not staffing",
+          "Zero on-queue members while nOffered>0 → membership/status problem",
+          "Open schedule group returning closed treatment → schedule or time-zone error",
+          "Recent Flow/Schedule/Queue audit event near onset → change-induced",
+          "All samples share one trunk/edge → carrier or edge, escalate with voice-signaling-escalation"
+        ],
+        "enrichWith": [
+          "ivr-flow-execution-trace",
+          "change-to-incident-correlation"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
       }
+    },
+    "disclosurePolicy": {
+      "description": "Rules that keep every recipe informative without becoming a data dump. Recipes are consumed tier by tier: a consumer stops at the first tier that answers the question and only escalates when a named trigger fires.",
+      "tiers": [
+        {
+          "tier": 0,
+          "name": "headline",
+          "purpose": "One row or one paragraph that says whether something is wrong.",
+          "budget": "1 aggregate query per subject; no per-conversation calls",
+          "examples": [
+            "queue: nOffered, abandon %, service level, oWaiting",
+            "agent: nConnected, tHandle, on-queue %",
+            "conversation: mediaType, queue, disconnect type, wrap-up, duration"
+          ]
+        },
+        {
+          "tier": 1,
+          "name": "timeline",
+          "purpose": "Ordered segments and participants that explain the headline.",
+          "budget": "1 analytics call per conversation (analytics.get.single.conversation.analytics); use bulk analytics.get.multiple.conversations.by.ids for up to 100 ids",
+          "examples": [
+            "segment sequence with queue, agent, disposition, flow, error codes"
+          ]
+        },
+        {
+          "tier": 2,
+          "name": "conditional-enrichment",
+          "purpose": "Fetched only when a Tier 1 trigger fires (see triggers).",
+          "budget": "at most one enrichment family per trigger; never fan out over every conversation in a cohort",
+          "examples": [
+            "SIP messages only when voice disconnect is error/system/transfer-anomalous",
+            "flow execution only when a flow segment ended abnormally"
+          ]
+        },
+        {
+          "tier": 3,
+          "name": "artifact-level",
+          "purpose": "Raw evidence for a named escalation: recordings, transcripts, SIP trace downloads, edge logs.",
+          "budget": "explicit operator request per conversation; metadata first, media/download last",
+          "examples": [
+            "siptraces download",
+            "edge log upload job",
+            "recording media"
+          ]
+        }
+      ],
+      "cohortRules": [
+        "Cohort investigations (queue, agent, division, team, group) start at Tier 0 aggregates, rank subjects, then drill to Tier 1 for the top N outliers (default N=10) rather than every conversation.",
+        "Conversation-level rows are capped per report (default 25 exemplar conversations per outlier, chosen by worst disconnect/longest wait/lowest sentiment).",
+        "Aggregate queue rows are queue events, not distinct conversations; label denominators explicitly."
+      ],
+      "triggers": [
+        {
+          "id": "voice-error-disconnect",
+          "when": "mediaType=voice AND (disconnectType in error,system,endpoint OR sipResponseCode present in segment errorCode)",
+          "then": [
+            "telephony.get.sip.message.for.conversation",
+            "telephony.get.trunk.metrics.summary"
+          ]
+        },
+        {
+          "id": "flow-abnormal-end",
+          "when": "segment.segmentType=ivr/flow AND disconnectType != client with no queue segment following",
+          "then": [
+            "getFlowsExecution",
+            "getArchitectSchedulegroup",
+            "getArchitectEmergencygroups"
+          ]
+        },
+        {
+          "id": "short-abandon",
+          "when": "queue segment abandoned under the short-abandon threshold",
+          "then": [
+            "getArchitectSchedules",
+            "getFlowsExecution"
+          ]
+        },
+        {
+          "id": "long-wait-or-overflow",
+          "when": "tAcd/wait above SLA threshold or multiple queue segments",
+          "then": [
+            "routing.get.queue.members.with.status",
+            "getRoutingQueueComparisonperiods"
+          ]
+        },
+        {
+          "id": "negative-sentiment-or-escalation",
+          "when": "sentiment score negative OR wrap-up in escalation family OR transfer count >=2",
+          "then": [
+            "speech.and.text.analytics.get.sentiment.data.for.conversation",
+            "getConversationRecordingAnnotations",
+            "quality.get.evaluations.query"
+          ]
+        },
+        {
+          "id": "digital-conversation",
+          "when": "mediaType in message,chat,email",
+          "then": [
+            "getConversationsMessage",
+            "getConversationsEmailMessages",
+            "getExternalcontactsContact"
+          ]
+        },
+        {
+          "id": "callback-or-voicemail",
+          "when": "mediaType=callback or voicemail",
+          "then": [
+            "getConversationsCallback",
+            "getVoicemailMessage"
+          ]
+        }
+      ],
+      "validationStatus": "reference-only",
+      "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
+    },
+    "cohortResolution": {
+      "description": "Every 'group' of agents resolves to the same two sets — a userId set and a queueId set — which then feed the shared agent/queue rollups. Resolve the cohort once, snapshot it with a timestamp, and reuse the sets for every downstream aggregate. Divisions, teams, groups, skill groups and queues overlap and change over time, so always record which resolver produced the set.",
+      "resolvers": {
+        "queue": {
+          "users": "getRoutingQueueUsers",
+          "queues": "routing-queues",
+          "note": "Membership is current-state only; use queue conversation history for who actually handled work in a past window."
+        },
+        "division": {
+          "users": "users.division.analysis.get.users.with.division.info",
+          "queues": "authorization.search.division.objects",
+          "alternateQueues": "getRoutingQueuesDivisionviews",
+          "note": "User division and queue division are independent: an agent in Division A can serve a queue in Division B. Roll up agents by user division and queues by queue division, and label which one a metric uses."
+        },
+        "team": {
+          "users": "getTeamMembers",
+          "queues": "(derived) union of users.get.user.s.queue.memberships across members"
+        },
+        "group": {
+          "users": "getGroupMembers",
+          "queues": "(derived) union of users.get.user.s.queue.memberships across members",
+          "note": "Groups are people-collections used for access and notification; they carry no routing meaning by themselves."
+        },
+        "skill-group": {
+          "users": "routing.get.skill.group.members",
+          "queues": "(derived) queues whose evaluation method uses the group's skills",
+          "note": "Skill groups are dynamic (skill/location conditions) and may include member divisions; see getRoutingSkillgroupMembersDivisions."
+        },
+        "agent-division-access": {
+          "divisions": "getAuthorizationDivisionspermittedPagedSubjectId",
+          "note": "Answers 'which divisions can this person see/act in' — use to explain missing conversations in an agent's view, not to compute performance."
+        }
+      },
+      "outputContract": {
+        "userIds": "array of GUIDs",
+        "queueIds": "array of GUIDs",
+        "resolvedAtUtc": "timestamp",
+        "resolver": "one of the keys above"
+      },
+      "validationStatus": "reference-only",
+      "validationNote": "Composed from catalog endpoints; validate joins, permissions, metric denominators and rate limits against a live org before implementation."
     }
   }
 }

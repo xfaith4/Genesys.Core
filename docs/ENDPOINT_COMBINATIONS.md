@@ -546,3 +546,38 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## October 2026 evaluation: scoping, voice quality and path reconstruction
+
+Evaluation of the catalog against the Genesys Cloud API model for single-conversation,
+per-queue, per-agent and per-division investigations. The developer.genesys.cloud pages were
+not reachable from the automated run (egress blocked), so these additions rest on catalog
+content and public search summaries of the analytics conversation data model; confirm field names
+(`mediaEndpointStats`, `flowOutcomes`, `mediaStatsMinConversationMos`) against a live tenant.
+All new recipes are `validationStatus: reference-only`.
+
+### Principle: funnel, don't dump
+
+Queue, agent and division investigations share one shape, `outlier-triage-funnel`:
+
+| Tier | Output | Size |
+|------|--------|------|
+| 0 scope and baseline | KPIs per queue/agent/division | a few numbers per subject |
+| 1 outlier selection | ranked conversationIds | capped at `topN` (default 25) |
+| 2 drilldown | `single-conversation-investigation` on those IDs only | topN conversations |
+
+A division is resolved to its queues with `authorization.list.division.queues`; an agent is
+resolved to queues and division through the user record. The queue's division and the agent's
+division can differ, so rollups reconcile both (`division-queue-agent-scorecard-rollup`).
+
+### New recipes (in `catalog/genesys.catalog.json`)
+
+| Key | Section | Purpose |
+|-----|---------|---------|
+| `outlier-triage-funnel` | investigationRecipes | Capped queue/agent/division investigation |
+| `conversation-set-evidence-bundle` | investigationRecipes | Bulk, narrow-column evidence for the topN IDs |
+| `voice-quality-and-carrier-correlation` | investigationRecipes | Conversation MOS/edgeId joined to Edge, site, trunk, trunk metrics and SIP |
+| `conversation-process-path-reconstruction` | investigationRecipes | IVR flow, queue hops, agents, transfers, wrapup as one path string |
+| `voice-quality-and-carrier-health-kpis` | executiveReportingPlaybooks | Degraded-call % and top edges/trunks |
+| `division-queue-agent-scorecard-rollup` | executiveReportingPlaybooks | Division > queue > agent KPI hierarchy |
+| `one-way-audio-and-poor-mos-triage` | voiceEngineerPlaybooks | Decide carrier vs Edge vs endpoint vs codec |

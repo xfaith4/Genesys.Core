@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-01 (endpoint combination evaluation)
+
+### Added
+
+- Catalog `combinations`: investigation recipes `outlier-triage-funnel`,
+  `conversation-set-evidence-bundle`, `voice-quality-and-carrier-correlation`,
+  `conversation-process-path-reconstruction`; executive playbooks
+  `voice-quality-and-carrier-health-kpis`, `division-queue-agent-scorecard-rollup`;
+  voice playbook `one-way-audio-and-poor-mos-triage`. All reference-only; every
+  dataset reference resolves to an existing catalog dataset or endpoint.
+- `docs/ENDPOINT_COMBINATIONS.md`: October 2026 evaluation section.
+- Note: developer.genesys.cloud was unreachable during this run, so field names are
+  unverified against live documentation.
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

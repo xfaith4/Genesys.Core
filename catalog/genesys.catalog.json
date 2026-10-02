@@ -43234,7 +43234,12 @@
           "getConversationsCallback (callback-type conversations only — scheduled callback time, attempt count, callback number; join on conversationId)",
           "getConversationsMessage + getConversationsMessageDetails (digital/message-type conversations only — full message thread and content beyond the generic conversation object)",
           "getConversationRecordingAnnotations (QM annotation markers on an existing recording; join on conversationId+recordingId from recording-metadata)",
-          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)"
+          "getVoicemailMessage + getVoicemailMessageMedia (voicemail-type conversations only — voicemail metadata and audio; trigger when conversation mediaType=voicemail)",
+          "voice-quality-and-media-path-investigation (run when segment mediaEndpointStats minMos is low or disconnectType is network-initiated; do not run by default)",
+          "ivr-flow-path-and-failure-investigation (run when the conversation has an ivr/flow segment with a failed outcome or exit before an agent)",
+          "getConversationParticipantSecureivrsessions (secure IVR / PCI sessions per participant; presence confirms payment capture ran, content is never retrievable)",
+          "postAnalyticsConversationDetailsProperties (read back the custom properties/attributes written to the conversation for correlation, e.g. BYOI externalTag)",
+          "routing.get.queue.estimated.wait.time (queue EWT now, only for live conversations still waiting)"
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
@@ -43385,6 +43390,9 @@
           "criticalItemFailCount",
           "coachingSessionCount",
           "presenceUtilisationPct"
+        ],
+        "enrichWith": [
+          "agent-queue-and-division-footprint (actual vs configured queue spread, cross-division share)"
         ]
       },
       "agent-not-responding-autoanswer": {
@@ -43604,7 +43612,10 @@
         ],
         "enrichWith": [
           "getVoicemailQueueMessages (queue voicemail backlog; join on queueId, only relevant for queues with voicemail enabled)",
-          "getRoutingQueueMediatypeEstimatedwaittime (per-mediaType EWT — finer-grained than the estimated-wait-time step for queues that mix voice, chat, and email with different EWT profiles)"
+          "getRoutingQueueMediatypeEstimatedwaittime (per-mediaType EWT — finer-grained than the estimated-wait-time step for queues that mix voice, chat, and email with different EWT profiles)",
+          "contact-driver-and-topic-rollup (why customers called this queue)",
+          "agent-queue-and-division-footprint (who actually works this queue and which divisions they belong to)",
+          "routing.get.queue.estimated.wait.time (live wait estimate to validate SLA alerts)"
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
@@ -43695,7 +43706,9 @@
         "enrichWith": [
           "getGroup + getGroupMembers (org-level group membership — a division-scoped team may also be organised as a Genesys group; use when division-agents membership doesn't fully explain a reporting structure)",
           "getAuthorizationRoleUsers (resolve which users hold a given role; pair with division-grants to answer who specifically holds a role in this division)",
-          "getAuthorizationRoleSubjectgrants (the exact division+role grant record for a subject — the authoritative source behind the division-grants step)"
+          "getAuthorizationRoleSubjectgrants (the exact division+role grant record for a subject — the authoritative source behind the division-grants step)",
+          "agent-queue-and-division-footprint (a division's queues and agents overlap other divisions; this quantifies cross-division work)",
+          "contact-driver-and-topic-rollup (division-level contact reasons)"
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
@@ -44787,6 +44800,345 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "voice-quality-and-media-path-investigation": {
+        "description": "Finds and explains poor audio, one-way audio, dropped calls and call-setup failures. Starts from per-segment media-endpoint quality (MOS / R-factor / codec / packet-loss style counters) in analytics detail, localises the problem to an edge, trunk, site or media region, then confirms with SIP signalling. Used by voice engineers; the cohort mode produces a worst-N list for trunk or carrier escalation.",
+        "subjectParam": "conversationId (single mode) or trunkId/edgeId/queueId (cohort mode)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "segment-quality",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "per-segment mediaEndpointStats (minMos, maxLatencyMs, codecs, errorCounts), edgeId, disconnectType, sessionDnis/Ani",
+            "description": "Seed for single mode: the media-quality counters and disconnect reason on each voice segment",
+            "role": "seed"
+          },
+          {
+            "step": "cohort-quality-scan",
+            "dataset": "analytics-conversation-details-query",
+            "joinKey": "queueId or edgeId",
+            "provides": "conversationIds whose voice segments breach a MOS / disconnect threshold in the window",
+            "description": "Seed for cohort mode: query voice conversations in the window filtered to queueId / edge / low-MOS segment predicates, keep ranked top 25 (tier 2)",
+            "role": "seed-alt"
+          },
+          {
+            "step": "edge-load",
+            "dataset": "telephony.get.edge.metrics",
+            "joinKey": "edgeId",
+            "provides": "CPU, memory, active calls, packet counters at the call time",
+            "description": "Resource pressure on the Edge that handled the segment (edgeId from segment-quality)"
+          },
+          {
+            "step": "trunk-state",
+            "dataset": "getTelephonyProvidersEdgesTrunkMetrics",
+            "joinKey": "trunkId",
+            "provides": "trunk calls, capacity, registration state, error counts",
+            "description": "Per-trunk counters for the trunk the call used (trunkId from edge/site config or SIP trace)"
+          },
+          {
+            "step": "trunk-fleet-summary",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "joinKey": "trunkId",
+            "provides": "fleet-wide trunk status and utilisation",
+            "description": "Context: is this trunk an outlier among all trunks, or is the whole estate degraded?"
+          },
+          {
+            "step": "site-and-region",
+            "dataset": "getTelephonyProvidersEdgesSite",
+            "joinKey": "siteId",
+            "provides": "site name, media region, edge group, number plans",
+            "description": "Site and media-region placement of the Edge; a MOS cluster by site/region implies WAN/ISP path, not the carrier"
+          },
+          {
+            "step": "media-regions",
+            "dataset": "getTelephonyMediaregions",
+            "joinKey": "regionId",
+            "provides": "available media regions",
+            "description": "Reference list to check whether the call was anchored in a distant media region"
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.message.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "INVITE/200/BYE/re-INVITE/4xx/5xx, SDP media IP and codec",
+            "description": "Definitive confirmation of setup failures, SDP IP mismatch (one-way audio), early BYE and codec renegotiation",
+            "audience": [
+              "voice-engineer"
+            ]
+          },
+          {
+            "step": "active-alerts",
+            "dataset": "alerting.get.alerts",
+            "joinKey": "edgeId",
+            "provides": "open telephony / edge alerts overlapping the window",
+            "description": "Whether Genesys already flagged the Edge, trunk or interface during the window"
+          }
+        ],
+        "joinSequence": "segment-quality (conversationId -> edgeId) -> edge-load (edgeId) -> trunk-state (trunkId) -> site-and-region (siteId) -> sip-trace (conversationId). Cohort mode: cohort-quality-scan -> group by edgeId/trunk/site -> same drilldown for the top group only.",
+        "diagnosticSignals": [
+          "minMos < 3.5 on one segment only -> endpoint/agent network (check agent WebRTC/phone); minMos low across many segments on one edgeId or siteId -> WAN/ISP/Edge path",
+          "Low MOS clustered on one trunkId across edges -> carrier/trunk path; escalate with SIP trace Call-IDs",
+          "Edge CPU or memory spike coincident with MOS dip -> Edge capacity, not transport",
+          "SDP c= address private/mismatched on the 200 OK vs INVITE -> NAT/SBC rewrite fault, expect one-way audio",
+          "BYE from carrier within seconds of 200 OK with no agent hold/transfer -> network-initiated drop; compare disconnectType in segment",
+          "Multiple 503/480 on one trunk in a short span -> capacity or provider outage; confirm against trunk-fleet-summary"
+        ],
+        "executiveMetrics": [
+          "pctCallsMOSBelow3.5 by site/trunk",
+          "droppedCallRate (network disconnectType / voice segments)",
+          "trunk utilisation peak %",
+          "mean minMos by site"
+        ],
+        "voiceEngineerHighlights": [
+          "Always localise (endpoint vs edge vs trunk vs carrier) before opening a carrier ticket",
+          "Attach SIP Call-ID plus segment edgeId/trunk to every escalation"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Confirm the mediaEndpointStats field names in the tenant's analytics detail payload."
+      },
+      "ivr-flow-path-and-failure-investigation": {
+        "description": "Explains why callers failed or abandoned inside Architect IVR / bot flows: which flow and version handled the call, which path it took, which outcome or milestone it hit, and how that flow compares to the fleet. Used by Architect owners, voice engineers and executives tracking containment.",
+        "subjectParam": "conversationId (single mode) or flowId (flow mode)",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "flow-segments",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "flowId, flowVersion, flowType, entryReason, exitReason, flowOutcomes, transferTargets per ivr/flow segment",
+            "description": "Seed for single mode: which flow(s) touched the conversation and how each exited",
+            "role": "seed"
+          },
+          {
+            "step": "flow-definition",
+            "dataset": "getFlow",
+            "joinKey": "flowId",
+            "provides": "flow name, type, active version, division",
+            "description": "Resolve flowId to a human-readable flow and its division"
+          },
+          {
+            "step": "flow-instance-search",
+            "dataset": "postFlowsInstancesQuery",
+            "joinKey": "flowInstanceId",
+            "provides": "flow instance ids, start/end, exit reason, errors for the conversation or flow",
+            "description": "Per-execution record; filter by conversationId (single) or flowId + time (flow mode). Requires flow execution data / log levels to be enabled for the flow"
+          },
+          {
+            "step": "flow-instance-detail",
+            "dataset": "getFlowsInstance",
+            "joinKey": "flowInstanceId",
+            "provides": "execution path, variables, action-level results, error details",
+            "description": "Tier-3 evidence for exemplar instances only; shows the failing action or data-action"
+          },
+          {
+            "step": "flow-outcomes-fleet",
+            "dataset": "analytics.query.flow.aggregates.execution.metrics",
+            "joinKey": "flowId",
+            "provides": "nFlow, nFlowOutcome, nFlowOutcomeFailed, nFlowMilestone, tFlowDisconnect by flowId",
+            "description": "Baseline containment and failure counts for the flow over the window"
+          },
+          {
+            "step": "flow-execution-aggregates",
+            "dataset": "postAnalyticsFlowexecutionsAggregatesQuery",
+            "joinKey": "flowId",
+            "provides": "execution counts by flowId, exitReason, entryType and version",
+            "description": "Breaks failures down by exit reason and version, catching a bad deploy"
+          },
+          {
+            "step": "flow-live-load",
+            "dataset": "analytics.query.flow.observations",
+            "joinKey": "flowId",
+            "provides": "active flow instances right now",
+            "description": "Real-time load, used only for live incidents"
+          },
+          {
+            "step": "change-trail",
+            "dataset": "audits.query.audit.logs.user.actions",
+            "joinKey": "flowId",
+            "provides": "Architect publish / save / data-action changes",
+            "description": "Whether a flow publish preceded the failure rate change (see change-to-incident-correlation)"
+          }
+        ],
+        "joinSequence": "flow-segments (conversationId -> flowId, version) -> flow-definition (flowId) -> flow-instance-search (conversationId or flowId) -> flow-instance-detail (instanceId, exemplars only). Flow mode: flow-outcomes-fleet -> flow-execution-aggregates by version/exitReason -> exemplar instances.",
+        "diagnosticSignals": [
+          "Failure rate step-change at one flow version -> regression introduced by that publish; compare change-trail timestamps",
+          "exitReason dominated by error/disconnect with no outcome -> data action or external dependency failing (see integration-and-api-throttling-diagnostics)",
+          "High transfer-to-queue exit but low outcome rate -> containment loss, not failure; review menu design",
+          "Caller disconnects concentrated at one milestone -> prompt/menu abandonment point"
+        ],
+        "executiveMetrics": [
+          "containmentRate% = nFlowOutcome/nFlow",
+          "flowFailureRate% by version",
+          "IVR abandon rate (disconnect within flow / nFlow)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Flow instance endpoints depend on tenant flow execution-data settings and retention."
+      },
+      "agent-queue-and-division-footprint": {
+        "description": "Maps one agent, a team/group, or a division's agents to every queue they actually worked, the division each of those queues belongs to, and their share of volume per queue. A division is a grouping of objects, not of activity: agents routinely serve queues in other divisions, so footprint exposes cross-division work, agents spread across too many queues, and queues staffed mostly by people from other divisions.",
+        "subjectParam": "userId, groupId, or divisionId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "roster",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "joinKey": "userId",
+            "provides": "userId, name, home division",
+            "description": "Agent roster. For divisionId subject use this; for groupId use getGroupMembers; for a single agent use the userId directly",
+            "role": "seed"
+          },
+          {
+            "step": "group-members",
+            "dataset": "getGroupMembers",
+            "joinKey": "userId",
+            "provides": "userIds in the group",
+            "description": "Roster when the subject is a team/group rather than a division",
+            "role": "seed-alt"
+          },
+          {
+            "step": "memberships",
+            "dataset": "users.get.user.s.queue.memberships",
+            "joinKey": "userId",
+            "provides": "queueIds the agent is assigned to (configured footprint)",
+            "description": "Configured membership per agent, to compare against actual handled volume"
+          },
+          {
+            "step": "queue-catalog",
+            "dataset": "routing.get.all.queues.with.details",
+            "joinKey": "queueId",
+            "provides": "queueId, name, division.id, skill-evaluation, media types",
+            "description": "Resolve every queueId to its owning division so cross-division work can be flagged"
+          },
+          {
+            "step": "actual-footprint",
+            "dataset": "analytics.query.conversation.aggregates.agent.performance",
+            "joinKey": "userId+queueId",
+            "provides": "nConnected, tHandle by userId x queueId",
+            "description": "Actual handled volume per agent per queue; share = agent queue volume / agent total"
+          },
+          {
+            "step": "skills",
+            "dataset": "users.get.user.routing.skills",
+            "joinKey": "userId",
+            "provides": "skill names and proficiency per agent",
+            "description": "Explains skill-based routing spread and highlights agents holding rare skills"
+          },
+          {
+            "step": "on-queue-time",
+            "dataset": "analytics.query.user.aggregates.login.activity",
+            "joinKey": "userId",
+            "provides": "on-queue and off-queue time by agent",
+            "description": "Normalises volume by time on queue so footprint reflects load, not availability"
+          },
+          {
+            "step": "division-registry",
+            "dataset": "authorization.get.all.divisions",
+            "joinKey": "divisionId",
+            "provides": "divisionId, name",
+            "description": "Label divisions in the output matrix"
+          }
+        ],
+        "joinSequence": "roster (userId) -> memberships (userId -> queueIds) UNION actual-footprint (userId x queueId) -> queue-catalog (queueId -> divisionId) -> division-registry (divisionId -> name). Derived: footprint matrix agent x queue x division with volume share.",
+        "derivedMetrics": [
+          "queuesWorkedCount per agent (actual) vs queuesAssignedCount (configured)",
+          "crossDivisionVolumeShare = volume on queues outside agent's home division / total volume",
+          "dormantMembership = assigned queue with zero handled volume in window",
+          "unconfiguredWork = handled volume on queues the agent is not a member of (direct-routed / transfers)",
+          "hhi concentration of volume across queues (spread-thin indicator)"
+        ],
+        "diagnosticSignals": [
+          "Agent assigned to > 8 queues with < 5% share on most -> dilution; review routing configuration before blaming agent AHT",
+          "Large crossDivisionVolumeShare for a division's agents -> division boundary understates their real contribution; report by queue-division as well as agent-division",
+          "Queue whose handled volume is mostly from another division's agents -> staffing dependency; flag in capacity planning"
+        ],
+        "executiveMetrics": [
+          "agentCount by division",
+          "crossDivisionVolumeShare%",
+          "avg queuesWorked per agent",
+          "dormantMembership count"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "contact-driver-and-topic-rollup": {
+        "description": "Answers 'why are customers contacting us' for a queue, division or the whole organisation by joining wrapup outcomes with Speech & Text Analytics topics and transfer/abandon behaviour. This is the single most reusable executive rollup because it converts volume into causes.",
+        "subjectParam": "queueId, divisionId, or organisation",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "wrapup-mix",
+            "dataset": "analytics.query.conversation.aggregates.wrapup.distribution",
+            "joinKey": "queueId+wrapUpCode",
+            "provides": "nConnected by queueId x wrapUpCode",
+            "description": "Agent-selected contact reason (always available, coarse)",
+            "role": "seed"
+          },
+          {
+            "step": "wrapup-labels",
+            "dataset": "routing.get.queue.wrapup.codes.by.queue",
+            "joinKey": "wrapUpCode",
+            "provides": "wrapup code names",
+            "description": "Resolve wrapUpCode ids to names"
+          },
+          {
+            "step": "topic-catalog",
+            "dataset": "speechandtextanalytics.get.topics",
+            "joinKey": "topicId",
+            "provides": "topic ids, names, programs",
+            "description": "Topic id -> name catalog for S&TA-detected contact reasons"
+          },
+          {
+            "step": "topic-volume",
+            "dataset": "postAnalyticsTranscriptsAggregatesQuery",
+            "joinKey": "queueId+topicId",
+            "provides": "nSpeechTextAnalyzedConversations and sentiment by topic x queue",
+            "description": "Detected-topic volume and sentiment per queue where S&TA is enabled"
+          },
+          {
+            "step": "transfer-rate",
+            "dataset": "analytics.query.conversation.aggregates.transfer.metrics",
+            "joinKey": "queueId",
+            "provides": "nTransferred by queue",
+            "description": "Which reasons are bounced between queues"
+          },
+          {
+            "step": "abandon-rate",
+            "dataset": "analytics.query.conversation.aggregates.abandon.metrics",
+            "joinKey": "queueId",
+            "provides": "nAbandoned by queue",
+            "description": "Reasons correlated with abandonment pressure"
+          },
+          {
+            "step": "handle-time",
+            "dataset": "analytics.query.conversation.aggregates.queue.performance",
+            "joinKey": "queueId",
+            "provides": "tHandle, nConnected by queue",
+            "description": "Cost of each reason in handle time"
+          },
+          {
+            "step": "exemplars",
+            "dataset": "analytics-conversation-details-query",
+            "joinKey": "conversationId",
+            "provides": "top-N conversationIds for the top 3 drivers",
+            "description": "Tier-2 sample for the largest or fastest-growing driver only"
+          }
+        ],
+        "joinSequence": "wrapup-mix (queueId, wrapUpCode) -> wrapup-labels; topic-volume (queueId, topicId) -> topic-catalog; both overlay queue-level transfer/abandon/handle. Rank drivers by volume x tHandle; emit top 10.",
+        "derivedMetrics": [
+          "driverShare% = driver volume / total connected",
+          "driverCost = driver volume x mean tHandle",
+          "driverGrowth% vs prior window",
+          "driverTransferRate",
+          "wrapup-vs-topic disagreement rate (coding quality)"
+        ],
+        "executiveMetrics": [
+          "top 10 contact drivers with share, cost and week-over-week growth",
+          "transfer/abandon rate of top drivers",
+          "S&TA coverage% (nSpeechTextAnalyzedConversations / nConnected)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Topic data exists only where S&TA programs are enabled; report coverage beside every topic figure."
       }
     },
     "executiveReportingPlaybooks": {
@@ -45184,6 +45536,78 @@
         "costCaveat": "getBillingReportsBillableusage and postUsageAggregatesQueryJobs return usage units (minutes, sessions, API calls), not a dollar figure — attaching a cost-per-contained-session number requires the tenant's own rate card as an external input. Report usage units natively; do not silently convert to a currency estimate without that input documented alongside the number.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "voice-quality-and-drop-rate-kpis": {
+        "description": "Network-quality headline for voice: share of calls with poor MOS and network-initiated drops by site, trunk and carrier. Turns telecom health into an executive-readable service risk.",
+        "datasetsInOrder": [
+          "analytics-conversation-details-query",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.edge.metrics",
+          "getTelephonyProvidersEdgesSites"
+        ],
+        "joinOn": "edgeId / siteId / trunkId",
+        "groupBy": [
+          "siteId",
+          "trunkId",
+          "day"
+        ],
+        "outputMetrics": [
+          "pctCallsMOSBelow3.5",
+          "droppedCallRate%",
+          "trunkUtilisationPeak%",
+          "edgeCpuPeak%"
+        ],
+        "executivePresentation": "Site x week heat map with a worst-3 list; drilldown via voice-quality-and-media-path-investigation",
+        "recipe": "voice-quality-and-media-path-investigation"
+      },
+      "contact-driver-and-repeat-rollup": {
+        "description": "Top contact drivers with cost and trend, paired with repeat-contact and transfer-loop rates, so leaders see what to fix first (volume avoidable through first-contact resolution).",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.wrapup.distribution",
+          "postAnalyticsTranscriptsAggregatesQuery",
+          "analytics.query.conversation.aggregates.transfer.metrics",
+          "analytics.query.conversation.aggregates.queue.performance"
+        ],
+        "joinOn": "queueId + wrapUpCode / topicId",
+        "groupBy": [
+          "driver",
+          "queueId",
+          "week"
+        ],
+        "outputMetrics": [
+          "driverShare%",
+          "driverCost (volume x tHandle)",
+          "driverGrowth%",
+          "transferRate%",
+          "repeatContactRate%"
+        ],
+        "executivePresentation": "Pareto of top 10 drivers; one-line callout of the fastest-growing driver",
+        "recipes": [
+          "contact-driver-and-topic-rollup",
+          "repeat-contact-and-transfer-loop-investigation"
+        ]
+      },
+      "staffing-footprint-and-cross-division-load": {
+        "description": "Shows how agent capacity is spread across queues and divisions, flagging dilution and hidden cross-division dependency, to support capacity and org-design decisions.",
+        "datasetsInOrder": [
+          "users.division.analysis.get.users.with.division.info",
+          "routing.get.all.queues.with.details",
+          "analytics.query.conversation.aggregates.agent.performance",
+          "analytics.query.user.aggregates.login.activity"
+        ],
+        "joinOn": "userId -> queueId -> divisionId",
+        "groupBy": [
+          "divisionId",
+          "queueId"
+        ],
+        "outputMetrics": [
+          "crossDivisionVolumeShare%",
+          "avg queuesWorked per agent",
+          "dormantMembership count",
+          "occupancy by division"
+        ],
+        "executivePresentation": "Division-to-division flow matrix (agent division x queue division) with the top 5 dependencies called out",
+        "recipe": "agent-queue-and-division-footprint"
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45327,6 +45751,153 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "poor-audio-triage": {
+        "description": "Ordered checklist for 'the call sounded bad / one-way audio': decide endpoint vs edge vs trunk vs carrier in under five calls before pulling any SIP or PCAP evidence.",
+        "datasetsInOrder": [
+          "analytics.get.single.conversation.analytics",
+          "telephony.get.edge.metrics",
+          "getTelephonyProvidersEdgesTrunkMetrics",
+          "telephony.get.sip.message.for.conversation"
+        ],
+        "diagnosticSignals": [
+          "Check minMos and edgeId on the segment first; one bad segment is usually endpoint, many on one edge/trunk is infrastructure",
+          "Only fetch SIP trace/PCAP after the layer is identified, and only for the exemplar call"
+        ],
+        "recipe": "voice-quality-and-media-path-investigation"
+      },
+      "ivr-failure-triage": {
+        "description": "For 'callers drop in the IVR / flow errors': confirm the flow version, exit reason and failing action before touching telephony.",
+        "datasetsInOrder": [
+          "analytics.get.single.conversation.analytics",
+          "postFlowsInstancesQuery",
+          "getFlowsInstance",
+          "postAnalyticsFlowexecutionsAggregatesQuery"
+        ],
+        "diagnosticSignals": [
+          "Compare failure rate across flow versions to detect a bad publish",
+          "Separate carrier disconnects (SIP BYE early) from flow-initiated disconnects using exitReason"
+        ],
+        "recipe": "ivr-flow-path-and-failure-investigation"
+      }
+    },
+    "investigationDesignPrinciples": {
+      "_description": "Rules that every recipe follows so output stays informative rather than a data dump. Recipes are consumed top-down: run the cheap aggregate tier first and only descend to a costlier tier for the subjects that tier flags.",
+      "triageLadder": [
+        {
+          "tier": 0,
+          "name": "headline",
+          "cost": "1-3 aggregate calls, no per-conversation rows",
+          "answers": "Is there a problem, how big, and where (queue / agent / division / trunk / flow)?",
+          "typicalDatasets": [
+            "analytics.query.conversation.aggregates.queue.performance",
+            "analytics.query.conversation.aggregates.abandon.metrics",
+            "analytics.query.queue.aggregates.service.level",
+            "analytics.query.conversation.aggregates.division.performance"
+          ]
+        },
+        {
+          "tier": 1,
+          "name": "outliers",
+          "cost": "aggregates regrouped by one more dimension (hour, agent, wrapup, flow, trunk)",
+          "answers": "Which hours / agents / codes / flows / trunks deviate from the tier-0 baseline?",
+          "rule": "Keep only dimensions beyond 1.5x the window median (or the top 10 by impact); drop the rest."
+        },
+        {
+          "tier": 2,
+          "name": "exemplars",
+          "cost": "one conversation-detail query filtered to the tier-1 outliers; sample at most 25 conversationIds",
+          "answers": "What do concrete bad examples look like?",
+          "rule": "Rank by signal (abandon, long hold, transfer count, low MOS, failed flow outcome, negative sentiment) and take the top N; never enumerate the full population into a report."
+        },
+        {
+          "tier": 3,
+          "name": "evidence",
+          "cost": "per-conversation fan-out: recording, SIP trace, transcript, evaluation, flow instance",
+          "answers": "Why did this one conversation behave this way?",
+          "rule": "Run only for exemplars chosen in tier 2 or an explicitly named conversationId. Evidence stays as artifact files; the summary carries pointers and one-line findings only."
+        }
+      ],
+      "outputBudget": {
+        "summarySections": "<= 7 per investigation",
+        "rowsPerSection": "<= 25, remainder summarised as a count and an artifact path",
+        "findingsFirst": "Lead with <= 5 ranked findings (signal, magnitude, evidence pointer); tables support findings, not vice versa",
+        "piiPosture": "Tier 0-1 output is aggregate and PII-free; PII appears only in tier 3 artifacts under the declared redaction profile"
+      },
+      "entryPoints": [
+        {
+          "subject": "conversationId",
+          "start": "single-conversation-investigation",
+          "escalatesTo": [
+            "voice-quality-and-media-path-investigation",
+            "ivr-flow-path-and-failure-investigation",
+            "repeat-contact-and-transfer-loop-investigation"
+          ],
+          "seedCost": "1 call"
+        },
+        {
+          "subject": "queueId",
+          "start": "queue-investigation",
+          "escalatesTo": [
+            "queue-overflow-and-deflection-analysis",
+            "contact-driver-and-topic-rollup",
+            "skill-coverage-gap-analysis"
+          ],
+          "seedCost": "3-6 aggregate calls"
+        },
+        {
+          "subject": "userId (agent)",
+          "start": "agent-investigation",
+          "escalatesTo": [
+            "agent-queue-and-division-footprint",
+            "agent-not-responding-autoanswer"
+          ],
+          "seedCost": "3-5 calls"
+        },
+        {
+          "subject": "divisionId",
+          "start": "division-investigation",
+          "escalatesTo": [
+            "agent-queue-and-division-footprint",
+            "configuration-drift-and-division-access-evidence"
+          ],
+          "seedCost": "4-8 calls; division = queues UNION agents, which can span queues and other divisions"
+        },
+        {
+          "subject": "groupId / teamId",
+          "start": "team-investigation",
+          "escalatesTo": [
+            "agent-queue-and-division-footprint"
+          ],
+          "seedCost": "2-4 calls"
+        },
+        {
+          "subject": "trunkId / edgeId / siteId",
+          "start": "voice-quality-and-media-path-investigation",
+          "escalatesTo": [
+            "trunk-and-edge-health-check"
+          ],
+          "seedCost": "2-4 calls"
+        },
+        {
+          "subject": "flowId",
+          "start": "ivr-flow-path-and-failure-investigation",
+          "escalatesTo": [
+            "flow-and-ivr-diagnostics"
+          ],
+          "seedCost": "2-3 calls"
+        }
+      ],
+      "joinKeyCheatSheet": {
+        "conversationId": "analytics details, conversation object, recording, S&TA, evaluation, survey, SIP trace, flow instance (via flow session)",
+        "conversationId+participantId": "participant wrapup, participant attributes, secure IVR sessions",
+        "conversationId+communicationId (session)": "transcript URL, recording per leg",
+        "queueId": "all queue aggregates, observations, members, wrapup labels, estimated wait time",
+        "userId": "agent aggregates, presence/login activity, routing status and skills, queue memberships, evaluations, coaching",
+        "divisionId": "queue and user division views, division aggregates, grants, audit entities (a division is a group of queues AND of agents, not of agents' queue activity)",
+        "flowId": "flow aggregates, outcomes, milestones, flow observations, flow instances",
+        "edgeId / trunkId / siteId": "edge metrics, trunk metrics, SIP trunk config; conversation links to them via segment edgeId / SIP trace remote/local addresses",
+        "externalContactId / ANI": "customer-360 and repeat-contact history"
       }
     }
   }

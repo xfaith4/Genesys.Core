@@ -526,6 +526,59 @@ The matrix below shows which datasets are used across which investigations and r
 *Refer to [INVESTIGATIONS.md](INVESTIGATIONS.md) for the investigation composer contract.*
 
 
+## October 2026 evaluation — triage ladder and new recipes
+
+Evaluated the catalog's combinations for the three standard entry points (one conversation,
+a queue, an agent) plus divisions/groups. The existing recipes already cover identity,
+timing, quality, S&TA and aggregates well. The gaps were (a) no explicit rule for keeping output
+small, (b) voice-quality / media-path forensics, (c) IVR flow-path forensics, (d) divisions and
+agents spanning queues, and (e) a cause-oriented executive rollup. All are encoded in
+`catalog/genesys.catalog.json` under `combinations` (`validationStatus: reference-only`).
+
+> The Genesys developer portal pages (API Explorer, BYOI guide, conversation injection, blueprints,
+> condensed conversation info) were not reachable from the automated run (egress blocked), so
+> this evaluation rests on the catalog's endpoint inventory and prior knowledge of those pages.
+> Re-check endpoint behaviour against the portal before implementing.
+
+### Triage ladder (`combinations.investigationDesignPrinciples`)
+
+| Tier | Cost | Answers | Rule |
+|------|------|---------|------|
+| 0 headline | 1-3 aggregate calls | Is there a problem, how big, where? | No per-conversation rows |
+| 1 outliers | aggregates regrouped by one dimension | Which hour/agent/code/flow/trunk deviates? | Keep > 1.5x median or top 10 |
+| 2 exemplars | one detail query on tier-1 outliers | What do bad examples look like? | Sample <= 25 ranked by signal |
+| 3 evidence | per-conversation fan-out (recording, SIP, transcript, flow instance) | Why did this one behave so? | Only for chosen exemplars |
+
+Output budget: <= 7 summary sections, <= 25 rows per section, <= 5 ranked findings up front,
+PII only in tier-3 artifacts. The same block carries an entry-point matrix (subject -> start
+recipe -> escalation recipes) and a join-key cheat sheet.
+
+### New investigation recipes
+
+| Recipe | Subject | Why it adds value |
+|--------|---------|-------------------|
+| `voice-quality-and-media-path-investigation` | conversationId, or trunk/edge/queue cohort | Localises bad audio/drops to endpoint vs edge vs trunk vs carrier using segment MOS, edge/trunk metrics, site/media region, then SIP |
+| `ivr-flow-path-and-failure-investigation` | conversationId or flowId | Flow version, exit reason, failing action via flow instances; spots a bad publish by version |
+| `agent-queue-and-division-footprint` | userId, groupId or divisionId | Actual vs configured queue spread, cross-division volume share. A division groups objects, not activity, so this is how division/agent-group reporting stays honest across queues |
+| `contact-driver-and-topic-rollup` | queue, division or org | Wrapup x S&TA topic x transfer/abandon/handle = cost-ranked contact drivers |
+
+Existing recipes (`single-conversation`, `queue`, `division`, `agent`) gained `enrichWith`
+pointers to these, with explicit "run only when" triggers so they are not default fan-out.
+
+### New executive playbooks and voice-engineer playbooks
+
+- `voice-quality-and-drop-rate-kpis`: % calls MOS < 3.5, network drop rate, trunk/edge peaks by site.
+- `contact-driver-and-repeat-rollup`: top-10 driver Pareto with cost, growth, transfer and repeat rates.
+- `staffing-footprint-and-cross-division-load`: division-to-division load matrix, dilution and dormant memberships.
+- `poor-audio-triage`, `ivr-failure-triage` (voice engineer): short ordered checklists that decide the failing layer before heavy evidence is pulled.
+
+### Division / group guidance
+
+To report on a division correctly, take the union of (queues whose `division.id` matches) and
+(agents whose home division matches), then use `agent-queue-and-division-footprint` to report
+volume both by agent-division and by queue-division. A Genesys group/team is a third,
+independent grouping; start from `getGroupMembers` and reuse the same footprint steps.
+
 ## September 2026 reconciliation
 
 Recent reference recipes are consolidated in `catalog/genesys.catalog.json` and marked

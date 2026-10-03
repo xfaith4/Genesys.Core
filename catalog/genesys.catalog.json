@@ -44787,6 +44787,365 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "conversation-recording-and-secure-ivr-forensics": {
+        "description": "Answers 'why is this recording missing, short, annotated or paused?' for one voice conversation. Combines recording metadata with the org/retention/recording-trunk configuration that decides whether a recording should exist, plus secure-IVR pause sessions and QM annotations. Run after single-conversation-investigation shows an empty recording result.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, durationMs, archiveDate, deleteDate, fileState",
+            "description": "Seed: was a recording captured and what is its lifecycle state",
+            "role": "seed"
+          },
+          {
+            "step": "annotations",
+            "dataset": "getConversationRecordingAnnotations",
+            "joinKey": "conversationId+recordingId",
+            "provides": "annotation text, type, offset",
+            "description": "QM/agent annotations on the recording; only when recordingId exists",
+            "conditional": "recording-metadata returns at least one recordingId"
+          },
+          {
+            "step": "secure-ivr-sessions",
+            "dataset": "getConversationParticipantSecureivrsessions",
+            "joinKey": "conversationId+participantId",
+            "provides": "secure session id, flow, state",
+            "description": "Secure IVR (PCI) pause/mask sessions per participant; explains intentionally redacted audio spans",
+            "conditional": "conversation has an ivr/acd participant"
+          },
+          {
+            "step": "recording-settings",
+            "dataset": "getRecordingSettings",
+            "joinKey": "(org)",
+            "provides": "maxConcurrentDownloads, recordingsCloudOnly, screenRecording flags",
+            "description": "Org-level recording switches; fetched once per investigation batch"
+          },
+          {
+            "step": "retention-policies",
+            "dataset": "getRecordingMediaretentionpolicies",
+            "joinKey": "(org)",
+            "provides": "policy name, conditions (queue/user/dnis/direction), actions, enabled, order",
+            "description": "Media-retention policies: confirm a policy matched the call's queue/DNIS/direction; policy conditions are the evidence for 'should have recorded'"
+          },
+          {
+            "step": "recording-trunks",
+            "dataset": "getTelephonyProvidersEdgesTrunkswithrecording",
+            "joinKey": "trunkId from sip-trace/call-detail",
+            "provides": "trunk ids with trunk-side recording",
+            "description": "Trunk-based recording coverage; cross-check the trunk the call used"
+          }
+        ],
+        "joinSequence": "recording-metadata (conversationId) -> annotations (recordingId) -> secure-ivr-sessions (participantId) -> retention-policies (match on queueId/userId/dnis/direction from analytics-detail) -> recording-trunks (trunkId from call-detail)",
+        "diagnosticSignals": [
+          "No recordingId AND no retention policy matches queue/DNIS/direction -> policy gap, not a platform fault",
+          "Policy matches but no recording AND trunk absent from trunks-with-recording -> trunk recording not enabled on that trunk",
+          "Recording present but shorter than tTalk -> secure-IVR pause or agent/pause-recording action; check secure-ivr-sessions",
+          "fileState != AVAILABLE -> archived/restoring/deleted; check deleteDate against retention policy"
+        ],
+        "outputBudget": "Return one verdict row (recorded yes/no, expected yes/no, matching policy name, reason) plus the evidence rows above; do not export retention-policy conditions beyond the matched policy.",
+        "executiveMetrics": [
+          "recordingCoveragePct (via recording-compliance-audit rollup)",
+          "policyGapCount"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "conversation-ai-assist-and-sentiment-review": {
+        "description": "Quality-focused conversation deep dive: sentiment trajectory, AI summary, Agent Assist suggestions and agent checklist adherence. Use after single-conversation-investigation flags extreme sentiment or when QA needs content evidence without listening to audio.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "sentiment-phrases",
+            "dataset": "getSpeechandtextanalyticsConversationSentiments",
+            "joinKey": "conversationId",
+            "provides": "phrase-level sentiment, participant purpose, timestamps",
+            "description": "Where in the call sentiment turned; pairs with sta-overview scores",
+            "role": "seed"
+          },
+          {
+            "step": "sta-summaries",
+            "dataset": "getSpeechandtextanalyticsConversationSummaries",
+            "joinKey": "conversationId",
+            "provides": "summary text, reasonForContact, resolution",
+            "description": "STA-generated summary per communication"
+          },
+          {
+            "step": "copilot-summaries",
+            "dataset": "getConversationSummaries",
+            "joinKey": "conversationId",
+            "provides": "agent copilot summary, state",
+            "description": "Agent Copilot summary and its approval state"
+          },
+          {
+            "step": "suggestions",
+            "dataset": "getConversationSuggestions",
+            "joinKey": "conversationId",
+            "provides": "suggestion id, type (knowledge/article/answer), state, agent action",
+            "description": "Agent Assist suggestions shown and whether the agent used them"
+          },
+          {
+            "step": "agent-checklists",
+            "dataset": "getConversationCommunicationAgentchecklists",
+            "joinKey": "conversationId+communicationId",
+            "provides": "checklist id, item states",
+            "description": "Checklist completion per communication; communicationId from the analytics-detail participant sessions",
+            "conditional": "Agent checklists licensed"
+          },
+          {
+            "step": "evaluation",
+            "dataset": "getQualityConversationEvaluation",
+            "joinKey": "conversationId+evaluationId",
+            "provides": "score, critical answers, evaluator",
+            "description": "Evaluation detail once quality.get.evaluations.query returns the evaluationId"
+          }
+        ],
+        "joinSequence": "sentiment-phrases -> sta-summaries -> copilot-summaries -> suggestions -> agent-checklists (communicationId) -> evaluation (evaluationId)",
+        "diagnosticSignals": [
+          "Customer sentiment drops after a hold/transfer segment in analytics-detail -> process friction rather than agent behaviour",
+          "Suggestions shown but never used and AHT high -> knowledge relevance problem",
+          "Checklist items incomplete while evaluation score high -> evaluation form misaligned with checklist",
+          "Copilot summary absent but STA summary present -> Copilot not enabled for the agent/queue"
+        ],
+        "outputBudget": "Cap sentiment output to the 5 lowest-scoring phrases and the transition points; summaries as text only; suggestions as counts by state.",
+        "executiveMetrics": [
+          "customerSentimentScore",
+          "suggestionUseRatePct",
+          "checklistCompletionPct",
+          "evaluationScore"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "agent-hierarchy-access-and-routing-state": {
+        "description": "Extends agent-investigation with who the agent reports to, what they can access and what their routing state is right now. Divisions are groups: 'divisionspermitted' for the agent shows the cross-queue division scope their roles give them, which explains 'agent can't see/answer queue X' tickets.",
+        "subjectParam": "userId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "identity",
+            "dataset": "getUser",
+            "joinKey": "userId",
+            "provides": "name, email, state, division, manager",
+            "description": "Seed identity (use expand=division,manager)",
+            "role": "seed"
+          },
+          {
+            "step": "superiors",
+            "dataset": "getUserSuperiors",
+            "joinKey": "userId",
+            "provides": "supervisor ids",
+            "description": "Reporting chain upward; who to notify/escalate to"
+          },
+          {
+            "step": "direct-reports",
+            "dataset": "getUserDirectreports",
+            "joinKey": "userId",
+            "provides": "report ids",
+            "description": "Reporting chain downward when the subject is a supervisor; converts a supervisor into an agent-group scope"
+          },
+          {
+            "step": "queues",
+            "dataset": "getUserQueues",
+            "joinKey": "userId",
+            "provides": "queueId, joined, divisionId",
+            "description": "Queue membership across divisions"
+          },
+          {
+            "step": "skill-groups",
+            "dataset": "getUserSkillgroups",
+            "joinKey": "userId",
+            "provides": "skill group ids",
+            "description": "Skill-group membership; routing eligibility via groups, not just direct skills"
+          },
+          {
+            "step": "routing-languages",
+            "dataset": "getUserRoutinglanguages",
+            "joinKey": "userId",
+            "provides": "language, proficiency",
+            "description": "Language routing eligibility"
+          },
+          {
+            "step": "routing-status",
+            "dataset": "getUserRoutingstatus",
+            "joinKey": "userId",
+            "provides": "status (IDLE/INTERACTING/OFF_QUEUE/NOT_RESPONDING), startTime",
+            "description": "Current routing status; NOT_RESPONDING links to agent-not-responding-autoanswer"
+          },
+          {
+            "step": "station",
+            "dataset": "getUserStation",
+            "joinKey": "userId",
+            "provides": "associated/default station",
+            "description": "Station/phone assignment for softphone vs hard phone triage"
+          },
+          {
+            "step": "roles",
+            "dataset": "getUserRoles",
+            "joinKey": "userId",
+            "provides": "role ids, divisions per role",
+            "description": "Roles and the divisions each role is scoped to"
+          },
+          {
+            "step": "permitted-divisions",
+            "dataset": "getAuthorizationDivisionspermittedPagedSubjectId",
+            "joinKey": "subjectId=userId",
+            "provides": "divisions the subject may access",
+            "description": "Effective division scope for the agent/supervisor"
+          }
+        ],
+        "joinSequence": "identity -> superiors/direct-reports -> queues -> skill-groups + routing-languages -> routing-status -> roles -> permitted-divisions",
+        "diagnosticSignals": [
+          "Queue in queues but queue.divisionId not in permitted-divisions -> agent cannot see queue items in the UI",
+          "routing-status NOT_RESPONDING repeatedly -> run agent-not-responding-autoanswer",
+          "No skill-group or skill matching the queue's skill requirements -> agent never offered conversations",
+          "direct-reports present -> use as the agent set for team-level rollups (team vs division is a different grouping)"
+        ],
+        "outputBudget": "One record per agent: counts plus the names that matter (division, supervisor, queues not permitted). Do not dump role permission lists.",
+        "executiveMetrics": [
+          "agentsWithoutPermittedQueueAccess",
+          "spanOfControl"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "division-scope-resolution": {
+        "description": "Resolves a division (a cross-queue, cross-skill agent/queue grouping) into the concrete queueId and userId sets that rollup and investigation recipes then filter on. Run once, cache the sets, feed them to queue/agent aggregates instead of re-listing per metric.",
+        "subjectParam": "divisionId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "division",
+            "dataset": "getAuthorizationDivision",
+            "joinKey": "divisionId",
+            "provides": "name, description, objectCounts",
+            "description": "Seed: division metadata and object counts (queues, users, flows)",
+            "role": "seed"
+          },
+          {
+            "step": "home-division",
+            "dataset": "getAuthorizationDivisionsHome",
+            "joinKey": "(org)",
+            "provides": "home division id",
+            "description": "Identify the default division objects land in; large 'home' counts signal un-governed objects"
+          },
+          {
+            "step": "division-queues",
+            "dataset": "authorization.list.division.queues",
+            "joinKey": "divisionId",
+            "provides": "queueIds",
+            "description": "Queue set for the division"
+          },
+          {
+            "step": "division-objects",
+            "dataset": "authorization.search.division.objects",
+            "joinKey": "divisionId",
+            "provides": "users/queues/flows/skills in division",
+            "description": "Mixed object search when users and queues are needed at once"
+          },
+          {
+            "step": "division-users",
+            "dataset": "users.division.analysis.get.users.with.division.info",
+            "joinKey": "divisionId",
+            "provides": "userIds with division",
+            "description": "Agent set for the division"
+          },
+          {
+            "step": "queue-members",
+            "dataset": "getRoutingQueueUsers",
+            "joinKey": "queueId",
+            "provides": "members of each division queue",
+            "description": "Detects agents working division queues that belong to other divisions (cross-division staffing)"
+          },
+          {
+            "step": "division-limit",
+            "dataset": "getAuthorizationDivisionsLimit",
+            "joinKey": "(org)",
+            "provides": "division limit",
+            "description": "Capacity check before governance changes"
+          }
+        ],
+        "joinSequence": "division -> division-queues + division-users -> queue-members (per queueId) -> emit {divisionId, queueIds[], userIds[], foreignMemberIds[]}",
+        "diagnosticSignals": [
+          "foreignMemberIds non-empty -> agents from other divisions serve this division's queues; use agent-division AND queue-division in rollups to avoid double counting",
+          "Home division holds most queues/users -> divisions not adopted; division rollups will be misleading"
+        ],
+        "outputBudget": "Emit id sets and counts only; names are joined at render time from routing-queues / users.",
+        "executiveMetrics": [
+          "queuesPerDivision",
+          "agentsPerDivision",
+          "crossDivisionStaffingPct"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "queue-routing-configuration-and-wait-time": {
+        "description": "Queue-centred routing diagnosis: configuration, per-media estimated wait, member roster and routing-assist settings. Use when a queue's EWT or answer time is wrong and the cause is configuration rather than load.",
+        "subjectParam": "queueId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "queue-config",
+            "dataset": "getRoutingQueue",
+            "joinKey": "queueId",
+            "provides": "routingRules, bullseye, acwSettings, mediaSettings, divisionId",
+            "description": "Seed: full queue configuration",
+            "role": "seed"
+          },
+          {
+            "step": "ewt-by-media",
+            "dataset": "getRoutingQueueMediatypeEstimatedwaittime",
+            "joinKey": "queueId+mediaType",
+            "provides": "estimatedWaitTimeSeconds per mediaType",
+            "description": "Per-media EWT; the single aggregate EWT hides media skew"
+          },
+          {
+            "step": "members",
+            "dataset": "getRoutingQueueUsers",
+            "joinKey": "queueId",
+            "provides": "member userIds, joined, ringNumber",
+            "description": "Roster joined to routing status for on-queue capacity"
+          },
+          {
+            "step": "assistant",
+            "dataset": "getRoutingQueueAssistant",
+            "joinKey": "queueId",
+            "provides": "assistant/copilot assignment",
+            "description": "Queue-level assistant settings, for Agent Assist coverage"
+          },
+          {
+            "step": "identity-resolution",
+            "dataset": "getRoutingQueueIdentityresolution",
+            "joinKey": "queueId",
+            "provides": "identity resolution settings",
+            "description": "Whether contacts are auto-resolved on this queue; explains missing external-contact enrichment"
+          },
+          {
+            "step": "comparison-periods",
+            "dataset": "getRoutingQueueComparisonperiods",
+            "joinKey": "queueId",
+            "provides": "comparison period definitions",
+            "description": "Defined comparison periods for performance comparisons",
+            "conditional": "comparison periods configured"
+          }
+        ],
+        "joinSequence": "queue-config -> ewt-by-media -> members -> assistant/identity-resolution",
+        "diagnosticSignals": [
+          "mediaSettings.alertingTimeoutSeconds low with high NOT_RESPONDING -> agents timing out before answering",
+          "routingRules/bullseye ring escalation slower than SLA -> SLA unattainable by design",
+          "EWT for one mediaType far above others -> skill/utilization constraint on that channel"
+        ],
+        "outputBudget": "Config summary of at most ~15 fields plus per-media EWT; raw queue object is kept in the artifact data only.",
+        "executiveMetrics": [
+          "estimatedWaitTimeSeconds",
+          "membersOnQueue"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "executiveReportingPlaybooks": {
@@ -45184,6 +45543,63 @@
         "costCaveat": "getBillingReportsBillableusage and postUsageAggregatesQueryJobs return usage units (minutes, sessions, API calls), not a dollar figure — attaching a cost-per-contained-session number requires the tenant's own rate card as an external input. Report usage units natively; do not silently convert to a currency estimate without that input documented alongside the number.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "division-scoped-rollup-pattern": {
+        "description": "Standard way to roll any queue/agent aggregate up to a division without re-querying per metric: resolve scope once, then filter aggregates by the cached id sets. Keeps executive output to one row per division.",
+        "datasetsInOrder": [
+          "authorization.get.all.divisions",
+          "authorization.list.division.queues",
+          "users.division.analysis.get.users.with.division.info",
+          "analytics.query.conversation.aggregates.queue.performance",
+          "analytics.query.queue.aggregates.service.level",
+          "analytics.query.conversation.aggregates.abandon.metrics",
+          "analytics.query.user.aggregates.performance.metrics",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "divisionId via queueId (queue metrics) and userId (agent metrics)",
+        "groupBy": [
+          "divisionId",
+          "mediaType"
+        ],
+        "outputMetrics": [
+          "nOffered",
+          "nConnected",
+          "abandonRate% = nAbandoned / nOffered",
+          "serviceLevelPct",
+          "avgHandleTime = tHandle / nConnected",
+          "evalAvgScore",
+          "agentCount"
+        ],
+        "executivePresentation": "One row per division: volume, SL%, abandon%, AHT, QA score; drill link to division-scope-resolution and queue-investigation",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Queue-side and agent-side division totals differ when agents serve foreign-division queues; label which basis is shown."
+      },
+      "agent-engagement-and-gamification-scorecard": {
+        "description": "Optional engagement layer for agent scorecards: gamification points, trends and attendance alongside handle-time and QA data. Only meaningful where Gamification is licensed and enabled.",
+        "datasetsInOrder": [
+          "users.division.analysis.get.users.with.division.info",
+          "getGamificationScorecardsUser",
+          "getGamificationScorecardsUserValuesTrends",
+          "getGamificationScorecardsUserAttendance",
+          "analytics.query.conversation.aggregates.agent.performance",
+          "quality.get.agents.activity"
+        ],
+        "joinOn": "userId",
+        "groupBy": [
+          "userId",
+          "divisionId"
+        ],
+        "outputMetrics": [
+          "scorecard points",
+          "metric value trend",
+          "attendance",
+          "nConnected",
+          "tHandle (avg)",
+          "evalAvgScore"
+        ],
+        "executivePresentation": "Top/bottom movers table, not a full roster; trend sparkline per agent",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45327,6 +45743,178 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "call-quality-and-sip-header-triage": {
+        "description": "Triage a complaint of choppy/one-way/dropped audio on one call: analytics media-endpoint stats (MOS, jitter, packet loss) first, then SIP headers, then the edge and trunk the call traversed.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "analytics.get.single.conversation.analytics",
+          "conversations.get.call.detail",
+          "getTelephonySipmessagesConversationHeaders",
+          "telephony.get.sip.message.for.conversation",
+          "telephony.get.edge.performance.metrics",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.edges"
+        ],
+        "diagnosticSignals": [
+          "mediaEndpointStats minMos < 3.5 on one leg -> impairment on that leg; compare agent vs customer-side edge",
+          "Poor MOS only on WebRTC/agent leg -> agent network/headset, check stations.get.stations and user station",
+          "Poor MOS on trunk leg plus trunk metrics errors -> carrier or SBC path",
+          "BYE sent by edge with reason header -> platform-initiated release; read the Reason/Warning header before blaming the carrier",
+          "Edge metrics degraded at call time -> edge capacity/network, run trunk-and-edge-health-check"
+        ],
+        "enrichWith": [
+          "users.get.agent.current.routing.status (agent-side leg owner)",
+          "alerting.get.alerts (telephony alerts overlapping call time)"
+        ],
+        "outputBudget": "Per-leg MOS/jitter/loss row plus the signalling verdict; SIP headers only for the BYE/error message."
+      },
+      "missing-or-failed-recording-triage": {
+        "description": "Voice-engineer shortcut for 'the call was not recorded': delegates to conversation-recording-and-secure-ivr-forensics for one call and recording-compliance-audit for the queue-level gap rate.",
+        "subjectParam": "conversationId",
+        "datasetsInOrder": [
+          "conversations.get.conversation.recording.metadata",
+          "getRecordingMediaretentionpolicies",
+          "getTelephonyProvidersEdgesTrunkswithrecording",
+          "analytics.query.conversation.details.by.queue",
+          "conversations.get.recordings"
+        ],
+        "diagnosticSignals": [
+          "See investigationRecipes.conversation-recording-and-secure-ivr-forensics.diagnosticSignals"
+        ],
+        "enrichWith": [
+          "getRecordingSettings"
+        ]
+      }
+    },
+    "investigationDepthTiers": {
+      "description": "Output-budget guide so investigations stay informative rather than a data dump. Each subject has three tiers; stop at the lowest tier that answers the question. Tiers reference datasets only; recipes above define joins.",
+      "conversation": {
+        "summary": {
+          "question": "What happened on this call, in one screen?",
+          "datasets": [
+            "analytics.get.single.conversation.analytics",
+            "conversations.get.conversation.participant.wrapup",
+            "speech.and.text.analytics.get.speech.and.text.analytics.for.conversation"
+          ],
+          "maxRows": "1 conversation row + one row per participant segment group"
+        },
+        "standard": {
+          "question": "Was it handled and recorded properly?",
+          "datasets": [
+            "conversations.get.specific.conversation.details",
+            "conversations.get.call.detail",
+            "conversations.get.conversation.recording.metadata",
+            "quality.get.evaluations.query",
+            "quality.get.conversation.surveys"
+          ],
+          "maxRows": "~10 evidence rows"
+        },
+        "deep": {
+          "question": "Why did it fail or go badly?",
+          "datasets": [
+            "telephony.get.sip.message.for.conversation",
+            "getTelephonySipmessagesConversationHeaders",
+            "getSpeechandtextanalyticsConversationSentiments",
+            "getConversationSuggestions",
+            "getConversationRecordingAnnotations",
+            "getRecordingMediaretentionpolicies"
+          ],
+          "maxRows": "only on explicit request or when a summary/standard signal triggers it"
+        }
+      },
+      "agent": {
+        "summary": {
+          "question": "Who is this agent and how are they doing?",
+          "datasets": [
+            "users.get.user.details.with.full.expansion",
+            "analytics.query.user.aggregates.performance.metrics",
+            "quality.get.agents.activity"
+          ],
+          "maxRows": "1 row"
+        },
+        "standard": {
+          "question": "Why is performance what it is?",
+          "datasets": [
+            "users.get.user.queue.memberships",
+            "users.get.user.routing.skills",
+            "routing.get.user.utilization",
+            "analytics.query.user.details.activity.report",
+            "coaching.get.appointments"
+          ],
+          "maxRows": "~1 row per queue/skill + activity rollup"
+        },
+        "deep": {
+          "question": "Can the agent do the work and was anything changed?",
+          "datasets": [
+            "getUserSuperiors",
+            "getUserSkillgroups",
+            "getUserRoles",
+            "getAuthorizationDivisionspermittedPagedSubjectId",
+            "audit-logs",
+            "analytics-conversation-details-query"
+          ],
+          "maxRows": "conversation list capped (e.g. worst 25 by tHandle or sentiment)"
+        }
+      },
+      "queue": {
+        "summary": {
+          "question": "Is the queue healthy?",
+          "datasets": [
+            "analytics.query.conversation.aggregates.queue.performance",
+            "analytics.query.queue.aggregates.service.level",
+            "analytics.query.conversation.aggregates.abandon.metrics"
+          ],
+          "maxRows": "1 row per interval/mediaType"
+        },
+        "standard": {
+          "question": "What is driving it?",
+          "datasets": [
+            "routing.get.single.queue.config",
+            "routing.get.queue.members.with.status",
+            "analytics.query.conversation.aggregates.transfer.metrics",
+            "analytics.query.conversation.aggregates.wrapup.distribution"
+          ],
+          "maxRows": "top 10 wrapup codes; roster counts by status"
+        },
+        "deep": {
+          "question": "Show me the conversations and config evidence",
+          "datasets": [
+            "analytics.query.conversation.details.by.queue",
+            "getRoutingQueueMediatypeEstimatedwaittime",
+            "audits.query.audit.logs.user.actions"
+          ],
+          "maxRows": "sample, not export: worst 25 conversations by wait/handle"
+        }
+      },
+      "division": {
+        "summary": {
+          "question": "How big and how healthy is this division?",
+          "datasets": [
+            "authorization.get.all.divisions",
+            "analytics.query.conversation.aggregates.division.performance"
+          ],
+          "maxRows": "1 row"
+        },
+        "standard": {
+          "question": "Which queues and agents make it up?",
+          "datasets": [
+            "authorization.list.division.queues",
+            "users.division.analysis.get.users.with.division.info",
+            "analytics.query.conversation.aggregates.queue.performance",
+            "analytics.query.user.aggregates.performance.metrics"
+          ],
+          "maxRows": "top/bottom 10 queues and agents"
+        },
+        "deep": {
+          "question": "Who has access, and is staffing crossing divisions?",
+          "datasets": [
+            "authorization.get.division.grants",
+            "getRoutingQueueUsers",
+            "getAuthorizationDivisionsHome"
+          ],
+          "maxRows": "exceptions only"
+        }
       }
     }
   }

@@ -546,3 +546,43 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+---
+
+## October 2026 additions — enrichment recipes and output tiers
+
+Source note: the Genesys developer-portal pages (API Explorer, Embeddable Framework condensed
+conversation info, BYOI guide, blueprints) were not reachable from the automated run (egress
+blocked). Additions are derived from the swagger-derived endpoints already in the catalog and are
+`reference-only` until validated against a tenant.
+
+### New investigation recipes (`combinations.investigationRecipes`)
+
+| Recipe | Subject | Question it answers | Key added endpoints |
+|--------|---------|---------------------|---------------------|
+| `conversation-recording-and-secure-ivr-forensics` | conversationId | Why is a recording missing/short/paused? | `getRecordingMediaretentionpolicies`, `getRecordingSettings`, `getTelephonyProvidersEdgesTrunkswithrecording`, `getConversationParticipantSecureivrsessions`, `getConversationRecordingAnnotations` |
+| `conversation-ai-assist-and-sentiment-review` | conversationId | Where did sentiment turn; were assists/checklists used? | `getSpeechandtextanalyticsConversationSentiments`, `getConversationSuggestions`, `getConversationCommunicationAgentchecklists`, `getConversationSummaries`, `getQualityConversationEvaluation` |
+| `agent-hierarchy-access-and-routing-state` | userId | Who does the agent report to, what can they access, what is their routing state? | `getUserSuperiors`, `getUserDirectreports`, `getUserSkillgroups`, `getUserRoutingstatus`, `getUserStation`, `getAuthorizationDivisionspermittedPagedSubjectId` |
+| `division-scope-resolution` | divisionId | Which queues/agents (and foreign members) form this group? | `getAuthorizationDivisionsHome`, `getRoutingQueueUsers`, `getAuthorizationDivisionsLimit` |
+| `queue-routing-configuration-and-wait-time` | queueId | Is a slow queue a config problem? | `getRoutingQueue`, `getRoutingQueueMediatypeEstimatedwaittime`, `getRoutingQueueAssistant`, `getRoutingQueueIdentityresolution` |
+
+### New playbooks
+
+- Executive: `division-scoped-rollup-pattern` (resolve scope once, filter aggregates by cached
+  queue/user sets, one row per division) and `agent-engagement-and-gamification-scorecard`.
+- Voice engineer: `call-quality-and-sip-header-triage` (MOS/jitter first, then SIP headers, then
+  edge/trunk) and `missing-or-failed-recording-triage`.
+
+### Divisions as groups
+
+An agent's division and a queue's division can differ. `division-scope-resolution` emits
+`{queueIds, userIds, foreignMemberIds}`; use queue-side filters for service metrics and agent-side
+filters for people metrics, and label the basis, because the two totals diverge when agents serve
+other divisions' queues.
+
+### Output tiers (`combinations.investigationDepthTiers`)
+
+To stay informative without being a data dump, each subject (conversation, agent, queue, division)
+has `summary` → `standard` → `deep` tiers with a `maxRows` guidance. Stop at the lowest tier that
+answers the question; deep-tier datasets run only on explicit request or a triggering signal.
+Secure attributes (`getConversationSecureattributes`) are deliberately excluded from all recipes.

@@ -212,23 +212,22 @@ Describe 'WCAG 2.1 Level AA conformance' {
         # The utility classes below are applied to markup generated at runtime,
         # which static DOM analysis cannot reach, so the tokens are asserted
         # directly against the surfaces they render on.
-        BeforeAll {
-            $script:ConsoleSurfaces = @(
-                'apps/OpsConsole/index.html',
-                'apps/InvestigationConsole/index.html',
-                'apps/ConversationAnalysis/index.html'
-            )
-            $script:LightSurfaces = @('#ffffff', '#f8faf9', '#f0f4f1')
-        }
-
-        It 'defines text-safe status tokens in <_>' -ForEach $script:ConsoleSurfaces {
+        It 'defines text-safe status tokens in <_>' -ForEach @(
+            'apps/OpsConsole/index.html',
+            'apps/InvestigationConsole/index.html',
+            'apps/ConversationAnalysis/index.html'
+        ) {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot $_) -Raw
             foreach ($token in @('--ok-text', '--warn-text', '--danger-text', '--accent-text')) {
                 $text | Should -Match ([regex]::Escape($token) + '\s*:')
             }
         }
 
-        It 'keeps every text token above 4.5:1 on each light surface in <_>' -ForEach $script:ConsoleSurfaces {
+        It 'keeps every text token above 4.5:1 on each light surface in <_>' -ForEach @(
+            'apps/OpsConsole/index.html',
+            'apps/InvestigationConsole/index.html',
+            'apps/ConversationAnalysis/index.html'
+        ) {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot $_) -Raw
             foreach ($token in @('--ok-text', '--warn-text', '--danger-text', '--accent-text', '--muted', '--ink', '--ink2')) {
                 $pattern = [regex]::Escape($token) + '\s*:\s*(#[0-9a-fA-F]{3,8})\s*;'
@@ -242,7 +241,11 @@ Describe 'WCAG 2.1 Level AA conformance' {
             }
         }
 
-        It 'keeps graphical tokens above the 3:1 SC 1.4.11 minimum in <_>' -ForEach $script:ConsoleSurfaces {
+        It 'keeps graphical tokens above the 3:1 SC 1.4.11 minimum in <_>' -ForEach @(
+            'apps/OpsConsole/index.html',
+            'apps/InvestigationConsole/index.html',
+            'apps/ConversationAnalysis/index.html'
+        ) {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot $_) -Raw
             foreach ($token in @('--ok', '--warn', '--danger', '--accent')) {
                 $pattern = '(?<!-)' + [regex]::Escape($token) + '\s*:\s*(#[0-9a-fA-F]{3,8})\s*;'
@@ -253,7 +256,11 @@ Describe 'WCAG 2.1 Level AA conformance' {
             }
         }
 
-        It 'uses the darker accent wherever white text sits on an accent fill in <_>' -ForEach $script:ConsoleSurfaces {
+        It 'uses the darker accent wherever white text sits on an accent fill in <_>' -ForEach @(
+            'apps/OpsConsole/index.html',
+            'apps/InvestigationConsole/index.html',
+            'apps/ConversationAnalysis/index.html'
+        ) {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot $_) -Raw
             $offenders = [regex]::Matches($text, '\{[^{}]*background:\s*var\(--accent\)[^{}]*color:\s*#fff[^{}]*\}')
             @($offenders) | Should -BeNullOrEmpty -Because 'white on --accent is 3.39:1; --accent-dk is required for text'

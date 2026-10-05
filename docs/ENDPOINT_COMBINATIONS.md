@@ -546,3 +546,42 @@ integration-scoped event and receipt endpoints as needed. The old catch-all
 2026-10-05. The previously suggested generic provider-call injection endpoint was
 unverified and has been removed from active guidance.
 [Genesys deprecation notice](https://help.genesys.cloud/announcements/deprecation-current-open-messaging-inbound-endpoint/).
+
+## October 2026 evaluation: scoping tiers and new recipes
+
+A review of the catalog for unused, high-value endpoints produced five investigation recipes,
+one executive playbook and one voice playbook (all `reference-only`; see
+`catalog/genesys.catalog.json` under `combinations`). Genesys developer-portal pages were not
+reachable from the authoring environment, so the recipes are built from catalog contents and
+API knowledge and need tenant validation.
+
+### Keeping investigations informative, not a data dump
+
+Every recipe should follow the same escalation ladder and stop at the first tier that answers the question:
+
+1. **Aggregate** (one query): queue/agent/trunk aggregates, observations, summaries.
+2. **Exceptions** (ranked shortlist): only entities outside threshold (SLA miss, error trunk, non-adherent agent).
+3. **Sample** (bounded): a handful of representative conversations per exception.
+4. **Drill-down** (per item): SIP trace, evaluation detail, recordings, transcripts, only for the sampled items.
+
+Signed URLs (recordings, transcripts) are the last step and are never persisted in run artifacts.
+
+### Grouping rules
+
+- **Single conversation:** seed on `analytics.get.single.conversation.analytics`, then branch by media type and symptom.
+- **Queue:** aggregates first, then exceptions by interval, then sampled conversations.
+- **Agent:** identity, division and queue memberships, then aggregates, then evaluated or flagged conversations.
+- **Division:** a division is a cross-queue grouping. Enumerate with `authorization.list.division.queues` and
+  `users.division.analysis.get.users.with.division.info`, then roll up queue and agent aggregates.
+
+### New recipes
+
+| Key | Audience | Question answered |
+|-----|----------|-------------------|
+| `voice-dnis-to-flow-routing-trace` | Voice engineer | Was this call routed where it should be? DNIS to IVR route, schedule group, flow, queue |
+| `voice-trunk-and-edge-call-quality-drilldown` | Voice engineer | Which trunk or edge explains failed or poor-quality calls? |
+| `evaluation-and-recording-evidence-drilldown` | QA / compliance | Evaluation answers, recording, annotations and retention for a dispute |
+| `adherence-exception-explanation-investigation` | WFM / supervisor | Is this non-adherence explained, system-driven, or behavioural? |
+| `queue-live-wait-and-staffing-snapshot` | Supervisor | Is this queue in trouble right now? |
+| `voice-quality-and-telephony-reliability-kpis` (playbook) | Executive | Call failure, trunk error and concurrency scorecard |
+| `dnis-routing-verification` (voice playbook) | Voice engineer | Verify a number's routing during change review |

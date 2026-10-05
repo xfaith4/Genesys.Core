@@ -44787,6 +44787,382 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "voice-dnis-to-flow-routing-trace": {
+        "description": "Answers 'was this call routed where it should have been?' for one conversation or one dialled number. Takes the DNIS from the call, resolves it to the Architect inbound-call route (IVR config), its open/closed schedule group and the target flow, then confirms where the call actually landed. Typical voice-engineer question for 'wrong queue', 'went to closed message' and 'number not answering' tickets. Terminates at the first layer that disagrees with expectation.",
+        "subjectParam": "conversationId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "call-dnis",
+            "dataset": "conversations.get.call.detail",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "DNIS, ANI, direction, participant purposes",
+            "description": "Dialled number and direction. Short-circuit when direction is outbound (no inbound route applies)."
+          },
+          {
+            "step": "actual-path",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "flow segments (flowName, flowVersion, exitReason), queueId per ACD segment, disconnectType",
+            "description": "Where the call actually went: IVR flow segments then ACD queue segments in order."
+          },
+          {
+            "step": "inbound-route",
+            "dataset": "getArchitectIvrs",
+            "joinKey": "dnis",
+            "filterBy": "dnis contained in IVR config dnis[]",
+            "provides": "ivr id, name, dnis list, openHoursFlow, closedHoursFlow, holidayHoursFlow, scheduleGroup",
+            "description": "Inbound call route that owns the dialled number. No match means the number is not mapped to a route (carrier/DID pool issue rather than routing)."
+          },
+          {
+            "step": "inbound-route-detail",
+            "dataset": "getArchitectIvr",
+            "joinKey": "ivrId",
+            "provides": "full IVR config incl. flow references and schedule group id",
+            "description": "Only fetched for the matching IVR from the previous step."
+          },
+          {
+            "step": "schedule-group",
+            "dataset": "getArchitectSchedulegroups",
+            "joinKey": "scheduleGroupId",
+            "provides": "open/closed/holiday schedule ids, timeZone",
+            "description": "Which schedule set decides open versus closed handling at the call start time."
+          },
+          {
+            "step": "schedules",
+            "dataset": "getArchitectSchedules",
+            "joinKey": "scheduleId",
+            "provides": "rrule/start/end, timeZone",
+            "description": "Evaluate the call start time (UTC) in the schedule time zone to explain why the call took the open/closed/holiday branch."
+          },
+          {
+            "step": "target-flow",
+            "dataset": "flows.get.all.flows",
+            "joinKey": "flowId",
+            "provides": "flow name, type, published version, division",
+            "description": "Confirms the flow named in the call segment matches the flow configured on the route and that the version in the segment is the published one."
+          },
+          {
+            "step": "landing-queue",
+            "dataset": "routing.get.single.queue.config",
+            "joinKey": "queueId",
+            "provides": "queue name, division, media settings, skill evaluation",
+            "description": "Configuration of the queue the call landed in, for comparison with the expected queue."
+          },
+          {
+            "step": "did-pool-ownership",
+            "dataset": "getTelephonyProvidersEdgesDidpools",
+            "joinKey": "dnis",
+            "provides": "DID pool startPhoneNumber/endPhoneNumber",
+            "description": "Only when no route matches: confirms the number sits in a provisioned DID pool."
+          }
+        ],
+        "joinSequence": "call-dnis (conversationId) -> actual-path -> inbound-route (dnis) -> inbound-route-detail -> schedule-group -> schedules -> target-flow -> landing-queue",
+        "diagnosticSignals": [
+          "DNIS has no matching IVR route -> number not mapped; check DID pool and carrier translation before touching flows",
+          "Call took closedHoursFlow while schedule evaluation says open -> schedule time zone or rrule defect",
+          "Flow segment flowVersion differs from the published version -> stale publish or version pinned in the route",
+          "Landing queue differs from the queue the flow transfer targets -> transfer-to-ACD uses a flow variable or data-table value; inspect flow design",
+          "No flow segment at all on an inbound call -> route points directly at a queue or the call was a transfer/consult leg"
+        ],
+        "executiveMetrics": [
+          "misroutedCallCount",
+          "closedHoursCallShare",
+          "unmappedDnisCount"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
+      },
+      "voice-trunk-and-edge-call-quality-drilldown": {
+        "description": "Starts from a complaint (one call or a window with many failed/poor-quality calls) and narrows to the trunk and edge that carried it. Aggregate trunk and edge health is read first; a per-trunk metric pull and the SIP trace are only fetched for the offenders. Keeps the output to the few trunks and calls that explain the symptom instead of dumping all telephony state.",
+        "subjectParam": "conversationId or trunkId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "call-seed",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "role": "seed",
+            "joinKey": "conversationId",
+            "provides": "edgeId, mos (minMos), disconnectType, errorCode, sipResponseCodes, direction, ANI, DNIS",
+            "description": "Per-call media quality (MOS) and disconnect cause. Skipped when the subject is a trunk."
+          },
+          {
+            "step": "sip-trace",
+            "dataset": "telephony.get.sip.messages.for.conversation",
+            "joinKey": "conversationId",
+            "provides": "INVITE/183/200/BYE/CANCEL and 4xx/5xx with timestamps",
+            "description": "Fetch only when disconnectType is error/system or MOS is low; confirms which side released the call and why."
+          },
+          {
+            "step": "trunk-inventory",
+            "dataset": "telephony.get.trunks",
+            "joinKey": "trunkId",
+            "provides": "trunk name, trunkType, state, inService, edge/trunk base",
+            "description": "Resolves the trunk id to a name and type (external SIP, phone, edge-to-edge)."
+          },
+          {
+            "step": "trunk-summary",
+            "dataset": "telephony.get.trunk.metrics.summary",
+            "joinKey": "trunkId",
+            "provides": "callsInbound/Outbound, errorCount, concurrent calls, registration/connected state",
+            "description": "Single request over all trunks; rank by error rate to select offenders."
+          },
+          {
+            "step": "trunk-detail",
+            "dataset": "getTelephonyProvidersEdgesTrunkMetrics",
+            "joinKey": "trunkId",
+            "provides": "per-trunk calls, error counters, protocol status, event times",
+            "description": "Only for trunks ranked in the summary as offenders or named by the call."
+          },
+          {
+            "step": "edge-health",
+            "dataset": "telephony.get.edge.performance.metrics",
+            "joinKey": "edgeId",
+            "provides": "CPU, memory, disk, interface stats",
+            "description": "Edge that carried the call or hosts the offending trunk; rules out resource pressure."
+          },
+          {
+            "step": "edge-logical-interfaces",
+            "dataset": "getTelephonyProvidersEdgeLogicalinterfaces",
+            "joinKey": "edgeId",
+            "provides": "interface state, VLAN, IP configuration",
+            "description": "Network-path suspicion only (one-way audio, registration flaps)."
+          },
+          {
+            "step": "concurrent-load",
+            "dataset": "conversations.get.active.calls",
+            "joinKey": "trunkId",
+            "provides": "live calls in progress",
+            "description": "Point-in-time only; compare with trunk concurrency ceiling during live incidents."
+          },
+          {
+            "step": "related-alerts",
+            "dataset": "alerting.get.alerts",
+            "joinKey": "resourceId",
+            "provides": "telephony alerts around the window",
+            "description": "Confirms whether monitoring already flagged the trunk/edge."
+          }
+        ],
+        "joinSequence": "call-seed (edgeId, trunk) -> sip-trace -> trunk-summary -> trunk-detail (offenders only) -> edge-health -> edge-logical-interfaces",
+        "diagnosticSignals": [
+          "MOS < 3.5 clustered on one edge -> codec/transcoding or WAN path; compare edge CPU",
+          "SIP 503/486 clustered on one trunk -> carrier capacity or concurrency cap reached",
+          "Trunk inService=false or registration lost -> provider circuit/credentials; correlate with audit-logs for recent trunk edits",
+          "Calls ending with BYE from the carrier shortly after 200 OK -> carrier-side media/ANI policy rejection",
+          "Edge CPU or memory high at the same timestamps as failures -> capacity not carrier"
+        ],
+        "executiveMetrics": [
+          "callFailureRate",
+          "avgMos",
+          "trunkErrorRatePct",
+          "trunkConcurrencyHeadroomPct"
+        ],
+        "enrichWith": [
+          "audit-logs (trunk/edge/phone-base changes in the 24h before first failure)"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
+      },
+      "evaluation-and-recording-evidence-drilldown": {
+        "description": "Evidence package for a quality dispute, compliance request or coaching moment. Starts from the evaluation list for a conversation or agent, drills into question-level answers only for the evaluation in question, then attaches the recording, its annotations and the retention policy that governs it. Keeps sensitive artefacts (media URLs, transcripts) behind the last step.",
+        "subjectParam": "conversationId or agentUserId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "evaluation-list",
+            "dataset": "quality.get.evaluations.query",
+            "role": "seed",
+            "filterBy": "conversationId or agentUserId + window",
+            "joinKey": "conversationId+evaluationId",
+            "provides": "evaluationId, score, status, criticalScore, evaluatorId, formId",
+            "description": "Summary rows only."
+          },
+          {
+            "step": "evaluation-detail",
+            "dataset": "quality.get.conversation.evaluation",
+            "joinKey": "conversationId+evaluationId",
+            "provides": "question group scores, answers, comments, failed critical items, calibration/reviewer info",
+            "description": "Question-level answers for the single evaluation under review."
+          },
+          {
+            "step": "form-definition",
+            "dataset": "quality.get.published.evaluation.forms",
+            "joinKey": "formId",
+            "provides": "question text, weights, critical flags",
+            "description": "Resolves question ids to text and weight so failures are explainable."
+          },
+          {
+            "step": "recording-metadata",
+            "dataset": "conversations.get.conversation.recording.metadata",
+            "joinKey": "conversationId",
+            "provides": "recordingId, media type, duration, fileState, deletion/archive dates",
+            "description": "Confirms evidence still exists before anyone promises a playback."
+          },
+          {
+            "step": "recording-annotations",
+            "dataset": "getConversationRecordingAnnotations",
+            "joinKey": "conversationId+recordingId",
+            "provides": "annotation text, time offsets, author",
+            "description": "Markers an evaluator or supervisor placed on the audio; ties scoring comments to timestamps."
+          },
+          {
+            "step": "retention-policy",
+            "dataset": "getRecordingMediaretentionpolicies",
+            "joinKey": "policyName",
+            "provides": "policy conditions, retention days, actions",
+            "description": "Explains why a recording is or is not present and when it will expire."
+          },
+          {
+            "step": "call-context",
+            "dataset": "analytics.get.single.conversation.analytics",
+            "joinKey": "conversationId",
+            "provides": "hold, transfer, wrapUp and handle timings",
+            "description": "Operational context for the evaluation score."
+          },
+          {
+            "step": "transcript-access",
+            "dataset": "speechandtextanalytics.get.conversation.communication.transcripturl",
+            "joinKey": "conversationId+communicationId",
+            "provides": "signed transcript URL",
+            "description": "Optional last step; URLs are signed, short-lived and must not be persisted in artefacts."
+          }
+        ],
+        "joinSequence": "evaluation-list -> evaluation-detail (evaluationId) -> form-definition (formId) -> recording-metadata -> recording-annotations (recordingId) -> retention-policy",
+        "diagnosticSignals": [
+          "Evaluation exists but recording-metadata is empty -> recording deleted by retention or never captured; check policy",
+          "Critical item failed with no annotation or comment -> weak evidence for dispute outcomes",
+          "Same evaluator scoring far from calibrated peers -> candidate for calibration session"
+        ],
+        "executiveMetrics": [
+          "evalCoveragePct",
+          "avgEvalScore",
+          "criticalFailCount",
+          "recordingAvailabilityPct"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
+      },
+      "adherence-exception-explanation-investigation": {
+        "description": "Explains why an agent or management unit looks non-adherent before it goes into a performance conversation. Pulls current adherence, then the adherence explanations agents or supervisors submitted for the window, and cross-checks against presence/routing activity and any system-side cause.",
+        "subjectParam": "userId or managementUnitId",
+        "windowRequired": true,
+        "steps": [
+          {
+            "step": "wfm-unit",
+            "dataset": "workforce.get.agent.management.unit",
+            "role": "seed",
+            "joinKey": "userId",
+            "provides": "managementUnitId, businessUnitId",
+            "description": "Resolve the WFM scope of the agent. For a unit subject, start at workforce.get.management.units."
+          },
+          {
+            "step": "unit-adherence",
+            "dataset": "workforce.get.management.unit.adherence",
+            "joinKey": "managementUnitId",
+            "provides": "adherence state per agent, impact, scheduled vs actual",
+            "description": "Current-state view across the unit; select agents outside tolerance."
+          },
+          {
+            "step": "explanations",
+            "dataset": "postWorkforcemanagementAdherenceExplanationsQuery",
+            "joinKey": "userId",
+            "provides": "explanation status, reason, start/end, submittedBy, reviewedBy",
+            "description": "Read-only query body despite POST. Shows which exceptions already have an accepted/pending explanation."
+          },
+          {
+            "step": "presence-activity",
+            "dataset": "analytics.query.user.details.activity.report",
+            "joinKey": "userId",
+            "provides": "presence and routing-status segments in the window",
+            "description": "Actual state timeline used to verify an explanation."
+          },
+          {
+            "step": "not-responding-check",
+            "dataset": "analytics.query.user.aggregates.login.activity",
+            "joinKey": "userId",
+            "provides": "tAgentRoutingStatus incl. NOT_RESPONDING",
+            "description": "Distinguishes agent behaviour from system-driven off-queue time."
+          },
+          {
+            "step": "coaching-context",
+            "dataset": "coaching.get.appointments",
+            "joinKey": "userId",
+            "provides": "appointments overlapping the exception window",
+            "description": "Coaching/meeting time that legitimately explains off-queue activity."
+          }
+        ],
+        "joinSequence": "wfm-unit -> unit-adherence -> explanations -> presence-activity -> not-responding-check -> coaching-context",
+        "diagnosticSignals": [
+          "Non-adherence with NOT_RESPONDING time -> hand off to agent-not-responding-autoanswer",
+          "Exception overlaps a coaching appointment and has no explanation -> process gap rather than behaviour",
+          "Many pending explanations unreviewed -> supervisor workload issue, not agent issue"
+        ],
+        "executiveMetrics": [
+          "adherencePct",
+          "explainedExceptionPct",
+          "pendingExplanationCount"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
+      },
+      "queue-live-wait-and-staffing-snapshot": {
+        "description": "Cheap point-in-time check for 'is this queue in trouble right now?'. Combines estimated wait, live observations and the staffed roster so a supervisor gets one screen answer before deciding whether to run the heavier queue-investigation.",
+        "subjectParam": "queueId",
+        "windowRequired": false,
+        "steps": [
+          {
+            "step": "queue-config",
+            "dataset": "routing.get.single.queue.config",
+            "role": "seed",
+            "joinKey": "queueId",
+            "provides": "name, division, SLA target, media types",
+            "description": "Context and division for the queue."
+          },
+          {
+            "step": "estimated-wait",
+            "dataset": "getRoutingQueueEstimatedwaittime",
+            "joinKey": "queueId",
+            "provides": "estimated wait seconds per priority/media",
+            "description": "What a customer joining now can expect."
+          },
+          {
+            "step": "live-observations",
+            "dataset": "analytics.query.queue.observations.real.time.stats",
+            "joinKey": "queueId",
+            "provides": "oWaiting, oInteracting, oLongestWaiting, oOnQueueUsers, oActiveUsers",
+            "description": "Depth and staffed capacity."
+          },
+          {
+            "step": "staffed-roster",
+            "dataset": "getRoutingQueueUsers",
+            "joinKey": "queueId",
+            "provides": "member userIds, joined state, routing status/presence",
+            "description": "Who can take the work; compare with oOnQueueUsers to spot members off-queue."
+          },
+          {
+            "step": "open-alerts",
+            "dataset": "alerting.get.alerts",
+            "joinKey": "resourceId",
+            "provides": "active alerts for the queue",
+            "description": "Whether monitoring already reports the condition."
+          }
+        ],
+        "joinSequence": "queue-config -> estimated-wait + live-observations -> staffed-roster -> open-alerts",
+        "diagnosticSignals": [
+          "oWaiting > 0 with oOnQueueUsers = 0 -> nobody on queue; check schedule and routing status of members",
+          "Estimated wait high but oLongestWaiting low -> burst arrival; watch not act",
+          "oLongestWaiting far above SLA target -> escalate and run queue-investigation for the last hour"
+        ],
+        "executiveMetrics": [
+          "oWaiting",
+          "oLongestWaiting",
+          "estimatedWaitSeconds",
+          "staffedAgentCount"
+        ],
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
       }
     },
     "executiveReportingPlaybooks": {
@@ -45184,6 +45560,32 @@
         "costCaveat": "getBillingReportsBillableusage and postUsageAggregatesQueryJobs return usage units (minutes, sessions, API calls), not a dollar figure — attaching a cost-per-contained-session number requires the tenant's own rate card as an external input. Report usage units natively; do not silently convert to a currency estimate without that input documented alongside the number.",
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "voice-quality-and-telephony-reliability-kpis": {
+        "description": "Monthly/weekly telephony reliability rollup for executives and carrier reviews: call failure rate, media quality and trunk error trends, with a ranked shortlist of trunks and edges to discuss. Detail drill-down is delegated to voice-trunk-and-edge-call-quality-drilldown.",
+        "datasetsInOrder": [
+          "analytics.query.conversation.aggregates.queue.performance",
+          "telephony.get.trunk.metrics.summary",
+          "telephony.get.trunks",
+          "telephony.get.edges",
+          "alerting.get.alerts"
+        ],
+        "joinOn": "trunkId / edgeId (inventory) ; interval (aggregates)",
+        "groupBy": [
+          "trunk",
+          "edge",
+          "week"
+        ],
+        "outputMetrics": [
+          "callFailureRatePct",
+          "trunkErrorRatePct",
+          "trunkConcurrencyPeakPct",
+          "edgesNotActiveCount",
+          "telephonyAlertCount"
+        ],
+        "executivePresentation": "One scorecard row per carrier/trunk (calls, error %, peak concurrency %) and a 3-item watch list; no per-call detail.",
+        "validationStatus": "reference-only",
+        "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation. Built from catalog contents and API knowledge; Genesys developer-portal pages were not reachable from the authoring environment."
       }
     },
     "voiceEngineerPlaybooks": {
@@ -45327,6 +45729,25 @@
         ],
         "validationStatus": "reference-only",
         "validationNote": "Catalog references resolve locally; this recipe is not a runtime composer or tenant-validated feature. Validate endpoint contracts, joins, permissions and metric definitions before implementation."
+      },
+      "dnis-routing-verification": {
+        "description": "Quickly verify a dialled number routes as designed: DNIS to IVR route to schedule group to flow to queue. Fast variant of voice-dnis-to-flow-routing-trace for change reviews with no conversation.",
+        "subjectParam": "dnis",
+        "datasetsInOrder": [
+          "getArchitectIvrs",
+          "getArchitectSchedulegroups",
+          "getArchitectSchedules",
+          "flows.get.all.flows",
+          "getTelephonyProvidersEdgesDidpools"
+        ],
+        "diagnosticSignals": [
+          "Number in DID pool but in no IVR route -> unrouted number",
+          "Same DNIS in two IVR routes -> configuration conflict",
+          "Schedule group references expired or empty schedules -> permanent closed-hours handling"
+        ],
+        "enrichWith": [
+          "audit-logs (filter service=Architect for recent route/flow/schedule edits)"
+        ]
       }
     }
   }

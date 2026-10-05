@@ -25,6 +25,33 @@ the Windows ConversationAnalyzer retains distinct case storage and reporting cap
 
 - [ ] Validate current Core/investigation endpoints, permissions and output against a tenant.
 - [ ] Implement audit-change / queue-performance correlation with a comparable baseline.
+
+  Implementation contract (so the item can be built and reviewed without guessing):
+  - **Entry point:** `Get-GenesysQueueChangeCorrelation` in `modules/Genesys.Ops/Genesys.Ops.psm1`,
+    following the `Get-GenesysQueueInvestigation` pattern (run-artifact set, manifest,
+    `-DatasetInvoker` test seam so no live calls are needed).
+  - **Inputs:** `-QueueId` (required), `-IncidentStart`/`-IncidentEnd` (UTC), `-BaselineStart`/
+    `-BaselineEnd` (optional; default is the same length and weekday alignment immediately
+    before the incident), `-DisplayTimeZone` (display only; all joins use UTC).
+  - **Data sources (existing catalog datasets only):** `audits.query.audit.logs.user.actions`
+    (Queue/Flow/RoutingQueue/Authorization changes), `routing-queues`,
+    `analytics.query.conversation.aggregates.queue.performance`,
+    `analytics.query.queue.aggregates.service.level`,
+    `analytics.query.conversation.aggregates.abandon.metrics` — see
+    `investigationRecipes.change-to-incident-correlation` in `catalog/genesys.catalog.json`.
+  - **Output (`summary.json`):** per candidate change — audit record ID, actor, timestamp,
+    property before/after, baseline vs incident `nOffered`, `nConnected`, `tHandle` (divided by
+    its own count), service level and abandon rate, sample sizes, and an `association` field
+    labelled `hypothesis`, never `cause`. Missing or permission-denied sources are listed in
+    `warnings[]`, never silently dropped.
+  - **Fixtures and tests:** `tests/integration/QueueChangeCorrelation.Tests.ps1` covers no
+    incident, related change, unrelated change, late data, partial permissions, repeated
+    collection (byte-equivalent output after stripping run IDs/timestamps), and a timezone/DST
+    boundary — the first acceptance gate in [Product value](docs/PRODUCT_VALUE.md).
+  - **Out of scope:** Data Client UI (next item), export packaging (item after), tenant
+    validation (first item; needs credentials), flow-triggered correlation.
+  - **Done means:** the Pester file above passes, existing suites still pass, and the
+    catalog/`Catalog.CombinationReferences` test is unchanged and green.
 - [ ] Add incident selection and evidence drilldown to the Data Client.
 - [ ] Export timestamps, filters, metric denominators, missing-source warnings and evidence.
 - [ ] Complete a pilot measuring operator investigation time and evidence completeness.

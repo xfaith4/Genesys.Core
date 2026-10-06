@@ -336,3 +336,23 @@ No existing cmdlet is renamed or removed by this work.
   GUID. Resolution belongs in the Ops cmdlet wrapper (e.g.
   `Get-GenesysAgentInvestigation -UserName 'Jane Doe'`), not in the composer.
   The composer always takes resolved IDs.
+
+## Recipe catalog additions: scoped triage and rollups
+
+`catalog/genesys.catalog.json` → `combinations` now carries a tiered pattern intended to keep
+investigations informative rather than exhaustive. Evidence level: reference-only (catalog
+references resolve locally; contracts, joins and permissions are not tenant-validated). The
+Genesys developer portal was not reachable from the authoring environment, so these recipes
+were derived from the catalog's swagger-sourced endpoints and must be checked against current
+Genesys documentation before implementation.
+
+| Scope / audience | Entry | What it adds |
+| --- | --- | --- |
+| Queue, agent, division, custom group | `investigationRecipes.tiered-triage-funnel` | Headline aggregates → rank outliers → capped exemplar conversations → 3-5 deep dives; per-tier output budget and scope lenses (division vs. agent-division vs. queue-division). |
+| Single conversation | `single-conversation-investigation.evidenceTiers` | Always / by-symptom / content-review step groups, stop rule, and output shape; adds `evaluation-detail`. |
+| Queue / agent / division quality | `queue-and-agent-experience-quality-drilldown` | Evaluation, survey, resolution and summary aggregates, then only the worst evaluations/surveys. |
+| Division | `division-membership-and-cross-queue-footprint` | Division as an explicit membership list, plus out-of-division queue work by division agents. |
+| Voice engineer | `inbound-did-to-queue-routing-path-audit` | DID → IVR route → flow → queue, site and trunk, versus observed routing. |
+| Voice engineer | `voiceEngineerPlaybooks.failed-and-degraded-call-fleet-triage` | Symptom-filtered failed/low-MOS calls grouped by cause, SIP sample per group. |
+| Executive | `executiveReportingPlaybooks.quality-resolution-and-experience-rollup` | Outcome rollup from aggregate endpoints. |
+| Executive | `executiveReportingPlaybooks.scoped-rollup-ladder` | Org → division → queue → agent with one metric definition set and a child-sum reconciliation rule. |

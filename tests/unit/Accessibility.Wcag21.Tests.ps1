@@ -1,3 +1,9 @@
+$script:ConsoleSurfaces = @(
+    'apps/OpsConsole/index.html',
+    'apps/InvestigationConsole/index.html',
+    'apps/ConversationAnalysis/index.html'
+)
+
 Describe 'WCAG 2.1 Level AA conformance' {
     BeforeAll {
         $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).ProviderPath
@@ -212,15 +218,6 @@ Describe 'WCAG 2.1 Level AA conformance' {
         # The utility classes below are applied to markup generated at runtime,
         # which static DOM analysis cannot reach, so the tokens are asserted
         # directly against the surfaces they render on.
-        BeforeAll {
-            $script:ConsoleSurfaces = @(
-                'apps/OpsConsole/index.html',
-                'apps/InvestigationConsole/index.html',
-                'apps/ConversationAnalysis/index.html'
-            )
-            $script:LightSurfaces = @('#ffffff', '#f8faf9', '#f0f4f1')
-        }
-
         It 'defines text-safe status tokens in <_>' -ForEach $script:ConsoleSurfaces {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot $_) -Raw
             foreach ($token in @('--ok-text', '--warn-text', '--danger-text', '--accent-text')) {

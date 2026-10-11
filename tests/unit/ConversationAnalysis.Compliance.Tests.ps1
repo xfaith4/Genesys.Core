@@ -1,4 +1,4 @@
-##
+﻿##
 ## ConversationAnalysis.Compliance.Tests.ps1
 ##
 ## Gate D compliance tests for the Conversation Analysis web tool.

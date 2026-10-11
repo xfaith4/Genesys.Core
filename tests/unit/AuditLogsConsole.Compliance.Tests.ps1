@@ -1,4 +1,4 @@
-Describe 'AuditLogsConsole — Core-First Compliance' {
+﻿Describe 'AuditLogsConsole — Core-First Compliance' {
     BeforeAll {
         $appRoot = Join-Path $PSScriptRoot '../../apps/AuditLogsConsole'
         $appFiles = Get-ChildItem -Path $appRoot -Recurse -File -Include '*.ps1','*.psm1','*.xaml','*.psd1'

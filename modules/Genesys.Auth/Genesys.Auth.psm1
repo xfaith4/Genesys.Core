@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 # Gate E: All auth logic isolated here. Invoke-RestMethod only against login.{region} OAuth endpoints.

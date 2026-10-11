@@ -1,3 +1,4 @@
+﻿#requires -Version 7.0
 <#
 .SYNOPSIS
     Extracts a comprehensive monthly operational and platform-utilization report from

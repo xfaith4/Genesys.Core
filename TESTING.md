@@ -310,7 +310,7 @@ Current workflow scope is `audit-logs` only.
 env:
   GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
   GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
-  GENESYS_REGION: 'usw2.pure.cloud'
+  GENESYS_REGION: "usw2.pure.cloud"
 ```
 
 Note: this repository does not yet include a built-in workflow auth bootstrap step that injects `Authorization` headers into `Invoke-Dataset`. You should adapt workflow steps for your environment before production use.
@@ -336,7 +336,7 @@ Note: this repository does not yet include a built-in workflow auth bootstrap st
 
 **Issue:** Paging profile not found (e.g., "nextUri_auditResults")
 
-- **Solution:** This is fixed in the latest version. The code now normalizes variant profiles (nextUri_* → nexturi)
+- **Solution:** This is fixed in the latest version. The code now normalizes variant profiles (nextUri\_\* → nexturi)
 
 **Issue:** Retry tests fail with attempt count mismatch
 

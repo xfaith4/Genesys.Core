@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Returns a RequestInvoker scriptblock backed by static demo fixture files.
 

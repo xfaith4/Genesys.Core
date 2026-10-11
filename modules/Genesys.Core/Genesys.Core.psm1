@@ -1,4 +1,4 @@
-### BEGIN: ModuleBootstrap
+﻿### BEGIN: ModuleBootstrap
 # Capture module root at load time. Functions dot-sourced from Public/ cannot
 # rely on $PSScriptRoot at call time — it reflects the caller's scope, not the
 # file that originally defined the function. Everything that needs a path back

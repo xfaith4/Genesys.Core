@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs all registered datasets against rich mock API responses and writes real output
     artifacts to $OutputRoot for visual inspection and downstream schema validation.

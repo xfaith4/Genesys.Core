@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # Workflow simulation test (MOCK — virtualized for CI)
 # This test simulates the exact steps that the GitHub Actions workflow performs,
 # using virtual/mock data instead of real Genesys Cloud API calls.

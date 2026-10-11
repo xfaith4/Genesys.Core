@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+﻿#Requires -Modules Pester
 <#
 .SYNOPSIS
     Unit tests for Invoke-GenesysNotRespondingReport auto-answer scoping and the

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Queries Genesys Cloud conversation details and writes run artifacts for
     use with apps/ConversationAnalysis/index.html.

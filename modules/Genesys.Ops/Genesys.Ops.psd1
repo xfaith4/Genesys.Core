@@ -1,4 +1,4 @@
-@{
+﻿@{
     # Module identity
     ModuleVersion     = '1.0.0'
     GUID              = 'a3f2c1e7-84b6-4d29-9f53-1c8e7d3b0a5f'

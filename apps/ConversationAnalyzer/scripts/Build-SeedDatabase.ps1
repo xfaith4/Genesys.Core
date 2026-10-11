@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Generates lib\cases.seed.sqlite — the pre-built SQLite case store shipped

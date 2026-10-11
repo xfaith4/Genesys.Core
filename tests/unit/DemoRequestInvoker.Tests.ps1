@@ -1,4 +1,4 @@
-Describe 'New-DemoRequestInvoker' {
+﻿Describe 'New-DemoRequestInvoker' {
     BeforeAll {
         Import-Module "$PSScriptRoot/../../modules/Genesys.Core/Genesys.Core.psd1" -Force
         $catalogPath = Join-Path -Path $PSScriptRoot -ChildPath '../../catalog/genesys.catalog.json'

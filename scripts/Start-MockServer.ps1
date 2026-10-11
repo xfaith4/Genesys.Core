@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Starts the Genesys.MockServer HTTP demo server on localhost:7777.
 

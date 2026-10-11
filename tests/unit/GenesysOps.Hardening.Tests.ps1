@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+﻿#Requires -Modules Pester
 <#
 .SYNOPSIS
     Pester unit tests for Genesys.Ops hardening (Phase 1 — no live API required).

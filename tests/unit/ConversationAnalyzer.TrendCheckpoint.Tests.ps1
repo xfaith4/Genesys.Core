@@ -1,4 +1,4 @@
-Describe 'Release 1.3 trend checkpoint evidence' {
+﻿Describe 'Release 1.3 trend checkpoint evidence' {
     BeforeAll {
         $coreAdapterPath = Join-Path -Path $PSScriptRoot -ChildPath '../../apps/ConversationAnalyzer/modules/App.CoreAdapter.psm1'
         $databasePath = Join-Path -Path $PSScriptRoot -ChildPath '../../apps/ConversationAnalyzer/modules/App.Database.psm1'

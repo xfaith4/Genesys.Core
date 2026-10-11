@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     IT Operations wrapper around Genesys.Core for day-to-day Genesys Cloud administration.

@@ -1,4 +1,4 @@
-Describe 'Genesys.Ops Phase 5 export surface' {
+﻿Describe 'Genesys.Ops Phase 5 export surface' {
     BeforeAll {
         $moduleManifestPath = Join-Path -Path $PSScriptRoot -ChildPath '../../modules/Genesys.Ops/Genesys.Ops.psd1'
         $manifest = Import-PowerShellDataFile -Path $moduleManifestPath

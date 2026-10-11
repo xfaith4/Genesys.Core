@@ -62,13 +62,13 @@ if ($Unregister) {
     exit 0
 }
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -ConfigPath \"{1}\"" -f $scriptPath, $ConfigPath)
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`" -ConfigPath `"{1}`"" -f $scriptPath, $ConfigPath)
 $trigger = New-TaskTriggerForFrequency -Frequency $Frequency -StartTime $StartTime
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 
 if ($WhatIf) {
     Write-Host "[WhatIf] Would register task '$TaskName' with frequency '$Frequency' start '$StartTime'."
-    Write-Host "Action: powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$scriptPath\" -ConfigPath \"$ConfigPath\""
+    Write-Host "Action: powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ConfigPath `"$ConfigPath`""
     exit 0
 }
 

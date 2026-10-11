@@ -1,4 +1,4 @@
-function ConvertTo-PlainOrderedMap {
+﻿function ConvertTo-PlainOrderedMap {
     [CmdletBinding()]
     param(
         [object]$InputObject

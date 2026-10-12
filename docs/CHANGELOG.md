@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-10-12 — operational investigation foundations
+
+### Added and changed
+
+- Core records endpoint-specific 429 evidence in `rate-limits.jsonl` and adapts subsequent
+  requests with process-local pacing and shared Retry-After cooldowns.
+- `Compare-GenesysMonthlyVoiceVolume` compares details query/jobs and aggregates query/jobs,
+  retaining source definitions, differences and collection evidence in portable reports.
+- `Get-GenesysConversationProfile` and `Get-GenesysConversationAnalysis` provide scoped
+  population analysis, nullable statistics, unique affected/error-occurrence counts,
+  segment timelines and redacted artifacts. Portable and Data Client workbenches share
+  filtering, grouping, pagination and full filtered-set JSON/CSV export.
+- Optional directory name resolution retains authoritative IDs, per-family lookup coverage
+  and current user Division membership. Investigation identity redaction preserves userId
+  joins while continuing to redact contact fields and credentials.
+- Profiles retain flow IDs and packet observations. Discarded-packet averages preserve their
+  observation denominator; they are not loss percentages or unique packet totals.
+- Search indexing/debounce, running group accumulators, bounded rendered rows and artifact
+  serialization improvements support larger populations. Reproducible synthetic benchmarks
+  and their limits are in [the performance guide](CONVERSATION_POPULATION_PERFORMANCE.md).
+- Data Client navigation/skin changes retain investigation state in memory; reload clears it.
+  Browser review also corrected exploration state, metric switching, exports, history,
+  help/search, responsive navigation and endpoint discovery recovery.
+- Runtime logs are ignored; demo/sample and fixture logs remain eligible for tracking.
+
+### Evidence and remaining work
+
+Recorded local checks: 52 focused Ops/Core tests, eight population engine tests and 79
+client tests passed; client typecheck/build passed and 21 rendered accessibility surfaces
+had zero axe violations. Full Core unit results were 233 passed, one skipped, one failed:
+five existing golden-path HTML files are missing from the accessibility manifest.
+These checks used fixtures/synthetic artifacts, not live tenant acceptance.
+
+The [NOC contract](NOC_INCIDENT_INVESTIGATIONS.md) defines the next composed incident
+workflow. Universal job/transaction pairing, historical routing evidence, baseline queue
+metrics and audit correlation remain open. See the [root roadmap](../ROADMAP.md).
+
 ## 2026-09-05 (test suite repair)
 
 ### Fixed

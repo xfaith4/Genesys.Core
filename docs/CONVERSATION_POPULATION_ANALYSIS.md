@@ -144,10 +144,10 @@ There is no browser-to-PowerShell service in this slice. Enable `-ResolveEntityN
 
 
 
-Local validation on 2026-10-11: 23 focused integration tests and six engine tests passed;
-rendered desktop, mobile and detail-dialog accessibility audits found zero violations.
-The full Core unit run had 232 passes, one skip and one existing failure because five
-shipped golden-path HTML pages are absent from the accessibility surface manifest.
+Local validation recorded on 2026-10-12: 52 focused Ops/Core tests and eight engine
+tests passed. The full Core unit run had 233 passes, one skip and one existing failure
+because five shipped golden-path HTML pages are absent from the accessibility surface
+manifest (the HTML files themselves exist). These are local results, not a full green gate.
 
 Data Client integration validation: 79 client tests, typechecking and production build passed;
 the extended rendered accessibility gate audited 21 surfaces with zero violations.

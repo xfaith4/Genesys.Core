@@ -1,5 +1,19 @@
 # Genesys.Core Repository Schematic
 
+## Recent investigation additions
+
+- `modules/Genesys.Ops/ConversationPopulation.ps1`: shared profiling and population analysis.
+- `modules/Genesys.Ops/ConversationEntities.ps1`: optional directory enrichment and coverage.
+- `modules/Genesys.Ops/MonthlyVoiceVolume.ps1`: four-source monthly comparison.
+- `apps/ConversationAnalysis/Investigation.html` and `population.js`: portable profile workbench;
+  `Start-Investigation.ps1` is its thin Ops launcher. `index.html` remains the raw JSONL viewer.
+- `apps/GenesysDataClient/`: modern frontend, including the shared workbench at `#/investigation`.
+- `apps/MonthlyMetrics/Compare-MonthlyVoiceVolume.ps1`: monthly comparison launcher.
+- `scripts/New-DemoConversationAnalysis.ps1` and `Measure-ConversationPopulation.mjs`:
+  synthetic demonstrations and reproducible scale measurements.
+
+The tree below summarizes the original lane layout; it is not an exhaustive file inventory.
+
 This is the v2 lane layout and canonical navigation map.
 
 ```text

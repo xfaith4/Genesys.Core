@@ -1,5 +1,19 @@
 # Product value and next opportunities
 
+## Current priority — 2026-10-12
+
+The product direction now prioritizes composed NOC investigations: select disconnect/error
+cohorts, join affected agents/queues/flows/Divisions, and compare quality, routing and audit
+evidence. The September ranking below is historical assessment, superseded for execution
+by the [root roadmap](../ROADMAP.md).
+
+Delivered foundations include [population analysis](CONVERSATION_POPULATION_ANALYSIS.md),
+optional entity names/current user Division membership, packet observations and
+[four-source monthly volume reconciliation](MONTHLY_VOICE_VOLUME_RECONCILIATION.md).
+The [mass-disconnect composer](NOC_INCIDENT_INVESTIGATIONS.md), historical NOT_RESPONDING,
+baseline queue comparisons and audit correlation remain planned. Synthetic demonstrations
+do not establish live tenant coverage or operational acceptance.
+
 Assessment date: 2026-09-15. Priorities are engineering/product judgments based on the
 repository and current Genesys documentation, not customer-validated demand or ROI claims.
 

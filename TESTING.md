@@ -1,5 +1,31 @@
 # Testing Guide for Genesys.Core
 
+## Recent investigation checks
+
+Run from the repository root unless noted:
+
+```powershell
+Invoke-Pester -Path ./tests/integration/ConversationPopulation.Tests.ps1
+Invoke-Pester -Path ./tests/integration/MonthlyVoiceVolume.Tests.ps1
+```
+
+```bash
+node --test tests/browser/conversation-population.test.mjs
+node scripts/Measure-ConversationPopulation.mjs 50000 result.json analysis.json
+```
+
+In `apps/GenesysDataClient`, with Node 24 and installed dependencies, run `npm test`,
+`npm run typecheck` and `npm run build`. Run `npm run test:a11y` with its configured
+mock/client services available; see the [client guide](apps/GenesysDataClient/README.md).
+The benchmark is an engine measurement, not an API, full-browser or tenant acceptance test.
+Use [documented scale results](docs/CONVERSATION_POPULATION_PERFORMANCE.md) for boundaries.
+
+Recorded local evidence on 2026-10-12: 52 focused Ops/Core checks, eight engine checks,
+79 client tests, client typecheck/build and 21 rendered accessibility surfaces passed.
+The full Core unit run remained **233 passed, one skipped, one failed**, because five
+existing golden-path HTML files are not listed in the accessibility surface manifest.
+No live-tenant or universal async-job acceptance is implied by these results.
+
 This document provides comprehensive instructions for testing the Genesys.Core PowerShell module in various environments.
 
 ## Table of Contents

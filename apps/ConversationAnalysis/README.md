@@ -1,5 +1,18 @@
 # Genesys Conversation Analysis — Web Tool
 
+## Choose the input and workbench
+
+| Entry point | Input | Purpose |
+| --- | --- | --- |
+| `Investigation.html` or generated `report.html` | Ops `analysis.json` / embedded analysis | Incident populations, profile metrics, entity names, error counts and timelines |
+| `index.html` | Raw Core conversation-detail JSONL | Explore collected API records |
+
+For the operational workbench, start with the [Ops workflow below](#incident-population-workbench-ops-profiles)
+or the [complete population guide](../../docs/CONVERSATION_POPULATION_ANALYSIS.md).
+Generate a credential-free example with `./scripts/New-DemoConversationAnalysis.ps1` from
+the repository root. Import its `analysis.json` into `Investigation.html` or the Data Client.
+The raw JSONL instructions below describe `index.html`; these input formats are different.
+
 A self-contained, single-file HTML web application for exploring, filtering, and
 drilling down into Genesys Cloud conversation analytics data produced by
 **Genesys.Core**'s `Invoke-Dataset` command.
@@ -29,7 +42,7 @@ Invoke-Dataset `
   -Headers      @{ Authorization = "Bearer $env:GENESYS_BEARER_TOKEN" } `
   -DatasetParameters @{ interval = '2026-03-05T00:00:00Z/2026-03-05T23:59:59Z' }
 
-# Full run (async job — handles 100k+ conversations)
+# Full run (async job with paged results; validate scale for your tenant)
 Invoke-Dataset `
   -Dataset 'analytics-conversation-details' `
   -CatalogPath  '.\catalog\genesys.catalog.json' `

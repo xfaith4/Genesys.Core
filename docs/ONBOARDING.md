@@ -1,5 +1,16 @@
 # Genesys.Core Onboarding
 
+## Start with an operational question
+
+Use the [population workbench](CONVERSATION_POPULATION_ANALYSIS.md) for interval-scoped
+conversation/error analysis, or [monthly reconciliation](MONTHLY_VOICE_VOLUME_RECONCILIATION.md)
+for the four voice-volume sources. Both use shared Ops functions and Core collection.
+Generate a credential-free example with `./scripts/New-DemoConversationAnalysis.ps1`
+from the repository root, then open the returned `report.html`.
+For mock API setup and request examples, see the [root README](../README.md#local-mock-server).
+The [Data Client](../apps/GenesysDataClient/README.md) imports Ops `analysis.json` at
+`#/investigation`; the older ConversationAnalysis `index.html` imports raw detail JSONL.
+
 This guide describes how to run the repository under the Auth/Core/Ops lane standard.
 
 ## Table of Contents

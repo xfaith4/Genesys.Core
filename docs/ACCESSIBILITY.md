@@ -1,5 +1,18 @@
 # Accessibility — WCAG 2.1 Level AA
 
+## Current coverage status — 2026-10-12
+
+The seven-surface inventory and September audit below describe historical static coverage.
+The portable conversation workbench (`apps/ConversationAnalysis/Investigation.html`) also
+runs inside the Data Client's sandboxed investigation frame. The extended rendered client
+gate checked 21 surfaces with zero axe violations, including investigation interactions.
+Automated results do not establish manual WCAG conformance.
+
+The latest full Core unit run has an open manifest-coverage failure: five shipped
+golden-path HTML pages are not declared in `config/accessibility-surfaces.json`.
+Do not interpret the historical conformance statement below as complete current coverage.
+See [testing evidence](../TESTING.md) for the recorded scope and remaining gate.
+
 Genesys.Core ships seven HTML surfaces: three operator consoles, a dataset
 browser, two documentation pages, and the HTML report emitted by the
 investigation packaging cmdlets. All seven are held to **WCAG 2.1 Level AA**,

@@ -1,5 +1,14 @@
 # Genesys Data Client
 
+## Document status
+
+This document retains the original architecture proposal. For current delivered behavior,
+setup and navigation, use the [application README](../apps/GenesysDataClient/README.md).
+Core owns collection; Ops owns shared investigation composition; the frontend presents
+those artifacts. The browser does not execute PowerShell. Current priorities and open
+acceptance gates are in the [root roadmap](../ROADMAP.md) and
+[NOC investigation contract](NOC_INCIDENT_INVESTIGATIONS.md).
+
 Don't treat the proposed client as though it were becoming the UI for **Genesys.Core itself**. That's not what you're building.
 
 Here is the model:

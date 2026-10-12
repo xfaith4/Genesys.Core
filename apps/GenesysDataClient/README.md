@@ -1,6 +1,17 @@
 # Genesys Data Client
 
-Customizable data exploration, analysis, reporting and visualization built on Genesys.Core.
+An operations investigation frontend built on Genesys.Core collection and Genesys.Ops analysis.
+
+Start with **Conversation investigation** (`#/investigation`) to import an Ops `analysis.json`,
+filter incident cohorts, summarize the entire filtered population and inspect timelines.
+The home page organizes work around Investigate, Measure and Explain; endpoint discovery
+supports raw diagnostics. Monthly reconciliation currently runs through its
+[PowerShell launcher](../MonthlyMetrics/README.md), rather than a dedicated client page.
+
+The browser generates collection commands; run them in a connected Ops PowerShell session.
+Its direct API client does not automatically inherit Core PowerShell adaptive pacing.
+See the [population guide](../../docs/CONVERSATION_POPULATION_ANALYSIS.md) and
+[measured performance limits](../../docs/CONVERSATION_POPULATION_PERFORMANCE.md).
 
 It deliberately does **not** reproduce the agent, supervisor or administrative workflows of the
 native Genesys Cloud client. It centres on the data instead:

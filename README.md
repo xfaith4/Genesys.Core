@@ -1,6 +1,6 @@
 # Genesys.Core
 
-> A catalog-driven PowerShell execution engine optimizing Genesys Cloud data collection for automation and audit.
+> Governed Genesys Cloud collection and operational investigations, with shared PowerShell analysis and interactive evidence.
 
 [![CI](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml/badge.svg)](https://github.com/xfaith4/Genesys.Core/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE) [![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-blue)](https://github.com/PowerShell/PowerShell)
 
@@ -15,9 +15,46 @@ Use the [Genesys Data Client](apps/GenesysDataClient/README.md) for the modern w
 See the [roadmap](ROADMAP.md), [feature-value assessment](docs/PRODUCT_VALUE.md), and
 [reconciliation report](docs/REPOSITORY_RECONCILIATION.md) for current priorities and proof boundaries.
 
+## Operational investigation workflows
+
+Core owns catalog collection, paging, async status/results and adaptive retries. Ops
+composes the evidence and metrics; the apps present shared analysis. Start with:
+
+- [Conversation populations](docs/CONVERSATION_POPULATION_ANALYSIS.md): collect an interval
+  scoped by queue, user or Division; filter error cohorts, group entities, inspect timelines,
+  and calculate count/average/minimum/maximum over the full filtered population.
+- [Monthly voice-volume reconciliation](docs/MONTHLY_VOICE_VOLUME_RECONCILIATION.md): compare
+  details query/jobs with aggregates query/jobs and highlight differences in source semantics.
+- [Single-conversation evidence packages](docs/CONVERSATION_INVESTIGATION_PACKAGE.md).
+- [NOC incident investigation contract](docs/NOC_INCIDENT_INVESTIGATIONS.md): the planned
+  mass-disconnect composer, baseline metrics, historical routing states and audit correlation.
+
+Generate a credential-free population demo from the repository root:
+
+```powershell
+./scripts/New-DemoConversationAnalysis.ps1
+```
+
+Open the returned run folder's `report.html`, or import its `analysis.json` into the Data
+Client's **Conversation investigation** page (`#/investigation`). For live collection, after
+connecting Ops with `Connect-GenesysCloud`, run:
+
+```powershell
+./apps/ConversationAnalysis/Start-Investigation.ps1 `
+    -Since '2026-09-01T00:00:00Z' -Until '2026-10-01T00:00:00Z' `
+    -QueueId 'queue-guid' -ResolveEntityNames -OpenReport
+```
+
+`Until` is exclusive. Name resolution is optional and records lookup coverage; directory
+names and user Division membership describe lookup time, not historical membership.
+Exports include scope, coverage and provenance. Missing observations remain missing.
+See [population performance measurements](docs/CONVERSATION_POPULATION_PERFORMANCE.md)
+for synthetic benchmarks and limits. Live tenant acceptance and universal job-family
+coverage remain open; the NOC composer is a contract, not a delivered command.
+
 ## Features
 
-- **Catalog-driven**: 111 datasets and 3,389 endpoint definitions, schema-validated.
+- **Catalog-driven**: 112 datasets and 3,389 endpoint definitions, schema-validated.
 - **Paging strategies**: Adjustable per endpoint, supporting six types.
 - **Retry engine**: Configurable, with jitter and `Retry-After` parsing.
 - **Async transactions**: Efficient logging and analytics job handling.

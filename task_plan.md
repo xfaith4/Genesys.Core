@@ -129,3 +129,6 @@ Interaction: retain investigation state through navigation; use existing reduced
 - [x] Add operational foundations: flow IDs, packet observations and current user-Division joins.
 - [x] Record the mass-disconnect composer, complete async-family contract and acceptance gates.
 - [ ] Implement cross-source mass-disconnect composer, historical state/baseline/audit joins and live NOC workspace (next release work; not claimed complete).
+
+
+Documentation synchronization (2026-10-12): updated main/app entry points, onboarding, architecture status, product priorities, changelog, accessibility and testing evidence for population analysis, entity resolution, scale and monthly reconciliation. Kept NOC composition and live acceptance open. Verified catalog totals: 112 datasets / 3,389 endpoints.

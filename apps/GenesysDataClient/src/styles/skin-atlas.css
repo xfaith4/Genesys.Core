@@ -219,7 +219,9 @@
 .ax-content { flex: 1; overflow-y: auto; padding: 16px; }
 
 @media (max-width: 860px) {
-  .ax-rail { width: 52px; }
-  .ax-rail__brand, .ax-rail__filter, .ax-rail__section-label { display: none; }
-  .ax-rail__item span:not(.ax-rail__marker) { display: none; }
+  .ax:not(.ax--rail-collapsed) .ax-rail {
+    position: absolute; inset: 0 auto 0 0; width: min(280px, 85vw);
+    z-index: 40; box-shadow: 8px 0 24px #0003;
+  }
+  .ax-header { flex-wrap: wrap; gap: 8px; }
 }

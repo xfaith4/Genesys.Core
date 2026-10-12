@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Genesys Conversation Investigation</title>
+<style>
+:root{color-scheme:light;--ink:#152f40;--muted:#496070;--line:#ced9df;--accent:#a83f18;--paper:#fafbf9}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}header{padding:22px 4vw;background:#112e40;color:white;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}h1{font-size:25px;margin:2px 0;font-weight:650;letter-spacing:-.6px}.eyebrow{font-size:11px;letter-spacing:2px;text-transform:uppercase}header p{margin:0;color:#dce7eb}main{padding:24px 4vw;max-width:1900px;margin:auto}h2{font-size:18px;margin:0 0 12px}h3{font-size:15px}section{margin-bottom:30px}button,input,select{font:inherit}button,.file-button{padding:9px 13px;border:1px solid #849aa7;border-radius:4px;background:white;color:var(--ink);cursor:pointer}button:hover,.file-button:hover{background:#e8eff2}button.primary{background:var(--accent);border-color:var(--accent);color:white}button:disabled{opacity:.55;cursor:default}input,select{padding:8px;border:1px solid #849aa7;border-radius:3px;background:white;color:var(--ink);max-width:100%}label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600}fieldset{border:0;padding:0;margin:0;min-width:0}legend{font-weight:650;margin-bottom:8px}.row{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.row>*{min-width:0}.scope{border-bottom:1px solid var(--line);padding-bottom:16px;overflow-wrap:anywhere}.muted{color:var(--muted)}.coverage{font-size:13px;font-weight:600}.warning{border-left:3px solid var(--accent);padding-left:12px}.summary{display:flex;gap:30px;flex-wrap:wrap;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:16px 0}.summary strong{display:block;font-size:26px;font-variant-numeric:tabular-nums}.summary span{font-size:12px;color:var(--muted)}.scroll{overflow:auto;max-width:100%;border-bottom:1px solid var(--line)}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#eaf0f2;position:sticky;top:0;white-space:nowrap}td{max-width:280px;overflow-wrap:anywhere}th button{background:transparent;border:0;padding:0;font-weight:650;color:inherit}.toolbar{justify-content:space-between;margin:12px 0}.table-region{max-height:560px}.id-button{border:0;background:transparent;color:#85320f;padding:0;text-decoration:underline;text-align:left;font-family:ui-monospace,monospace}.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.filter-tag{border:1px solid var(--line);padding:5px 8px}.filter-tag button{padding:0 5px;border:0;margin-left:8px}.group-layout>div{min-width:0}.group-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.file-button:focus-within{outline:3px solid #c3582a;outline-offset:3px}.skip{position:absolute;left:-9999px}.skip:focus{left:16px;top:8px;background:white;padding:10px;z-index:10}:focus-visible{outline:3px solid #c3582a;outline-offset:3px}dialog{border:1px solid #8da3b0;border-radius:6px;width:min(1000px,94vw);max-height:90vh;padding:24px;color:var(--ink);animation:reveal .15s ease-out}dialog::backdrop{background:#102d40aa}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf1f2;padding:16px;font-size:12px}details{margin-bottom:18px}summary{cursor:pointer;font-weight:600}.empty{padding:40px 0;color:var(--muted)}#notice{min-height:24px}#columns{display:flex;gap:12px;flex-wrap:wrap}#columns label{flex-direction:row;align-items:center;font-weight:400}#query-command{max-height:160px;overflow:auto}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}@keyframes reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){*{animation:none!important}}@media(max-width:750px){header,main{padding:18px}.group-layout{grid-template-columns:minmax(0,1fr)}.summary{gap:18px}.row label{flex:1 1 140px}h1{font-size:22px}.toolbar{align-items:start}.scroll{max-height:420px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to investigation</a>
+<header><div><div class="eyebrow">Genesys · Investigation tools</div><h1>Conversation investigation</h1><p>Explore a population. Follow the evidence.</p></div><label class="file-button" for="file">Open Ops analysis JSON<input id="file" type="file" accept=".json,application/json" class="sr-only"></label></header>
+<main id="main">
+<div id="notice" role="status" aria-live="polite"></div>
+<details id="collection"><summary>Collect conversations by interval, queue, user or Division</summary><p class="muted">Run the command in your connected Genesys.Ops PowerShell session. Core handles retrieval; open the generated report when it finishes. This browser does not send API requests.</p>
+<form id="query-form"><div class="row"><label for="since">Since (UTC)<input id="since" type="datetime-local" required></label><label for="until">Until (UTC, exclusive)<input id="until" type="datetime-local" required></label><label for="queue">Queue IDs, comma separated<input id="queue" type="text"></label><label for="user">User IDs, comma separated<input id="user" type="text"></label><label for="division">Division IDs, comma separated<input id="division" type="text"></label><label for="resolve-names"><input id="resolve-names" type="checkbox">Resolve entity names through Ops</label><button type="submit">Build collection command</button></div></form><pre id="query-command" hidden></pre></details>
+<section class="scope" aria-label="Collection scope"><p id="scope" class="muted">Open analysis.json exported by Get-GenesysConversationAnalysis, or run a collection above.</p><div id="coverage" class="coverage"></div><div id="warnings" class="warning"></div><details><summary>Collection query, coverage and metric definitions</summary><pre id="provenance"></pre></details></section>
+<div id="workspace" hidden>
+<section aria-labelledby="population-heading"><div class="row toolbar"><h2 id="population-heading">Population &amp; filters</h2><label for="search">Search all profiles<input id="search" type="search" placeholder="Conversation, agent, queue, error…"></label></div>
+<form id="filter-form"><fieldset><legend>Add a condition · all conditions must match</legend><div class="row"><label for="filter-field">Field<select id="filter-field"></select></label><label for="operator">Operator<select id="operator"><option value="equals">Equals / array contains exact value</option><option value="contains">Contains text</option><option value="exists">Has a value</option><option value="missing">Missing</option><option value="lt">Less than</option><option value="lte">Less than or equal</option><option value="gt">Greater than</option><option value="gte">Greater than or equal</option></select></label><label for="filter-value">Value<input id="filter-value" type="text"></label><button type="submit">Add filter</button><button id="reset" type="button">Reset filters</button></div></fieldset></form><div id="filters" class="filters"></div>
+<div class="row toolbar"><label for="metric">Statistic field<select id="metric"></select></label><label for="group">Group by<select id="group"><option value="">All conversations</option><option value="DivisionIds">Division</option><option value="QueueIds">Queue</option><option value="AgentKeys">Engaged agent</option><option value="UserIds">User (including alert-only)</option><option value="ErrorCodes">Error code</option><option value="Direction">Direction</option><option value="MediaTypes">Media type</option><option value="DisconnectType">Disconnect type</option><option value="FlowNames">Flow</option><option value="WrapUpCodeId">Wrap-up code</option></select></label><div><button id="export-json" type="button">Export filtered JSON</button> <button id="export-csv" type="button">Export visible columns CSV</button></div></div>
+<div id="stats" class="summary" aria-live="polite"></div><p id="definition" class="muted"></p>
+</section>
+<section class="group-layout" aria-label="Population breakdowns"><div><h2>Grouped statistics</h2><p class="muted">One contribution per conversation per group. Conversations can belong to several groups; group counts are not additive.</p><div class="scroll" tabindex="0" role="region" aria-label="Grouped statistics"><table aria-label="Grouped statistics"><thead><tr><th scope="col">Group</th><th scope="col">Conversations</th><th scope="col">Valid</th><th scope="col">Missing</th><th scope="col">Average</th><th scope="col">Max</th></tr></thead><tbody id="groups"></tbody></table></div><p id="group-count" class="muted"></p><button id="more-groups" type="button" hidden>Show 100 more groups</button></div>
+<div><h2>Error distribution</h2><p class="muted">Counts every error segment. Repeated codes on one conversation increase occurrences, while that conversation is counted once per code.</p><div class="scroll" tabindex="0" role="region" aria-label="Error distribution"><table aria-label="Error distribution"><thead><tr><th scope="col">Error code</th><th scope="col">Conversations</th><th scope="col">Occurrences</th></tr></thead><tbody id="errors"></tbody></table></div><p id="error-count" class="muted"></p><button id="more-errors" type="button" hidden>Show 100 more error codes</button></div></section>
+<section aria-labelledby="conversations-heading"><div class="row toolbar"><h2 id="conversations-heading">Conversations</h2><span id="result-count" role="status"></span><div><button id="previous" type="button">Previous</button> <span id="page"></span> <button id="next" type="button">Next</button></div></div>
+<details><summary>Choose columns</summary><div id="columns"></div></details><div class="scroll table-region" tabindex="0" role="region" aria-label="Conversation population"><table id="grid" aria-label="Conversation population" data-dynamic-headers="true"><thead></thead><tbody></tbody></table></div><p class="muted">Select a conversation ID to inspect its normalized profile, error events and session facts. Statistics use every filtered conversation, not just this page.</p></section>
+</div>
+</main>
+<dialog id="detail" aria-labelledby="detail-title"><div class="row toolbar"><h2 id="detail-title">Conversation detail</h2><button id="close-detail" type="button">Close</button></div><p id="detail-scope" class="muted"></p><h3>Segment timeline</h3><div class="scroll" tabindex="0" role="region" aria-label="Segment timeline"><table aria-label="Conversation segment timeline"><thead><tr><th scope="col">Start (UTC)</th><th scope="col">Purpose</th><th scope="col">User</th><th scope="col">Queue</th><th scope="col">Segment</th><th scope="col">Disconnect</th><th scope="col">Error</th></tr></thead><tbody id="timeline"></tbody></table></div><details><summary>All profile fields, error events and session facts</summary><pre id="detail-json"></pre></details></dialog>
+<script>/* Generic profile filtering/statistics; collection and domain profiling belong to Ops. */
+(function (root) {
+  'use strict';
+  const values = value => Array.isArray(value) ? value : [value];
+  const present = value => value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0);
+  const numeric = value => typeof value === 'number' && Number.isFinite(value);
+  const text = value => String(value ?? '').toLocaleLowerCase();
+  let searchIndex = new WeakMap();
+  function validateBundle(bundle) {
+    if (!bundle || bundle.kind !== 'genesys-conversation-analysis' || bundle.schemaVersion !== 1 || !Array.isArray(bundle.profiles) || !bundle.coverage || !bundle.definitions || !Array.isArray(bundle.definitions.numericFields)) throw new Error('Select a version 1 Genesys.Ops conversation analysis JSON file.');
+    const ids = new Set();
+    for (const row of bundle.profiles) {
+      if (!row || typeof row.ConversationId !== 'string' || !row.ConversationId.trim() || ids.has(row.ConversationId)) throw new Error('Profiles must have unique, non-empty conversation IDs.');
+      ids.add(row.ConversationId);
+    }
+    searchIndex = new WeakMap();
+    return bundle;
+  }
+  function matches(row, filter) {
+    const value = row[filter.field];
+    if (filter.operator === 'exists') return present(value);
+    if (filter.operator === 'missing') return !present(value);
+    if (!present(value)) return false;
+    return values(value).some(item => {
+      if (filter.operator === 'contains') return text(item).includes(text(filter.value));
+      if (filter.operator === 'equals') return text(item) === text(filter.value);
+      if (!numeric(item) || String(filter.value).trim() === '') return false;
+      const limit = Number(filter.value);
+      if (!Number.isFinite(limit)) return false;
+      if (filter.operator === 'lt') return item < limit;
+      if (filter.operator === 'lte') return item <= limit;
+      if (filter.operator === 'gt') return item > limit;
+      if (filter.operator === 'gte') return item >= limit;
+      return false;
+    });
+  }
+  function filterProfiles(rows, filters = [], search = '') {
+    const needle = text(search).trim();
+    return rows.filter(row => {
+      if (!filters.every(filter => matches(row, filter))) return false;
+      if (!needle) return true;
+      let index = searchIndex.get(row);
+      if (index === undefined) {
+        index = Object.entries(row).filter(([key]) => !['Sessions','ErrorEvents','Timeline'].includes(key)).map(([,value]) => text(value)).join('\u0000');
+        searchIndex.set(row, index);
+      }
+      return index.includes(needle);
+    });
+  }
+  function stats(rows, field) {
+    let count = 0, sum = 0, min = Infinity, max = -Infinity;
+    for (const row of rows) if (numeric(row[field])) { const value = row[field]; count++; sum += value; min = Math.min(min, value); max = Math.max(max, value); }
+    return { conversations: rows.length, validCount: count, missingCount: rows.length - count, average: count ? sum / count : null, min: count ? min : null, max: count ? max : null, sum: count ? sum : null };
+  }
+  function groupStats(rows, field, metric) {
+    const groups = new Map();
+    for (const row of rows) {
+      const keys = !field ? ['All conversations'] : present(row[field]) ? new Set(values(row[field]).map(String)) : ['<missing>'];
+      for (const key of keys) {
+        let group = groups.get(key);
+        if (!group) { group = { group: key, conversations: 0, validCount: 0, missingCount: 0, sum: 0, min: Infinity, max: -Infinity }; groups.set(key, group); }
+        group.conversations++;
+        const value = row[metric];
+        if (numeric(value)) { group.validCount++; group.sum += value; group.min = Math.min(group.min,value); group.max = Math.max(group.max,value); }
+        else group.missingCount++;
+      }
+    }
+    return [...groups.values()].map(group => ({ ...group, average: group.validCount ? group.sum / group.validCount : null, min: group.validCount ? group.min : null, max: group.validCount ? group.max : null, sum: group.validCount ? group.sum : null })).sort((a,b) => b.conversations-a.conversations || a.group.localeCompare(b.group));
+  }
+
+  function errorStats(rows) {
+    const groups = new Map();
+    for (const row of rows) {
+      for (const event of row.ErrorEvents ?? []) {
+        const code = String(event.Code ?? '');
+        if (!code) continue;
+        if (!groups.has(code)) groups.set(code, { code, occurrences: 0, ids: new Set() });
+        const group = groups.get(code); group.occurrences++; group.ids.add(row.ConversationId);
+      }
+    }
+    return [...groups.values()].map(group => ({ code: group.code, occurrences: group.occurrences, conversations: group.ids.size })).sort((a, b) => b.conversations - a.conversations || a.code.localeCompare(b.code));
+  }
+  function csv(rows, columns) {
+    const cell = value => {
+      if (Array.isArray(value)) value = value.join(' | ');
+      else if (value && typeof value === 'object') value = JSON.stringify(value);
+      if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) value = "'" + value;
+      return '"' + String(value ?? '').replaceAll('"', '""') + '"';
+    };
+    return '\uFEFF' + [columns.map(cell).join(','), ...rows.map(row => columns.map(column => cell(row[column])).join(','))].join('\r\n');
+  }
+  root.GcPopulation = { validateBundle, filterProfiles, stats, groupStats, errorStats, csv };
+})(globalThis);
+</script>
+<script>
+'use strict';
+const embeddedAnalysis = /*__GC_ANALYSIS__*/null;
+const $ = id => document.getElementById(id);
+const { validateBundle, filterProfiles, stats, groupStats, errorStats, csv } = GcPopulation;
+let bundle = null, filters = [], filtered = [], page = 0, metric = 'EndpointMinMos', group = '', sortField = 'StartUtc', sortDirection = -1;
+let columns = ['ConversationId','StartUtc','Direction','QueueIds','AgentKeys','ErrorCodes','EndpointMinMos','tHandleSec'];
+const pageSize = 50;
+let groupLimit=100, errorLimit=100, searchTimer=null;
+const families={QueueIds:'queues',AgentKeys:'users',UserIds:'users',DivisionIds:'divisions',WrapUpCodeId:'wrapupCodes',SkillIds:'skills',LanguageIds:'languages'};
+const entityLabel=(field,value)=>{
+  if(value==null)return format(value);
+  if(Array.isArray(value))return value.map(id=>entityLabel(field,id)).join(' → ');
+  const name=bundle?.entityResolution?.entities?.[families[field]]?.[value];
+  return name ? `${name} [${value}]` : format(value);
+};
+const format = value => value == null ? '—' : typeof value === 'number' ? value.toLocaleString(undefined,{maximumFractionDigits:3}) : Array.isArray(value) ? value.join(' → ') : String(value);
+const node = (tag,text) => { const element = document.createElement(tag); if(text !== undefined) element.textContent = text; return element; };
+function options(select, fields) { select.replaceChildren(...fields.map(field => { const option=node('option',field); option.value=field; return option; })); }
+function load(value) {
+  const validated = validateBundle(value); clearTimeout(searchTimer); groupLimit=100; errorLimit=100; bundle = validated; filters=[]; page=0; $('search').value=''; $('workspace').hidden=false;
+  const fieldSet=new Set(); for(const row of bundle.profiles)for(const field of Object.keys(row))fieldSet.add(field);
+  const fields = [...fieldSet].filter(field=>!['Sessions','ErrorEvents','Timeline'].includes(field)).sort();
+  options($('filter-field'),fields.length ? fields : ['ConversationId']);
+  options($('metric'),bundle.definitions.numericFields); if(!bundle.definitions.numericFields.includes(metric)) metric=bundle.definitions.numericFields[0]; $('metric').value=metric;
+  $('scope').textContent = `${bundle.scope?.sinceUtc ?? 'Unknown start'} → ${bundle.scope?.untilUtc ?? 'Unknown end'} · ${bundle.profiles.length.toLocaleString()} distinct conversations · collected ${bundle.generatedAtUtc ?? 'unknown'}`;
+  $('coverage').textContent = `${bundle.selection ? 'Saved selection: '+bundle.profiles.length+' of '+bundle.selection.populationCount+' source conversations. ' : ''}Collection: ${bundle.coverage.status} · Entity names: ${bundle.entityResolution?.enabled ? 'see lookup coverage below' : 'not requested'} · Evidence: ${bundle.coverage.evidenceMode} · Duplicates excluded: ${bundle.coverage.duplicateRows ?? 'unknown'}`;
+  $('provenance').textContent=JSON.stringify({scope:bundle.scope,request:bundle.request,coverage:bundle.coverage,definitions:bundle.definitions,entityResolution:bundle.entityResolution},null,2);
+  $('warnings').replaceChildren(...(bundle.warnings ?? []).map(message=>node('p',message)));
+  const columnArea=$('columns'); columnArea.replaceChildren();
+  for(const field of fields){ const label=node('label'); const input=node('input'); input.type='checkbox'; input.checked=columns.includes(field); input.addEventListener('change',()=>{columns=input.checked ? [...columns,field] : columns.filter(c=>c!==field); renderGrid();}); label.append(input,node('span',field)); columnArea.append(label); }
+  $('notice').textContent='Analysis loaded. Filters and statistics use the full population.'; render();
+}
+function render() {
+  if(!bundle)return;
+  filtered=filterProfiles(bundle.profiles,filters,$('search').value);
+  filtered.sort((a,b)=>{const av=a[sortField],bv=b[sortField]; if(av==null)return bv==null?0:1;if(bv==null)return -1;return sortDirection*(typeof av==='number'&&typeof bv==='number'?av-bv:String(av).localeCompare(String(bv)));});
+  page=Math.min(page,Math.max(0,Math.ceil(filtered.length/pageSize)-1));
+  $('filters').replaceChildren(...filters.map((filter,index)=>{const tag=node('span',`${filter.field} ${filter.operator} ${filter.value ?? ''}`);tag.className='filter-tag';const remove=node('button','×');remove.type='button';remove.setAttribute('aria-label',`Remove filter ${filter.field}`);remove.onclick=()=>{filters.splice(index,1);page=0;render();};tag.append(remove);return tag;}));
+  const result=stats(filtered,metric);$('stats').replaceChildren();
+  for(const [label,value] of [['Filtered conversations',result.conversations],['Average',result.average],['Minimum',result.min],['Maximum',result.max],['Valid samples',result.validCount],['Missing',result.missingCount]]){const item=node('div');item.append(node('strong',format(value)),node('span',label));$('stats').append(item);}
+  const unit=metric.endsWith('Sec')?'seconds':metric==='MaxLatencyMs'?'milliseconds':metric.includes('Mos')?'MOS points':'field units';
+  $('definition').textContent=`${metric} · ${unit}. Average uses one non-null value per conversation (${result.validCount} valid, ${result.missingCount} missing). ${metric.includes('Mos')?bundle.definitions.mos:metric.startsWith('t')?bundle.definitions.agentMetrics:bundle.definitions.nullPolicy}`;
+  const groupRows=groupStats(filtered,group,metric);
+  $('group-count').textContent=`Showing ${Math.min(groupLimit,groupRows.length)} of ${groupRows.length.toLocaleString()} groups. Statistics cover all matching conversations; JSON exports include every group.`;$('more-groups').hidden=groupRows.length<=groupLimit;
+  $('groups').replaceChildren(...groupRows.slice(0,groupLimit).map(result=>{const tr=node('tr');for(const key of ['group','conversations','validCount','missingCount','average','max']){const td=node('td');if(key==='group' && group){const button=node('button',entityLabel(group,result[key]));button.type='button';button.className='id-button';button.onclick=()=>{filters.push({field:group,operator:result.group==='<missing>'?'missing':'equals',value:result.group});page=0;render();};td.append(button);}else td.textContent=format(result[key]);tr.append(td);}return tr;}));
+  const errorRows=errorStats(filtered);$('error-count').textContent=`Showing ${Math.min(errorLimit,errorRows.length)} of ${errorRows.length.toLocaleString()} error codes. All occurrences remain included in exports.`;$('more-errors').hidden=errorRows.length<=errorLimit;$('errors').replaceChildren(...errorRows.slice(0,errorLimit).map(result=>{const tr=node('tr');const td=node('td');const button=node('button',result.code);button.type='button';button.className='id-button';button.onclick=()=>{filters.push({field:'ErrorCodes',operator:'equals',value:result.code});page=0;render();};td.append(button);tr.append(td,node('td',result.conversations),node('td',result.occurrences));return tr;}));
+  if(!errorRows.length){const tr=node('tr');const td=node('td','No non-empty error codes in this filtered population.');td.colSpan=3;tr.append(td);$('errors').append(tr);}
+  renderGrid();
+}
+function renderGrid() {
+  $('result-count').textContent=`${filtered.length.toLocaleString()} of ${bundle.profiles.length.toLocaleString()} conversations`;
+  const head=node('tr');for(const field of columns){const th=node('th');th.scope='col';const button=node('button',field);button.type='button';button.onclick=()=>{sortDirection=sortField===field?-sortDirection:1;sortField=field;render();};if(field===sortField)th.setAttribute('aria-sort',sortDirection===1?'ascending':'descending');th.append(button);head.append(th);}$('grid').tHead.replaceChildren(head);
+  $('grid').tBodies[0].replaceChildren(...filtered.slice(page*pageSize,(page+1)*pageSize).map(profile=>{const tr=node('tr');for(const field of columns){const td=node('td');if(field==='ConversationId'){const button=node('button',profile[field]);button.type='button';button.className='id-button';button.onclick=()=>{$('detail-title').textContent=profile.ConversationId;$('detail-scope').textContent=`Collection coverage: ${bundle.coverage.status}. Full normalized conversation profile; time values ending Sec are seconds.`;$('detail-json').textContent=JSON.stringify(profile,null,2);$('timeline').replaceChildren(...(profile.Timeline??[]).map(segment=>{const row=node('tr');for(const key of ['StartUtc','Purpose','UserId','QueueId','SegmentType','DisconnectType','ErrorCode'])row.append(node('td',entityLabel({UserId:'UserIds',QueueId:'QueueIds'}[key]??key,segment[key])));return row;}));$('detail').showModal();};td.append(button);}else td.textContent=entityLabel(field,profile[field]);tr.append(td);}return tr;}));
+  if(!filtered.length){const tr=node('tr');const td=node('td','No conversations match these conditions. Reset filters or change the query.');td.colSpan=Math.max(columns.length,1);tr.append(td);$('grid').tBodies[0].append(tr);}
+  $('page').textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(filtered.length/pageSize))}`;$('previous').disabled=page===0;$('next').disabled=(page+1)*pageSize>=filtered.length;
+}
+function flushSearch(){if(searchTimer!==null){clearTimeout(searchTimer);searchTimer=null;page=0;render();}}
+function download(name,contents,type){const url=URL.createObjectURL(new Blob([contents],{type}));const anchor=node('a');anchor.href=url;anchor.download=name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('file').addEventListener('change',async event=>{try{const file=event.target.files[0];if(file)load(JSON.parse(await file.text()));}catch(error){$('notice').textContent=`Unable to load analysis: ${error.message}. Previous analysis remains displayed.`;}finally{event.target.value='';}});
+$('filter-form').onsubmit=event=>{event.preventDefault();filters.push({field:$('filter-field').value,operator:$('operator').value,value:$('filter-value').value});page=0;render();};
+$('operator').onchange=()=>{$('filter-value').disabled=['exists','missing'].includes($('operator').value);};
+$('reset').onclick=()=>{clearTimeout(searchTimer);groupLimit=100;errorLimit=100;filters=[];$('search').value='';$('filter-value').value='';page=0;render();};$('search').oninput=()=>{clearTimeout(searchTimer);$('notice').textContent='Updating search…';searchTimer=setTimeout(()=>{searchTimer=null;page=0;groupLimit=100;errorLimit=100;render();$('notice').textContent='Search updated. Statistics cover all matching conversations.';},160);};
+$('metric').onchange=()=>{metric=$('metric').value;render();};$('group').onchange=()=>{group=$('group').value;groupLimit=100;render();};
+$('more-groups').onclick=()=>{groupLimit+=100;render();};$('more-errors').onclick=()=>{errorLimit+=100;render();};
+$('previous').onclick=()=>{page--;renderGrid();};$('next').onclick=()=>{page++;renderGrid();};$('close-detail').onclick=()=>{$('detail').close();};
+$('export-json').onclick=()=>{flushSearch();const output={...bundle,profiles:filtered,statistics:Object.fromEntries(bundle.definitions.numericFields.map(field=>[field,stats(filtered,field)])),selection:{search:$('search').value,filters,groupBy:group,metric,visibleColumns:columns,filteredCount:filtered.length,populationCount:bundle.profiles.length,exportedAtUtc:new Date().toISOString()},groupedStatistics:groupStats(filtered,group,metric),errorDistribution:errorStats(filtered)};download('conversation-analysis-filtered.json',JSON.stringify(output,null,2),'application/json');};
+$('export-csv').onclick=()=>{flushSearch();download('conversation-analysis-filtered.csv',csv(filtered,columns),'text/csv');};
+$('query-form').onsubmit=event=>{event.preventDefault();const since=new Date($('since').value+'Z'),until=new Date($('until').value+'Z');if(!Number.isFinite(+since)||!Number.isFinite(+until)||until<=since){$('notice').textContent='Until must be later than Since.';return;}const quote=value=>"'"+value.replaceAll("'","''")+"'";let command=`Get-GenesysConversationAnalysis -Since ${quote(since.toISOString())} -Until ${quote(until.toISOString())}`;for(const [id,flag]of [['queue','QueueId'],['user','UserId'],['division','DivisionId']]){const ids=$(id).value.split(',').map(value=>value.trim()).filter(Boolean);if(ids.length)command+=` -${flag} ${ids.map(quote).join(',')}`;}if($('resolve-names').checked)command+=' -ResolveEntityNames';command+=' -OpenReport';$('query-command').textContent=command;$('query-command').hidden=false;};
+if(embeddedAnalysis){try{load(embeddedAnalysis);}catch(error){$('notice').textContent=error.message;}}
+</script>
+</body>
+</html>

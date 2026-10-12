@@ -6,7 +6,8 @@
  * what is on screen.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useWorkspace } from '../engine/workspace';
 import type { AggregateFn, DataRecord, DataSetMeta, FieldDefinition, ReportMetric } from '../core/contracts';
 import { newId } from '../core/contracts';
 import { AGGREGATE_LABELS, buildReport, formatValue, toText } from '../engine/query';
@@ -16,18 +17,27 @@ import { Badge, Button, IconButton } from '../components/primitives';
 const NUMERIC_ONLY: AggregateFn[] = ['sum', 'avg', 'min', 'max'];
 
 export const ReportBuilder = ({
+  sourceId,
+  filterSummary,
   sourceName,
   fields,
   records,
   meta,
 }: {
+  sourceId: string;
+  filterSummary?: string;
   sourceName: string;
   fields: FieldDefinition[];
   records: DataRecord[];
   meta?: DataSetMeta;
 }) => {
-  const [groupBy, setGroupBy] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState<ReportMetric[]>([]);
+  const { reportDrafts } = useWorkspace();
+  const draft = reportDrafts.get(sourceId);
+  const [groupBy, setGroupBy] = useState<string[]>(draft?.groupBy ?? []);
+  const [metrics, setMetrics] = useState<ReportMetric[]>(draft?.metrics ?? []);
+  useEffect(() => {
+    reportDrafts.set(sourceId, { groupBy, metrics });
+  }, [reportDrafts, sourceId, groupBy, metrics]);
 
   const groupable = useMemo(() => fields.filter((f) => f.type !== 'json'), [fields]);
   const result = useMemo(
@@ -120,7 +130,15 @@ export const ReportBuilder = ({
                       value={metric.field}
                       onChange={(event) =>
                         setMetrics(
-                          metrics.map((m) => (m.id === metric.id ? { ...m, field: event.target.value } : m)),
+                          metrics.map((m) => {
+                            if (m.id !== metric.id) return m;
+                            const next = fields.find((f) => f.key === event.target.value);
+                            const numeric = next && ['number', 'duration', 'date'].includes(next.type);
+                            return {
+                              ...m, field: event.target.value,
+                              fn: !numeric && NUMERIC_ONLY.includes(m.fn) ? 'count' : m.fn,
+                            };
+                          }),
                         )
                       }
                       aria-label="Metric field"
@@ -239,7 +257,7 @@ export const ReportBuilder = ({
           report={result}
           visibleColumnKeys={[]}
           meta={meta}
-          filterSummary={groupBy.length > 0 ? `grouped by ${groupBy.map(labelOf).join(', ')}` : 'ungrouped total'}
+          filterSummary={[filterSummary, groupBy.length > 0 ? `grouped by ${groupBy.map(labelOf).join(', ')}` : 'ungrouped total'].filter(Boolean).join('; ')}
         />
       </div>
     </div>

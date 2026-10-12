@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "group": {
+        "mediaType": "voice"
+      },
+      "data": [
+        {
+          "interval": "2026-02-13T00:00:00.000Z/2026-02-20T23:59:59.999Z",
+          "metrics": [
+            {
+              "metric": "nOffered",
+              "stats": {
+                "count": 3
+              }
+            },
+            {
+              "metric": "nConnected",
+              "stats": {
+                "count": 2
+              }
+            },
+            {
+              "metric": "nOutbound",
+              "stats": {
+                "count": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

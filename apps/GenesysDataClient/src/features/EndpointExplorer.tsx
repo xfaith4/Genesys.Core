@@ -7,7 +7,7 @@
  * that the server would not actually return.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CoverageRuleInfo,
   EndpointDetail,
@@ -205,6 +205,13 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
   const [coverage, setCoverage] = useState('');
   const [search, setSearch] = useState('');
   const [onlyDemoData, setOnlyDemoData] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [listRetry, setListRetry] = useState(0);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => detailRequest.current?.abort(), []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -235,9 +242,17 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
     return () => controller.abort();
   }, [discovery]);
 
-  // Endpoint list reacts to the filters.
+  // Never present results from an old filter as if they matched a new request.
   useEffect(() => {
     const controller = new AbortController();
+    setListLoading(true);
+    setListError(null);
+    setEndpoints([]);
+    setTotal(0);
+    detailRequest.current?.abort();
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
     const handle = setTimeout(() => {
       discovery
         .endpoints(
@@ -255,8 +270,13 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
           setEndpoints(response.items);
           setTotal(response.total);
         })
-        .catch(() => {
-          /* transient filter errors are not worth interrupting the page for */
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted) {
+            setListError(cause instanceof Error ? cause.message : String(cause));
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setListLoading(false);
         });
     }, 180); // debounce the search box
 
@@ -264,14 +284,25 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
       clearTimeout(handle);
       controller.abort();
     };
-  }, [discovery, group, coverage, search, onlyDemoData]);
+  }, [discovery, group, coverage, search, onlyDemoData, listRetry]);
 
   const openDetail = useCallback(
     (key: string) => {
+      detailRequest.current?.abort();
+      const controller = new AbortController();
+      detailRequest.current = controller;
+      setDetail(null);
+      setDetailError(null);
+      setDetailLoading(true);
       discovery
-        .endpoint(key)
-        .then(setDetail)
-        .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
+        .endpoint(key, controller.signal)
+        .then((next) => { if (!controller.signal.aborted) setDetail(next); })
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted) {
+            setDetailError(cause instanceof Error ? cause.message : String(cause));
+          }
+        })
+        .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
     },
     [discovery],
   );
@@ -329,7 +360,7 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
     wide: true,
     actions: (
       <Badge tone="accent">
-        {endpoints.length} of {total}
+        {listLoading ? 'Loading…' : `${endpoints.length} of ${total}`}
       </Badge>
     ),
     render: () => (
@@ -351,7 +382,7 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
               { value: '', label: `All groups (${groups.length})` },
               ...groups.map((g) => ({
                 value: g.group,
-                label: `${g.group} (${g.endpoints}${g.withDemoData > 0 ? `, ${g.withDemoData} live` : ''})`,
+                label: `${g.group} (${g.endpoints}${g.withDemoData > 0 ? `, ${g.withDemoData} demo` : ''})`,
               })),
             ]}
           />
@@ -372,7 +403,11 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
           </label>
         </div>
 
-        {endpoints.length === 0 ? (
+        {listError ? (
+          <ErrorState message={`Could not load endpoints: ${listError}`} onRetry={() => setListRetry((n) => n + 1)} />
+        ) : listLoading ? (
+          <Spinner label="Loading endpoints…" />
+        ) : endpoints.length === 0 ? (
           <EmptyState
             title="No endpoints match"
             hint="Clear the demo-data filter to browse the full catalog surface."
@@ -404,7 +439,9 @@ export const EndpointExplorer = ({ capabilities }: { capabilities: SkinCapabilit
     title: detail ? detail.title : 'Endpoint detail',
     wide: true,
     render: () =>
-      detail ? (
+      detailLoading ? <Spinner label="Loading endpoint details…" /> : detailError ? (
+        <ErrorState message={`Could not load endpoint details: ${detailError}`} />
+      ) : detail ? (
         <div className="endpoint-detail">
           <div className="endpoint-detail__head">
             <MethodBadge method={detail.method} />

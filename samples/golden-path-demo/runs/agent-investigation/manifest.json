@@ -214,24 +214,24 @@
     "composerOverrides": []
   },
   "outputArtifacts": {
-    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\manifest.json",
-    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\events.jsonl",
-    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\summary.json",
+    "manifestPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\manifest.json",
+    "eventsPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\events.jsonl",
+    "summaryPath": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\summary.json",
     "dataPaths": {
-      "identity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\identity.jsonl",
-      "division": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\division.jsonl",
-      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\skills.jsonl",
-      "queues": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\queues.jsonl",
-      "presence": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\presence.jsonl",
-      "routingStatus": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\routingStatus.jsonl",
-      "utilization": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\utilization.jsonl",
-      "activity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\activity.jsonl",
-      "activeConversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\activeConversations.jsonl",
-      "conversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\conversations.jsonl",
-      "auditAccountChanges": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-b0f61df091024c13aedd3c311a11d964\\agent-investigation\\demo-run\\data\\auditAccountChanges.jsonl"
+      "identity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\identity.jsonl",
+      "division": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\division.jsonl",
+      "skills": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\skills.jsonl",
+      "queues": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\queues.jsonl",
+      "presence": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\presence.jsonl",
+      "routingStatus": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\routingStatus.jsonl",
+      "utilization": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\utilization.jsonl",
+      "activity": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\activity.jsonl",
+      "activeConversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\activeConversations.jsonl",
+      "conversations": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\conversations.jsonl",
+      "auditAccountChanges": "C:\\Users\\benfu\\AppData\\Local\\Temp\\agent-demo-556c2fe1289a4a6da326bdc34ee68590\\agent-investigation\\demo-run\\data\\auditAccountChanges.jsonl"
     }
   },
-  "startedAt": "2026-05-15T02:49:59.7220641Z",
-  "finishedAt": "2026-05-15T02:49:59.8888742Z",
+  "startedAt": "2026-10-11T14:50:04.1317135Z",
+  "finishedAt": "2026-10-11T14:50:04.5185713Z",
   "composerVersion": "1.0.0"
 }

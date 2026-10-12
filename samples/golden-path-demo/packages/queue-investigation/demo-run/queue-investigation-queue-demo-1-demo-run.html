@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investigation Package - queue-investigation</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
+body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #15202b; padding: 10px 16px; border: 2px solid #133b2f; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
+header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
+header p { margin: 0; color: #deefe8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #d6dee6; border-radius: 10px; padding: 14px; }
+.metric .label { color: #5a6673; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce3ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef3f7; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.meta { color: #5f6c79; font-size: 13px; margin-bottom: 18px; }
+.empty { color: #6b7582; font-style: italic; }
+ul { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header>
+<h1>Investigation Package</h1>
+<p>queue-investigation | queue / queue-demo-1 | Run demo-run | Generated 2026-10-11T14:50:07.1761260Z</p>
+</header>
+<main id="main-content">
+<section>
+<h2>Overview</h2>
+<p class="meta">Window: 2026-04-01T00:00:00.0000000Z -> 2026-04-08T00:00:00.0000000Z</p>
+<div class="grid">
+<div class="metric"><div class="label">Steps</div><div class="value">9</div></div>
+<div class="metric"><div class="label">Failed Steps</div><div class="value">0</div></div>
+<div class="metric"><div class="label">Records</div><div class="value">13</div></div>
+<div class="metric"><div class="label">Sections</div><div class="value">9</div></div>
+</div>
+</section>
+
+<section>
+<h2>Step Status</h2>
+<table><caption>Investigation step status</caption><thead><tr><th scope="col">StepName</th><th scope="col">DatasetKey</th><th scope="col">ValidationStatus</th><th scope="col">RecordCount</th><th scope="col">Required</th><th scope="col">Status</th><th scope="col">ErrorMessage</th></tr></thead><tbody><tr><td>queue</td><td>routing.get.single.queue.config</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>members</td><td>routing-queue-members</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>wrapupCodes</td><td>routing.get.queue.wrapup.codes.by.queue</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>observations</td><td>analytics.query.queue.observations.real.time.stats</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>sla</td><td>analytics.query.conversation.aggregates.queue.performance</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>abandons</td><td>analytics.query.conversation.aggregates.abandon.metrics</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>transfers</td><td>analytics.query.conversation.aggregates.transfer.metrics</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>wrapupDistribution</td><td>analytics.query.conversation.aggregates.wrapup.distribution</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>activeAgents</td><td>analytics.query.user.observations.real.time.status</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr></tbody></table>
+</section>
+<section>
+<h2>queue</h2>
+<table><caption>queue</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">mediaSettings</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>Support</td><td>{&quot;call&quot;:{&quot;alertingTimeoutSeconds&quot;:30}}</td></tr></tbody></table>
+</section>
+<section>
+<h2>members</h2>
+<table><caption>members</caption><thead><tr><th scope="col">id</th><th scope="col">queueId</th><th scope="col">name</th><th scope="col">joined</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>queue-demo-1</td><td>Jane Doe</td><td>True</td></tr><tr><td>agent-demo-002</td><td>queue-demo-1</td><td>John Smith</td><td>True</td></tr></tbody></table>
+</section>
+<section>
+<h2>wrapupCodes</h2>
+<table><caption>wrapupCodes</caption><thead><tr><th scope="col">id</th><th scope="col">queueId</th><th scope="col">name</th></tr></thead><tbody><tr><td>wu-demo-1</td><td>queue-demo-1</td><td>Resolved</td></tr><tr><td>wu-demo-2</td><td>queue-demo-1</td><td>Escalated</td></tr></tbody></table>
+</section>
+<section>
+<h2>observations</h2>
+<table><caption>observations</caption><thead><tr><th scope="col">queueId</th><th scope="col">mediaType</th><th scope="col">oWaiting</th><th scope="col">oInteracting</th><th scope="col">oOnQueueUsers</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>voice</td><td>3</td><td>5</td><td>7</td></tr></tbody></table>
+</section>
+<section>
+<h2>sla</h2>
+<table><caption>sla</caption><thead><tr><th scope="col">queueId</th><th scope="col">mediaType</th><th scope="col">nOffered</th><th scope="col">nAnswered</th><th scope="col">tHandle</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>voice</td><td>120</td><td>110</td><td>4500</td></tr></tbody></table>
+</section>
+<section>
+<h2>abandons</h2>
+<table><caption>abandons</caption><thead><tr><th scope="col">queueId</th><th scope="col">nAbandoned</th><th scope="col">tAbandoned</th><th scope="col">nOffered</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>4</td><td>32</td><td>120</td></tr></tbody></table>
+</section>
+<section>
+<h2>transfers</h2>
+<table><caption>transfers</caption><thead><tr><th scope="col">queueId</th><th scope="col">mediaType</th><th scope="col">nTransferred</th><th scope="col">nBlindTransferred</th><th scope="col">nConsultTransferred</th><th scope="col">nConnected</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>voice</td><td>6</td><td>2</td><td>4</td><td>110</td></tr></tbody></table>
+</section>
+<section>
+<h2>wrapupDistribution</h2>
+<table><caption>wrapupDistribution</caption><thead><tr><th scope="col">queueId</th><th scope="col">wrapUpCode</th><th scope="col">nConnected</th><th scope="col">tHandle</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>Resolved</td><td>82</td><td>3100</td></tr><tr><td>queue-demo-1</td><td>Escalated</td><td>28</td><td>1400</td></tr></tbody></table>
+</section>
+<section>
+<h2>activeAgents</h2>
+<table><caption>activeAgents</caption><thead><tr><th scope="col">queueId</th><th scope="col">userId</th><th scope="col">oUserPresence</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>agent-demo-001</td><td>AVAILABLE</td></tr><tr><td>queue-demo-1</td><td>agent-demo-002</td><td>BUSY</td></tr></tbody></table>
+</section>
+</main>
+</body>
+</html>

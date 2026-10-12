@@ -1,0 +1,27 @@
+{
+  "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+  "metrics": [
+    "nOffered",
+    "nConnected",
+    "nOutbound"
+  ],
+  "groupBy": [
+    "mediaType"
+  ],
+  "filter": {
+    "type": "and",
+    "clauses": [
+      {
+        "type": "and",
+        "predicates": [
+          {
+            "dimension": "mediaType",
+            "type": "dimension",
+            "value": "voice",
+            "operator": "matches"
+          }
+        ]
+      }
+    ]
+  }
+}

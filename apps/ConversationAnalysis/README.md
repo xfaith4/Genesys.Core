@@ -209,3 +209,22 @@ The tool satisfies all Genesys.Core App Compliance Gates:
 | Safari | 14+ |
 
 Requires: `FileReader API`, `Blob/URL.createObjectURL`, `navigator.clipboard` (with HTTPS or localhost).
+
+## Incident population workbench (Ops profiles)
+
+For richer conversation fields and a reproducible interval/queue/user/Division workflow,
+use `Start-Investigation.ps1`. It calls `Get-GenesysConversationAnalysis` in Ops; Core owns
+all extraction. The generated standalone report supports field filters, full-filtered-set
+count/average/minimum/maximum, grouping, error-occurrence counts, segment timelines and
+JSON/CSV export.
+
+```powershell
+./apps/ConversationAnalysis/Start-Investigation.ps1 `
+    -Since '2026-09-01T00:00:00Z' -Until '2026-10-01T00:00:00Z' `
+    -QueueId 'queue-guid' -OpenReport
+```
+
+Run in an authenticated Ops session, or use `-InputJsonl` for offline Core data.
+Open `Investigation.html` to import a saved Ops `analysis.json`; it does not query the API.
+See [Conversation incident workbench](../../docs/CONVERSATION_POPULATION_ANALYSIS.md)
+for custom queries, field definitions, demo generation and evidence limits.

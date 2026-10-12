@@ -25,7 +25,8 @@ function Resolve-DatasetRedactionProfile {
     [CmdletBinding()]
     param(
         [psobject]$Catalog,
-        [string]$DatasetKey
+        [string]$DatasetKey,
+        [string]$ProfileProperty = 'redactionProfile'
     )
 
     if ($null -eq $Catalog -or [string]::IsNullOrWhiteSpace($DatasetKey)) {
@@ -35,7 +36,7 @@ function Resolve-DatasetRedactionProfile {
     $dataset = $Catalog.datasets[$DatasetKey]
     if ($null -eq $dataset) { return $null }
 
-    $profileProp = $dataset.PSObject.Properties | Where-Object { $_.Name -eq 'redactionProfile' }
+    $profileProp = $dataset.PSObject.Properties | Where-Object { $_.Name -eq $ProfileProperty }
     if ($null -eq $profileProp) { return $null }
     $profileName = [string]$profileProp.Value
     if ([string]::IsNullOrWhiteSpace($profileName)) { return $null }
@@ -122,7 +123,8 @@ function Protect-RecordData {
         return '[REDACTED]'
     }
 
-    if (Test-IsSensitiveFieldName -Name $CurrentFieldName) {
+    $preserveIdentifier = $null -ne $Profile -and $CurrentFieldName -eq 'userId' -and @($Profile['preserveIdentifierFields']) -contains 'userId'
+    if (-not $preserveIdentifier -and (Test-IsSensitiveFieldName -Name $CurrentFieldName)) {
         return '[REDACTED]'
     }
 

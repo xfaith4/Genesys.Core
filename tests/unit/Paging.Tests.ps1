@@ -350,3 +350,36 @@ Describe 'Paging strategies' {
 
 }
 
+
+Describe 'Monthly investigation paging completeness' {
+    BeforeAll {
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Transport.ps1"
+        . "$PSScriptRoot/../../modules/Genesys.Core/Private/Paging.ps1"
+    }
+    It 'records a body paging cap while preserving nested page size and interval' {
+        $bodies = [System.Collections.Generic.List[object]]::new()
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key = 'monthly.detail'; method = 'POST'; itemsPath = '$.conversations'
+            paging = [pscustomobject]@{ profile = 'bodyPaging'; bodyContainer = 'paging'; maxPages = 2 }
+        }) -InitialUri 'https://example.test/details/query' -InitialBody '{"interval":"month","paging":{"pageSize":100,"pageNumber":1}}' -RequestInvoker {
+            param($request)
+            $body = $request.Body | ConvertFrom-Json
+            $bodies.Add($body)
+            return [pscustomobject]@{ Result = [pscustomobject]@{ conversations = @($body.paging.pageNumber); totalHits = 3 } }
+        }
+        $bodies[1].paging.pageNumber | Should -Be 2
+        $bodies[1].paging.pageSize | Should -Be 100
+        $bodies[1].interval | Should -Be 'month'
+        @($result.RunEvents | Where-Object eventType -eq 'paging.terminated.maxPages').Count | Should -Be 1
+    }
+    It 'records a cursor paging cap instead of implying retrieval finished' {
+        $result = Invoke-CoreEndpoint -EndpointSpec ([pscustomobject]@{
+            key = 'monthly.aggregate'; method = 'GET'; itemsPath = '$.results'
+            paging = [pscustomobject]@{ profile = 'cursor'; maxPages = 1 }
+        }) -InitialUri 'https://example.test/jobs/results' -RequestInvoker {
+            param($request)
+            return [pscustomobject]@{ Result = [pscustomobject]@{ results = @('a'); cursor = 'more' } }
+        }
+        @($result.RunEvents | Where-Object eventType -eq 'paging.terminated.maxPages').Count | Should -Be 1
+    }
+}

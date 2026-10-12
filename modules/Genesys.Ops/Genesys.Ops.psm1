@@ -7819,6 +7819,9 @@ th { background: #eef2f6; color: #2a3542; font-size: 12px; }
 tr:last-child td { border-bottom: 0; }
 .empty { color: #6b7582; font-style: italic; }
 .meta { color: #576372; font-size: 13px; margin-bottom: 18px; }
+header p { overflow-wrap: anywhere; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+@media (max-width: 600px) { header, main { padding: 20px 16px; } }
 </style>
 </head>
 <body>
@@ -7840,20 +7843,28 @@ tr:last-child td { border-bottom: 0; }
 </section>
 <section>
 <h2>Findings</h2>
+<div class="table-scroll" role="region" aria-label="Investigation findings" tabindex="0">
 $(ConvertTo-GenesysHtmlTable -Rows $Findings -Limit 50 -Caption 'Investigation findings')
+</div>
 </section>
 <section>
 <h2>Conversation and SIP Timeline</h2>
 <p class="meta">Rows combine conversation segments from Genesys analytics detail with parsed SIP trace messages when a trace file is supplied.</p>
+<div class="table-scroll" role="region" aria-label="Conversation and SIP timeline" tabindex="0">
 $(ConvertTo-GenesysHtmlTable -Rows $TimelineRows -Limit 200 -Caption 'Conversation and SIP timeline')
+</div>
 </section>
 <section>
 <h2>SIP Trace Breakdown</h2>
+<div class="table-scroll" role="region" aria-label="SIP trace breakdown" tabindex="0">
 $(ConvertTo-GenesysHtmlTable -Rows $SipRows -Limit 100 -Caption 'SIP trace breakdown')
+</div>
 </section>
 <section>
 <h2>Evidence Sections</h2>
+<div class="table-scroll" role="region" aria-label="Evidence sections" tabindex="0">
 $(ConvertTo-GenesysHtmlTable -Rows $EvidenceRows -Limit 200 -Caption 'Evidence sections')
+</div>
 </section>
 </main>
 </body>
@@ -9487,3 +9498,9 @@ $($sectionHtml -join [Environment]::NewLine)
     }
 
     #endregion
+
+. (Join-Path $PSScriptRoot 'MonthlyVoiceVolume.ps1')
+
+. (Join-Path $PSScriptRoot 'ConversationPopulation.ps1')
+
+. (Join-Path $PSScriptRoot 'ConversationEntities.ps1')

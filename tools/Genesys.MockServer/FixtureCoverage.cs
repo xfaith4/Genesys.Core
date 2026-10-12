@@ -146,6 +146,37 @@ public static class FixtureCoverage
             IdProperty: "id"),
 
         new CoverageRule(
+            Id: "analytics.conversation-aggregates-job-results",
+            Method: "GET", Exact: null,
+            Contains: new[] { "/analytics/conversations/aggregates/jobs/", "/results" },
+            EndsWith: null, Excludes: None, Kind: CoverageKind.CursorFixture,
+            Summary: "Synthetic aggregate job results with deliberately divergent totals across two cursor pages.",
+            Fixtures: new[] { "analytics-conversation-aggregates.results.page1.json", "analytics-conversation-aggregates.results.page2.json" },
+            ItemsProperty: "results"),
+
+        new CoverageRule(
+            Id: "analytics.conversation-aggregates-job-poll",
+            Method: "GET", Exact: null,
+            Contains: new[] { "/analytics/conversations/aggregates/jobs/" },
+            EndsWith: null, Excludes: new[] { "/results" }, Kind: CoverageKind.AsyncPoll,
+            Summary: "Poll a synthetic conversation aggregate job.",
+            Fixtures: None, RouteParam: "jobId"),
+
+        new CoverageRule(
+            Id: "analytics.conversation-aggregates-job-submit",
+            Method: "POST", Exact: "/api/v2/analytics/conversations/aggregates/jobs",
+            Contains: None, EndsWith: null, Excludes: None, Kind: CoverageKind.AsyncSubmit,
+            Summary: "Submit a synthetic conversation aggregate job.",
+            Fixtures: None, AsyncKind: AsyncJobKind.Analytics, IdProperty: "jobId"),
+
+        new CoverageRule(
+            Id: "analytics.conversation-aggregates-query",
+            Method: "POST", Exact: "/api/v2/analytics/conversations/aggregates/query",
+            Contains: None, EndsWith: null, Excludes: None, Kind: CoverageKind.Fixture,
+            Summary: "Synthetic aggregate totals; deliberately differ from async fixtures to exercise reconciliation.",
+            Fixtures: new[] { "analytics-conversation-aggregates-query.json" }, ItemsProperty: "results"),
+
+        new CoverageRule(
             Id: "analytics.conversation-details-job-results",
             Method: null,
             Exact: null,

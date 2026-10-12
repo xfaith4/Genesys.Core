@@ -1,6 +1,6 @@
 # Genesys.Core roadmap
 
-Updated 2026-09-15. This is the priority entry point. Detailed implementation history and
+Updated 2026-10-12. This is the priority entry point. Detailed implementation history and
 release gates remain in [docs/ROADMAP.md](docs/ROADMAP.md). Business rationale is in
 [Product value](docs/PRODUCT_VALUE.md), and reconciliation evidence is in
 [Repository reconciliation](docs/REPOSITORY_RECONCILIATION.md).
@@ -11,6 +11,25 @@ Governed Genesys Cloud collection, subject-based investigations, and portable ev
 packages. The highest-value existing workflow is conversation investigation and evidence
 export. The React Genesys Data Client is the preferred foundation for future web features;
 the Windows ConversationAnalyzer retains distinct case storage and reporting capabilities.
+
+## Product priority: NOC investigations
+
+The Data Client is the operations frontend that brings together OpsConsole,
+GenesysInterrogator and ConversationAnalyzer. Prioritize composed investigations and
+operational findings; endpoint browsing is supporting diagnostics.
+
+- [x] Put conversation investigation ahead of raw endpoints in navigation/onboarding.
+- [x] Add run-scoped entity labels and distinguish current user-Division membership.
+- [x] Preserve flow IDs and endpoint packet observations for incident cohorts.
+- [ ] Inventory every job/transaction family and bind supported submissions to status,
+      terminal validation and complete results paging with failure/partial tests.
+- [ ] Implement the mass-disconnect Ops composer and incident workspace: error cohort,
+      affected entities, quality/time buckets, incident/baseline queue metrics,
+      historical NOT_RESPONDING segments and time-aligned audit changes.
+- [ ] Validate the investigation against a real tenant and operations-team pilot.
+
+[Implementation and acceptance contract](docs/NOC_INCIDENT_INVESTIGATIONS.md).
+The queue-change work below is a component of this direction; no open work is removed.
 
 ## Repository consolidation
 
@@ -57,6 +76,42 @@ the Windows ConversationAnalyzer retains distinct case storage and reporting cap
 - [ ] Complete a pilot measuring operator investigation time and evidence completeness.
 
 See [acceptance gates](docs/PRODUCT_VALUE.md#recommended-next-release-explain-what-changed-when-service-deteriorated).
+
+## Investigation suite: monthly voice volume reconciliation
+
+Scope agreed 2026-10-11. Compare four independent collection paths; differences are
+investigation evidence, not automatic proof of a script defect. Detailed contract:
+[Monthly voice volume reconciliation](docs/MONTHLY_VOICE_VOLUME_RECONCILIATION.md).
+
+- [x] Record the four-source comparison and acceptance contract.
+- [x] Implement catalog-driven collection for details query, details jobs, aggregates query,
+      and aggregates jobs, including complete paging and async result retrieval.
+- [x] Produce source-specific totals, metric definitions, coverage, and pairwise differences.
+- [x] Add a thin MonthlyMetrics launcher and standalone HTML/JSON/CSV frontend over Ops.
+- [ ] Add Data Client comparison and conversation drilldown where IDs are available.
+- [x] Validate equal, divergent, partial, and unavailable sources with synthetic fixtures.
+- [ ] Add automatic interval partitioning for source limits, with explicit attribution checks.
+- [ ] Audit remaining aggregate catalog aliases for inappropriate detail-paging profiles.
+- [ ] Collect all four sources on a real tenant for the same month and document observed
+      differences; mock agreement does not close this gate.
+
+## Investigation suite: conversation population analysis
+
+- [x] Adapt the reference conversation profiler into shared Genesys.Ops functions.
+- [x] Collect an interval by queue, user, Division, media, or advanced query through Core.
+- [x] Provide interactive field filters, sorting, grouping, and full-population statistics.
+- [x] Include error occurrence counts, conversation timelines, and scoped JSON/CSV exports.
+- [x] Validate synthetic collection, partial coverage, browser interaction, and accessibility.
+- [x] Integrate the shared workbench into both Data Client skins with retained in-session state.
+- [x] Resolve entity names through Core/Ops with explicit missing/access-denied coverage.
+- [ ] Validate permissions, field semantics, and completeness against a real tenant.
+- [x] Benchmark 50k/100k engine populations and 50k browser artifacts; cache search,
+      stream group aggregation, cap initial breakdown rows, reuse serialization and reduce restore copies.
+- [ ] Add background indexing/worker or indexed storage if tenant populations exceed the
+      measured envelope; improve remaining large-bundle skin restore cost.
+
+See [conversation population analysis](docs/CONVERSATION_POPULATION_ANALYSIS.md).
+Local validation does not close tenant or operator acceptance.
 
 ## Following opportunities
 

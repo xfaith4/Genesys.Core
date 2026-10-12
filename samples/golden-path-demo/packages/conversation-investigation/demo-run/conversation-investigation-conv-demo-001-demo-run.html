@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investigation Package - conversation-investigation</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
+body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #15202b; padding: 10px 16px; border: 2px solid #133b2f; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
+header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
+header p { margin: 0; color: #deefe8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #d6dee6; border-radius: 10px; padding: 14px; }
+.metric .label { color: #5a6673; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce3ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef3f7; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.meta { color: #5f6c79; font-size: 13px; margin-bottom: 18px; }
+.empty { color: #6b7582; font-style: italic; }
+ul { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header>
+<h1>Investigation Package</h1>
+<p>conversation-investigation | conversation / conv-demo-001 | Run demo-run | Generated 2026-10-11T14:50:06.9574000Z</p>
+</header>
+<main id="main-content">
+<section>
+<h2>Overview</h2>
+<p class="meta">Window: Not scoped</p>
+<div class="grid">
+<div class="metric"><div class="label">Steps</div><div class="value">9</div></div>
+<div class="metric"><div class="label">Failed Steps</div><div class="value">0</div></div>
+<div class="metric"><div class="label">Records</div><div class="value">9</div></div>
+<div class="metric"><div class="label">Sections</div><div class="value">9</div></div>
+</div>
+</section>
+
+<section>
+<h2>Step Status</h2>
+<table><caption>Investigation step status</caption><thead><tr><th scope="col">StepName</th><th scope="col">DatasetKey</th><th scope="col">ValidationStatus</th><th scope="col">RecordCount</th><th scope="col">Required</th><th scope="col">Status</th><th scope="col">ErrorMessage</th></tr></thead><tbody><tr><td>conversationLookup</td><td>conversations.get.specific.conversation.details</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>conversation</td><td>analytics-conversation-details-query</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>participants</td><td>(derived)</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>agents</td><td>users</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>divisions</td><td>users.division.analysis.get.users.with.division.info</td><td>unvalidated</td><td>0</td><td>False</td><td>ok</td><td></td></tr><tr><td>skills</td><td>routing.get.all.routing.skills</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>recordings</td><td>conversations.get.recordings</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>evaluations</td><td>quality.get.evaluations.query</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>surveys</td><td>quality.get.surveys</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr></tbody></table>
+</section>
+<section>
+<h2>conversationLookup</h2>
+<table><caption>conversationLookup</caption><thead><tr><th scope="col">conversationId</th><th scope="col">conversationStart</th><th scope="col">conversationEnd</th><th scope="col">participants</th></tr></thead><tbody><tr><td>conv-demo-001</td><td>2026-04-05T13:10:00.0000000Z</td><td>2026-04-05T13:27:00.0000000Z</td><td>[{&quot;userId&quot;:&quot;agent-demo-001&quot;,&quot;purpose&quot;:&quot;agent&quot;,&quot;queueId&quot;:&quot;queue-demo-1&quot;,&quot;divisionId&quot;:&quot;div-demo-1&quot;},{&quot;purpose&quot;:&quot;customer&quot;}]</td></tr></tbody></table>
+</section>
+<section>
+<h2>conversation</h2>
+<table><caption>conversation</caption><thead><tr><th scope="col">conversationId</th><th scope="col">participants</th></tr></thead><tbody><tr><td>conv-demo-001</td><td>{&quot;userId&quot;:&quot;agent-demo-001&quot;,&quot;role&quot;:&quot;agent&quot;}</td></tr></tbody></table>
+</section>
+<section>
+<h2>participants</h2>
+<table><caption>participants</caption><thead><tr><th scope="col">userId</th><th scope="col">purpose</th></tr></thead><tbody><tr><td>agent-demo-001</td><td></td></tr></tbody></table>
+</section>
+<section>
+<h2>agents</h2>
+<table><caption>agents</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">division</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>Jane Doe</td><td>{&quot;id&quot;:&quot;div-demo-1&quot;,&quot;name&quot;:&quot;CustomerCare&quot;}</td></tr></tbody></table>
+</section>
+<section>
+<h2>divisions</h2>
+<p class="empty">divisions: no records.</p>
+</section>
+<section>
+<h2>skills</h2>
+<table><caption>skills</caption><thead><tr><th scope="col">id</th><th scope="col">userId</th><th scope="col">name</th></tr></thead><tbody><tr><td>skill-demo-1</td><td>agent-demo-001</td><td>Billing</td></tr><tr><td>skill-demo-2</td><td>agent-demo-001</td><td>Retention</td></tr></tbody></table>
+</section>
+<section>
+<h2>recordings</h2>
+<table><caption>recordings</caption><thead><tr><th scope="col">id</th><th scope="col">conversationId</th><th scope="col">mediaType</th><th scope="col">status</th></tr></thead><tbody><tr><td>rec-demo-1</td><td>conv-demo-001</td><td>voice</td><td>available</td></tr></tbody></table>
+</section>
+<section>
+<h2>evaluations</h2>
+<table><caption>evaluations</caption><thead><tr><th scope="col">id</th><th scope="col">conversation</th><th scope="col">totalScore</th></tr></thead><tbody><tr><td>eval-demo-1</td><td>{&quot;id&quot;:&quot;conv-demo-001&quot;}</td><td>91</td></tr></tbody></table>
+</section>
+<section>
+<h2>surveys</h2>
+<table><caption>surveys</caption><thead><tr><th scope="col">id</th><th scope="col">conversationId</th><th scope="col">npsScore</th><th scope="col">csatScore</th><th scope="col">comment</th></tr></thead><tbody><tr><td>survey-demo-1</td><td>conv-demo-001</td><td>10</td><td>4.9</td><td>Agent resolved the issue quickly.</td></tr></tbody></table>
+</section>
+</main>
+</body>
+</html>

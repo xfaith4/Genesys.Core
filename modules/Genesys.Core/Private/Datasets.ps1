@@ -599,6 +599,7 @@ function Get-DatasetRegistry {
     return @{
         'audit-logs'                                    = 'Invoke-AuditLogsDataset'
         'analytics-conversation-details'                = 'Invoke-AnalyticsConversationDetailsDataset'
+        'analytics-conversation-aggregates-jobs'         = 'Invoke-AnalyticsConversationAggregatesJobDataset'
         'analytics-conversation-timeline-analysis'      = 'Invoke-ConversationTimelineAnalysisDataset'
         'users'                                         = 'Invoke-UsersDataset'
         'routing-queues'                                = 'Invoke-RoutingQueuesDataset'
@@ -1108,6 +1109,10 @@ function Invoke-AnalyticsConversationDetailsDataset {
         $records
     } else {
         $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey 'analytics-conversation-details'
+        if ($DatasetParameters -and $DatasetParameters['PreserveUserIds']) {
+            $redactionProfile = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey 'analytics-conversation-details' -ProfileProperty 'identityRedactionProfile'
+            if ($null -eq $redactionProfile) { throw 'The catalog must define identityRedactionProfile for requested conversation user-ID joins.' }
+        }
         @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redactionProfile })
     }
 
@@ -1873,3 +1878,42 @@ function Invoke-ConversationTimelineAnalysisDataset {
         Summary = $summary
     }
 }
+
+### BEGIN: Invoke-AnalyticsConversationAggregatesJobDataset
+function Invoke-AnalyticsConversationAggregatesJobDataset {
+    [CmdletBinding()]
+    param(
+        [psobject]$RunContext, [psobject]$Catalog,
+        [string]$BaseUri, [hashtable]$Headers, [scriptblock]$RequestInvoker,
+        [hashtable]$DatasetParameters, [switch]$NoRedact
+    )
+    if ($null -eq $DatasetParameters -or -not $DatasetParameters.ContainsKey('Body')) {
+        throw 'Conversation aggregate jobs require DatasetParameters.Body.'
+    }
+    $spec = Resolve-DatasetEndpointSpec -Catalog $Catalog -DatasetKey 'analytics-conversation-aggregates-jobs'
+    $submit = $spec.Endpoint
+    $profile = $submit.transaction
+    $status = Get-CatalogEndpointByKey -Catalog $Catalog -Key $profile.statusEndpointRef
+    $results = Get-CatalogEndpointByKey -Catalog $Catalog -Key $profile.resultsEndpointRef
+    $events = [System.Collections.Generic.List[object]]::new()
+    try {
+        $body = ConvertTo-DatasetRequestBodyJson -BodyValue $DatasetParameters.Body -DatasetParameters $DatasetParameters
+        $job = Invoke-AsyncJob -SubmitEndpointSpec $submit -StatusEndpointSpec $status -ResultsEndpointSpec $results -AsyncProfile $profile -BaseUri $BaseUri -Headers $Headers -SubmitBody $body -RunEvents $events -RequestInvoker $RequestInvoker
+    }
+    catch {
+        foreach ($event in $events) {
+            Write-RunEvent -RunContext $RunContext -EventType $event.eventType -Payload $event | Out-Null
+        }
+        throw
+    }
+    $records = @($job.Items)
+    if (-not $NoRedact) {
+        $redaction = Resolve-DatasetRedactionProfile -Catalog $Catalog -DatasetKey 'analytics-conversation-aggregates-jobs'
+        $records = @($records | ForEach-Object { Protect-RecordData -InputObject $_ -Profile $redaction })
+    }
+    Write-DatasetOutputs -RunContext $RunContext -RunEvents $events -Records $records -DataFileName 'aggregates.jsonl' -Summary @{
+        datasetKey = $RunContext.datasetKey
+        totals = @{ totalRecords = $records.Count }
+    }
+}
+### END: Invoke-AnalyticsConversationAggregatesJobDataset

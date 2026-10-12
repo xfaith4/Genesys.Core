@@ -1,3 +1,34 @@
+### BEGIN: AdaptiveRateLimit
+# State belongs to this loaded module/session, never to a bearer token or payload.
+if ($null -eq (Get-Variable -Name GcRateLimits -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:GcRateLimits = @{}
+    $script:GcRateLimitCooldowns = @{}
+}
+
+function Wait-GcRequestDelay {
+    param([double]$Seconds)
+    # Milliseconds preserve fractional spacing on Windows PowerShell 5.1 too.
+    while ($Seconds -gt 0) {
+        $chunk = [Math]::Min(60.0, $Seconds)
+        Start-Sleep -Milliseconds ([int][Math]::Ceiling($chunk * 1000))
+        $Seconds -= $chunk
+    }
+}
+
+function Get-GcRateLimitIdentity {
+    param([string]$Uri, [string]$Method, [string]$EndpointKey)
+    if ([string]::IsNullOrWhiteSpace($Uri)) { return $null }
+    $address = [Uri]$Uri
+    $authority = $address.GetLeftPart([System.UriPartial]::Authority).ToLowerInvariant()
+    $route = $EndpointKey
+    if ([string]::IsNullOrWhiteSpace($route)) { $route = $address.AbsolutePath }
+    return [pscustomobject]@{
+        key = "$authority|$($Method.ToUpperInvariant())|$route"
+        authority = $authority
+    }
+}
+### END: AdaptiveRateLimit
+
 function Join-EndpointUri {
     [CmdletBinding()]
     param(
@@ -69,6 +100,15 @@ function Get-GcRetryAfterSeconds {
         if ($headers -is [System.Collections.IDictionary]) {
             $retryAfterHeader = $headers['Retry-After']
         }
+        elseif ($headers -is [System.Net.WebHeaderCollection]) {
+            $retryAfterHeader = $headers['Retry-After']
+        }
+        elseif ($headers.PSObject.Methods.Name -contains 'TryGetValues') {
+            $values = $null
+            if ($headers.TryGetValues('Retry-After', [ref]$values)) {
+                $retryAfterHeader = @($values)[0]
+            }
+        }
         elseif ($headers.PSObject.Properties.Name -contains 'Retry-After') {
             $retryAfterHeader = $headers.'Retry-After'
         }
@@ -122,13 +162,19 @@ function Invoke-WithRetry {
 
         [string[]]$RetryOnMethods = @('GET', 'HEAD', 'OPTIONS'),
 
-        [scriptblock]$SleepAction = { param([double]$Seconds) Start-Sleep -Seconds $Seconds },
+        [scriptblock]$SleepAction = { param([double]$Seconds) Wait-GcRequestDelay -Seconds $Seconds },
 
         [System.Collections.Generic.List[object]]$RunEvents,
 
         [int]$RandomSeed = 17,
 
-        [scriptblock]$JitterCalculator
+        [scriptblock]$JitterCalculator,
+
+        [string]$EndpointKey,
+
+        [string]$RequestUri,
+
+        [scriptblock]$UtcNowAction = { [DateTimeOffset]::UtcNow }
     )
 
     if ($null -eq $RunEvents) {
@@ -172,13 +218,51 @@ function Invoke-WithRetry {
     }
 
     $retryableMethod = $allowedMethods.Contains($normalizedMethod)
+    $identity = Get-GcRateLimitIdentity -Uri $RequestUri -Method $normalizedMethod -EndpointKey $EndpointKey
+    $pacing = $null
+    if ($null -ne $identity) {
+        if (-not $script:GcRateLimits.ContainsKey($identity.key)) {
+            $script:GcRateLimits[$identity.key] = @{
+                interval = 0.0; nextAllowed = [DateTimeOffset]::MinValue
+                count = 0; successes = 0; last429Utc = $null
+            }
+        }
+        $pacing = $script:GcRateLimits[$identity.key]
+    }
     $attempt = 0
     $random = [System.Random]::new($RandomSeed)
 
     while ($true) {
         $attempt++
+        if ($null -ne $pacing) {
+            $now = & $UtcNowAction
+            $deadline = $pacing.nextAllowed
+            if ($script:GcRateLimitCooldowns.ContainsKey($identity.authority)) {
+                if ($script:GcRateLimitCooldowns[$identity.authority] -gt $deadline) {
+                    $deadline = $script:GcRateLimitCooldowns[$identity.authority]
+                }
+            }
+            $wait = [Math]::Max(0.0, ($deadline - $now).TotalSeconds)
+            if ($wait -gt 0) {
+                $RunEvents.Add([pscustomobject]@{
+                    eventType = 'request.rateLimit.wait'; endpointKey = $EndpointKey
+                    method = $normalizedMethod; delaySeconds = $wait
+                    timestampUtc = $now.ToString('o')
+                })
+                & $SleepAction $wait
+            }
+            $pacing.nextAllowed = (& $UtcNowAction).AddSeconds($pacing.interval)
+        }
         try {
             $result = & $Operation
+            if ($null -ne $pacing -and $pacing.interval -gt 0) {
+                $pacing.successes++
+                # Recover slowly: twenty successful calls reduce spacing by ten percent.
+                if ($pacing.successes -ge 20) {
+                    $pacing.interval = [Math]::Max(0.1, $pacing.interval * 0.9)
+                    $pacing.successes = 0
+                }
+            }
             $RunEvents.Add([pscustomobject]@{
                 eventType = 'request.attempt.succeeded'
                 attempt = $attempt
@@ -196,6 +280,41 @@ function Invoke-WithRetry {
             $exception = $_.Exception
             $statusCode = Get-GcHttpStatusCode -Exception $exception
             $message = [string]$exception.Message
+            if ($null -ne $_.ErrorDetails) { $message += ' ' + $_.ErrorDetails.Message }
+            $retryAfterSeconds = Get-GcRetryAfterSeconds -Exception $exception -Message $message
+            if ($statusCode -eq 429) {
+                $now = & $UtcNowAction
+                $cooldown = [Math]::Max(1.0, $BaseDelaySeconds)
+                if ($null -ne $retryAfterSeconds) { $cooldown = [double]$retryAfterSeconds }
+                if ($null -ne $pacing) {
+                    $pacing.count++
+                    $pacing.last429Utc = $now.ToString('o')
+                    $pacing.successes = 0
+                    $pacing.interval = [Math]::Min(60.0, [Math]::Max(1.0, $pacing.interval * 2))
+                    $cooldown = [Math]::Max($cooldown, $pacing.interval)
+                    $deadline = $now.AddSeconds($cooldown)
+                    $pacing.nextAllowed = $deadline
+                    if (-not $script:GcRateLimitCooldowns.ContainsKey($identity.authority) -or
+                        $script:GcRateLimitCooldowns[$identity.authority] -lt $deadline) {
+                        $script:GcRateLimitCooldowns[$identity.authority] = $deadline
+                    }
+                }
+                # Record even the final failed attempt and POSTs which cannot be retried.
+                $observation = [pscustomobject]@{
+                    eventType = 'request.rateLimit.observed'; endpointKey = $EndpointKey
+                    method = $normalizedMethod; statusCode = 429
+                    retryAfterSeconds = $retryAfterSeconds; cooldownSeconds = $cooldown
+                    intervalSeconds = $(if ($null -ne $pacing) { $pacing.interval } else { $null })
+                    total429 = $(if ($null -ne $pacing) { $pacing.count } else { $null })
+                    timestampUtc = $now.ToString('o')
+                }
+                $RunEvents.Add($observation)
+                # Persist immediately, including calls that abort before buffered events flush.
+                $activeContext = (Get-Variable -Name GcActiveRunContext -Scope Script -ErrorAction SilentlyContinue).Value
+                if ($null -ne $activeContext) {
+                    Write-Jsonl -Path (Join-Path $activeContext.runFolder 'rate-limits.jsonl') -InputObject $observation
+                }
+            }
             $isRetryableStatus = $null -ne $statusCode -and $retryableStatuses.Contains([int]$statusCode)
             $isRetryableError = $retryableMethod -and $isRetryableStatus
             $maxAttempts = $MaxRetries + 1
@@ -213,10 +332,9 @@ function Invoke-WithRetry {
                 throw
             }
 
-            $retryAfterSeconds = Get-GcRetryAfterSeconds -Exception $exception -Message $message
             $backoff = [Math]::Min($MaxDelaySeconds, $BaseDelaySeconds * [Math]::Pow(2, $attempt - 1))
             if ($null -ne $retryAfterSeconds) {
-                $backoff = [Math]::Min($MaxDelaySeconds, [double]$retryAfterSeconds)
+                $backoff = [double]$retryAfterSeconds
             }
 
             $jitterOffset = 0
@@ -235,6 +353,9 @@ function Invoke-WithRetry {
             }
 
             $delaySeconds = [Math]::Max(0, [Math]::Round($backoff + $jitterOffset, 3))
+            if ($null -ne $retryAfterSeconds) {
+                $delaySeconds = [Math]::Max($delaySeconds, [double]$retryAfterSeconds)
+            }
 
             $RunEvents.Add([pscustomobject]@{
                 eventType = 'request.retry.scheduled'
@@ -672,6 +793,8 @@ function Invoke-RequestWithRetry {
 
     $retryParams = @{
         Operation = $operation
+        EndpointKey = $endpointKey
+        RequestUri = $Request.Uri
         Method = $effectiveMethod
         MaxRetries = $RetrySettings.maxRetries
         BaseDelaySeconds = $RetrySettings.baseDelaySeconds
@@ -901,7 +1024,7 @@ function Invoke-GcRequest {
 
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $retryResult = Invoke-WithRetry -Operation $operation -Method $Method -MaxRetries $MaxRetries -BaseDelaySeconds $BaseDelaySeconds -MaxDelaySeconds $MaxDelaySeconds -JitterSeconds $JitterSeconds -AllowRetryOnPost:$AllowRetryOnPost -RetryOnStatusCodes $RetryOnStatusCodes -RetryOnMethods $RetryOnMethods -RandomSeed $RandomSeed -RunEvents $RunEvents
+        $retryResult = Invoke-WithRetry -Operation $operation -EndpointKey $EndpointKey -RequestUri $Uri -Method $Method -MaxRetries $MaxRetries -BaseDelaySeconds $BaseDelaySeconds -MaxDelaySeconds $MaxDelaySeconds -JitterSeconds $JitterSeconds -AllowRetryOnPost:$AllowRetryOnPost -RetryOnStatusCodes $RetryOnStatusCodes -RetryOnMethods $RetryOnMethods -RandomSeed $RandomSeed -RunEvents $RunEvents
         $stopwatch.Stop()
 
         $response = $retryResult

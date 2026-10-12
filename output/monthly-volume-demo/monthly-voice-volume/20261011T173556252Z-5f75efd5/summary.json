@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 1,
+  "investigationKey": "monthly-voice-volume",
+  "runId": "20261011T173556252Z-5f75efd5",
+  "generatedAtUtc": "2026-10-11T17:35:56.7003551Z",
+  "scope": {
+    "year": 2026,
+    "month": 9,
+    "timeZoneId": "UTC",
+    "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+    "divisionIds": [],
+    "queueIds": [],
+    "mediaType": "voice",
+    "organizationId": "",
+    "organizationVerified": false,
+    "baseUri": "https://api.usw2.pure.cloud"
+  },
+  "evidenceMode": "synthetic",
+  "sources": [
+    {
+      "source": "details-query",
+      "dataset": "analytics-conversation-details-query",
+      "kind": "details",
+      "status": "complete",
+      "startedAtUtc": "2026-10-11T17:35:56.3523448Z",
+      "endedAtUtc": "2026-10-11T17:35:56.4265019Z",
+      "requestPath": "details-query/request.json",
+      "evidencePath": null,
+      "rowCount": 2,
+      "voiceRowCount": 2,
+      "distinctConversations": 2,
+      "duplicateVoiceRows": 0,
+      "missingConversationIds": 0,
+      "pageCount": null,
+      "requestCount": 0,
+      "jobIds": [],
+      "warnings": [],
+      "conversationIds": [
+        "demo-a",
+        "demo-b"
+      ],
+      "metricStatistics": []
+    },
+    {
+      "source": "details-jobs",
+      "dataset": "analytics-conversation-details",
+      "kind": "details",
+      "status": "complete",
+      "startedAtUtc": "2026-10-11T17:35:56.4852282Z",
+      "endedAtUtc": "2026-10-11T17:35:56.5430856Z",
+      "requestPath": "details-jobs/request.json",
+      "evidencePath": null,
+      "rowCount": 3,
+      "voiceRowCount": 3,
+      "distinctConversations": 3,
+      "duplicateVoiceRows": 0,
+      "missingConversationIds": 0,
+      "pageCount": null,
+      "requestCount": 0,
+      "jobIds": [],
+      "warnings": [],
+      "conversationIds": [
+        "demo-b",
+        "demo-c",
+        "demo-d"
+      ],
+      "metricStatistics": []
+    },
+    {
+      "source": "aggregates-query",
+      "dataset": "analytics.query.conversation.aggregates.queue.performance",
+      "kind": "aggregates",
+      "status": "complete",
+      "startedAtUtc": "2026-10-11T17:35:56.6126614Z",
+      "endedAtUtc": "2026-10-11T17:35:56.6284271Z",
+      "requestPath": "aggregates-query/request.json",
+      "evidencePath": null,
+      "rowCount": 1,
+      "voiceRowCount": null,
+      "distinctConversations": null,
+      "duplicateVoiceRows": null,
+      "missingConversationIds": null,
+      "pageCount": null,
+      "requestCount": 0,
+      "jobIds": [],
+      "warnings": [],
+      "conversationIds": [],
+      "metricStatistics": [
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nOffered",
+          "stats": {
+            "count": 3
+          }
+        },
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nConnected",
+          "stats": {
+            "count": 2
+          }
+        },
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nOutbound",
+          "stats": {
+            "count": 1
+          }
+        }
+      ]
+    },
+    {
+      "source": "aggregates-jobs",
+      "dataset": "analytics-conversation-aggregates-jobs",
+      "kind": "aggregates",
+      "status": "complete",
+      "startedAtUtc": "2026-10-11T17:35:56.6635741Z",
+      "endedAtUtc": "2026-10-11T17:35:56.6694568Z",
+      "requestPath": "aggregates-jobs/request.json",
+      "evidencePath": null,
+      "rowCount": 1,
+      "voiceRowCount": null,
+      "distinctConversations": null,
+      "duplicateVoiceRows": null,
+      "missingConversationIds": null,
+      "pageCount": null,
+      "requestCount": 0,
+      "jobIds": [],
+      "warnings": [],
+      "conversationIds": [],
+      "metricStatistics": [
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nOffered",
+          "stats": {
+            "count": 4
+          }
+        },
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nConnected",
+          "stats": {
+            "count": 2
+          }
+        },
+        {
+          "group": {
+            "mediaType": "voice"
+          },
+          "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+          "metric": "nOutbound",
+          "stats": {
+            "count": 1
+          }
+        }
+      ]
+    }
+  ],
+  "measures": [
+    {
+      "source": "details-query",
+      "definition": "distinctVoiceConversations",
+      "value": 2,
+      "coverage": "complete",
+      "unit": "conversations"
+    },
+    {
+      "source": "details-jobs",
+      "definition": "distinctVoiceConversations",
+      "value": 3,
+      "coverage": "complete",
+      "unit": "conversations"
+    },
+    {
+      "source": "aggregates-query",
+      "definition": "nOffered.count",
+      "value": 3,
+      "coverage": "complete",
+      "unit": "metric count"
+    },
+    {
+      "source": "aggregates-query",
+      "definition": "nConnected.count",
+      "value": 2,
+      "coverage": "complete",
+      "unit": "metric count"
+    },
+    {
+      "source": "aggregates-query",
+      "definition": "nOutbound.count",
+      "value": 1,
+      "coverage": "complete",
+      "unit": "metric count"
+    },
+    {
+      "source": "aggregates-jobs",
+      "definition": "nOffered.count",
+      "value": 4,
+      "coverage": "complete",
+      "unit": "metric count"
+    },
+    {
+      "source": "aggregates-jobs",
+      "definition": "nConnected.count",
+      "value": 2,
+      "coverage": "complete",
+      "unit": "metric count"
+    },
+    {
+      "source": "aggregates-jobs",
+      "definition": "nOutbound.count",
+      "value": 1,
+      "coverage": "complete",
+      "unit": "metric count"
+    }
+  ],
+  "comparisons": [
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "details-jobs",
+      "comparedDefinition": "distinctVoiceConversations",
+      "comparedValue": 3,
+      "equivalentDefinition": true,
+      "difference": 1.0,
+      "percentOfBaseline": 50.0,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nOffered.count",
+      "comparedValue": 3,
+      "equivalentDefinition": false,
+      "difference": 1.0,
+      "percentOfBaseline": 50.0,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nConnected.count",
+      "comparedValue": 2,
+      "equivalentDefinition": false,
+      "difference": 0.0,
+      "percentOfBaseline": 0.0,
+      "status": "equal"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nOutbound.count",
+      "comparedValue": 1,
+      "equivalentDefinition": false,
+      "difference": -1.0,
+      "percentOfBaseline": -50.0,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOffered.count",
+      "comparedValue": 4,
+      "equivalentDefinition": false,
+      "difference": 2.0,
+      "percentOfBaseline": 100.0,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nConnected.count",
+      "comparedValue": 2,
+      "equivalentDefinition": false,
+      "difference": 0.0,
+      "percentOfBaseline": 0.0,
+      "status": "equal"
+    },
+    {
+      "baselineSource": "details-query",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOutbound.count",
+      "comparedValue": 1,
+      "equivalentDefinition": false,
+      "difference": -1.0,
+      "percentOfBaseline": -50.0,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nOffered.count",
+      "comparedValue": 3,
+      "equivalentDefinition": false,
+      "difference": 0.0,
+      "percentOfBaseline": 0.0,
+      "status": "equal"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nConnected.count",
+      "comparedValue": 2,
+      "equivalentDefinition": false,
+      "difference": -1.0,
+      "percentOfBaseline": -33.333333333333336,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-query",
+      "comparedDefinition": "nOutbound.count",
+      "comparedValue": 1,
+      "equivalentDefinition": false,
+      "difference": -2.0,
+      "percentOfBaseline": -66.66666666666667,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOffered.count",
+      "comparedValue": 4,
+      "equivalentDefinition": false,
+      "difference": 1.0,
+      "percentOfBaseline": 33.333333333333336,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nConnected.count",
+      "comparedValue": 2,
+      "equivalentDefinition": false,
+      "difference": -1.0,
+      "percentOfBaseline": -33.333333333333336,
+      "status": "different"
+    },
+    {
+      "baselineSource": "details-jobs",
+      "baselineDefinition": "distinctVoiceConversations",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOutbound.count",
+      "comparedValue": 1,
+      "equivalentDefinition": false,
+      "difference": -2.0,
+      "percentOfBaseline": -66.66666666666667,
+      "status": "different"
+    },
+    {
+      "baselineSource": "aggregates-query",
+      "baselineDefinition": "nOffered.count",
+      "baselineValue": 3,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOffered.count",
+      "comparedValue": 4,
+      "equivalentDefinition": true,
+      "difference": 1.0,
+      "percentOfBaseline": 33.333333333333336,
+      "status": "different"
+    },
+    {
+      "baselineSource": "aggregates-query",
+      "baselineDefinition": "nConnected.count",
+      "baselineValue": 2,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nConnected.count",
+      "comparedValue": 2,
+      "equivalentDefinition": true,
+      "difference": 0.0,
+      "percentOfBaseline": 0.0,
+      "status": "equal"
+    },
+    {
+      "baselineSource": "aggregates-query",
+      "baselineDefinition": "nOutbound.count",
+      "baselineValue": 1,
+      "comparedSource": "aggregates-jobs",
+      "comparedDefinition": "nOutbound.count",
+      "comparedValue": 1,
+      "equivalentDefinition": true,
+      "difference": 0.0,
+      "percentOfBaseline": 0.0,
+      "status": "equal"
+    }
+  ],
+  "detailIdComparison": {
+    "coverage": "complete",
+    "onlyDetailsQuery": [
+      "demo-a"
+    ],
+    "onlyDetailsJobs": [
+      "demo-c",
+      "demo-d"
+    ]
+  },
+  "warnings": [
+    "Distinct conversation counts and aggregate metric counts have different definitions. Agreement does not prove equivalence; differences do not establish defects.",
+    "Filters are expressed in source-specific request bodies. Equivalent scope and time attribution require live tenant verification."
+  ],
+  "runFolder": "/mnt/f/Development/Genesys.Core/Genesys.Core/output/monthly-volume-demo/monthly-voice-volume/20261011T173556252Z-5f75efd5"
+}

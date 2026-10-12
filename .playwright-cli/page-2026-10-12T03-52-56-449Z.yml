@@ -1,0 +1,81 @@
+- generic [ref=e41]:
+  - navigation "Global menu" [ref=e42]:
+    - generic [ref=e43]:
+      - button "Collapse global menu" [expanded] [ref=e44] [cursor=pointer]
+      - generic [ref=e48]: Genesys Data Client
+    - generic [ref=e49]:
+      - generic [ref=e50]:
+        - paragraph [ref=e51]: Start
+        - list [ref=e52]:
+          - listitem [ref=e53]:
+            - button "Getting started" [ref=e54] [cursor=pointer]
+          - listitem [ref=e57]:
+            - button "Endpoint explorer" [ref=e58] [cursor=pointer]
+          - listitem [ref=e61]:
+            - button "Conversation investigation" [ref=e62] [cursor=pointer]
+      - generic [ref=e65]:
+        - paragraph [ref=e66]: Analytics
+        - list [ref=e67]:
+          - listitem [ref=e68]:
+            - button "Speech & text topics" [ref=e69] [cursor=pointer]
+      - generic [ref=e72]:
+        - paragraph [ref=e73]: Directory
+        - list [ref=e74]:
+          - listitem [ref=e75]:
+            - button "Users" [ref=e76] [cursor=pointer]
+      - generic [ref=e79]:
+        - paragraph [ref=e80]: Governance
+        - list [ref=e81]:
+          - listitem [ref=e82]:
+            - button "Audit log" [ref=e83] [cursor=pointer]
+          - listitem [ref=e86]:
+            - button "Authorization roles" [ref=e87] [cursor=pointer]
+          - listitem [ref=e90]:
+            - button "OAuth clients" [ref=e91] [cursor=pointer]
+      - generic [ref=e94]:
+        - paragraph [ref=e95]: Interactions
+        - list [ref=e96]:
+          - listitem [ref=e97]:
+            - button "Active conversations" [ref=e98] [cursor=pointer]
+          - listitem [ref=e101]:
+            - button "Conversation segments" [ref=e102] [cursor=pointer]
+          - listitem [ref=e105]:
+            - button "Conversations" [ref=e106] [cursor=pointer]
+      - generic [ref=e109]:
+        - paragraph [ref=e110]: Routing
+        - list [ref=e111]:
+          - listitem [ref=e112]:
+            - button "Routing queues" [ref=e113] [cursor=pointer]
+  - generic [ref=e116]:
+    - banner [ref=e117]:
+      - generic [ref=e118]:
+        - button "Back" [disabled] [ref=e119]: ‹
+        - heading "Conversation investigation" [level=1] [ref=e120]
+      - searchbox "Search pages" [ref=e122]
+      - generic [ref=e123]:
+        - button "Help" [ref=e124] [cursor=pointer]: "?"
+        - button "Switch to the Atlas skin" [ref=e125] [cursor=pointer]: DA
+    - generic [ref=e126]:
+      - generic [ref=e127]: This skin reproduces the productized navigation, including its fixed layout and light-only theme.
+      - button "Try the Atlas skin →" [ref=e128] [cursor=pointer]
+    - main [ref=e129]:
+      - iframe [ref=e130]:
+        - generic [ref=f1e1]:
+          - link "Skip to investigation" [ref=f1e2] [cursor=pointer]:
+            - /url: "#main"
+          - banner [ref=f1e3]:
+            - generic [ref=f1e4]:
+              - generic [ref=f1e5]: Genesys · Investigation tools
+              - heading "Conversation investigation" [level=1] [ref=f1e6]
+              - paragraph [ref=f1e7]: Explore a population. Follow the evidence.
+            - generic [ref=f1e8] [cursor=pointer]:
+              - text: Open Ops analysis JSON
+              - button "Open Ops analysis JSON" [ref=f1e9]
+          - main [ref=f1e10]:
+            - status [ref=f1e11]
+            - group [ref=f1e12]:
+              - generic "Collect conversations by interval, queue, user or Division" [ref=f1e13] [cursor=pointer]
+            - region "Collection scope" [ref=f1e14]:
+              - paragraph [ref=f1e15]: Open analysis.json exported by Get-GenesysConversationAnalysis, or run a collection above.
+              - group [ref=f1e16]:
+                - generic "Collection query, coverage and metric definitions" [ref=f1e17] [cursor=pointer]

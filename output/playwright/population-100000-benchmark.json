@@ -1,0 +1,35 @@
+{
+  "kind": "synthetic-population-engine-benchmark",
+  "node": "v20.20.2",
+  "population": 100000,
+  "filtered": 15827,
+  "searched": 1110,
+  "groups": 10000,
+  "errors": [
+    {
+      "code": "demo.error",
+      "occurrences": 50000,
+      "conversations": 25000
+    }
+  ],
+  "stats": {
+    "conversations": 15827,
+    "validCount": 15827,
+    "missingCount": 0,
+    "average": 110,
+    "min": 101,
+    "max": 119,
+    "sum": 1740970
+  },
+  "timings": {
+    "validateMs": 104.7,
+    "numericFilterMs": 142.47,
+    "firstSearchMs": 946.16,
+    "repeatSearchMs": 35.56,
+    "statsMs": 9.88,
+    "groupMs": 303.58,
+    "errorsMs": 57.95
+  },
+  "heapUsedMiB": 193,
+  "limitations": "Engine-only, synthetic profiles, local machine. Excludes browser DOM, import parsing, Ops profiling, network and export serialization."
+}

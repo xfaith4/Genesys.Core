@@ -1,0 +1,3 @@
+"conversationId","participants"
+"conv-demo-A","{""userId"":""agent-demo-001"",""role"":""agent""}"
+"conv-demo-B","{""userId"":""agent-demo-001"",""role"":""agent""}"

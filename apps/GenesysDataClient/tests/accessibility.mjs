@@ -41,12 +41,12 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 let failures = 0;
 let audited = 0;
 
-const audit = async (label) => {
+const audit = async (label, context = page) => {
   // Park the pointer so hover styles are not what gets measured.
   await page.mouse.move(2, 2);
   await page.waitForTimeout(120);
-  await page.addScriptTag({ content: axeSource });
-  const result = await page.evaluate(
+  await context.addScriptTag({ content: axeSource });
+  const result = await context.evaluate(
     async (tags) => await window.axe.run(document, { runOnly: { type: 'tag', values: tags } }),
     TAGS,
   );
@@ -121,6 +121,60 @@ await audit('genesys · endpoint explorer');
 
 await open('#/explore/users', '.grid__row');
 await audit('genesys · explorer');
+
+// The shared workbench has an opaque sandbox origin: audit the frame directly as well as
+// the surrounding shell. These normalized fixture profiles exercise the artifact contract.
+console.log('\nWCAG 2.1 AA — conversation investigation');
+await open('#/investigation', 'iframe[title="Conversation investigation workbench"]');
+const workbench = () => page.frameLocator('iframe[title="Conversation investigation workbench"]');
+const analysis = {
+  kind: 'genesys-conversation-analysis', schemaVersion: 1,
+  coverage: { status: 'complete', evidenceMode: 'synthetic' },
+  definitions: { numericFields: ['tHandleSec'], nullPolicy: 'Missing values remain null.' },
+  entityResolution: { enabled: true, entities: { queues: { q1: 'Shared queue name', q2: 'Shared queue name' } }, coverage: {} },
+  profiles: [
+    { ConversationId: 'synthetic-a', QueueIds: ['q1'], QueueNames: ['Shared queue name'], tHandleSec: 10, ErrorCodes: [], ErrorEvents: [], Timeline: [] },
+    { ConversationId: 'synthetic-b', QueueIds: ['q2'], QueueNames: ['Shared queue name'], tHandleSec: 20, ErrorCodes: ['demo.error'],
+      ErrorEvents: [{ Code: 'demo.error' }], Timeline: [] },
+  ],
+};
+await workbench().locator('#file').setInputFiles({
+  name: 'synthetic-analysis.json', mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(analysis)),
+});
+await workbench().locator('#grid tbody tr').first().waitFor();
+const embedded = () => page.frames().find(frame => frame.parentFrame() === page.mainFrame());
+await audit('genesys · investigation shell');
+await audit('investigation · loaded population', embedded());
+await workbench().locator('#group').selectOption('QueueIds');
+if (await workbench().locator('#groups button').count() !== 2) throw new Error('Duplicate entity names collapsed distinct IDs');
+await workbench().locator('#groups button').filter({ hasText: '[q1]' }).click();
+if ((await workbench().locator('#stats strong').allTextContents())[0] !== '1') throw new Error('Named group filtered on name rather than ID');
+await workbench().locator('#reset').click();
+
+await workbench().locator('#filter-field').selectOption('tHandleSec');
+await workbench().locator('#operator').selectOption('gt');
+await workbench().locator('#filter-value').fill('10');
+await workbench().locator('#filter-form button[type="submit"]').click();
+await page.getByRole('button', { name: 'Endpoint explorer', exact: true }).click();
+await page.getByRole('button', { name: 'Conversation investigation', exact: true }).click();
+await workbench().locator('#stats strong').first().waitFor();
+if ((await workbench().locator('#stats strong').allTextContents())[1] !== '20') {
+  throw new Error('Investigation filters/metric did not survive navigation');
+}
+await page.click('.gx-avatar');
+await workbench().locator('#stats strong').first().waitFor();
+if ((await workbench().locator('#stats strong').allTextContents())[0] !== '1') {
+  throw new Error('Investigation did not survive skin change');
+}
+await audit('atlas · investigation shell');
+await workbench().locator('#grid tbody button').first().click();
+await audit('investigation · conversation dialog', embedded());
+await workbench().locator('#close-detail').click();
+await page.setViewportSize({ width: 390, height: 844 });
+await audit('atlas · investigation mobile shell');
+await audit('investigation · mobile population', embedded());
+await page.setViewportSize({ width: 1500, height: 950 });
 
 console.log('\nWCAG 2.1 AA — Atlas skin, every theme and accent');
 for (const theme of ['Light', 'Dark']) {

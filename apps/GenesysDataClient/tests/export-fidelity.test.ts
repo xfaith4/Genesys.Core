@@ -127,3 +127,41 @@ describe('report exports', () => {
     expect(dataRows(csv)[1]).toContain('987000');
   });
 });
+
+
+describe('JSON evidence provenance', () => {
+  const meta = {
+    sourceId: 'conversations', fetchedAt: '2026-10-11T12:00:00Z', durationMs: 15,
+    requests: [{ method: 'GET', url: '/api/v2/example', status: 200, durationMs: 15 }],
+    warnings: ['Partial source coverage'],
+  };
+  const context = { ...ctx, meta, filterSummary: 'search "Alice"; grouped by Name' };
+  const definition = { ...def('csv'), format: 'json' as const, includeProvenance: true };
+
+  it('retains the filters, collection evidence and warnings in record JSON', () => {
+    const output = JSON.parse(exportRecords(records, fields, definition, context));
+    expect(output.provenance).toMatchObject({
+      filterSummary: context.filterSummary, recordCount: 2, meta,
+      units: { durations: 'milliseconds', timestamps: 'ISO 8601 UTC' },
+    });
+  });
+
+  it('retains report metric definitions and the filtered population', () => {
+    const result = buildReport(records.slice(0, 1), fields, {
+      groupBy: ['name'], metrics: [{ id: 'm1', field: 'durationMs', fn: 'sum' }],
+    });
+    const output = JSON.parse(exportReport(result, fields, definition, { ...context, recordCount: 1 }));
+    expect(output.provenance).toMatchObject({ filterSummary: context.filterSummary, meta });
+    expect(output.metrics).toEqual(result.metrics);
+    expect(output.totalRecords).toBe(1);
+    expect(output.rows[0].metrics.m1).toBe(867000);
+  });
+
+  it('honors provenance opt-out while retaining interpretable report metrics', () => {
+    const result = buildReport(records, fields, { groupBy: [], metrics: [] });
+    const output = JSON.parse(exportReport(result, fields, { ...definition, includeProvenance: false }, context));
+    expect(output).not.toHaveProperty('provenance');
+    expect(output.metrics).toEqual([]);
+    expect(output.totalRecords).toBe(2);
+  });
+});

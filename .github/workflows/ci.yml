@@ -82,6 +82,10 @@ jobs:
         # Integration tests skip themselves when no demo server is reachable.
         run: npm test
 
+      - name: Conversation population engine tests
+        working-directory: ${{ github.workspace }}
+        run: node --test tests/browser/conversation-population.test.mjs
+
       - name: Build
         run: npm run build
 

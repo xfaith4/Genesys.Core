@@ -1,0 +1,21 @@
+{
+  "provenance": {
+    "source": "Users report",
+    "generated": "2026-10-11T15:05:32.272Z"
+  },
+  "groupBy": [
+    "department"
+  ],
+  "rows": [
+    {
+      "key": "Customer Service",
+      "groups": {
+        "department": "Customer Service"
+      },
+      "metrics": {
+        "metric-ipeck5v": 1
+      },
+      "count": 1
+    }
+  ]
+}

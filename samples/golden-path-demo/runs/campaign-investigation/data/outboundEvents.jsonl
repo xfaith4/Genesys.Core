@@ -1,0 +1,4 @@
+{"id":"evt-1","campaignId":"campaign-demo-1","timestamp":"2026-05-10T14:00:00Z","type":"campaignStart","callResult":null}
+{"id":"evt-2","campaignId":"campaign-demo-1","timestamp":"2026-05-10T14:01:00Z","type":"contactCallCompleted","callResult":"Connected"}
+{"id":"evt-3","campaignId":"campaign-demo-1","timestamp":"2026-05-10T14:02:00Z","type":"contactCallCompleted","callResult":"NoAnswer"}
+{"id":"evt-4","campaignId":"campaign-demo-1","timestamp":"2026-05-10T14:03:00Z","type":"contactCallAbandon","callResult":"OutboundAbandon"}

@@ -1,0 +1,4 @@
+{"status":"complete","timestampUtc":"2026-10-11T17:35:42.8143595Z","eventType":"source.completed","source":"details-query"}
+{"status":"complete","timestampUtc":"2026-10-11T17:35:42.8833713Z","eventType":"source.completed","source":"details-jobs"}
+{"status":"complete","timestampUtc":"2026-10-11T17:35:42.9467534Z","eventType":"source.completed","source":"aggregates-query"}
+{"status":"complete","timestampUtc":"2026-10-11T17:35:42.9830572Z","eventType":"source.completed","source":"aggregates-jobs"}

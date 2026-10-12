@@ -1,0 +1,50 @@
+- main [ref=e4]:
+  - generic [ref=e5]:
+    - heading "Genesys Data Client" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Sign in with OAuth 2.0 Authorization Code + PKCE. No client secret is used or stored.
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: Environment
+      - combobox "Environment" [ref=e11]:
+        - option "Demo — Genesys.MockServer (offline)" [selected]
+        - option "US East (us-east-1)"
+        - option "US West (us-west-2)"
+        - option "Canada (ca-central-1)"
+        - option "EU West (eu-west-1)"
+        - option "EU West (eu-west-2)"
+        - option "EU Central (eu-central-1)"
+        - option "EU Central (eu-central-2)"
+        - option "Asia Pacific (ap-northeast-1)"
+        - option "Asia Pacific (ap-northeast-2)"
+        - option "Asia Pacific (ap-southeast-2)"
+        - option "Asia Pacific (ap-south-1)"
+        - option "South America (sa-east-1)"
+        - option "Middle East (me-central-1)"
+        - option "US East FedRAMP (us-gov-east-1)"
+        - option "Custom region…"
+    - generic [ref=e12]:
+      - generic [ref=e13]: OAuth client id
+      - textbox "OAuth client id" [ref=e14]:
+        - /placeholder: genesys-data-client-demo
+        - text: genesys-data-client-demo
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: Authorize
+        - code [ref=e19]: (this server)/oauth/authorize
+      - generic [ref=e20]:
+        - generic [ref=e21]: Token
+        - code [ref=e23]: (this server)/oauth/token
+      - generic [ref=e24]:
+        - generic [ref=e25]: API
+        - code [ref=e27]: (this server)/api/v2
+      - generic [ref=e28]:
+        - generic [ref=e29]: Redirect URI
+        - code [ref=e31]: http://127.0.0.1:5173/
+      - generic [ref=e32]:
+        - generic [ref=e33]: Challenge
+        - generic [ref=e34]: S256
+    - button "Continue with the demo authorization server" [ref=e36] [cursor=pointer]
+    - paragraph [ref=e37]: "The demo server implements PKCE for real: it verifies the S256 challenge and rejects a mismatched verifier. The identity is fixed and no credentials are requested."
+  - generic [ref=e38]:
+    - generic [ref=e39]: "Skip the flow and use the fixed demo bearer instead:"
+    - button "Use demo token" [ref=e40] [cursor=pointer]

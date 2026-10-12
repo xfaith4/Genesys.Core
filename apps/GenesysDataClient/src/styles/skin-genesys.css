@@ -241,7 +241,11 @@
 .gx-content { flex: 1; overflow-y: auto; padding: 16px; }
 
 @media (max-width: 860px) {
-  .gx-menu { width: 56px; }
-  .gx-menu__wordmark, .gx-menu__section-label, .gx-menu__label { display: none; }
-  .gx-topbar__search { max-width: none; }
+  .gx-menu:not(.gx-menu--collapsed) {
+    position: absolute; inset: 0 auto 0 0; width: min(280px, 85vw);
+    z-index: 40; box-shadow: 8px 0 24px #0003;
+  }
+  .gx-topbar { flex-wrap: wrap; gap: 8px; height: auto; padding: 8px; }
+  .gx-topbar__search { max-width: none; flex-basis: 100%; order: 3; }
+  .gx-banner { flex-wrap: wrap; }
 }

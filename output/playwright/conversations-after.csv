@@ -1,0 +1,13 @@
+# Genesys Data Client export
+# Source: Conversations
+# Records: 5
+# Generated: 2026-10-11T15:08:41.258Z
+# Units: durations are in milliseconds; timestamps are ISO 8601 UTC.
+# Retrieved: 2026-10-11T15:08:40.978Z (348 ms)
+# Requests: POST /api/v2/analytics/conversations/details/jobs -> 200 | GET /api/v2/analytics/conversations/details/jobs/demo-analytics-job-48195b0eb1714a2a8c0cf69a4f9ec6e2 -> 200 | GET /api/v2/analytics/conversations/details/jobs/demo-analytics-job-48195b0eb1714a2a8c0cf69a4f9ec6e2 -> 200 | GET /api/v2/analytics/conversations/details/jobs/demo-analytics-job-48195b0eb1714a2a8c0cf69a4f9ec6e2/results -> 200 | GET /api/v2/analytics/conversations/details/jobs/demo-analytics-job-48195b0eb1714a2a8c0cf69a4f9ec6e2/results?cursor=demo-cursor-page-2 -> 200
+Conversation ID,Start,Duration,Direction,Media,Agent,Queue,ANI,DNIS,Disconnect,Agent talk,Participants,Segments
+conv-v005-voice-abandoned,2026-02-20T08:45:00.000Z,142000,inbound,voice,,queueid-0001-0001-0001-aabbccddeeff,+14155550202,+18005551000,client,,2,2
+conv-e004-email-inbound,2026-02-19T11:00:00.000Z,2325000,inbound,email,Eve Email,queueid-0005-0005-0005-aabbccddeeff,,,client,2025000,2,2
+conv-v003-voice-outbound,2026-02-17T10:05:00.000Z,1092000,outbound,voice,Dan Outreach,queueid-0001-0001-0001-aabbccddeeff,,,endpoint,942000,2,4
+conv-c002-chat-transfer,2026-02-15T13:30:00.000Z,1865000,inbound,chat,Bob Chat,queueid-0003-0003-0003-aabbccddeeff,,,client,1765000,3,4
+conv-v001-voice-inbound,2026-02-14T09:00:00.000Z,867000,inbound,voice,Alice Support,queueid-0001-0001-0001-aabbccddeeff,+14155550101,+18005551000,client,627000,3,4

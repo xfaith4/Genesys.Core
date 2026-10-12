@@ -1,0 +1,93 @@
+{
+  "packageType": "investigation-package",
+  "generatedAtUtc": "2026-10-11T14:50:06.9574000Z",
+  "investigationKey": "conversation-investigation",
+  "subjectType": "conversation",
+  "subjectId": "conv-demo-001",
+  "runId": "demo-run",
+  "counts": {
+    "steps": 9,
+    "failed": 0,
+    "records": 9.0,
+    "sections": 9
+  },
+  "files": {
+    "markdown": "conversation-investigation-conv-demo-001-demo-run.md",
+    "html": "conversation-investigation-conv-demo-001-demo-run.html",
+    "workbook": "conversation-investigation-conv-demo-001-demo-run.xlsx",
+    "elasticBulk": "conversation-investigation-conv-demo-001-demo-run.elastic-bulk.ndjson",
+    "manifest": "manifest.json",
+    "summary": "summary.json",
+    "events": "events.jsonl",
+    "csv": {
+      "conversationLookup": "conversation-investigation-conv-demo-001-demo-run.conversationLookup.csv",
+      "conversation": "conversation-investigation-conv-demo-001-demo-run.conversation.csv",
+      "participants": "conversation-investigation-conv-demo-001-demo-run.participants.csv",
+      "agents": "conversation-investigation-conv-demo-001-demo-run.agents.csv",
+      "divisions": "conversation-investigation-conv-demo-001-demo-run.divisions.csv",
+      "skills": "conversation-investigation-conv-demo-001-demo-run.skills.csv",
+      "recordings": "conversation-investigation-conv-demo-001-demo-run.recordings.csv",
+      "evaluations": "conversation-investigation-conv-demo-001-demo-run.evaluations.csv",
+      "surveys": "conversation-investigation-conv-demo-001-demo-run.surveys.csv"
+    },
+    "powerBi": {
+      "directory": "powerbi",
+      "dataset": "dataset.json"
+    },
+    "dataFolder": "data",
+    "packageJson": "conversation-investigation-conv-demo-001-demo-run.package.json"
+  },
+  "overview": {
+    "GeneratedAtUtc": "2026-10-11T14:50:06.9574000Z",
+    "Investigation": "conversation-investigation",
+    "SubjectType": "conversation",
+    "SubjectId": "conv-demo-001",
+    "RunId": "demo-run",
+    "StartedAtUtc": "2026-10-11T14:50:05.4446851Z",
+    "FinishedAtUtc": "2026-10-11T14:50:05.6696581Z",
+    "SinceUtc": "",
+    "UntilUtc": "",
+    "StepCount": 9,
+    "FailedSteps": 0,
+    "RecordsCollected": 9.0,
+    "SectionCount": 9
+  },
+  "sections": [
+    {
+      "Name": "conversationLookup",
+      "RecordCount": 1
+    },
+    {
+      "Name": "conversation",
+      "RecordCount": 1
+    },
+    {
+      "Name": "participants",
+      "RecordCount": 1
+    },
+    {
+      "Name": "agents",
+      "RecordCount": 1
+    },
+    {
+      "Name": "divisions",
+      "RecordCount": 0
+    },
+    {
+      "Name": "skills",
+      "RecordCount": 2
+    },
+    {
+      "Name": "recordings",
+      "RecordCount": 1
+    },
+    {
+      "Name": "evaluations",
+      "RecordCount": 1
+    },
+    {
+      "Name": "surveys",
+      "RecordCount": 1
+    }
+  ]
+}

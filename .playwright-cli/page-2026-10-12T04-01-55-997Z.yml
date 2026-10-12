@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - link "Skip to investigation" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Genesys · Investigation tools
+      - heading "Conversation investigation" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Explore a population. Follow the evidence.
+    - generic [ref=e8] [cursor=pointer]:
+      - text: Open Ops analysis JSON
+      - button "Open Ops analysis JSON" [ref=e9]
+  - main [ref=e10]:
+    - status [ref=e11]
+    - group [ref=e12]:
+      - generic "Collect conversations by interval, queue, user or Division" [ref=e13] [cursor=pointer]
+    - region "Collection scope" [ref=e14]:
+      - paragraph [ref=e15]: Open analysis.json exported by Get-GenesysConversationAnalysis, or run a collection above.
+      - group [ref=e16]:
+        - generic "Collection query, coverage and metric definitions" [ref=e17] [cursor=pointer]

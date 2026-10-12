@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseHash, toHash } from '../src/app/route';
+import { buildNavigation, titleFor } from '../src/skins';
 
 describe('hash routing', () => {
   it('defaults to home for an empty or unknown hash', () => {
@@ -9,6 +10,7 @@ describe('hash routing', () => {
   });
 
   it('parses the simple pages', () => {
+    expect(parseHash('#/investigation')).toEqual({ page: 'investigation' });
     expect(parseHash('#/home')).toEqual({ page: 'home' });
     expect(parseHash('#/endpoints')).toEqual({ page: 'endpoints' });
   });
@@ -27,10 +29,22 @@ describe('hash routing', () => {
   it('round-trips every route through the hash', () => {
     for (const route of [
       { page: 'home' as const },
+      { page: 'investigation' as const },
       { page: 'endpoints' as const },
       { page: 'explore' as const, sourceId: 'conversation-segments' },
     ]) {
       expect(parseHash(toHash(route))).toEqual(route);
     }
+  });
+});
+
+
+describe('investigation navigation', () => {
+  it('exposes a titled destination through the shared navigation used by both skins', () => {
+    const destination = buildNavigation().flatMap(section => section.items)
+      .find(item => item.page === 'investigation');
+    expect(destination?.label).toBe('Conversation investigation');
+    expect(titleFor('investigation', undefined)).toBe(destination?.label);
+    expect(parseHash(toHash({ page: 'investigation' }))).toEqual({ page: 'investigation' });
   });
 });

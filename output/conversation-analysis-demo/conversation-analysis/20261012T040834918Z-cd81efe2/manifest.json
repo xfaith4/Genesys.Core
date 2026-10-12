@@ -1,0 +1,30 @@
+{
+  "coverage": {
+    "duplicateRows": 0,
+    "rawRows": 120,
+    "missingIds": 0,
+    "evidencePath": null,
+    "pageCount": 0,
+    "status": "complete",
+    "distinctConversations": 120,
+    "evidenceMode": "synthetic"
+  },
+  "datasetKey": "conversation-analysis",
+  "gitSha": null,
+  "startedAtUtc": "2026-10-12T04:08:34.9156834Z",
+  "warnings": [],
+  "runId": "20261012T040834918Z-cd81efe2",
+  "scope": {
+    "untilUtc": "2026-10-01T00:00:00.0000000Z",
+    "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+    "sinceUtc": "2026-09-01T00:00:00.0000000Z",
+    "divisionIds": [],
+    "mediaTypes": [],
+    "userIds": [],
+    "queueIds": []
+  },
+  "endedAtUtc": "2026-10-12T04:08:39.9746204Z",
+  "counts": {
+    "itemCount": 120
+  }
+}

@@ -1,0 +1,368 @@
+### Page
+- Page URL: http://localhost:5173/#/endpoints
+- Page Title: Genesys Data Client
+- Console: 1 errors, 0 warnings
+### Snapshot
+```yaml
+- generic [ref=f4e1140]:
+  - complementary "Navigation" [ref=f4e1141]:
+    - generic [ref=f4e1142]:
+      - button "Collapse navigation" [expanded] [ref=f4e1143] [cursor=pointer]: ⟨
+      - generic [ref=f4e1144]: Atlas
+    - searchbox "Filter navigation" [ref=f4e1146]
+    - navigation [ref=f4e1147]:
+      - generic [ref=f4e1148]:
+        - paragraph [ref=f4e1149]: Start
+        - list [ref=f4e1150]:
+          - listitem [ref=f4e1151]:
+            - button "Getting started" [ref=f4e1152] [cursor=pointer]
+          - listitem [ref=f4e1155]:
+            - button "Endpoint explorer" [ref=f4e1156] [cursor=pointer]
+      - generic [ref=f4e1159]:
+        - paragraph [ref=f4e1160]: Analytics
+        - list [ref=f4e1161]:
+          - listitem [ref=f4e1162]:
+            - button "Speech & text topics" [ref=f4e1163] [cursor=pointer]
+      - generic [ref=f4e1166]:
+        - paragraph [ref=f4e1167]: Directory
+        - list [ref=f4e1168]:
+          - listitem [ref=f4e1169]:
+            - button "Users" [ref=f4e1170] [cursor=pointer]
+      - generic [ref=f4e1173]:
+        - paragraph [ref=f4e1174]: Governance
+        - list [ref=f4e1175]:
+          - listitem [ref=f4e1176]:
+            - button "Audit log" [ref=f4e1177] [cursor=pointer]
+          - listitem [ref=f4e1180]:
+            - button "Authorization roles" [ref=f4e1181] [cursor=pointer]
+          - listitem [ref=f4e1184]:
+            - button "OAuth clients" [ref=f4e1185] [cursor=pointer]
+      - generic [ref=f4e1188]:
+        - paragraph [ref=f4e1189]: Interactions
+        - list [ref=f4e1190]:
+          - listitem [ref=f4e1191]:
+            - button "Active conversations" [ref=f4e1192] [cursor=pointer]
+          - listitem [ref=f4e1195]:
+            - button "Conversation segments" [ref=f4e1196] [cursor=pointer]
+          - listitem [ref=f4e1199]:
+            - button "Conversations" [ref=f4e1200] [cursor=pointer]
+      - generic [ref=f4e1203]:
+        - paragraph [ref=f4e1204]: Routing
+        - list [ref=f4e1205]:
+          - listitem [ref=f4e1206]:
+            - button "Routing queues" [ref=f4e1207] [cursor=pointer]
+  - generic [ref=f4e1210]:
+    - banner [ref=f4e1211]:
+      - generic [ref=f4e1212]:
+        - heading "Endpoint explorer" [level=1] [ref=f4e1616]
+        - paragraph [ref=f4e1214]: Genesys Data Client · Atlas
+      - generic [ref=f4e1215]:
+        - group "Theme" [ref=f4e1216]:
+          - button "Light" [ref=f4e1217] [cursor=pointer]
+          - button "Dark" [ref=f4e1218] [cursor=pointer]
+          - button "System" [pressed] [ref=f4e1219] [cursor=pointer]
+        - button "Interface settings" [ref=f4e1220] [cursor=pointer]: ⚙
+        - button "Genesys skin" [ref=f4e1221] [cursor=pointer]
+    - main [ref=f4e1222]:
+      - generic [ref=f4e1618]:
+        - region "Connected server" [ref=f4e1621]:
+          - generic [ref=f4e1622]:
+            - generic [ref=f4e1623]:
+              - button "Collapse Connected server" [ref=f4e1624] [cursor=pointer]: ▾
+              - heading "Connected server" [level=2] [ref=f4e1625]
+            - generic [ref=f4e1627]:
+              - button "Move Connected server up" [disabled] [ref=f4e1628]: ↑
+              - button "Move Connected server down" [ref=f4e1629] [cursor=pointer]: ↓
+          - generic [ref=f4e1631]:
+            - generic [ref=f4e1632]:
+              - generic [ref=f4e1633]:
+                - generic [ref=f4e1634]: 3,389
+                - generic [ref=f4e1635]: Endpoints
+              - generic [ref=f4e1636]:
+                - generic [ref=f4e1637]: "48"
+                - generic [ref=f4e1638]: With demo data
+              - generic [ref=f4e1639]:
+                - generic [ref=f4e1640]: "90"
+                - generic [ref=f4e1641]: Groups
+              - generic [ref=f4e1642]:
+                - generic [ref=f4e1643]: "16"
+                - generic [ref=f4e1644]: Coverage rules
+            - generic [ref=f4e1645]:
+              - generic [ref=f4e1646]: Server
+              - generic [ref=f4e1647]: Genesys.MockServer v1.0.0
+            - generic [ref=f4e1648]:
+              - generic [ref=f4e1649]: Catalog
+              - generic [ref=f4e1650]: v1.0.0 · generated 9/6/2026, 3:02:11 AM
+            - generic [ref=f4e1651]:
+              - generic [ref=f4e1652]: Demo token
+              - code [ref=f4e1654]: demo-bearer-token-genesys-testplatform
+            - paragraph [ref=f4e1655]: Of 3,389 catalog endpoints, 48 return real demo data. The rest are registered and will answer with a shape-correct empty envelope.
+        - region "Endpoints" [ref=f4e1658]:
+          - generic [ref=f4e1659]:
+            - generic [ref=f4e1660]:
+              - button "Collapse Endpoints" [ref=f4e1661] [cursor=pointer]: ▾
+              - heading "Endpoints" [level=2] [ref=f4e1662]
+            - generic [ref=f4e1663]:
+              - generic [ref=f4e1664]: 0 of 0
+              - generic [ref=f4e1665]:
+                - button "Move Endpoints up" [ref=f4e1666] [cursor=pointer]: ↑
+                - button "Move Endpoints down" [ref=f4e1667] [cursor=pointer]: ↓
+          - generic [ref=f4e1669]:
+            - generic [ref=f4e1670]:
+              - generic [ref=f4e1671]:
+                - generic [ref=f4e1672]: Search
+                - textbox "Search" [active] [ref=f4e1673]:
+                  - /placeholder: path, key or operation id
+                  - text: /api/v2/routing/queues
+              - generic [ref=f4e1674]:
+                - generic [ref=f4e1675]: Group
+                - combobox "Group" [ref=f4e1676]:
+                  - option "All groups (90)" [selected]
+                  - option "Analytics (160, 14 demo)"
+                  - option "Uncategorized (11, 7 demo)"
+                  - option "Audit (7, 5 demo)"
+                  - option "Audits (4, 4 demo)"
+                  - option "Users (100, 4 demo)"
+                  - option "Quality (72, 3 demo)"
+                  - option "Conversations (313, 2 demo)"
+                  - option "OAuth (15, 2 demo)"
+                  - option "Routing (174, 2 demo)"
+                  - option "Authorization (63, 1 demo)"
+                  - option "Gamification (78, 1 demo)"
+                  - option "Recording (57, 1 demo)"
+                  - option "Speech & Text Analytics (60, 1 demo)"
+                  - option "Task Management (76, 1 demo)"
+                  - option "Agent Assistants (23)"
+                  - option "Agent Copilot (3)"
+                  - option "Agent UI (4)"
+                  - option "AI Studio (32)"
+                  - option "Alerting (17)"
+                  - option "Architect (147)"
+                  - option "Assistant Copilot Variations (5)"
+                  - option "Background Assistant (1)"
+                  - option "Billing (2)"
+                  - option "Business Rules (46)"
+                  - option "Carrier Services (2)"
+                  - option "Case Management (43)"
+                  - option "Chat (34)"
+                  - option "Coaching (22)"
+                  - option "Content Management (36)"
+                  - option "Data Extensions (3)"
+                  - option "Data Privacy (6)"
+                  - option "Dependencies (3)"
+                  - option "Downloads (1)"
+                  - option "Emails (5)"
+                  - option "Employee Engagement (6)"
+                  - option "Events (4)"
+                  - option "External Contacts (135)"
+                  - option "Fax (9)"
+                  - option "Flows (3)"
+                  - option "General Data Protection Regulation (4)"
+                  - option "Geolocation (4)"
+                  - option "Greetings (19)"
+                  - option "Groups (13)"
+                  - option "Identity Provider (38)"
+                  - option "Infrastructure as Code (5)"
+                  - option "Integrations (86)"
+                  - option "Intents (16)"
+                  - option "Journey (85)"
+                  - option "Knowledge (127)"
+                  - option "Language Understanding (40)"
+                  - option "Languages (8)"
+                  - option "Learning (37)"
+                  - option "License (9)"
+                  - option "Locations (8)"
+                  - option "Log Capture (7)"
+                  - option "Messaging (13)"
+                  - option "Mobile Devices (5)"
+                  - option "Notifications (9)"
+                  - option "Operational Events (4)"
+                  - option "Organization (20)"
+                  - option "Organization Authorization (46)"
+                  - option "Outbound (180)"
+                  - option "Presence (24)"
+                  - option "Process Automation (13)"
+                  - option "Response Management (24)"
+                  - option "SCIM (30)"
+                  - option "Screen Monitoring (11)"
+                  - option "Scripts (15)"
+                  - option "Search (9)"
+                  - option "Settings (5)"
+                  - option "Social Media (49)"
+                  - option "Speech and Text Analytics (5)"
+                  - option "Stations (4)"
+                  - option "Teams (9)"
+                  - option "Telephony (30)"
+                  - option "Telephony Providers Edge (127)"
+                  - option "Textbots (4)"
+                  - option "Tokens (5)"
+                  - option "Uploads (6)"
+                  - option "Usage (11)"
+                  - option "User Recordings (6)"
+                  - option "Users Rules (9)"
+                  - option "Utilities (4)"
+                  - option "Voicemail (27)"
+                  - option "Web Deployments (21)"
+                  - option "WebChat (19)"
+                  - option "WebMessaging (4)"
+                  - option "Widgets (5)"
+                  - option "Workforce Management (342)"
+                  - option "WorkforceManagement (6)"
+              - generic [ref=f4e1677]:
+                - generic [ref=f4e1678]: Coverage
+                - combobox "Coverage" [ref=f4e1679]:
+                  - option "Any coverage" [selected]
+                  - option "Demo data"
+                  - option "Demo data, paged"
+                  - option "Demo data, cursor"
+                  - option "Async submit"
+                  - option "Async poll"
+                  - option "Synthesized"
+                  - option "Empty skeleton"
+              - generic [ref=f4e1680] [cursor=pointer]:
+                - checkbox "Only endpoints with demo data" [checked] [ref=f4e1681]
+                - generic [ref=f4e1682]: Only endpoints with demo data
+            - alert [ref=f4e1683]:
+              - paragraph [ref=f4e1684]: Could not load data
+              - paragraph [ref=f4e1685]: "Could not load endpoints: Demo audit injected outage"
+              - button "Try again" [ref=f4e1686] [cursor=pointer]
+        - region "Endpoint detail" [ref=f4e1689]:
+          - generic [ref=f4e1690]:
+            - generic [ref=f4e1691]:
+              - button "Collapse Endpoint detail" [ref=f4e1692] [cursor=pointer]: ▾
+              - heading "Endpoint detail" [level=2] [ref=f4e1693]
+            - generic [ref=f4e1695]:
+              - button "Move Endpoint detail up" [ref=f4e1696] [cursor=pointer]: ↑
+              - button "Move Endpoint detail down" [ref=f4e1697] [cursor=pointer]: ↓
+          - generic [ref=f4e1699]:
+            - paragraph [ref=f4e1700]: Select an endpoint
+            - paragraph [ref=f4e1701]: Pick one from the list to see its catalog metadata and run it against the demo server.
+        - region "Demo data coverage" [ref=f4e1704]:
+          - generic [ref=f4e1705]:
+            - generic [ref=f4e1706]:
+              - button "Collapse Demo data coverage" [ref=f4e1707] [cursor=pointer]: ▾
+              - heading "Demo data coverage" [level=2] [ref=f4e1708]
+            - generic [ref=f4e1710]:
+              - button "Move Demo data coverage up" [ref=f4e1711] [cursor=pointer]: ↑
+              - button "Move Demo data coverage down" [disabled] [ref=f4e1712]: ↓
+          - generic [ref=f4e1714]:
+            - paragraph [ref=f4e1715]: These are the route families the server backs with real demo data. The list is read from the server's own coverage table, so it always matches what the dispatcher will actually serve.
+            - list [ref=f4e1716]:
+              - listitem [ref=f4e1717]:
+                - generic [ref=f4e1718]:
+                  - generic [ref=f4e1719]: Demo data
+                  - code [ref=f4e1720]: audits.service-mapping
+                  - generic [ref=f4e1721]: 2 endpoints
+                - paragraph [ref=f4e1722]: Audit service mapping - which services and entity types can be audited.
+                - generic [ref=f4e1723]: audit-logs.servicemapping.json
+              - listitem [ref=f4e1725]:
+                - generic [ref=f4e1726]:
+                  - generic [ref=f4e1727]: Demo data, paged
+                  - code [ref=f4e1728]: audits.query-results
+                  - generic [ref=f4e1729]: 5 endpoints
+                - paragraph [ref=f4e1730]: Audit query results, two pages linked by nextUri.
+                - generic [ref=f4e1731]:
+                  - generic [ref=f4e1732]: audit-logs.results.page1.json
+                  - generic [ref=f4e1733]: audit-logs.results.page2.json
+              - listitem [ref=f4e1734]:
+                - generic [ref=f4e1735]:
+                  - generic [ref=f4e1736]: Async poll
+                  - code [ref=f4e1737]: audits.query-poll
+                  - generic [ref=f4e1738]: 5 endpoints
+                - paragraph [ref=f4e1739]: Poll an audit query transaction until it reaches FULFILLED.
+              - listitem [ref=f4e1740]:
+                - generic [ref=f4e1741]:
+                  - generic [ref=f4e1742]: Async submit
+                  - code [ref=f4e1743]: audits.query-submit
+                  - generic [ref=f4e1744]: 4 endpoints
+                - paragraph [ref=f4e1745]: Submit an audit query and receive a transaction id.
+              - listitem [ref=f4e1746]:
+                - generic [ref=f4e1747]:
+                  - generic [ref=f4e1748]: Demo data, cursor
+                  - code [ref=f4e1749]: analytics.conversation-details-job-results
+                  - generic [ref=f4e1750]: 2 endpoints
+                - paragraph [ref=f4e1751]: Conversation detail job results, two pages linked by an opaque cursor.
+                - generic [ref=f4e1752]:
+                  - generic [ref=f4e1753]: analytics-conversation-details.results.page1.json
+                  - generic [ref=f4e1754]: analytics-conversation-details.results.page2.json
+              - listitem [ref=f4e1755]:
+                - generic [ref=f4e1756]:
+                  - generic [ref=f4e1757]: Async poll
+                  - code [ref=f4e1758]: analytics.conversation-details-job-poll
+                  - generic [ref=f4e1759]: 3 endpoints
+                - paragraph [ref=f4e1760]: Poll a conversation detail job until it reaches FULFILLED.
+              - listitem [ref=f4e1761]:
+                - generic [ref=f4e1762]:
+                  - generic [ref=f4e1763]: Async submit
+                  - code [ref=f4e1764]: analytics.conversation-details-job-submit
+                  - generic [ref=f4e1765]: 2 endpoints
+                - paragraph [ref=f4e1766]: Submit a conversation detail job and receive a job id.
+              - listitem [ref=f4e1767]:
+                - generic [ref=f4e1768]:
+                  - generic [ref=f4e1769]: Demo data
+                  - code [ref=f4e1770]: analytics.conversation-details-query
+                  - generic [ref=f4e1771]: 7 endpoints
+                - paragraph [ref=f4e1772]: Synchronous conversation detail query returning fully expanded conversations.
+                - generic [ref=f4e1773]: analytics-conversation-details-query.page1.json
+              - listitem [ref=f4e1775]:
+                - generic [ref=f4e1776]:
+                  - generic [ref=f4e1777]: Demo data, paged
+                  - code [ref=f4e1778]: users.list
+                  - generic [ref=f4e1779]: 3 endpoints
+                - paragraph [ref=f4e1780]: Organization users with presence, routing status and skills, across two pages.
+                - generic [ref=f4e1781]:
+                  - generic [ref=f4e1782]: users.page1.json
+                  - generic [ref=f4e1783]: users.page2.json
+              - listitem [ref=f4e1784]:
+                - generic [ref=f4e1785]:
+                  - generic [ref=f4e1786]: Demo data, paged
+                  - code [ref=f4e1787]: routing.queues
+                  - generic [ref=f4e1788]: 2 endpoints
+                - paragraph [ref=f4e1789]: Routing queues with media settings, across two pages.
+                - generic [ref=f4e1790]:
+                  - generic [ref=f4e1791]: routing-queues.page1.json
+                  - generic [ref=f4e1792]: routing-queues.page2.json
+              - listitem [ref=f4e1793]:
+                - generic [ref=f4e1794]:
+                  - generic [ref=f4e1795]: Demo data
+                  - code [ref=f4e1796]: conversations.active
+                  - generic [ref=f4e1797]: 2 endpoints
+                - paragraph [ref=f4e1798]: Conversations currently in progress with live participant state.
+                - generic [ref=f4e1799]: conversations.active.json
+              - listitem [ref=f4e1801]:
+                - generic [ref=f4e1802]:
+                  - generic [ref=f4e1803]: Demo data
+                  - code [ref=f4e1804]: speechandtextanalytics.topics
+                  - generic [ref=f4e1805]: 2 endpoints
+                - paragraph [ref=f4e1806]: Speech and text analytics topics with phrase definitions.
+                - generic [ref=f4e1807]: speechandtextanalytics.topics.json
+              - listitem [ref=f4e1809]:
+                - generic [ref=f4e1810]:
+                  - generic [ref=f4e1811]: Demo data
+                  - code [ref=f4e1812]: conversations.recordings
+                  - generic [ref=f4e1813]: 2 endpoints
+                - paragraph [ref=f4e1814]: Recording metadata for a conversation.
+                - generic [ref=f4e1815]: conversations.recordings.json
+              - listitem [ref=f4e1817]:
+                - generic [ref=f4e1818]:
+                  - generic [ref=f4e1819]: Demo data
+                  - code [ref=f4e1820]: authorization.roles
+                  - generic [ref=f4e1821]: 2 endpoints
+                - paragraph [ref=f4e1822]: Authorization roles and their permission policies.
+                - generic [ref=f4e1823]: authorization.roles.json
+              - listitem [ref=f4e1825]:
+                - generic [ref=f4e1826]:
+                  - generic [ref=f4e1827]: Demo data
+                  - code [ref=f4e1828]: oauth.clients
+                  - generic [ref=f4e1829]: 2 endpoints
+                - paragraph [ref=f4e1830]: OAuth clients registered in the demo organization.
+                - generic [ref=f4e1831]: oauth.clients.json
+              - listitem [ref=f4e1833]:
+                - generic [ref=f4e1834]:
+                  - generic [ref=f4e1835]: Synthesized
+                  - code [ref=f4e1836]: users.me
+                  - generic [ref=f4e1837]: 3 endpoints
+                - paragraph [ref=f4e1838]: Connectivity probe returning the demo administrator identity.
+```
+### Events
+- New console entries: .playwright-cli/console-2026-10-11T15-04-28-670Z.log#L1

@@ -408,3 +408,21 @@ MIT — see [LICENSE](LICENSE) for full terms.
 ---
 
 *Built against the [Genesys Cloud REST API v2](https://developer.genesys.cloud/). Not affiliated with or endorsed by Genesys.*
+
+## Cross-reference monthly voice volume
+
+For a four-source investigation instead of a single normalized volume, use the thin
+launcher below in an authenticated `Genesys.Ops` session:
+
+```powershell
+./apps/MonthlyMetrics/Compare-MonthlyVoiceVolume.ps1 `
+    -Year 2026 -Month 9 -TimeZoneId 'America/New_York' -OpenReport
+```
+
+It delegates to `Compare-GenesysMonthlyVoiceVolume` in Ops, with collection delegated
+to Core. The browser report shows independent totals, differences, coverage, and detail
+conversation-ID differences; JSON and CSV preserve evidence. Different metric definitions
+are labelled explicitly, and unavailable results remain null.
+
+See the [implementation and acceptance contract](../../docs/MONTHLY_VOICE_VOLUME_RECONCILIATION.md)
+for offline demo generation, filters, timezone support, and current validation boundaries.

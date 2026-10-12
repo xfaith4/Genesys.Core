@@ -1,0 +1,47 @@
+{
+  "provenance": {
+    "source": "Users",
+    "generated": "2026-10-11T15:05:32.102Z",
+    "meta": {
+      "sourceId": "users",
+      "fetchedAt": "2026-10-11T15:05:31.744Z",
+      "durationMs": 42,
+      "requests": [
+        {
+          "method": "GET",
+          "url": "/api/v2/users",
+          "status": 200,
+          "durationMs": 34,
+          "endpointKey": "users",
+          "note": "page 1"
+        },
+        {
+          "method": "GET",
+          "url": "/api/v2/users?pageNumber=2",
+          "status": 200,
+          "durationMs": 7,
+          "endpointKey": "users",
+          "note": "page 2"
+        }
+      ],
+      "warnings": []
+    }
+  },
+  "records": [
+    {
+      "name": "Alice Support",
+      "email": "alice.support@corp.example.com",
+      "department": "Customer Service",
+      "title": "Senior Support Agent",
+      "state": "active",
+      "presence": "AVAILABLE",
+      "routingStatus": "IDLE",
+      "skills": "English",
+      "skillCount": 1,
+      "acdAutoAnswer": true,
+      "presenceMessage": "",
+      "routingSince": "2026-02-14T09:00:00.000Z",
+      "id": "user-agent-0001-alice"
+    }
+  ]
+}

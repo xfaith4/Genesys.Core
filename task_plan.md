@@ -67,3 +67,65 @@ Execution strategy:
 Recovery archive: /mnt/f/Development/20_Staging/GenesysCloud/Genesys.Core-recovery-20260915T045511Z
 
 Publication: blocked by absent GitHub HTTPS credentials; local reconciliation is complete. No remote changes made.
+
+## 2026-10-11 Adaptive endpoint pacing
+
+- [x] Inspect retry and paging entry points; preserve unrelated edits.
+- [x] Implement per-endpoint 429 learning, shared server cooldown, and telemetry.
+- [x] Verify deterministic timing, isolation, retry safety, and existing Core tests.
+- [x] Document scope and limitations.
+
+## 2026-10-11 Browser demo audit and corrections
+
+- [x] Start the real mock server and web client; establish browser control.
+- [x] Walk through sign-in, data exploration, filtering, reports, exports, endpoint discovery, and responsive layout; collect evidence.
+- [x] Correct reproduced issues and validate the changes.
+- [x] Save a reviewable report and screenshots with exact proof boundaries.
+
+## Monthly voice-volume reconciliation (2026-10-11)
+
+- [x] Verify four-source collection contracts and catalog metadata.
+- [x] Implement Core-backed reconciliation with source coverage and portable output.
+- [x] Test equal/divergent/partial/unavailable results and paging through Core.
+- [x] Document usage and synchronize roadmap with landed work.
+- [ ] Live tenant acceptance (requires real tenant execution; separate gate).
+
+## Conversation incident workbench (2026-10-11)
+
+- [x] Adapt the supplied pure profiling function into Ops with explicit field definitions.
+- [x] Add Core-backed interval/queue/user/Division/custom-query collection and artifact export.
+- [x] Build an interactive frontend over Ops profiles with full-filtered-set count/avg/max,
+      grouping, error statistics, pagination, drilldown and faithful exports.
+- [x] Validate profiling semantics, Core request scope, browser workflows and accessibility.
+- [x] Document provenance, usage, limits, and remaining live acceptance.
+
+Visual thesis: a restrained investigation ledger, white workspace, navy typography and one
+warm accent. Content: scope/coverage, filters and summary, population table, detail drawer.
+Interaction: fast filter-to-summary updates, sticky table headers, brief drawer reveal with
+reduced-motion support. No decorative imagery or hero is needed for this engineering tool.
+
+## Data Client conversation integration (2026-10-11)
+
+- [x] Add a shared-workbench route and navigation in both skins without duplicating Ops logic.
+- [x] Preserve the loaded analysis and view through navigation and skin changes in memory.
+- [x] Validate imports, statistics, exports, mobile layout, and accessibility in the client.
+- [x] Update roadmap and usage; retain entity names, scale, and tenant gates separately.
+
+Visual thesis: reuse the existing investigation ledger inside the established application shell.
+Content: collection command, analysis import, filters/statistics, timeline and exports.
+Interaction: retain investigation state through navigation; use existing reduced-motion behavior.
+
+## Entity labels and population scale (2026-10-12)
+
+- [x] Ignore generated logs without removing tracked evidence.
+- [x] Add Core-backed run-scoped lookup coverage for queues/users/Divisions/wrap-up/skills/languages.
+- [x] Expose labels alongside stable IDs; keep ambiguity and missing/access-denied evidence explicit.
+- [x] Benchmark realistic large populations, optimize measured hotspots, and bound rendered breakdowns.
+- [x] Validate Ops joins, engine semantics and browser workflows; record measured limits.
+
+## NOC product direction (user clarification, 2026-10-12)
+
+- [x] Reorient client onboarding/navigation around investigations rather than raw endpoint execution.
+- [x] Add operational foundations: flow IDs, packet observations and current user-Division joins.
+- [x] Record the mass-disconnect composer, complete async-family contract and acceptance gates.
+- [ ] Implement cross-source mass-disconnect composer, historical state/baseline/audit joins and live NOC workspace (next release work; not claimed complete).

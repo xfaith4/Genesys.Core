@@ -180,3 +180,19 @@ Describe 'Resolve-DatasetRedactionProfile' {
     }
 }
 
+
+Describe 'Explicit investigation identifier retention' {
+    BeforeAll { . "$PSScriptRoot/../../modules/Genesys.Core/Private/Redaction.ps1" }
+    It 'retains only the permitted user identifier and still removes contacts and credentials' {
+        $record=[pscustomobject]@{userId='user-guid';email='private@example.test';token='secret';participantName='Private';otherSecret='secret'}
+        $profile=@{preserveIdentifierFields=@('userId','token');removeFields=@('participantName')}
+        $result=Protect-RecordData -InputObject $record -Profile $profile
+        $result.userId | Should -Be 'user-guid'
+        $result.email | Should -Be '[REDACTED]'
+        $result.token | Should -Be '[REDACTED]'
+        $result.otherSecret | Should -Be '[REDACTED]'
+        $result.participantName | Should -Be '[REDACTED]'
+        (Protect-RecordData -InputObject $record).userId | Should -Be '[REDACTED]'
+        (Protect-RecordData -InputObject $record -Profile @{preserveIdentifierFields=@('userId');removeFields=@('userId')}).userId | Should -Be '[REDACTED]'
+    }
+}

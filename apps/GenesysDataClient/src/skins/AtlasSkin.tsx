@@ -33,7 +33,7 @@ const AtlasShell = ({
   children,
 }: SkinShellProps) => {
   const { workspace, setSkin, setTheme, setAccent, setDensity, resetWorkspace } = useWorkspace();
-  const [railOpen, setRailOpen] = useState(true);
+  const [railOpen, setRailOpen] = useState(() => !window.matchMedia('(max-width: 860px)').matches);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filter, setFilter] = useState('');
 
@@ -94,8 +94,12 @@ const AtlasShell = ({
                       <button
                         type="button"
                         className={`ax-rail__item${active ? ' ax-rail__item--active' : ''}`}
-                        onClick={() => onNavigate(item.page, item.sourceId)}
+                        onClick={() => {
+                          onNavigate(item.page, item.sourceId);
+                          if (window.matchMedia('(max-width: 860px)').matches) setRailOpen(false);
+                        }}
                         title={item.description ?? item.label}
+                        aria-label={item.label}
                         aria-current={active ? 'page' : undefined}
                       >
                         <span className="ax-rail__marker" aria-hidden="true" />

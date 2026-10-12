@@ -1,0 +1,5 @@
+"id","campaignId","timestamp","type","callResult"
+"evt-1","campaign-demo-1","2026-05-10T14:00:00.0000000Z","campaignStart",""
+"evt-2","campaign-demo-1","2026-05-10T14:01:00.0000000Z","contactCallCompleted","Connected"
+"evt-3","campaign-demo-1","2026-05-10T14:02:00.0000000Z","contactCallCompleted","NoAnswer"
+"evt-4","campaign-demo-1","2026-05-10T14:03:00.0000000Z","contactCallAbandon","OutboundAbandon"

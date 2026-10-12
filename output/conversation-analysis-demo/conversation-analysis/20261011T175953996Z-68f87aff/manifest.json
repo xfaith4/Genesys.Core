@@ -1,0 +1,28 @@
+{
+  "warnings": [],
+  "coverage": {
+    "distinctConversations": 120,
+    "evidencePath": null,
+    "pageCount": 0,
+    "status": "complete",
+    "duplicateRows": 0,
+    "rawRows": 120,
+    "evidenceMode": "synthetic",
+    "missingIds": 0
+  },
+  "generatedAtUtc": "2026-10-11T17:59:55.4863807Z",
+  "runId": "20261011T175953996Z-68f87aff",
+  "scope": {
+    "divisionIds": [],
+    "untilUtc": "2026-10-01T00:00:00.0000000Z",
+    "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+    "mediaTypes": [],
+    "sinceUtc": "2026-09-01T00:00:00.0000000Z",
+    "userIds": [],
+    "queueIds": []
+  },
+  "counts": {
+    "itemCount": 120
+  },
+  "datasetKey": "conversation-analysis"
+}

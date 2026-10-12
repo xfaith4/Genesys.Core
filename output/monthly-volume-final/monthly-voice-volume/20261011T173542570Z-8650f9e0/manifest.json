@@ -1,0 +1,39 @@
+{
+  "runId": "20261011T173542570Z-8650f9e0",
+  "warnings": [
+    "Distinct conversation counts and aggregate metric counts have different definitions. Agreement does not prove equivalence; differences do not establish defects.",
+    "Filters are expressed in source-specific request bodies. Equivalent scope and time attribution require live tenant verification."
+  ],
+  "evidenceMode": "synthetic",
+  "investigationKey": "monthly-voice-volume",
+  "scope": {
+    "year": 2026,
+    "month": 9,
+    "timeZoneId": "UTC",
+    "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+    "divisionIds": [],
+    "queueIds": [],
+    "mediaType": "voice",
+    "organizationId": "",
+    "organizationVerified": false,
+    "baseUri": "https://api.usw2.pure.cloud"
+  },
+  "sourceStatuses": [
+    {
+      "source": "details-query",
+      "status": "complete"
+    },
+    {
+      "source": "details-jobs",
+      "status": "complete"
+    },
+    {
+      "source": "aggregates-query",
+      "status": "complete"
+    },
+    {
+      "source": "aggregates-jobs",
+      "status": "complete"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+async (page) => {
+  const check = (condition, message) => { if (!condition) throw new Error(message); };
+  check(await page.locator('#grid tbody tr').count() === 50, 'First page must contain 50 conversations');
+  await page.selectOption('#metric', 'tHandleSec');
+  let values = await page.locator('#stats strong').allTextContents();
+  check(values[0] === '120' && values[1] === '60.5' && values[3] === '120', `Population stats wrong: ${values}`);
+  await page.click('#next');
+  check((await page.locator('#page').textContent()).includes('2 of 3'), 'Next page failed');
+  check((await page.locator('#stats strong').allTextContents())[1] === '60.5', 'Statistics changed with page');
+  await page.selectOption('#filter-field', 'tHandleSec');
+  await page.selectOption('#operator', 'gt');
+  await page.fill('#filter-value', '100');
+  await page.locator('#filter-form').getByRole('button', {name:'Add filter', exact:true}).click();
+  values = await page.locator('#stats strong').allTextContents();
+  check(values[0] === '20' && values[1] === '110.5' && values[3] === '120', `Filtered stats wrong: ${values}`);
+  await page.selectOption('#group','DivisionIds');
+  check(await page.locator('#groups tr').count() === 2, 'Division grouping failed');
+  await page.locator('#grid tbody').getByRole('button').first().click();
+  check(await page.locator('#detail').isVisible(), 'Detail dialog failed');
+  check((await page.locator('#detail-json').textContent()).includes('ErrorEvents'), 'Error evidence missing from profile');
+  await page.click('#close-detail');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#export-json')]);
+  await download.saveAs('output/playwright/conversation-analysis-filtered.json');
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.click('#export-csv')]);
+  await csv.saveAs('output/playwright/conversation-analysis-filtered.csv');
+  await page.click('#reset');
+  await page.locator('#errors').getByRole('button',{name:'error.demo.ice',exact:true}).click();
+  values = await page.locator('#stats strong').allTextContents();
+  check(values[0] === '30', 'Error drill-through did not select affected conversations');
+  check((await page.locator('#errors tr').first().textContent()).includes('60'), 'Error occurrence count missing');
+  await page.click('#reset');
+  await page.setViewportSize({width:390,height:844});
+  check(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth), 'Mobile page overflows');
+  await page.screenshot({path:'output/playwright/conversation-population-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.screenshot({path:'output/playwright/conversation-population-desktop.png',fullPage:true});
+  return {population:120,average:60.5,max:120,filtered:20,filteredAverage:110.5,errorConversations:30,errorOccurrences:60,mobileOverflow:false};
+}

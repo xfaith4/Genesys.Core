@@ -3,6 +3,7 @@
   "generatedAt": "2026-09-06T07:02:11.8904678Z",
   "datasets": {
     "analytics-conversation-details": {
+      "identityRedactionProfile": "conversation-analysis-identifiers",
       "description": "Analytics conversation details using async job submit/poll/results flow.",
       "endpoint": "analytics.create.conversation.details.job.large.query",
       "itemsPath": "$.conversations",
@@ -15,6 +16,15 @@
       "transaction": {
         "profile": "analytics_jobs"
       }
+    },
+    "analytics-conversation-aggregates-jobs": {
+      "description": "Conversation aggregates through async submit, poll, and cursor-paged results.",
+      "endpoint": "postAnalyticsConversationsAggregatesJobs",
+      "itemsPath": "$.results",
+      "paging": { "profile": "analytics_jobs" },
+      "retry": { "profile": "rateLimitAware" },
+      "transaction": { "profile": "analytics_conversation_aggregate_jobs" },
+      "validationStatus": "unvalidated"
     },
     "analytics-conversation-details-query": {
       "description": "Analytics conversation details via direct synchronous POST query with body paging.",
@@ -442,7 +452,7 @@
       "endpoint": "analytics.query.conversation.aggregates.queue.performance",
       "itemsPath": "$.results",
       "paging": {
-        "profile": "analytics_details_query"
+        "profile": "none"
       },
       "retry": {
         "profile": "rateLimitAware"
@@ -1353,6 +1363,7 @@
       },
       "analytics_details_query": {
         "type": "bodyPaging",
+        "bodyContainer": "paging",
         "totalHitsPath": "$.totalHits"
       },
       "analytics_jobs": {
@@ -1403,6 +1414,17 @@
         "statusEndpointRef": "analytics.get.conversation.details.job.status",
         "resultsEndpointRef": "analytics.get.conversation.details.job.results"
       },
+      "analytics_conversation_aggregate_jobs": {
+        "transactionIdPath": "$.jobId",
+        "pollIntervalSeconds": 2,
+        "maxPolls": 300,
+        "statePath": "$.state",
+        "terminalStates": ["FULFILLED", "FAILED", "CANCELLED"],
+        "successStates": ["FULFILLED"],
+        "jobLabel": "Analytics conversation aggregates job",
+        "statusEndpointRef": "getAnalyticsConversationsAggregatesJob",
+        "resultsEndpointRef": "getAnalyticsConversationsAggregatesJobResults"
+      },
       "analytics_user_jobs": {
         "transactionIdPath": "$.jobId",
         "pollIntervalSeconds": 2.0,
@@ -1436,6 +1458,12 @@
       }
     },
     "redaction": {
+      "conversation-analysis-identifiers": {
+        "mode": "standard",
+        "description": "Explicit conversation investigation join policy: retain userId identifiers while retaining contact and secret redaction. Used only when PreserveUserIds is requested.",
+        "preserveIdentifierFields": ["userId"],
+        "removeFields": ["participantName", "ani", "dnis", "address", "externalContactId", "wrapUpNote"]
+      },
       "standard": {
         "mode": "standard",
         "removeFields": [
@@ -2145,7 +2173,7 @@
     "analytics.query.conversation.aggregates.queue.performance": {
       "method": "POST",
       "path": "/api/v2/analytics/conversations/aggregates/query",
-      "pagingProfile": "analytics_details_query",
+      "pagingProfile": "none",
       "retryProfile": "default",
       "itemsPath": "$.results",
       "notes": [
@@ -40084,7 +40112,7 @@
       "method": "GET",
       "path": "/api/v2/analytics/conversations/aggregates/jobs/{jobId}/results",
       "itemsPath": "$.results",
-      "pagingProfile": "none",
+      "pagingProfile": "analytics_jobs_results",
       "retryProfile": "default",
       "operationId": "getAnalyticsConversationsAggregatesJobResults",
       "tags": [

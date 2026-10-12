@@ -1,0 +1,634 @@
+### Page
+- Page URL: http://localhost:5173/#/endpoints
+- Page Title: Genesys Data Client
+### Snapshot
+```yaml
+- generic [ref=f2e577]:
+  - complementary "Navigation" [ref=f2e578]:
+    - button "Expand navigation" [ref=f2e1247] [cursor=pointer]: ⟩
+    - navigation [ref=f2e584]:
+      - list [ref=f2e587]:
+        - listitem [ref=f2e588]:
+          - button "Getting started" [ref=f2e589] [cursor=pointer]
+        - listitem [ref=f2e592]:
+          - button "Endpoint explorer" [active] [ref=f2e593] [cursor=pointer]
+      - list [ref=f2e598]:
+        - listitem [ref=f2e599]:
+          - button "Speech and text analytics topics with their phrase definitions." [ref=f2e1248] [cursor=pointer]
+      - list [ref=f2e605]:
+        - listitem [ref=f2e606]:
+          - button "Organization users with presence, routing status and skills. Follows nextUri across both demo pages." [ref=f2e1249] [cursor=pointer]
+      - list [ref=f2e612]:
+        - listitem [ref=f2e613]:
+          - button "Audit events retrieved through the async transaction lifecycle, then paged with nextUri across both demo pages." [ref=f2e1250] [cursor=pointer]
+        - listitem [ref=f2e617]:
+          - button "Roles with their permission policies and user counts." [ref=f2e1251] [cursor=pointer]
+        - listitem [ref=f2e621]:
+          - button "OAuth clients registered in the demo organization." [ref=f2e1252] [cursor=pointer]
+      - list [ref=f2e627]:
+        - listitem [ref=f2e628]:
+          - button "Conversations currently in progress, with live participant state." [ref=f2e1253] [cursor=pointer]
+        - listitem [ref=f2e632]:
+          - button "The same conversations exploded to one row per participant, session and segment. This is the grain to group and aggregate for ad-hoc conversation reporting." [ref=f2e1254] [cursor=pointer]
+        - listitem [ref=f2e636]:
+          - 'button "Conversation details retrieved through the full async job lifecycle: submit, poll until FULFILLED, then read both cursor-paged result pages." [ref=f2e1255] [cursor=pointer]'
+      - list [ref=f2e642]:
+        - listitem [ref=f2e643]:
+          - button "Routing queues with division, membership and per-media settings, across both demo pages." [ref=f2e1256] [cursor=pointer]
+  - generic [ref=f2e647]:
+    - banner [ref=f2e648]:
+      - generic [ref=f2e649]:
+        - heading "Endpoint explorer" [level=1] [ref=f2e1822]
+        - paragraph [ref=f2e651]: Genesys Data Client · Atlas
+      - generic [ref=f2e652]:
+        - group "Theme" [ref=f2e653]:
+          - button "Light" [ref=f2e654] [cursor=pointer]
+          - button "Dark" [ref=f2e655] [cursor=pointer]
+          - button "System" [pressed] [ref=f2e656] [cursor=pointer]
+        - button "Interface settings" [ref=f2e657] [cursor=pointer]: ⚙
+        - button "Genesys skin" [ref=f2e658] [cursor=pointer]
+    - main [ref=f2e659]:
+      - generic [ref=f2e1824]:
+        - region "Connected server" [ref=f2e1827]:
+          - generic [ref=f2e1828]:
+            - generic [ref=f2e1829]:
+              - button "Collapse Connected server" [ref=f2e1830] [cursor=pointer]: ▾
+              - heading "Connected server" [level=2] [ref=f2e1831]
+            - generic [ref=f2e1833]:
+              - button "Move Connected server up" [disabled] [ref=f2e1834]: ↑
+              - button "Move Connected server down" [ref=f2e1835] [cursor=pointer]: ↓
+          - generic [ref=f2e1837]:
+            - generic [ref=f2e1838]:
+              - generic [ref=f2e1839]:
+                - generic [ref=f2e1840]: 3,389
+                - generic [ref=f2e1841]: Endpoints
+              - generic [ref=f2e1842]:
+                - generic [ref=f2e1843]: "48"
+                - generic [ref=f2e1844]: With demo data
+              - generic [ref=f2e1845]:
+                - generic [ref=f2e1846]: "90"
+                - generic [ref=f2e1847]: Groups
+              - generic [ref=f2e1848]:
+                - generic [ref=f2e1849]: "16"
+                - generic [ref=f2e1850]: Coverage rules
+            - generic [ref=f2e1851]:
+              - generic [ref=f2e1852]: Server
+              - generic [ref=f2e1853]: Genesys.MockServer v1.0.0
+            - generic [ref=f2e1854]:
+              - generic [ref=f2e1855]: Catalog
+              - generic [ref=f2e1856]: v1.0.0 · generated 9/6/2026, 3:02:11 AM
+            - generic [ref=f2e1857]:
+              - generic [ref=f2e1858]: Demo token
+              - code [ref=f2e1860]: demo-bearer-token-genesys-testplatform
+            - paragraph [ref=f2e1861]: Of 3,389 catalog endpoints, 48 return real demo data. The rest are registered and will answer with a shape-correct empty envelope.
+        - region "Endpoints" [ref=f2e1864]:
+          - generic [ref=f2e1865]:
+            - generic [ref=f2e1866]:
+              - button "Collapse Endpoints" [ref=f2e1867] [cursor=pointer]: ▾
+              - heading "Endpoints" [level=2] [ref=f2e1868]
+            - generic [ref=f2e1869]:
+              - generic [ref=f2e1870]: 48 of 48
+              - generic [ref=f2e1871]:
+                - button "Move Endpoints up" [ref=f2e1872] [cursor=pointer]: ↑
+                - button "Move Endpoints down" [ref=f2e1873] [cursor=pointer]: ↓
+          - generic [ref=f2e1875]:
+            - generic [ref=f2e1876]:
+              - generic [ref=f2e1877]:
+                - generic [ref=f2e1878]: Search
+                - textbox "Search" [ref=f2e1879]:
+                  - /placeholder: path, key or operation id
+              - generic [ref=f2e1880]:
+                - generic [ref=f2e1881]: Group
+                - combobox "Group" [ref=f2e1882]:
+                  - option "All groups (90)" [selected]
+                  - option "Analytics (160, 14 live)"
+                  - option "Uncategorized (11, 7 live)"
+                  - option "Audit (7, 5 live)"
+                  - option "Audits (4, 4 live)"
+                  - option "Users (100, 4 live)"
+                  - option "Quality (72, 3 live)"
+                  - option "Conversations (313, 2 live)"
+                  - option "OAuth (15, 2 live)"
+                  - option "Routing (174, 2 live)"
+                  - option "Authorization (63, 1 live)"
+                  - option "Gamification (78, 1 live)"
+                  - option "Recording (57, 1 live)"
+                  - option "Speech & Text Analytics (60, 1 live)"
+                  - option "Task Management (76, 1 live)"
+                  - option "Agent Assistants (23)"
+                  - option "Agent Copilot (3)"
+                  - option "Agent UI (4)"
+                  - option "AI Studio (32)"
+                  - option "Alerting (17)"
+                  - option "Architect (147)"
+                  - option "Assistant Copilot Variations (5)"
+                  - option "Background Assistant (1)"
+                  - option "Billing (2)"
+                  - option "Business Rules (46)"
+                  - option "Carrier Services (2)"
+                  - option "Case Management (43)"
+                  - option "Chat (34)"
+                  - option "Coaching (22)"
+                  - option "Content Management (36)"
+                  - option "Data Extensions (3)"
+                  - option "Data Privacy (6)"
+                  - option "Dependencies (3)"
+                  - option "Downloads (1)"
+                  - option "Emails (5)"
+                  - option "Employee Engagement (6)"
+                  - option "Events (4)"
+                  - option "External Contacts (135)"
+                  - option "Fax (9)"
+                  - option "Flows (3)"
+                  - option "General Data Protection Regulation (4)"
+                  - option "Geolocation (4)"
+                  - option "Greetings (19)"
+                  - option "Groups (13)"
+                  - option "Identity Provider (38)"
+                  - option "Infrastructure as Code (5)"
+                  - option "Integrations (86)"
+                  - option "Intents (16)"
+                  - option "Journey (85)"
+                  - option "Knowledge (127)"
+                  - option "Language Understanding (40)"
+                  - option "Languages (8)"
+                  - option "Learning (37)"
+                  - option "License (9)"
+                  - option "Locations (8)"
+                  - option "Log Capture (7)"
+                  - option "Messaging (13)"
+                  - option "Mobile Devices (5)"
+                  - option "Notifications (9)"
+                  - option "Operational Events (4)"
+                  - option "Organization (20)"
+                  - option "Organization Authorization (46)"
+                  - option "Outbound (180)"
+                  - option "Presence (24)"
+                  - option "Process Automation (13)"
+                  - option "Response Management (24)"
+                  - option "SCIM (30)"
+                  - option "Screen Monitoring (11)"
+                  - option "Scripts (15)"
+                  - option "Search (9)"
+                  - option "Settings (5)"
+                  - option "Social Media (49)"
+                  - option "Speech and Text Analytics (5)"
+                  - option "Stations (4)"
+                  - option "Teams (9)"
+                  - option "Telephony (30)"
+                  - option "Telephony Providers Edge (127)"
+                  - option "Textbots (4)"
+                  - option "Tokens (5)"
+                  - option "Uploads (6)"
+                  - option "Usage (11)"
+                  - option "User Recordings (6)"
+                  - option "Users Rules (9)"
+                  - option "Utilities (4)"
+                  - option "Voicemail (27)"
+                  - option "Web Deployments (21)"
+                  - option "WebChat (19)"
+                  - option "WebMessaging (4)"
+                  - option "Widgets (5)"
+                  - option "Workforce Management (342)"
+                  - option "WorkforceManagement (6)"
+              - generic [ref=f2e1883]:
+                - generic [ref=f2e1884]: Coverage
+                - combobox "Coverage" [ref=f2e1885]:
+                  - option "Any coverage" [selected]
+                  - option "Demo data"
+                  - option "Demo data, paged"
+                  - option "Demo data, cursor"
+                  - option "Async submit"
+                  - option "Async poll"
+                  - option "Synthesized"
+                  - option "Empty skeleton"
+              - generic [ref=f2e1886] [cursor=pointer]:
+                - checkbox "Only endpoints with demo data" [checked] [ref=f2e1887]
+                - generic [ref=f2e1888]: Only endpoints with demo data
+            - list [ref=f2e1889]:
+              - listitem [ref=f2e1890]:
+                - button "POST /api/v2/analytics/conversations/details/jobs Create Conversation Details Job - Large Query Async submit" [ref=f2e1891] [cursor=pointer]:
+                  - code [ref=f2e1893]: POST
+                  - code [ref=f2e1894]: /api/v2/analytics/conversations/details/jobs
+                  - generic [ref=f2e1895]: Create Conversation Details Job - Large Query
+                  - generic "Submit a conversation detail job and receive a job id." [ref=f2e1896]: Async submit
+              - listitem [ref=f2e1897]:
+                - 'button "GET /api/v2/analytics/conversations/details/jobs/{jobId} Get Conversation Details Job Status Async poll" [ref=f2e1898] [cursor=pointer]':
+                  - code [ref=f2e1900]: GET
+                  - code [ref=f2e1901]: "/api/v2/analytics/conversations/details/jobs/{jobId}"
+                  - generic [ref=f2e1902]: Get Conversation Details Job Status
+                  - generic "Poll a conversation detail job until it reaches FULFILLED." [ref=f2e1903]: Async poll
+              - listitem [ref=f2e1904]:
+                - 'button "GET /api/v2/analytics/conversations/details/jobs/{jobId}/results Get Conversation Details Job Results Demo data, cursor" [ref=f2e1905] [cursor=pointer]':
+                  - code [ref=f2e1907]: GET
+                  - code [ref=f2e1908]: "/api/v2/analytics/conversations/details/jobs/{jobId}/results"
+                  - generic [ref=f2e1909]: Get Conversation Details Job Results
+                  - generic "Conversation detail job results, two pages linked by an opaque cursor." [ref=f2e1910]: Demo data, cursor
+              - listitem [ref=f2e1911]:
+                - button "POST /api/v2/analytics/conversations/details/query Query Conversation Details - By Queue Demo data" [ref=f2e1912] [cursor=pointer]:
+                  - code [ref=f2e1914]: POST
+                  - code [ref=f2e1915]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1916]: Query Conversation Details - By Queue
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1917]: Demo data
+              - listitem [ref=f2e1918]:
+                - button "POST /api/v2/analytics/conversations/details/query Query Conversation Details - Today Demo data" [ref=f2e1919] [cursor=pointer]:
+                  - code [ref=f2e1921]: POST
+                  - code [ref=f2e1922]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1923]: Query Conversation Details - Today
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1924]: Demo data
+              - listitem [ref=f2e1925]:
+                - button "POST /api/v2/analytics/conversations/details/query Analytics Conversation Details - Direct synchronous query with body paging Demo data" [ref=f2e1926] [cursor=pointer]:
+                  - code [ref=f2e1928]: POST
+                  - code [ref=f2e1929]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1930]: Analytics Conversation Details - Direct synchronous query with body paging
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1931]: Demo data
+              - listitem [ref=f2e1932]:
+                - button "POST /api/v2/analytics/conversations/details/query Query Conversation Details - By Media Type Demo data" [ref=f2e1933] [cursor=pointer]:
+                  - code [ref=f2e1935]: POST
+                  - code [ref=f2e1936]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1937]: Query Conversation Details - By Media Type
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1938]: Demo data
+              - listitem [ref=f2e1939]:
+                - button "POST /api/v2/analytics/conversations/details/query Query Conversation Details - Last 7 Days Demo data" [ref=f2e1940] [cursor=pointer]:
+                  - code [ref=f2e1942]: POST
+                  - code [ref=f2e1943]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1944]: Query Conversation Details - Last 7 Days
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1945]: Demo data
+              - listitem [ref=f2e1946]:
+                - button "POST /api/v2/analytics/conversations/details/query Division Analysis - Conversation Quality Report (Oct 15 - Dec 8) Demo data" [ref=f2e1947] [cursor=pointer]:
+                  - code [ref=f2e1949]: POST
+                  - code [ref=f2e1950]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e1951]: Division Analysis - Conversation Quality Report (Oct 15 - Dec 8)
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e1952]: Demo data
+              - listitem [ref=f2e1953]:
+                - button "POST /api/v2/audits/query Query Audit Logs - User Actions Async submit" [ref=f2e1954] [cursor=pointer]:
+                  - code [ref=f2e1956]: POST
+                  - code [ref=f2e1957]: /api/v2/audits/query
+                  - generic [ref=f2e1958]: Query Audit Logs - User Actions
+                  - generic "Submit an audit query and receive a transaction id." [ref=f2e1959]: Async submit
+              - listitem [ref=f2e1960]:
+                - button "POST /api/v2/audits/query Audit Logs - Submit Query (Transaction) Async submit" [ref=f2e1961] [cursor=pointer]:
+                  - code [ref=f2e1963]: POST
+                  - code [ref=f2e1964]: /api/v2/audits/query
+                  - generic [ref=f2e1965]: Audit Logs - Submit Query (Transaction)
+                  - generic "Submit an audit query and receive a transaction id." [ref=f2e1966]: Async submit
+              - listitem [ref=f2e1967]:
+                - button "GET /api/v2/audits/query/servicemapping Audit Logs - Service Mapping Demo data" [ref=f2e1968] [cursor=pointer]:
+                  - code [ref=f2e1970]: GET
+                  - code [ref=f2e1971]: /api/v2/audits/query/servicemapping
+                  - generic [ref=f2e1972]: Audit Logs - Service Mapping
+                  - generic "Audit service mapping - which services and entity types can be audited." [ref=f2e1973]: Demo data
+              - listitem [ref=f2e1974]:
+                - 'button "GET /api/v2/audits/query/{transactionId}/results Get Audit Query Results Demo data, paged" [ref=f2e1975] [cursor=pointer]':
+                  - code [ref=f2e1977]: GET
+                  - code [ref=f2e1978]: "/api/v2/audits/query/{transactionId}/results"
+                  - generic [ref=f2e1979]: Get Audit Query Results
+                  - generic "Audit query results, two pages linked by nextUri." [ref=f2e1980]: Demo data, paged
+              - listitem [ref=f2e1981]:
+                - button "GET /api/v2/conversations Get Active Conversations Demo data" [ref=f2e1982] [cursor=pointer]:
+                  - code [ref=f2e1984]: GET
+                  - code [ref=f2e1985]: /api/v2/conversations
+                  - generic [ref=f2e1986]: Get Active Conversations
+                  - generic "Conversations currently in progress with live participant state." [ref=f2e1987]: Demo data
+              - listitem [ref=f2e1988]:
+                - button "GET /api/v2/oauth/clients Get OAuth Clients Demo data" [ref=f2e1989] [cursor=pointer]:
+                  - code [ref=f2e1991]: GET
+                  - code [ref=f2e1992]: /api/v2/oauth/clients
+                  - generic [ref=f2e1993]: Get OAuth Clients
+                  - generic "OAuth clients registered in the demo organization." [ref=f2e1994]: Demo data
+              - listitem [ref=f2e1995]:
+                - button "GET /api/v2/routing/queues Get All Queues with Details Demo data, paged" [ref=f2e1996] [cursor=pointer]:
+                  - code [ref=f2e1998]: GET
+                  - code [ref=f2e1999]: /api/v2/routing/queues
+                  - generic [ref=f2e2000]: Get All Queues with Details
+                  - generic "Routing queues with media settings, across two pages." [ref=f2e2001]: Demo data, paged
+              - listitem [ref=f2e2002]:
+                - button "GET /api/v2/users Division Analysis - Get Users with Division Info Demo data, paged" [ref=f2e2003] [cursor=pointer]:
+                  - code [ref=f2e2005]: GET
+                  - code [ref=f2e2006]: /api/v2/users
+                  - generic [ref=f2e2007]: Division Analysis - Get Users with Division Info
+                  - generic "Organization users with presence, routing status and skills, across two pages." [ref=f2e2008]: Demo data, paged
+              - listitem [ref=f2e2009]:
+                - button "GET /api/v2/users Get All Users with Presence and Status Demo data, paged" [ref=f2e2010] [cursor=pointer]:
+                  - code [ref=f2e2012]: GET
+                  - code [ref=f2e2013]: /api/v2/users
+                  - generic [ref=f2e2014]: Get All Users with Presence and Status
+                  - generic "Organization users with presence, routing status and skills, across two pages." [ref=f2e2015]: Demo data, paged
+              - listitem [ref=f2e2016]:
+                - button "POST /api/v2/analytics/conversations/details/jobs Query for conversation details asynchronously Async submit" [ref=f2e2017] [cursor=pointer]:
+                  - code [ref=f2e2019]: POST
+                  - code [ref=f2e2020]: /api/v2/analytics/conversations/details/jobs
+                  - generic [ref=f2e2021]: Query for conversation details asynchronously
+                  - generic "Submit a conversation detail job and receive a job id." [ref=f2e2022]: Async submit
+              - listitem [ref=f2e2023]:
+                - button "GET /api/v2/analytics/conversations/details/jobs/availability Lookup the datalake availability date and time Async poll" [ref=f2e2024] [cursor=pointer]:
+                  - code [ref=f2e2026]: GET
+                  - code [ref=f2e2027]: /api/v2/analytics/conversations/details/jobs/availability
+                  - generic [ref=f2e2028]: Lookup the datalake availability date and time
+                  - generic "Poll a conversation detail job until it reaches FULFILLED." [ref=f2e2029]: Async poll
+              - listitem [ref=f2e2030]:
+                - 'button "GET /api/v2/analytics/conversations/details/jobs/{jobId} Get status for async query for conversation details Async poll" [ref=f2e2031] [cursor=pointer]':
+                  - code [ref=f2e2033]: GET
+                  - code [ref=f2e2034]: "/api/v2/analytics/conversations/details/jobs/{jobId}"
+                  - generic [ref=f2e2035]: Get status for async query for conversation details
+                  - generic "Poll a conversation detail job until it reaches FULFILLED." [ref=f2e2036]: Async poll
+              - listitem [ref=f2e2037]:
+                - 'button "GET /api/v2/analytics/conversations/details/jobs/{jobId}/results Fetch a page of results for an async details job Demo data, cursor" [ref=f2e2038] [cursor=pointer]':
+                  - code [ref=f2e2040]: GET
+                  - code [ref=f2e2041]: "/api/v2/analytics/conversations/details/jobs/{jobId}/results"
+                  - generic [ref=f2e2042]: Fetch a page of results for an async details job
+                  - generic "Conversation detail job results, two pages linked by an opaque cursor." [ref=f2e2043]: Demo data, cursor
+              - listitem [ref=f2e2044]:
+                - button "POST /api/v2/analytics/conversations/details/query Query for conversation details Demo data" [ref=f2e2045] [cursor=pointer]:
+                  - code [ref=f2e2047]: POST
+                  - code [ref=f2e2048]: /api/v2/analytics/conversations/details/query
+                  - generic [ref=f2e2049]: Query for conversation details
+                  - generic "Synchronous conversation detail query returning fully expanded conversations." [ref=f2e2050]: Demo data
+              - listitem [ref=f2e2051]:
+                - button "POST /api/v2/audits/query Create audit query execution Async submit" [ref=f2e2052] [cursor=pointer]:
+                  - code [ref=f2e2054]: POST
+                  - code [ref=f2e2055]: /api/v2/audits/query
+                  - generic [ref=f2e2056]: Create audit query execution
+                  - generic "Submit an audit query and receive a transaction id." [ref=f2e2057]: Async submit
+              - listitem [ref=f2e2058]:
+                - button "GET /api/v2/audits/query/realtime/servicemapping Get service mapping information used in realtime audits. Async poll" [ref=f2e2059] [cursor=pointer]:
+                  - code [ref=f2e2061]: GET
+                  - code [ref=f2e2062]: /api/v2/audits/query/realtime/servicemapping
+                  - generic [ref=f2e2063]: Get service mapping information used in realtime audits.
+                  - generic "Poll an audit query transaction until it reaches FULFILLED." [ref=f2e2064]: Async poll
+              - listitem [ref=f2e2065]:
+                - button "GET /api/v2/audits/query/servicemapping Get service mapping information used in audits. Demo data" [ref=f2e2066] [cursor=pointer]:
+                  - code [ref=f2e2068]: GET
+                  - code [ref=f2e2069]: /api/v2/audits/query/servicemapping
+                  - generic [ref=f2e2070]: Get service mapping information used in audits.
+                  - generic "Audit service mapping - which services and entity types can be audited." [ref=f2e2071]: Demo data
+              - listitem [ref=f2e2072]:
+                - 'button "GET /api/v2/audits/query/{transactionId} Get status of audit query execution Async poll" [ref=f2e2073] [cursor=pointer]':
+                  - code [ref=f2e2075]: GET
+                  - code [ref=f2e2076]: "/api/v2/audits/query/{transactionId}"
+                  - generic [ref=f2e2077]: Get status of audit query execution
+                  - generic "Poll an audit query transaction until it reaches FULFILLED." [ref=f2e2078]: Async poll
+              - listitem [ref=f2e2079]:
+                - 'button "GET /api/v2/audits/query/{transactionId}/results Get results of audit query Demo data, paged" [ref=f2e2080] [cursor=pointer]':
+                  - code [ref=f2e2082]: GET
+                  - code [ref=f2e2083]: "/api/v2/audits/query/{transactionId}/results"
+                  - generic [ref=f2e2084]: Get results of audit query
+                  - generic "Audit query results, two pages linked by nextUri." [ref=f2e2085]: Demo data, paged
+              - listitem [ref=f2e2086]:
+                - button "GET /api/v2/authorization/roles Retrieve a list of all roles defined for the organization Demo data" [ref=f2e2087] [cursor=pointer]:
+                  - code [ref=f2e2089]: GET
+                  - code [ref=f2e2090]: /api/v2/authorization/roles
+                  - generic [ref=f2e2091]: Retrieve a list of all roles defined for the organization
+                  - generic "Authorization roles and their permission policies." [ref=f2e2092]: Demo data
+              - listitem [ref=f2e2093]:
+                - button "GET /api/v2/conversations Get active conversations for the logged in user Demo data" [ref=f2e2094] [cursor=pointer]:
+                  - code [ref=f2e2096]: GET
+                  - code [ref=f2e2097]: /api/v2/conversations
+                  - generic [ref=f2e2098]: Get active conversations for the logged in user
+                  - generic "Conversations currently in progress with live participant state." [ref=f2e2099]: Demo data
+              - listitem [ref=f2e2100]:
+                - button "GET /api/v2/gamification/profiles/users/me Performance profile of the requesting user Synthesized" [ref=f2e2101] [cursor=pointer]:
+                  - code [ref=f2e2103]: GET
+                  - code [ref=f2e2104]: /api/v2/gamification/profiles/users/me
+                  - generic [ref=f2e2105]: Performance profile of the requesting user
+                  - generic "Connectivity probe returning the demo administrator identity." [ref=f2e2106]: Synthesized
+              - listitem [ref=f2e2107]:
+                - button "GET /api/v2/oauth/clients The list of OAuth clients Demo data" [ref=f2e2108] [cursor=pointer]:
+                  - code [ref=f2e2110]: GET
+                  - code [ref=f2e2111]: /api/v2/oauth/clients
+                  - generic [ref=f2e2112]: The list of OAuth clients
+                  - generic "OAuth clients registered in the demo organization." [ref=f2e2113]: Demo data
+              - listitem [ref=f2e2114]:
+                - button "POST /api/v2/quality/conversations/audits/query Create audit query execution Async submit" [ref=f2e2115] [cursor=pointer]:
+                  - code [ref=f2e2117]: POST
+                  - code [ref=f2e2118]: /api/v2/quality/conversations/audits/query
+                  - generic [ref=f2e2119]: Create audit query execution
+                  - generic "Submit an audit query and receive a transaction id." [ref=f2e2120]: Async submit
+              - listitem [ref=f2e2121]:
+                - 'button "GET /api/v2/quality/conversations/audits/query/{transactionId} Get status of audit query execution Async poll" [ref=f2e2122] [cursor=pointer]':
+                  - code [ref=f2e2124]: GET
+                  - code [ref=f2e2125]: "/api/v2/quality/conversations/audits/query/{transactionId}"
+                  - generic [ref=f2e2126]: Get status of audit query execution
+                  - generic "Poll an audit query transaction until it reaches FULFILLED." [ref=f2e2127]: Async poll
+              - listitem [ref=f2e2128]:
+                - 'button "GET /api/v2/quality/conversations/audits/query/{transactionId}/results Get results of audit query Demo data, paged" [ref=f2e2129] [cursor=pointer]':
+                  - code [ref=f2e2131]: GET
+                  - code [ref=f2e2132]: "/api/v2/quality/conversations/audits/query/{transactionId}/results"
+                  - generic [ref=f2e2133]: Get results of audit query
+                  - generic "Audit query results, two pages linked by nextUri." [ref=f2e2134]: Demo data, paged
+              - listitem [ref=f2e2135]:
+                - 'button "GET /api/v2/conversations/{conversationId}/recordings Get all of a Conversation''s Recordings. Demo data" [ref=f2e2136] [cursor=pointer]':
+                  - code [ref=f2e2138]: GET
+                  - code [ref=f2e2139]: "/api/v2/conversations/{conversationId}/recordings"
+                  - generic [ref=f2e2140]: Get all of a Conversation's Recordings.
+                  - generic "Recording metadata for a conversation." [ref=f2e2141]: Demo data
+              - listitem [ref=f2e2142]:
+                - button "GET /api/v2/routing/queues Get list of queues. Demo data, paged" [ref=f2e2143] [cursor=pointer]:
+                  - code [ref=f2e2145]: GET
+                  - code [ref=f2e2146]: /api/v2/routing/queues
+                  - generic [ref=f2e2147]: Get list of queues.
+                  - generic "Routing queues with media settings, across two pages." [ref=f2e2148]: Demo data, paged
+              - listitem [ref=f2e2149]:
+                - button "GET /api/v2/speechandtextanalytics/topics Get the list of Speech & Text Analytics topics Demo data" [ref=f2e2150] [cursor=pointer]:
+                  - code [ref=f2e2152]: GET
+                  - code [ref=f2e2153]: /api/v2/speechandtextanalytics/topics
+                  - generic [ref=f2e2154]: Get the list of Speech & Text Analytics topics
+                  - generic "Speech and text analytics topics with phrase definitions." [ref=f2e2155]: Demo data
+              - listitem [ref=f2e2156]:
+                - button "GET /api/v2/taskmanagement/workitems/bulk/jobs/users/me Get bulk jobs created by the currently logged in user. Synthesized" [ref=f2e2157] [cursor=pointer]:
+                  - code [ref=f2e2159]: GET
+                  - code [ref=f2e2160]: /api/v2/taskmanagement/workitems/bulk/jobs/users/me
+                  - generic [ref=f2e2161]: Get bulk jobs created by the currently logged in user.
+                  - generic "Connectivity probe returning the demo administrator identity." [ref=f2e2162]: Synthesized
+              - listitem [ref=f2e2163]:
+                - 'button "GET /api/v2/audits/query/{transactionId} Auto-generated status endpoint for transaction ''audit_query_transaction_then_results''. Async poll" [ref=f2e2164] [cursor=pointer]':
+                  - code [ref=f2e2166]: GET
+                  - code [ref=f2e2167]: "/api/v2/audits/query/{transactionId}"
+                  - generic [ref=f2e2168]: Auto-generated status endpoint for transaction 'audit_query_transaction_then_results'.
+                  - generic "Poll an audit query transaction until it reaches FULFILLED." [ref=f2e2169]: Async poll
+              - listitem [ref=f2e2170]:
+                - 'button "GET /api/v2/audits/query/{transactionId} Compatibility alias for audit status endpoint. Async poll" [ref=f2e2171] [cursor=pointer]':
+                  - code [ref=f2e2173]: GET
+                  - code [ref=f2e2174]: "/api/v2/audits/query/{transactionId}"
+                  - generic [ref=f2e2175]: Compatibility alias for audit status endpoint.
+                  - generic "Poll an audit query transaction until it reaches FULFILLED." [ref=f2e2176]: Async poll
+              - listitem [ref=f2e2177]:
+                - 'button "GET /api/v2/audits/query/{transactionId}/results Auto-generated results endpoint for transaction ''audit_query_transaction_then_results''. Demo data, paged" [ref=f2e2178] [cursor=pointer]':
+                  - code [ref=f2e2180]: GET
+                  - code [ref=f2e2181]: "/api/v2/audits/query/{transactionId}/results"
+                  - generic [ref=f2e2182]: Auto-generated results endpoint for transaction 'audit_query_transaction_then_results'.
+                  - generic "Audit query results, two pages linked by nextUri." [ref=f2e2183]: Demo data, paged
+              - listitem [ref=f2e2184]:
+                - 'button "GET /api/v2/audits/query/{transactionId}/results Compatibility alias for audit results endpoint. Demo data, paged" [ref=f2e2185] [cursor=pointer]':
+                  - code [ref=f2e2187]: GET
+                  - code [ref=f2e2188]: "/api/v2/audits/query/{transactionId}/results"
+                  - generic [ref=f2e2189]: Compatibility alias for audit results endpoint.
+                  - generic "Audit query results, two pages linked by nextUri." [ref=f2e2190]: Demo data, paged
+              - listitem [ref=f2e2191]:
+                - button "GET /api/v2/authorization/roles Get authorization roles Demo data" [ref=f2e2192] [cursor=pointer]:
+                  - code [ref=f2e2194]: GET
+                  - code [ref=f2e2195]: /api/v2/authorization/roles
+                  - generic [ref=f2e2196]: Get authorization roles
+                  - generic "Authorization roles and their permission policies." [ref=f2e2197]: Demo data
+              - listitem [ref=f2e2198]:
+                - 'button "GET /api/v2/conversations/{conversationId}/recordings Get conversation recordings Demo data" [ref=f2e2199] [cursor=pointer]':
+                  - code [ref=f2e2201]: GET
+                  - code [ref=f2e2202]: "/api/v2/conversations/{conversationId}/recordings"
+                  - generic [ref=f2e2203]: Get conversation recordings
+                  - generic "Recording metadata for a conversation." [ref=f2e2204]: Demo data
+              - listitem [ref=f2e2205]:
+                - button "GET /api/v2/speechandtextanalytics/topics Get speech and text analytics topics Demo data" [ref=f2e2206] [cursor=pointer]:
+                  - code [ref=f2e2208]: GET
+                  - code [ref=f2e2209]: /api/v2/speechandtextanalytics/topics
+                  - generic [ref=f2e2210]: Get speech and text analytics topics
+                  - generic "Speech and text analytics topics with phrase definitions." [ref=f2e2211]: Demo data
+              - listitem [ref=f2e2212]:
+                - button "GET /api/v2/users Get the list of available users. Demo data, paged" [ref=f2e2213] [cursor=pointer]:
+                  - code [ref=f2e2215]: GET
+                  - code [ref=f2e2216]: /api/v2/users
+                  - generic [ref=f2e2217]: Get the list of available users.
+                  - generic "Organization users with presence, routing status and skills, across two pages." [ref=f2e2218]: Demo data, paged
+              - listitem [ref=f2e2219]:
+                - button "GET /api/v2/users/me Get current user details. Synthesized" [ref=f2e2220] [cursor=pointer]:
+                  - code [ref=f2e2222]: GET
+                  - code [ref=f2e2223]: /api/v2/users/me
+                  - generic [ref=f2e2224]: Get current user details.
+                  - generic "Connectivity probe returning the demo administrator identity." [ref=f2e2225]: Synthesized
+        - region "Endpoint detail" [ref=f2e2228]:
+          - generic [ref=f2e2229]:
+            - generic [ref=f2e2230]:
+              - button "Collapse Endpoint detail" [ref=f2e2231] [cursor=pointer]: ▾
+              - heading "Endpoint detail" [level=2] [ref=f2e2232]
+            - generic [ref=f2e2234]:
+              - button "Move Endpoint detail up" [ref=f2e2235] [cursor=pointer]: ↑
+              - button "Move Endpoint detail down" [ref=f2e2236] [cursor=pointer]: ↓
+          - generic [ref=f2e2238]:
+            - paragraph [ref=f2e2239]: Select an endpoint
+            - paragraph [ref=f2e2240]: Pick one from the list to see its catalog metadata and run it against the demo server.
+        - region "Demo data coverage" [ref=f2e2243]:
+          - generic [ref=f2e2244]:
+            - generic [ref=f2e2245]:
+              - button "Collapse Demo data coverage" [ref=f2e2246] [cursor=pointer]: ▾
+              - heading "Demo data coverage" [level=2] [ref=f2e2247]
+            - generic [ref=f2e2249]:
+              - button "Move Demo data coverage up" [ref=f2e2250] [cursor=pointer]: ↑
+              - button "Move Demo data coverage down" [disabled] [ref=f2e2251]: ↓
+          - generic [ref=f2e2253]:
+            - paragraph [ref=f2e2254]: These are the route families the server backs with real demo data. The list is read from the server's own coverage table, so it always matches what the dispatcher will actually serve.
+            - list [ref=f2e2255]:
+              - listitem [ref=f2e2256]:
+                - generic [ref=f2e2257]:
+                  - generic [ref=f2e2258]: Demo data
+                  - code [ref=f2e2259]: audits.service-mapping
+                  - generic [ref=f2e2260]: 2 endpoints
+                - paragraph [ref=f2e2261]: Audit service mapping - which services and entity types can be audited.
+                - generic [ref=f2e2262]: audit-logs.servicemapping.json
+              - listitem [ref=f2e2264]:
+                - generic [ref=f2e2265]:
+                  - generic [ref=f2e2266]: Demo data, paged
+                  - code [ref=f2e2267]: audits.query-results
+                  - generic [ref=f2e2268]: 5 endpoints
+                - paragraph [ref=f2e2269]: Audit query results, two pages linked by nextUri.
+                - generic [ref=f2e2270]:
+                  - generic [ref=f2e2271]: audit-logs.results.page1.json
+                  - generic [ref=f2e2272]: audit-logs.results.page2.json
+              - listitem [ref=f2e2273]:
+                - generic [ref=f2e2274]:
+                  - generic [ref=f2e2275]: Async poll
+                  - code [ref=f2e2276]: audits.query-poll
+                  - generic [ref=f2e2277]: 5 endpoints
+                - paragraph [ref=f2e2278]: Poll an audit query transaction until it reaches FULFILLED.
+              - listitem [ref=f2e2279]:
+                - generic [ref=f2e2280]:
+                  - generic [ref=f2e2281]: Async submit
+                  - code [ref=f2e2282]: audits.query-submit
+                  - generic [ref=f2e2283]: 4 endpoints
+                - paragraph [ref=f2e2284]: Submit an audit query and receive a transaction id.
+              - listitem [ref=f2e2285]:
+                - generic [ref=f2e2286]:
+                  - generic [ref=f2e2287]: Demo data, cursor
+                  - code [ref=f2e2288]: analytics.conversation-details-job-results
+                  - generic [ref=f2e2289]: 2 endpoints
+                - paragraph [ref=f2e2290]: Conversation detail job results, two pages linked by an opaque cursor.
+                - generic [ref=f2e2291]:
+                  - generic [ref=f2e2292]: analytics-conversation-details.results.page1.json
+                  - generic [ref=f2e2293]: analytics-conversation-details.results.page2.json
+              - listitem [ref=f2e2294]:
+                - generic [ref=f2e2295]:
+                  - generic [ref=f2e2296]: Async poll
+                  - code [ref=f2e2297]: analytics.conversation-details-job-poll
+                  - generic [ref=f2e2298]: 3 endpoints
+                - paragraph [ref=f2e2299]: Poll a conversation detail job until it reaches FULFILLED.
+              - listitem [ref=f2e2300]:
+                - generic [ref=f2e2301]:
+                  - generic [ref=f2e2302]: Async submit
+                  - code [ref=f2e2303]: analytics.conversation-details-job-submit
+                  - generic [ref=f2e2304]: 2 endpoints
+                - paragraph [ref=f2e2305]: Submit a conversation detail job and receive a job id.
+              - listitem [ref=f2e2306]:
+                - generic [ref=f2e2307]:
+                  - generic [ref=f2e2308]: Demo data
+                  - code [ref=f2e2309]: analytics.conversation-details-query
+                  - generic [ref=f2e2310]: 7 endpoints
+                - paragraph [ref=f2e2311]: Synchronous conversation detail query returning fully expanded conversations.
+                - generic [ref=f2e2312]: analytics-conversation-details-query.page1.json
+              - listitem [ref=f2e2314]:
+                - generic [ref=f2e2315]:
+                  - generic [ref=f2e2316]: Demo data, paged
+                  - code [ref=f2e2317]: users.list
+                  - generic [ref=f2e2318]: 3 endpoints
+                - paragraph [ref=f2e2319]: Organization users with presence, routing status and skills, across two pages.
+                - generic [ref=f2e2320]:
+                  - generic [ref=f2e2321]: users.page1.json
+                  - generic [ref=f2e2322]: users.page2.json
+              - listitem [ref=f2e2323]:
+                - generic [ref=f2e2324]:
+                  - generic [ref=f2e2325]: Demo data, paged
+                  - code [ref=f2e2326]: routing.queues
+                  - generic [ref=f2e2327]: 2 endpoints
+                - paragraph [ref=f2e2328]: Routing queues with media settings, across two pages.
+                - generic [ref=f2e2329]:
+                  - generic [ref=f2e2330]: routing-queues.page1.json
+                  - generic [ref=f2e2331]: routing-queues.page2.json
+              - listitem [ref=f2e2332]:
+                - generic [ref=f2e2333]:
+                  - generic [ref=f2e2334]: Demo data
+                  - code [ref=f2e2335]: conversations.active
+                  - generic [ref=f2e2336]: 2 endpoints
+                - paragraph [ref=f2e2337]: Conversations currently in progress with live participant state.
+                - generic [ref=f2e2338]: conversations.active.json
+              - listitem [ref=f2e2340]:
+                - generic [ref=f2e2341]:
+                  - generic [ref=f2e2342]: Demo data
+                  - code [ref=f2e2343]: speechandtextanalytics.topics
+                  - generic [ref=f2e2344]: 2 endpoints
+                - paragraph [ref=f2e2345]: Speech and text analytics topics with phrase definitions.
+                - generic [ref=f2e2346]: speechandtextanalytics.topics.json
+              - listitem [ref=f2e2348]:
+                - generic [ref=f2e2349]:
+                  - generic [ref=f2e2350]: Demo data
+                  - code [ref=f2e2351]: conversations.recordings
+                  - generic [ref=f2e2352]: 2 endpoints
+                - paragraph [ref=f2e2353]: Recording metadata for a conversation.
+                - generic [ref=f2e2354]: conversations.recordings.json
+              - listitem [ref=f2e2356]:
+                - generic [ref=f2e2357]:
+                  - generic [ref=f2e2358]: Demo data
+                  - code [ref=f2e2359]: authorization.roles
+                  - generic [ref=f2e2360]: 2 endpoints
+                - paragraph [ref=f2e2361]: Authorization roles and their permission policies.
+                - generic [ref=f2e2362]: authorization.roles.json
+              - listitem [ref=f2e2364]:
+                - generic [ref=f2e2365]:
+                  - generic [ref=f2e2366]: Demo data
+                  - code [ref=f2e2367]: oauth.clients
+                  - generic [ref=f2e2368]: 2 endpoints
+                - paragraph [ref=f2e2369]: OAuth clients registered in the demo organization.
+                - generic [ref=f2e2370]: oauth.clients.json
+              - listitem [ref=f2e2372]:
+                - generic [ref=f2e2373]:
+                  - generic [ref=f2e2374]: Synthesized
+                  - code [ref=f2e2375]: users.me
+                  - generic [ref=f2e2376]: 3 endpoints
+                - paragraph [ref=f2e2377]: Connectivity probe returning the demo administrator identity.
+```

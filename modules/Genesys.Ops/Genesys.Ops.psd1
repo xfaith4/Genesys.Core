@@ -113,6 +113,9 @@
         'Get-GenesysWrapupDistribution'
         'Get-GenesysDigitalChannelVolume'
         'Export-GenesysMonthlyChannelVolume'
+        'Compare-GenesysMonthlyVoiceVolume'
+        'Get-GenesysConversationProfile'
+        'Get-GenesysConversationAnalysis'
 
         # Quality & CSAT  (Roadmap ideas 11–13)
         'Get-GenesysEvaluation'

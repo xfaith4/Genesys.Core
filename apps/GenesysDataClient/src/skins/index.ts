@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 import type { SkinId } from '../core/contracts';
 import { DATA_SOURCES } from '../core/sources';
 
-export type PageId = 'home' | 'endpoints' | 'explore';
+export type PageId = 'home' | 'endpoints' | 'explore' | 'investigation';
 
 export interface NavItem {
   id: string;
@@ -39,6 +39,7 @@ export interface SkinCapabilities {
 }
 
 export interface SkinShellProps {
+  canGoBack?: boolean;
   sections: NavSection[];
   activePage: PageId;
   activeSourceId?: string;
@@ -88,6 +89,7 @@ export const buildNavigation = (): NavSection[] => {
       label: 'Start',
       items: [
         { id: 'home', label: 'Getting started', page: 'home' },
+        { id: 'investigation', label: 'Conversation investigation', page: 'investigation' },
         { id: 'endpoints', label: 'Endpoint explorer', page: 'endpoints' },
       ],
     },
@@ -97,6 +99,7 @@ export const buildNavigation = (): NavSection[] => {
 
 /** Resolves the page title shown in the header. */
 export const titleFor = (page: PageId, sourceId: string | undefined): string => {
+  if (page === 'investigation') return 'Conversation investigation';
   if (page === 'home') return 'Getting started';
   if (page === 'endpoints') return 'Endpoint explorer';
   const source = DATA_SOURCES.find((s) => s.id === sourceId);

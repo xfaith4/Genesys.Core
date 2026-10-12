@@ -1,0 +1,23 @@
+{
+  "orderBy": "conversationStart",
+  "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+  "order": "asc",
+  "paging": {
+    "pageNumber": 1,
+    "pageSize": 100
+  },
+  "segmentFilters": [
+    {
+      "type": "and",
+      "predicates": [
+        {
+          "dimension": "mediaType",
+          "type": "dimension",
+          "value": "voice",
+          "operator": "matches"
+        }
+      ]
+    }
+  ],
+  "conversationFilters": []
+}

@@ -1,0 +1,34 @@
+async (page) => {
+  const check = (ok, message) => { if (!ok) throw new Error(message); };
+  const report = page.getByRole('region', { name: 'Ad-hoc report', exact: true });
+  await report.getByRole('combobox', { name: 'Metric field' }).selectOption('name');
+  check(await report.getByRole('combobox', { name: 'Aggregate function' }).inputValue() === 'count', 'Text metric must normalize to Count');
+  await report.getByRole('columnheader', { name: 'Count of Name', exact: true }).waitFor();
+  await page.getByRole('checkbox', { name: 'Name', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Genesys skin', exact: true }).click();
+  await page.getByText('1 of 10 rows', { exact: true }).waitFor();
+  check(await page.getByRole('textbox', { name: 'Search all columns' }).inputValue() === 'Alice', 'Skin switch lost filter');
+  check(await page.getByRole('region', { name: 'Users', exact: true }).getByRole('button', { name: 'Name', exact: true }).count() === 0, 'Skin switch lost hidden column');
+  await page.getByRole('button', { name: 'Switch to the Atlas skin', exact: true }).click();
+  await report.getByRole('columnheader', { name: 'Count of Name', exact: true }).waitFor();
+  await page.getByText('1 of 10 rows', { exact: true }).waitFor();
+  await page.getByRole('textbox', { name: 'Save current layout as' }).fill('Demo Alice');
+  await page.getByRole('button', { name: 'Save view', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search all columns' }).fill('Bob');
+  await page.getByRole('button', { name: 'Demo Alice', exact: true }).click();
+  check(await page.getByRole('textbox', { name: 'Search all columns' }).inputValue() === 'Alice', 'Saved view did not restore filter');
+  await report.getByRole('button', { name: 'Department', exact: true }).click();
+  const recordsExport = page.getByRole('region', { name: 'Export', exact: true });
+  await recordsExport.getByRole('combobox', { name: 'Format', exact: true }).selectOption('json');
+  await recordsExport.getByRole('combobox', { name: 'Columns', exact: true }).selectOption('all');
+  const recordDownload = page.waitForEvent('download');
+  await recordsExport.getByRole('button', { name: 'Download 1 row', exact: true }).click();
+  await (await recordDownload).saveAs('output/playwright/users-filtered-after.json');
+  await report.getByRole('combobox', { name: 'Format', exact: true }).selectOption('json');
+  const reportDownload = page.waitForEvent('download');
+  await report.getByRole('button', { name: 'Download 1 row', exact: true }).click();
+  await (await reportDownload).saveAs('output/playwright/users-report-after.json');
+  await page.getByRole('region', { name: 'Users', exact: true }).getByRole('button', { name: 'Expand row', exact: true }).click();
+  await page.screenshot({ path: 'output/playwright/18-filtered-users-after.png', fullPage: true });
+  return { passed: ['metric type normalization', 'filter and column retention across both skins', 'report retention', 'saved view restoration', 'filtered record download', 'grouped report download', 'row detail expansion'] };
+}

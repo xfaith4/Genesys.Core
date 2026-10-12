@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investigation Package - agent-investigation</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
+body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #15202b; padding: 10px 16px; border: 2px solid #133b2f; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
+header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
+header p { margin: 0; color: #deefe8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #d6dee6; border-radius: 10px; padding: 14px; }
+.metric .label { color: #5a6673; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce3ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef3f7; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.meta { color: #5f6c79; font-size: 13px; margin-bottom: 18px; }
+.empty { color: #6b7582; font-style: italic; }
+ul { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header>
+<h1>Investigation Package</h1>
+<p>agent-investigation | agent / agent-demo-001 | Run demo-run | Generated 2026-10-11T14:50:06.2132678Z</p>
+</header>
+<main id="main-content">
+<section>
+<h2>Overview</h2>
+<p class="meta">Window: 2026-04-01T00:00:00.0000000Z -> 2026-04-08T00:00:00.0000000Z</p>
+<div class="grid">
+<div class="metric"><div class="label">Steps</div><div class="value">11</div></div>
+<div class="metric"><div class="label">Failed Steps</div><div class="value">0</div></div>
+<div class="metric"><div class="label">Records</div><div class="value">15</div></div>
+<div class="metric"><div class="label">Sections</div><div class="value">11</div></div>
+</div>
+</section>
+
+<section>
+<h2>Step Status</h2>
+<table><caption>Investigation step status</caption><thead><tr><th scope="col">StepName</th><th scope="col">DatasetKey</th><th scope="col">ValidationStatus</th><th scope="col">RecordCount</th><th scope="col">Required</th><th scope="col">Status</th><th scope="col">ErrorMessage</th></tr></thead><tbody><tr><td>identity</td><td>users.get.user.details.with.full.expansion</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>division</td><td>(derived)</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>skills</td><td>users.get.user.routing.skills</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>queues</td><td>users.get.user.queue.memberships</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>presence</td><td>users.get.bulk.user.presences</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>routingStatus</td><td>users.get.agent.current.routing.status</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>utilization</td><td>routing.get.user.utilization</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>activity</td><td>analytics.query.user.details.activity.report</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>activeConversations</td><td>users.get.agent.active.conversations</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>conversations</td><td>analytics-conversation-details-query</td><td>unvalidated</td><td>2</td><td>False</td><td>ok</td><td></td></tr><tr><td>auditAccountChanges</td><td>audit-logs</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr></tbody></table>
+</section>
+<section>
+<h2>agent</h2>
+<table><caption>agent</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">email</th><th scope="col">state</th><th scope="col">division</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>Jane Doe</td><td>jane.doe@example.invalid</td><td>ACTIVE</td><td>{&quot;id&quot;:&quot;div-demo-1&quot;,&quot;name&quot;:&quot;CustomerCare&quot;}</td></tr></tbody></table>
+</section>
+<section>
+<h2>division</h2>
+<table><caption>division</caption><thead><tr><th scope="col">id</th><th scope="col">userId</th><th scope="col">division</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>agent-demo-001</td><td>{&quot;id&quot;:&quot;div-demo-1&quot;,&quot;name&quot;:&quot;CustomerCare&quot;}</td></tr></tbody></table>
+</section>
+<section>
+<h2>skills</h2>
+<table><caption>skills</caption><thead><tr><th scope="col">id</th><th scope="col">userId</th><th scope="col">name</th><th scope="col">state</th></tr></thead><tbody><tr><td>sk-demo-1</td><td>agent-demo-001</td><td>English</td><td>active</td></tr><tr><td>sk-demo-2</td><td>agent-demo-001</td><td>Billing</td><td>active</td></tr></tbody></table>
+</section>
+<section>
+<h2>queues</h2>
+<table><caption>queues</caption><thead><tr><th scope="col">id</th><th scope="col">userId</th><th scope="col">name</th><th scope="col">joined</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>agent-demo-001</td><td>Support</td><td>True</td></tr><tr><td>queue-demo-2</td><td>agent-demo-001</td><td>Escalations</td><td>True</td></tr></tbody></table>
+</section>
+<section>
+<h2>presence</h2>
+<table><caption>presence</caption><thead><tr><th scope="col">userId</th><th scope="col">presence</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>AVAILABLE</td></tr></tbody></table>
+</section>
+<section>
+<h2>routingStatus</h2>
+<table><caption>routingStatus</caption><thead><tr><th scope="col">userId</th><th scope="col">status</th><th scope="col">startTime</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>INTERACTING</td><td>2026-04-02T10:15:00.0000000Z</td></tr></tbody></table>
+</section>
+<section>
+<h2>utilization</h2>
+<table><caption>utilization</caption><thead><tr><th scope="col">userId</th><th scope="col">call</th><th scope="col">callback</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>{&quot;maximumCapacity&quot;:1,&quot;utilizedCapacity&quot;:1}</td><td>{&quot;maximumCapacity&quot;:1,&quot;utilizedCapacity&quot;:0}</td></tr></tbody></table>
+</section>
+<section>
+<h2>activity</h2>
+<table><caption>activity</caption><thead><tr><th scope="col">userId</th><th scope="col">loginMinutes</th><th scope="col">onQueueMinutes</th><th scope="col">interactingMinutes</th></tr></thead><tbody><tr><td>agent-demo-001</td><td>420</td><td>340</td><td>285</td></tr></tbody></table>
+</section>
+<section>
+<h2>activeConversations</h2>
+<table><caption>activeConversations</caption><thead><tr><th scope="col">id</th><th scope="col">userId</th><th scope="col">mediaType</th><th scope="col">state</th></tr></thead><tbody><tr><td>active-conv-demo-1</td><td>agent-demo-001</td><td>voice</td><td>connected</td></tr><tr><td>active-conv-demo-2</td><td>agent-demo-001</td><td>message</td><td>connected</td></tr></tbody></table>
+</section>
+<section>
+<h2>conversations</h2>
+<table><caption>conversations</caption><thead><tr><th scope="col">conversationId</th><th scope="col">participants</th></tr></thead><tbody><tr><td>conv-demo-A</td><td>{&quot;userId&quot;:&quot;agent-demo-001&quot;,&quot;role&quot;:&quot;agent&quot;}</td></tr><tr><td>conv-demo-B</td><td>{&quot;userId&quot;:&quot;agent-demo-001&quot;,&quot;role&quot;:&quot;agent&quot;}</td></tr></tbody></table>
+</section>
+<section>
+<h2>auditAccountChanges</h2>
+<table><caption>auditAccountChanges</caption><thead><tr><th scope="col">id</th><th scope="col">entityId</th><th scope="col">entityType</th><th scope="col">action</th><th scope="col">serviceName</th><th scope="col">timestamp</th></tr></thead><tbody><tr><td>audit-demo-1</td><td>agent-demo-001</td><td>User</td><td>update</td><td>directory</td><td>2026-04-02T01:00:00.0000000Z</td></tr></tbody></table>
+</section>
+</main>
+</body>
+</html>

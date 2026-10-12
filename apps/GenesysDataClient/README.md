@@ -46,7 +46,9 @@ npm run dev          # http://localhost:5173, proxied to the demo server
 …or build once and let the demo server host the result, which needs no Node at runtime:
 
 ```bash
+# From apps/GenesysDataClient:
 npm run build
+cd ../..
 dotnet run --project tools/Genesys.MockServer
 # open http://localhost:7777
 ```
@@ -144,14 +146,12 @@ The same application, the same data, two interface philosophies. Switch from the
 | Layout | Fixed — the product's arrangement | Panels move and collapse; order persists |
 | Columns | Sort and filter | Sort, filter, reorder, resize, hide |
 | Reporting | — | Ad-hoc grouping and aggregation |
-| Export | — | CSV, JSON, NDJSON, Markdown, with provenance |
+| Export | — | CSV, JSON, Markdown with optional provenance; NDJSON data rows |
 | Saved views | — | Filters, sort and column layout, remembered |
 
-The Genesys skin is modelled on the publicly documented behaviour of the new Genesys Cloud
-unified navigation: a unified global menu, a top bar carrying consistent page titles, a back
-button and relocated Collaborate, Inbox and User Avatar elements, and a global search that
-returns menu pages alongside people, groups and locations. Genesys has not published the visual
-specification, so it is an approximation of that described structure, not a pixel-accurate copy.
+The Genesys skin uses a unified global menu, page titles, working Back navigation,
+page search and a Help shortcut to Getting started. It approximates Genesys-inspired
+navigation without exposing agent queue controls, collaboration or an inbox.
 
 Its constraints are intentional. It exposes no theme, density or layout control, which is the
 baseline Atlas is measured against.
@@ -204,3 +204,29 @@ markup only exists after React renders. `npm run test:a11y` covers it instead, a
 palettes in [`src/core/accents.ts`](src/core/accents.ts) are solved for contrast rather than
 picked by eye — each accent ships a graphical shade for fills and separate text-safe shades per
 theme.
+
+## Browser demo review
+
+The [2026-10-11 browser review](../../docs/DEMO_BROWSER_REVIEW.md) records the demo
+walkthrough, reproduced defects, corrections, screenshots and validation results.
+Explorer filters, column selections and report definitions now survive skin and
+page changes within the open application. Saved views persist across reloads;
+unsaved working drafts stay in memory and reset on reload.
+
+
+### Conversation investigation
+
+Both skins include **Conversation investigation** (`#/investigation`). Open `analysis.json`
+produced by `Get-GenesysConversationAnalysis` to filter, group, summarize and drill into
+conversation timelines using the shared portable workbench. The analysis and view remain
+in memory through page navigation and skin changes; export before reloading the tab.
+Collection commands run in your connected Ops PowerShell session. See
+[collection and field definitions](../../docs/CONVERSATION_POPULATION_ANALYSIS.md).
+
+
+The product direction is composed operations investigations: error cohorts, affected
+entities, metric changes and timestamped evidence. See the
+[NOC investigation contract](../../docs/NOC_INCIDENT_INVESTIGATIONS.md) for the next
+mass-disconnect workflow and complete job/transaction-family gates. Name-resolution
+coverage and current user-Division membership are available in Ops analysis artifacts;
+historical membership and automated cross-source incident correlation remain open.

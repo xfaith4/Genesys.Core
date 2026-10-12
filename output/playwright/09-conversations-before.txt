@@ -1,0 +1,531 @@
+### Page
+- Page URL: http://localhost:5173/#/explore/users
+- Page Title: Genesys Data Client
+### Snapshot
+```yaml
+- generic [ref=f2e577]:
+  - complementary "Navigation" [ref=f2e578]:
+    - button "Expand navigation" [active] [ref=f2e1247] [cursor=pointer]: ⟩
+    - navigation [ref=f2e584]:
+      - list [ref=f2e587]:
+        - listitem [ref=f2e588]:
+          - button "Getting started" [ref=f2e589] [cursor=pointer]
+        - listitem [ref=f2e592]:
+          - button "Endpoint explorer" [ref=f2e593] [cursor=pointer]
+      - list [ref=f2e598]:
+        - listitem [ref=f2e599]:
+          - button "Speech and text analytics topics with their phrase definitions." [ref=f2e1248] [cursor=pointer]
+      - list [ref=f2e605]:
+        - listitem [ref=f2e606]:
+          - button "Organization users with presence, routing status and skills. Follows nextUri across both demo pages." [ref=f2e1249] [cursor=pointer]
+      - list [ref=f2e612]:
+        - listitem [ref=f2e613]:
+          - button "Audit events retrieved through the async transaction lifecycle, then paged with nextUri across both demo pages." [ref=f2e1250] [cursor=pointer]
+        - listitem [ref=f2e617]:
+          - button "Roles with their permission policies and user counts." [ref=f2e1251] [cursor=pointer]
+        - listitem [ref=f2e621]:
+          - button "OAuth clients registered in the demo organization." [ref=f2e1252] [cursor=pointer]
+      - list [ref=f2e627]:
+        - listitem [ref=f2e628]:
+          - button "Conversations currently in progress, with live participant state." [ref=f2e1253] [cursor=pointer]
+        - listitem [ref=f2e632]:
+          - button "The same conversations exploded to one row per participant, session and segment. This is the grain to group and aggregate for ad-hoc conversation reporting." [ref=f2e1254] [cursor=pointer]
+        - listitem [ref=f2e636]:
+          - 'button "Conversation details retrieved through the full async job lifecycle: submit, poll until FULFILLED, then read both cursor-paged result pages." [ref=f2e1255] [cursor=pointer]'
+      - list [ref=f2e642]:
+        - listitem [ref=f2e643]:
+          - button "Routing queues with division, membership and per-media settings, across both demo pages." [ref=f2e1256] [cursor=pointer]
+  - generic [ref=f2e647]:
+    - banner [ref=f2e648]:
+      - generic [ref=f2e649]:
+        - heading "Users" [level=1] [ref=f2e650]
+        - paragraph [ref=f2e651]: Genesys Data Client · Atlas
+      - generic [ref=f2e652]:
+        - group "Theme" [ref=f2e653]:
+          - button "Light" [ref=f2e654] [cursor=pointer]
+          - button "Dark" [ref=f2e655] [cursor=pointer]
+          - button "System" [pressed] [ref=f2e656] [cursor=pointer]
+        - button "Interface settings" [ref=f2e657] [cursor=pointer]: ⚙
+        - button "Genesys skin" [ref=f2e658] [cursor=pointer]
+    - main [ref=f2e659]:
+      - generic [ref=f2e661]:
+        - region "Users" [ref=f2e664]:
+          - generic [ref=f2e665]:
+            - generic [ref=f2e666]:
+              - button "Collapse Users" [ref=f2e667] [cursor=pointer]: ▾
+              - heading "Users" [level=2] [ref=f2e668]
+            - generic [ref=f2e669]:
+              - generic [ref=f2e670]:
+                - generic [ref=f2e671]: 10 of 10 rows
+                - button "Refresh" [ref=f2e672] [cursor=pointer]
+              - generic [ref=f2e673]:
+                - button "Move Users up" [disabled] [ref=f2e674]: ↑
+                - button "Move Users down" [ref=f2e675] [cursor=pointer]: ↓
+          - generic [ref=f2e676]:
+            - generic [ref=f2e677]:
+              - generic [ref=f2e678]:
+                - generic [ref=f2e679]: Search all columns
+                - textbox "Search all columns" [ref=f2e680]:
+                  - /placeholder: Type to filter every column…
+              - generic [ref=f2e681]:
+                - text: Sorted by name asc
+                - button "Clear sort" [ref=f2e682] [cursor=pointer]
+            - table [ref=f2e684]:
+              - rowgroup [ref=f2e685]:
+                - row [ref=f2e686]:
+                  - columnheader "Expand" [ref=f2e687]
+                  - columnheader [ref=f2e688]:
+                    - button "Name ▲" [ref=f2e689] [cursor=pointer]:
+                      - generic [ref=f2e690]: Name
+                      - generic [ref=f2e691]: ▲
+                    - separator "Resize Name" [ref=f2e692]
+                  - columnheader [ref=f2e693]:
+                    - button "Email" [ref=f2e694] [cursor=pointer]
+                    - separator "Resize Email" [ref=f2e696]
+                  - columnheader [ref=f2e697]:
+                    - button "Department" [ref=f2e698] [cursor=pointer]
+                    - separator "Resize Department" [ref=f2e700]
+                  - columnheader [ref=f2e701]:
+                    - button "Title" [ref=f2e702] [cursor=pointer]
+                    - separator "Resize Title" [ref=f2e704]
+                  - columnheader [ref=f2e705]:
+                    - button "State" [ref=f2e706] [cursor=pointer]
+                    - separator "Resize State" [ref=f2e708]
+                  - columnheader [ref=f2e709]:
+                    - button "Presence" [ref=f2e710] [cursor=pointer]
+                    - separator "Resize Presence" [ref=f2e712]
+                  - columnheader [ref=f2e713]:
+                    - button "Routing status" [ref=f2e714] [cursor=pointer]
+                    - separator "Resize Routing status" [ref=f2e716]
+                  - columnheader [ref=f2e717]:
+                    - button "Skills" [ref=f2e718] [cursor=pointer]
+                    - separator "Resize Skills" [ref=f2e720]
+                  - columnheader [ref=f2e721]:
+                    - 'button "Skills #" [ref=f2e722] [cursor=pointer]'
+                    - 'separator "Resize Skills #" [ref=f2e724]'
+                  - columnheader [ref=f2e725]:
+                    - button "Auto answer" [ref=f2e726] [cursor=pointer]
+                    - separator "Resize Auto answer" [ref=f2e728]
+              - rowgroup [ref=f2e729]:
+                - row [ref=f2e730]:
+                  - cell [ref=f2e731]:
+                    - button "Expand row" [ref=f2e732] [cursor=pointer]: ▸
+                  - cell "Alice Support" [ref=f2e733]
+                  - cell "alice.support@corp.example.com" [ref=f2e735]
+                  - cell "Customer Service" [ref=f2e737]
+                  - cell "Senior Support Agent" [ref=f2e739]
+                  - cell "active" [ref=f2e741]
+                  - cell "AVAILABLE" [ref=f2e743]
+                  - cell "IDLE" [ref=f2e745]
+                  - cell "English" [ref=f2e747]
+                  - cell "1" [ref=f2e749]
+                  - cell "Yes" [ref=f2e751]
+                - row [ref=f2e753]:
+                  - cell [ref=f2e754]:
+                    - button "Expand row" [ref=f2e755] [cursor=pointer]: ▸
+                  - cell "Bob Chat" [ref=f2e756]
+                  - cell "bob.chat@corp.example.com" [ref=f2e758]
+                  - cell "Digital Support" [ref=f2e760]
+                  - cell "Chat Agent" [ref=f2e762]
+                  - cell "active" [ref=f2e764]
+                  - cell "BUSY" [ref=f2e766]
+                  - cell "INTERACTING" [ref=f2e768]
+                  - cell "English, Chat" [ref=f2e770]
+                  - cell "2" [ref=f2e772]
+                  - cell "Yes" [ref=f2e774]
+                - row [ref=f2e776]:
+                  - cell [ref=f2e777]:
+                    - button "Expand row" [ref=f2e778] [cursor=pointer]: ▸
+                  - cell "Carol Specialist" [ref=f2e779]
+                  - cell "carol.specialist@corp.example.com" [ref=f2e781]
+                  - cell "Customer Service" [ref=f2e783]
+                  - cell "Specialist Agent" [ref=f2e785]
+                  - cell "active" [ref=f2e787]
+                  - cell "AVAILABLE" [ref=f2e789]
+                  - cell "IDLE" [ref=f2e791]
+                  - cell "English, Billing" [ref=f2e793]
+                  - cell "2" [ref=f2e795]
+                  - cell "No" [ref=f2e797]
+                - row [ref=f2e799]:
+                  - cell [ref=f2e800]:
+                    - button "Expand row" [ref=f2e801] [cursor=pointer]: ▸
+                  - cell "Dan Outreach" [ref=f2e802]
+                  - cell "dan.outreach@corp.example.com" [ref=f2e804]
+                  - cell "Sales" [ref=f2e806]
+                  - cell "Outbound Sales Agent" [ref=f2e808]
+                  - cell "active" [ref=f2e810]
+                  - cell "AWAY" [ref=f2e812]
+                  - cell "OFF_QUEUE" [ref=f2e814]
+                  - cell "Sales" [ref=f2e816]
+                  - cell "1" [ref=f2e818]
+                  - cell "No" [ref=f2e820]
+                - row [ref=f2e822]:
+                  - cell [ref=f2e823]:
+                    - button "Expand row" [ref=f2e824] [cursor=pointer]: ▸
+                  - cell "Eve Email" [ref=f2e825]
+                  - cell "eve.email@corp.example.com" [ref=f2e827]
+                  - cell "Digital Support" [ref=f2e829]
+                  - cell "Email Agent" [ref=f2e831]
+                  - cell "inactive" [ref=f2e833]
+                  - cell [ref=f2e835]
+                  - cell [ref=f2e836]
+                  - cell [ref=f2e837]
+                  - cell "0" [ref=f2e838]
+                  - cell "No" [ref=f2e840]
+                - row [ref=f2e842]:
+                  - cell [ref=f2e843]:
+                    - button "Expand row" [ref=f2e844] [cursor=pointer]: ▸
+                  - cell "Frank Supervisor" [ref=f2e845]
+                  - cell "frank.supervisor@corp.example.com" [ref=f2e847]
+                  - cell "Customer Service" [ref=f2e849]
+                  - cell "Team Supervisor" [ref=f2e851]
+                  - cell "active" [ref=f2e853]
+                  - cell "AVAILABLE" [ref=f2e855]
+                  - cell "IDLE" [ref=f2e857]
+                  - cell [ref=f2e859]
+                  - cell "0" [ref=f2e860]
+                  - cell "No" [ref=f2e862]
+                - row [ref=f2e864]:
+                  - cell [ref=f2e865]:
+                    - button "Expand row" [ref=f2e866] [cursor=pointer]: ▸
+                  - cell "Grace Admin" [ref=f2e867]
+                  - cell "grace.admin@corp.example.com" [ref=f2e869]
+                  - cell "IT Operations" [ref=f2e871]
+                  - cell "Platform Administrator" [ref=f2e873]
+                  - cell "active" [ref=f2e875]
+                  - cell "AVAILABLE" [ref=f2e877]
+                  - cell [ref=f2e879]
+                  - cell [ref=f2e880]
+                  - cell "0" [ref=f2e881]
+                  - cell "No" [ref=f2e883]
+                - row [ref=f2e885]:
+                  - cell [ref=f2e886]:
+                    - button "Expand row" [ref=f2e887] [cursor=pointer]: ▸
+                  - cell "Henry Voice" [ref=f2e888]
+                  - cell "henry.voice@corp.example.com" [ref=f2e890]
+                  - cell "Customer Service" [ref=f2e892]
+                  - cell "Voice Agent" [ref=f2e894]
+                  - cell "active" [ref=f2e896]
+                  - cell "OFFLINE" [ref=f2e898]
+                  - cell "NOT_RESPONDING" [ref=f2e900]
+                  - cell "English" [ref=f2e902]
+                  - cell "1" [ref=f2e904]
+                  - cell "Yes" [ref=f2e906]
+                - row [ref=f2e908]:
+                  - cell [ref=f2e909]:
+                    - button "Expand row" [ref=f2e910] [cursor=pointer]: ▸
+                  - cell "Iris Callback" [ref=f2e911]
+                  - cell "iris.callback@corp.example.com" [ref=f2e913]
+                  - cell "Customer Service" [ref=f2e915]
+                  - cell "Callback Specialist" [ref=f2e917]
+                  - cell "active" [ref=f2e919]
+                  - cell "AVAILABLE" [ref=f2e921]
+                  - cell "IDLE" [ref=f2e923]
+                  - cell "English" [ref=f2e925]
+                  - cell "1" [ref=f2e927]
+                  - cell "Yes" [ref=f2e929]
+                - row [ref=f2e931]:
+                  - cell [ref=f2e932]:
+                    - button "Expand row" [ref=f2e933] [cursor=pointer]: ▸
+                  - cell "Jake Trainee" [ref=f2e934]
+                  - cell "jake.trainee@corp.example.com" [ref=f2e936]
+                  - cell "Customer Service" [ref=f2e938]
+                  - cell "Trainee Agent" [ref=f2e940]
+                  - cell "active" [ref=f2e942]
+                  - cell "AVAILABLE" [ref=f2e944]
+                  - cell "IDLE" [ref=f2e946]
+                  - cell "English" [ref=f2e948]
+                  - cell "1" [ref=f2e950]
+                  - cell "Yes" [ref=f2e952]
+        - generic [ref=f2e954]:
+          - region "Filters" [ref=f2e956]:
+            - generic [ref=f2e957]:
+              - generic [ref=f2e958]:
+                - button "Collapse Filters" [ref=f2e959] [cursor=pointer]: ▾
+                - heading "Filters" [level=2] [ref=f2e960]
+              - generic [ref=f2e961]:
+                - generic [ref=f2e962]: 0 active
+                - generic [ref=f2e963]:
+                  - button "Move Filters up" [ref=f2e964] [cursor=pointer]: ↑
+                  - button "Move Filters down" [ref=f2e965] [cursor=pointer]: ↓
+            - generic [ref=f2e967]:
+              - paragraph [ref=f2e968]: No filters. Every column can be filtered.
+              - button "Add filter" [ref=f2e970] [cursor=pointer]
+          - region "Columns" [ref=f2e972]:
+            - generic [ref=f2e973]:
+              - generic [ref=f2e974]:
+                - button "Collapse Columns" [ref=f2e975] [cursor=pointer]: ▾
+                - heading "Columns" [level=2] [ref=f2e976]
+              - generic [ref=f2e977]:
+                - generic [ref=f2e978]: 10 of 13 shown
+                - generic [ref=f2e979]:
+                  - button "Move Columns up" [ref=f2e980] [cursor=pointer]: ↑
+                  - button "Move Columns down" [ref=f2e981] [cursor=pointer]: ↓
+            - generic [ref=f2e983]:
+              - generic [ref=f2e984]:
+                - button "Show all" [ref=f2e985] [cursor=pointer]
+                - button "Reset" [ref=f2e986] [cursor=pointer]
+              - list [ref=f2e987]:
+                - listitem [ref=f2e988]:
+                  - generic [ref=f2e989] [cursor=pointer]:
+                    - checkbox "Name" [checked] [ref=f2e990]
+                    - generic [ref=f2e991]: Name
+                  - generic [ref=f2e992]: string
+                  - generic [ref=f2e993]:
+                    - button "Move Name earlier" [ref=f2e994] [cursor=pointer]: ↑
+                    - button "Move Name later" [ref=f2e995] [cursor=pointer]: ↓
+                - listitem [ref=f2e996]:
+                  - generic [ref=f2e997] [cursor=pointer]:
+                    - checkbox "Email" [checked] [ref=f2e998]
+                    - generic [ref=f2e999]: Email
+                  - generic [ref=f2e1000]: string
+                  - generic [ref=f2e1001]:
+                    - button "Move Email earlier" [ref=f2e1002] [cursor=pointer]: ↑
+                    - button "Move Email later" [ref=f2e1003] [cursor=pointer]: ↓
+                - listitem [ref=f2e1004]:
+                  - generic [ref=f2e1005] [cursor=pointer]:
+                    - checkbox "Department" [checked] [ref=f2e1006]
+                    - generic [ref=f2e1007]: Department
+                  - generic [ref=f2e1008]: string
+                  - generic [ref=f2e1009]:
+                    - button "Move Department earlier" [ref=f2e1010] [cursor=pointer]: ↑
+                    - button "Move Department later" [ref=f2e1011] [cursor=pointer]: ↓
+                - listitem [ref=f2e1012]:
+                  - generic [ref=f2e1013] [cursor=pointer]:
+                    - checkbox "Title" [checked] [ref=f2e1014]
+                    - generic [ref=f2e1015]: Title
+                  - generic [ref=f2e1016]: string
+                  - generic [ref=f2e1017]:
+                    - button "Move Title earlier" [ref=f2e1018] [cursor=pointer]: ↑
+                    - button "Move Title later" [ref=f2e1019] [cursor=pointer]: ↓
+                - listitem [ref=f2e1020]:
+                  - generic [ref=f2e1021] [cursor=pointer]:
+                    - checkbox "State" [checked] [ref=f2e1022]
+                    - generic [ref=f2e1023]: State
+                  - generic [ref=f2e1024]: string
+                  - generic [ref=f2e1025]:
+                    - button "Move State earlier" [ref=f2e1026] [cursor=pointer]: ↑
+                    - button "Move State later" [ref=f2e1027] [cursor=pointer]: ↓
+                - listitem [ref=f2e1028]:
+                  - generic [ref=f2e1029] [cursor=pointer]:
+                    - checkbox "Presence" [checked] [ref=f2e1030]
+                    - generic [ref=f2e1031]: Presence
+                  - generic [ref=f2e1032]: string
+                  - generic [ref=f2e1033]:
+                    - button "Move Presence earlier" [ref=f2e1034] [cursor=pointer]: ↑
+                    - button "Move Presence later" [ref=f2e1035] [cursor=pointer]: ↓
+                - listitem [ref=f2e1036]:
+                  - generic [ref=f2e1037] [cursor=pointer]:
+                    - checkbox "Routing status" [checked] [ref=f2e1038]
+                    - generic [ref=f2e1039]: Routing status
+                  - generic [ref=f2e1040]: string
+                  - generic [ref=f2e1041]:
+                    - button "Move Routing status earlier" [ref=f2e1042] [cursor=pointer]: ↑
+                    - button "Move Routing status later" [ref=f2e1043] [cursor=pointer]: ↓
+                - listitem [ref=f2e1044]:
+                  - generic [ref=f2e1045] [cursor=pointer]:
+                    - checkbox "Skills" [checked] [ref=f2e1046]
+                    - generic [ref=f2e1047]: Skills
+                  - generic [ref=f2e1048]: string
+                  - generic [ref=f2e1049]:
+                    - button "Move Skills earlier" [ref=f2e1050] [cursor=pointer]: ↑
+                    - button "Move Skills later" [ref=f2e1051] [cursor=pointer]: ↓
+                - listitem [ref=f2e1052]:
+                  - generic [ref=f2e1053] [cursor=pointer]:
+                    - 'checkbox "Skills #" [checked] [ref=f2e1054]'
+                    - generic [ref=f2e1055]: "Skills #"
+                  - generic [ref=f2e1056]: number
+                  - generic [ref=f2e1057]:
+                    - 'button "Move Skills # earlier" [ref=f2e1058] [cursor=pointer]': ↑
+                    - 'button "Move Skills # later" [ref=f2e1059] [cursor=pointer]': ↓
+                - listitem [ref=f2e1060]:
+                  - generic [ref=f2e1061] [cursor=pointer]:
+                    - checkbox "Auto answer" [checked] [ref=f2e1062]
+                    - generic [ref=f2e1063]: Auto answer
+                  - generic [ref=f2e1064]: boolean
+                  - generic [ref=f2e1065]:
+                    - button "Move Auto answer earlier" [ref=f2e1066] [cursor=pointer]: ↑
+                    - button "Move Auto answer later" [ref=f2e1067] [cursor=pointer]: ↓
+                - listitem [ref=f2e1068]:
+                  - generic [ref=f2e1069] [cursor=pointer]:
+                    - checkbox "Presence message" [ref=f2e1070]
+                    - generic [ref=f2e1071]: Presence message
+                  - generic [ref=f2e1072]: string
+                  - generic [ref=f2e1073]:
+                    - button "Move Presence message earlier" [ref=f2e1074] [cursor=pointer]: ↑
+                    - button "Move Presence message later" [ref=f2e1075] [cursor=pointer]: ↓
+                - listitem [ref=f2e1076]:
+                  - generic [ref=f2e1077] [cursor=pointer]:
+                    - checkbox "Routing since" [ref=f2e1078]
+                    - generic [ref=f2e1079]: Routing since
+                  - generic [ref=f2e1080]: date
+                  - generic [ref=f2e1081]:
+                    - button "Move Routing since earlier" [ref=f2e1082] [cursor=pointer]: ↑
+                    - button "Move Routing since later" [ref=f2e1083] [cursor=pointer]: ↓
+                - listitem [ref=f2e1084]:
+                  - generic [ref=f2e1085] [cursor=pointer]:
+                    - checkbox "User ID" [ref=f2e1086]
+                    - generic [ref=f2e1087]: User ID
+                  - generic [ref=f2e1088]: string
+                  - generic [ref=f2e1089]:
+                    - button "Move User ID earlier" [ref=f2e1090] [cursor=pointer]: ↑
+                    - button "Move User ID later" [ref=f2e1091] [cursor=pointer]: ↓
+        - region "Ad-hoc report" [ref=f2e1094]:
+          - generic [ref=f2e1095]:
+            - generic [ref=f2e1096]:
+              - button "Collapse Ad-hoc report" [ref=f2e1097] [cursor=pointer]: ▾
+              - heading "Ad-hoc report" [level=2] [ref=f2e1098]
+            - generic [ref=f2e1100]:
+              - button "Move Ad-hoc report up" [ref=f2e1101] [cursor=pointer]: ↑
+              - button "Move Ad-hoc report down" [ref=f2e1102] [cursor=pointer]: ↓
+          - generic [ref=f2e1104]:
+            - generic [ref=f2e1105]:
+              - generic [ref=f2e1106]:
+                - heading "Group by" [level=3] [ref=f2e1107]
+                - generic [ref=f2e1108]:
+                  - button "Name" [ref=f2e1109] [cursor=pointer]
+                  - button "Email" [ref=f2e1110] [cursor=pointer]
+                  - button "Department" [ref=f2e1111] [cursor=pointer]
+                  - button "Title" [ref=f2e1112] [cursor=pointer]
+                  - button "State" [ref=f2e1113] [cursor=pointer]
+                  - button "Presence" [ref=f2e1114] [cursor=pointer]
+                  - button "Routing status" [ref=f2e1115] [cursor=pointer]
+                  - button "Skills" [ref=f2e1116] [cursor=pointer]
+                  - 'button "Skills #" [ref=f2e1117] [cursor=pointer]'
+                  - button "Auto answer" [ref=f2e1118] [cursor=pointer]
+                  - button "Presence message" [ref=f2e1119] [cursor=pointer]
+                  - button "Routing since" [ref=f2e1120] [cursor=pointer]
+                  - button "User ID" [ref=f2e1121] [cursor=pointer]
+                - paragraph [ref=f2e1122]: No grouping selected — the report is a single total row. Pick one or more fields to break it down.
+              - generic [ref=f2e1123]:
+                - heading "Metrics" [level=3] [ref=f2e1124]
+                - list [ref=f2e1232]:
+                  - listitem [ref=f2e1233]:
+                    - combobox "Aggregate function" [ref=f2e1234]:
+                      - option "Count" [selected]
+                      - option "Distinct"
+                    - combobox "Metric field" [ref=f2e1235]:
+                      - option "Name" [selected]
+                      - option "Email"
+                      - option "Department"
+                      - option "Title"
+                      - option "State"
+                      - option "Presence"
+                      - option "Routing status"
+                      - option "Skills"
+                      - 'option "Skills #"'
+                      - option "Auto answer"
+                      - option "Presence message"
+                      - option "Routing since"
+                      - option "User ID"
+                    - button "Remove metric" [ref=f2e1236] [cursor=pointer]: ×
+                - generic [ref=f2e1126]:
+                  - button "Add metric" [ref=f2e1127] [cursor=pointer]
+                  - button "Reset" [ref=f2e1237] [cursor=pointer]
+            - generic [ref=f2e1128]:
+              - generic [ref=f2e1129]:
+                - generic [ref=f2e1130]: 1 group
+                - generic [ref=f2e1131]: 10 records
+              - table [ref=f2e1133]:
+                - rowgroup [ref=f2e1134]:
+                  - row [ref=f2e1243]:
+                    - columnheader "Records" [ref=f2e1136]
+                    - columnheader "Average of Name" [ref=f2e1244]
+                - rowgroup [ref=f2e1137]:
+                  - row [ref=f2e1245]:
+                    - cell "10" [ref=f2e1139]
+                    - cell [ref=f2e1246]
+              - generic [ref=f2e1140]:
+                - generic [ref=f2e1141]:
+                  - generic [ref=f2e1142]: Format
+                  - combobox "Format" [ref=f2e1143]:
+                    - option "CSV" [selected]
+                    - option "JSON"
+                    - option "NDJSON"
+                    - option "Markdown"
+                - generic [ref=f2e1144] [cursor=pointer]:
+                  - checkbox "Include provenance" [checked] [ref=f2e1145]
+                  - generic [ref=f2e1146]: Include provenance
+                - generic [ref=f2e1147]:
+                  - button "Download 1 row" [ref=f2e1148] [cursor=pointer]
+                  - button "Copy" [ref=f2e1149] [cursor=pointer]
+        - generic [ref=f2e1150]:
+          - region "Export" [ref=f2e1152]:
+            - generic [ref=f2e1153]:
+              - generic [ref=f2e1154]:
+                - button "Collapse Export" [ref=f2e1155] [cursor=pointer]: ▾
+                - heading "Export" [level=2] [ref=f2e1156]
+              - generic [ref=f2e1158]:
+                - button "Move Export up" [ref=f2e1159] [cursor=pointer]: ↑
+                - button "Move Export down" [ref=f2e1160] [cursor=pointer]: ↓
+            - generic [ref=f2e1162]:
+              - generic [ref=f2e1163]:
+                - generic [ref=f2e1164]: Format
+                - combobox "Format" [ref=f2e1165]:
+                  - option "CSV" [selected]
+                  - option "JSON"
+                  - option "NDJSON"
+                  - option "Markdown"
+              - generic [ref=f2e1166]:
+                - generic [ref=f2e1167]: Columns
+                - combobox "Columns" [ref=f2e1168]:
+                  - option "Visible only" [selected]
+                  - option "All fields"
+              - generic [ref=f2e1169] [cursor=pointer]:
+                - checkbox "Include provenance" [checked] [ref=f2e1170]
+                - generic [ref=f2e1171]: Include provenance
+              - generic [ref=f2e1172]:
+                - button "Download 10 rows" [ref=f2e1173] [cursor=pointer]
+                - button "Copy" [ref=f2e1174] [cursor=pointer]
+          - region "Saved views" [ref=f2e1176]:
+            - generic [ref=f2e1177]:
+              - generic [ref=f2e1178]:
+                - button "Collapse Saved views" [ref=f2e1179] [cursor=pointer]: ▾
+                - heading "Saved views" [level=2] [ref=f2e1180]
+              - generic [ref=f2e1181]:
+                - generic [ref=f2e1182]: "0"
+                - generic [ref=f2e1183]:
+                  - button "Move Saved views up" [ref=f2e1184] [cursor=pointer]: ↑
+                  - button "Move Saved views down" [ref=f2e1185] [cursor=pointer]: ↓
+            - generic [ref=f2e1187]:
+              - generic [ref=f2e1188]:
+                - generic [ref=f2e1189]:
+                  - generic [ref=f2e1190]: Save current layout as
+                  - textbox "Save current layout as" [ref=f2e1191]:
+                    - /placeholder: e.g. Abandoned voice calls
+                - button "Save view" [disabled] [ref=f2e1192]
+              - paragraph [ref=f2e1193]: No saved views yet. A view remembers the filters, sort order and column layout on screen.
+          - region "What was exercised" [ref=f2e1195]:
+            - generic [ref=f2e1196]:
+              - generic [ref=f2e1197]:
+                - button "Collapse What was exercised" [ref=f2e1198] [cursor=pointer]: ▾
+                - heading "What was exercised" [level=2] [ref=f2e1199]
+              - generic [ref=f2e1201]:
+                - button "Move What was exercised up" [ref=f2e1202] [cursor=pointer]: ↑
+                - button "Move What was exercised down" [disabled] [ref=f2e1203]: ↓
+            - generic [ref=f2e1205]:
+              - paragraph [ref=f2e1206]: Organization users with presence, routing status and skills. Follows nextUri across both demo pages.
+              - generic [ref=f2e1207]:
+                - generic [ref=f2e1208]: Retrieved
+                - generic [ref=f2e1209]: 10/11/2026, 10:58:55 AM · 41 ms
+              - generic [ref=f2e1210]:
+                - generic [ref=f2e1211]: Records
+                - generic [ref=f2e1212]: "10"
+              - list [ref=f2e1213]:
+                - listitem [ref=f2e1214]:
+                  - code [ref=f2e1216]: GET
+                  - code [ref=f2e1217]: /api/v2/users
+                  - generic [ref=f2e1218]: "200"
+                  - generic [ref=f2e1219]: page 1
+                  - generic [ref=f2e1220]: 28 ms
+                - listitem [ref=f2e1221]:
+                  - code [ref=f2e1223]: GET
+                  - code [ref=f2e1224]: /api/v2/users?pageNumber=2
+                  - generic [ref=f2e1225]: "200"
+                  - generic [ref=f2e1226]: page 2
+                  - generic [ref=f2e1227]: 12 ms
+              - generic [ref=f2e1228]:
+                - generic [ref=f2e1229]: Catalog endpoints
+                - 'generic "Catalog endpoint key: users" [ref=f2e1230]':
+                  - code [ref=f2e1231]: users
+```

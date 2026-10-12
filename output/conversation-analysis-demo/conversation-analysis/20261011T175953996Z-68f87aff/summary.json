@@ -1,0 +1,462 @@
+{
+  "schemaVersion": 1,
+  "kind": "genesys-conversation-analysis",
+  "runId": "20261011T175953996Z-68f87aff",
+  "generatedAtUtc": "2026-10-11T17:59:55.4863807Z",
+  "scope": {
+    "divisionIds": [],
+    "untilUtc": "2026-10-01T00:00:00.0000000Z",
+    "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+    "mediaTypes": [],
+    "sinceUtc": "2026-09-01T00:00:00.0000000Z",
+    "userIds": [],
+    "queueIds": []
+  },
+  "coverage": {
+    "distinctConversations": 120,
+    "evidencePath": null,
+    "pageCount": 0,
+    "status": "complete",
+    "duplicateRows": 0,
+    "rawRows": 120,
+    "evidenceMode": "synthetic",
+    "missingIds": 0
+  },
+  "definitions": {
+    "mos": "MinMos prefers conversation summary, falls back to endpoint minimum; EndpointMinMos uses mediaEndpointStats.minMos only.",
+    "errors": "One event per segment with a non-empty errorCode. Conversation membership is deduplicated per code; occurrences are not.",
+    "agentMetrics": "Agent-work metrics are summed only from agent/user participants; seconds fields convert milliseconds.",
+    "countUnit": "distinct conversation IDs",
+    "nullPolicy": "Exclude missing values from numeric calculations; retain valid and missing counts.",
+    "averageUnit": "one non-null value per conversation",
+    "numericFields": [
+      "DurationSec",
+      "MinMos",
+      "EndpointMinMos",
+      "ConversationMinMos",
+      "MinRFactor",
+      "MaxLatencyMs",
+      "TransferCount",
+      "QueueCount",
+      "AgentCount",
+      "HoldCount",
+      "ErrorSegmentCount",
+      "ParticipantCount",
+      "FlowOutcomes",
+      "FlowOutcomeFailures",
+      "EvaluationCount",
+      "EvalScore",
+      "SurveyCount",
+      "SurveyScore",
+      "NpsScore",
+      "ResolutionCount",
+      "AvgUserResponseSec",
+      "AvgAgentResponseSec",
+      "tAnsweredSec",
+      "tAbandonSec",
+      "tShortAbandonSec",
+      "tAcdSec",
+      "tWaitSec",
+      "tIvrSec",
+      "tFlowSec",
+      "tAlertSec",
+      "tNotRespondingSec",
+      "tDialingSec",
+      "tContactingSec",
+      "tTalkSec",
+      "tHeldSec",
+      "tAcwSec",
+      "tHandleSec",
+      "tVoicemailSec",
+      "nConnected",
+      "nOffered",
+      "nOverSla",
+      "nOutbound",
+      "nError",
+      "nTransferred",
+      "nBlindTransferred",
+      "nConsultTransferred",
+      "nConsult"
+    ],
+    "transferCount": "Maximum of nTransferred, nBlindTransferred, nConsultTransferred sums, following supplied reference; components retained separately."
+  },
+  "statistics": {
+    "DurationSec": {
+      "missingCount": 0,
+      "average": 180.0,
+      "sum": 21600.0,
+      "max": 180.0,
+      "min": 180.0,
+      "validCount": 120
+    },
+    "MinMos": {
+      "missingCount": 0,
+      "average": 2.5,
+      "sum": 300.0,
+      "max": 4.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "EndpointMinMos": {
+      "missingCount": 0,
+      "average": 2.5,
+      "sum": 300.0,
+      "max": 4.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "ConversationMinMos": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "MinRFactor": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "MaxLatencyMs": {
+      "missingCount": 0,
+      "average": 80.5,
+      "sum": 9660.0,
+      "max": 140.0,
+      "min": 21.0,
+      "validCount": 120
+    },
+    "TransferCount": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "QueueCount": {
+      "missingCount": 0,
+      "average": 1.0,
+      "sum": 120.0,
+      "max": 1.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "AgentCount": {
+      "missingCount": 0,
+      "average": 1.0,
+      "sum": 120.0,
+      "max": 1.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "HoldCount": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "ErrorSegmentCount": {
+      "missingCount": 0,
+      "average": 0.5,
+      "sum": 60.0,
+      "max": 2.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "ParticipantCount": {
+      "missingCount": 0,
+      "average": 3.0,
+      "sum": 360.0,
+      "max": 3.0,
+      "min": 3.0,
+      "validCount": 120
+    },
+    "FlowOutcomes": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "FlowOutcomeFailures": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "EvaluationCount": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "EvalScore": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "SurveyCount": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "SurveyScore": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "NpsScore": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "ResolutionCount": {
+      "missingCount": 0,
+      "average": 0.0,
+      "sum": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "validCount": 120
+    },
+    "AvgUserResponseSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "AvgAgentResponseSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tAnsweredSec": {
+      "missingCount": 0,
+      "average": 10.0,
+      "sum": 1200.0,
+      "max": 10.0,
+      "min": 10.0,
+      "validCount": 120
+    },
+    "tAbandonSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tShortAbandonSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tAcdSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tWaitSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tIvrSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tFlowSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tAlertSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tNotRespondingSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tDialingSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tContactingSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tTalkSec": {
+      "missingCount": 0,
+      "average": 48.4,
+      "sum": 5808.0,
+      "max": 96.0,
+      "min": 0.8,
+      "validCount": 120
+    },
+    "tHeldSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tAcwSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "tHandleSec": {
+      "missingCount": 0,
+      "average": 60.5,
+      "sum": 7260.0,
+      "max": 120.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "tVoicemailSec": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nConnected": {
+      "missingCount": 0,
+      "average": 1.0,
+      "sum": 120.0,
+      "max": 1.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "nOffered": {
+      "missingCount": 0,
+      "average": 1.0,
+      "sum": 120.0,
+      "max": 1.0,
+      "min": 1.0,
+      "validCount": 120
+    },
+    "nOverSla": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nOutbound": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nError": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nTransferred": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nBlindTransferred": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nConsultTransferred": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    },
+    "nConsult": {
+      "missingCount": 120,
+      "average": null,
+      "sum": null,
+      "max": null,
+      "min": null,
+      "validCount": 0
+    }
+  },
+  "warnings": []
+}

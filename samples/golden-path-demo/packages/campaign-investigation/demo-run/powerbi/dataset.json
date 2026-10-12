@@ -1,0 +1,46 @@
+{
+  "bundleType": "powerbi-investigation-import",
+  "generatedAtUtc": "2026-10-11T14:50:06.9234450Z",
+  "tables": [
+    {
+      "Name": "overview",
+      "File": "overview.csv"
+    },
+    {
+      "Name": "steps",
+      "File": "steps.csv"
+    },
+    {
+      "Name": "campaign",
+      "File": "campaign.csv"
+    },
+    {
+      "Name": "contactList",
+      "File": "contactList.csv"
+    },
+    {
+      "Name": "queue",
+      "File": "queue.csv"
+    },
+    {
+      "Name": "diagnostics",
+      "File": "diagnostics.csv"
+    },
+    {
+      "Name": "outboundEvents",
+      "File": "outboundEvents.csv"
+    },
+    {
+      "Name": "auditChanges",
+      "File": "auditChanges.csv"
+    },
+    {
+      "Name": "conversationAnalytics",
+      "File": "conversationAnalytics.csv"
+    },
+    {
+      "Name": "outboundAbandons",
+      "File": "outboundAbandons.csv"
+    }
+  ]
+}

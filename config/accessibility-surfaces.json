@@ -18,6 +18,11 @@
       "kind": "operator-console"
     },
     {
+      "path": "apps/ConversationAnalysis/Investigation.html",
+      "name": "Conversation Incident Workbench",
+      "kind": "operator-console"
+    },
+    {
       "path": "catalog/catalog-browser.html",
       "name": "Dataset Browser",
       "kind": "reference"

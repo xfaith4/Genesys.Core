@@ -1,0 +1,33 @@
+async (page) => {
+  const check=(ok,message)=>{if(!ok)throw new Error(message);};
+  let frame=page.frameLocator('iframe[title="Conversation investigation workbench"]');
+  await frame.locator('#file').setInputFiles('output/conversation-analysis-demo/conversation-analysis/20261011T180445485Z-929cdcf4/analysis.json');
+  await frame.locator('#metric').selectOption('tHandleSec');
+  await frame.locator('#filter-field').selectOption('tHandleSec');
+  await frame.locator('#operator').selectOption('gt');
+  await frame.locator('#filter-value').fill('100');
+  await frame.locator('#filter-form').getByRole('button',{name:'Add filter',exact:true}).click();
+  check((await frame.locator('#stats strong').allTextContents())[1]==='110.5','Filtered mean wrong');
+  await page.getByRole('button',{name:'Endpoint explorer',exact:true}).click();
+  await page.getByRole('button',{name:'Conversation investigation',exact:true}).click();
+  frame=page.frameLocator('iframe[title="Conversation investigation workbench"]');
+  await frame.locator('#stats strong').first().waitFor();
+  check((await frame.locator('#stats strong').allTextContents())[0]==='20','Population lost through navigation');
+  check((await frame.locator('#stats strong').allTextContents())[1]==='110.5','Metric lost through navigation');
+  await page.getByRole('button',{name:'Switch to the Atlas skin',exact:true}).click();
+  frame=page.frameLocator('iframe[title="Conversation investigation workbench"]');
+  await frame.locator('#stats strong').first().waitFor();
+  check((await frame.locator('#stats strong').allTextContents())[1]==='110.5','Metric lost through skin change');
+  const [download]=await Promise.all([page.waitForEvent('download'),frame.locator('#export-json').click()]);
+  await download.saveAs('output/playwright/client-investigation-filtered.json');
+  await frame.locator('#grid tbody button').first().click();
+  check(await frame.locator('#detail').isVisible(),'Timeline drilldown failed');
+  await frame.locator('#close-detail').click();
+  await page.setViewportSize({width:390,height:844});
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Shell mobile overflow');
+  check(await page.frames()[1].evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Frame mobile overflow');
+  await page.screenshot({path:'output/playwright/client-investigation-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.screenshot({path:'output/playwright/client-investigation-desktop.png',fullPage:true});
+  return {filtered:20,average:110.5,navigationRetention:true,skinRetention:true,download:true,mobileOverflow:false};
+}

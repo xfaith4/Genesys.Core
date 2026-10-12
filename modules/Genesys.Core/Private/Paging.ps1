@@ -600,7 +600,8 @@ function Invoke-PagingBodyPaging {
 
     $baseBodyObject = @{}
     if ($null -ne $InitialBody -and [string]::IsNullOrWhiteSpace([string]$InitialBody) -eq $false) {
-        $baseBodyObject = ConvertFrom-Json -InputObject $InitialBody -Depth 100 -AsHashtable
+        $parsedBody = ConvertFrom-Json -InputObject $InitialBody
+        foreach ($property in $parsedBody.PSObject.Properties) { $baseBodyObject[$property.Name] = $property.Value }
     }
 
     $telemetry = [System.Collections.Generic.List[object]]::new()
@@ -615,7 +616,20 @@ function Invoke-PagingBodyPaging {
             $requestBody[$key] = $baseBodyObject[$key]
         }
 
-        $requestBody[$pageParam] = $pageNumber
+        $bodyContainer = ''
+        if ($null -ne $pagingProfile -and $pagingProfile.PSObject.Properties.Name -contains 'bodyContainer') {
+            $bodyContainer = [string]$pagingProfile.bodyContainer
+        }
+        if ($bodyContainer) {
+            $pagingBody = @{}
+            $originalPaging = $baseBodyObject[$bodyContainer]
+            if ($null -ne $originalPaging) {
+                foreach ($property in $originalPaging.PSObject.Properties) { $pagingBody[$property.Name] = $property.Value }
+            }
+            $pagingBody[$pageParam] = $pageNumber
+            $requestBody[$bodyContainer] = $pagingBody
+        }
+        else { $requestBody[$pageParam] = $pageNumber }
         $requestBodyJson = $requestBody | ConvertTo-Json -Depth 100
 
         $responseEnvelope = Invoke-RequestWithRetry -Request ([pscustomobject]@{
@@ -669,6 +683,9 @@ function Invoke-PagingBodyPaging {
         $pageNumber++
     }
 
+    if ($pageNumber -gt $maxPages) {
+        $RunEvents.Add([pscustomobject]@{ eventType = 'paging.terminated.maxPages'; page = $maxPages; timestampUtc = [DateTime]::UtcNow.ToString('o') })
+    }
     return [pscustomobject]@{
         Items = $items
         PagingTelemetry = $telemetry
@@ -847,6 +864,9 @@ function Invoke-PagingCursor {
         $pageNumber++
     }
 
+    if ($pageNumber -gt $maxPages -and -not [string]::IsNullOrWhiteSpace($currentUri)) {
+        $RunEvents.Add([pscustomobject]@{ eventType = 'paging.terminated.maxPages'; page = $maxPages; timestampUtc = [DateTime]::UtcNow.ToString('o') })
+    }
     return [pscustomobject]@{
         Items = $items
         PagingTelemetry = $telemetry

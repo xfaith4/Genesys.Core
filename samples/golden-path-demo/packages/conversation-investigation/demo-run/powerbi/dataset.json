@@ -1,0 +1,50 @@
+{
+  "bundleType": "powerbi-investigation-import",
+  "generatedAtUtc": "2026-10-11T14:50:07.1452812Z",
+  "tables": [
+    {
+      "Name": "overview",
+      "File": "overview.csv"
+    },
+    {
+      "Name": "steps",
+      "File": "steps.csv"
+    },
+    {
+      "Name": "conversationLookup",
+      "File": "conversationLookup.csv"
+    },
+    {
+      "Name": "conversation",
+      "File": "conversation.csv"
+    },
+    {
+      "Name": "participants",
+      "File": "participants.csv"
+    },
+    {
+      "Name": "agents",
+      "File": "agents.csv"
+    },
+    {
+      "Name": "divisions",
+      "File": "divisions.csv"
+    },
+    {
+      "Name": "skills",
+      "File": "skills.csv"
+    },
+    {
+      "Name": "recordings",
+      "File": "recordings.csv"
+    },
+    {
+      "Name": "evaluations",
+      "File": "evaluations.csv"
+    },
+    {
+      "Name": "surveys",
+      "File": "surveys.csv"
+    }
+  ]
+}

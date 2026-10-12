@@ -1,0 +1,58 @@
+{
+  "bundleType": "powerbi-investigation-import",
+  "generatedAtUtc": "2026-10-11T14:50:06.6660389Z",
+  "tables": [
+    {
+      "Name": "overview",
+      "File": "overview.csv"
+    },
+    {
+      "Name": "steps",
+      "File": "steps.csv"
+    },
+    {
+      "Name": "agent",
+      "File": "agent.csv"
+    },
+    {
+      "Name": "division",
+      "File": "division.csv"
+    },
+    {
+      "Name": "skills",
+      "File": "skills.csv"
+    },
+    {
+      "Name": "queues",
+      "File": "queues.csv"
+    },
+    {
+      "Name": "presence",
+      "File": "presence.csv"
+    },
+    {
+      "Name": "routingStatus",
+      "File": "routingStatus.csv"
+    },
+    {
+      "Name": "utilization",
+      "File": "utilization.csv"
+    },
+    {
+      "Name": "activity",
+      "File": "activity.csv"
+    },
+    {
+      "Name": "activeConversations",
+      "File": "activeConversations.csv"
+    },
+    {
+      "Name": "conversations",
+      "File": "conversations.csv"
+    },
+    {
+      "Name": "auditAccountChanges",
+      "File": "auditAccountChanges.csv"
+    }
+  ]
+}

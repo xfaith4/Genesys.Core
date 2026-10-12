@@ -1,0 +1,19 @@
+{
+  "orderBy": "conversationStart",
+  "order": "asc",
+  "interval": "2026-09-01T00:00:00.0000000Z/2026-10-01T00:00:00.0000000Z",
+  "conversationFilters": [],
+  "segmentFilters": [
+    {
+      "type": "and",
+      "predicates": [
+        {
+          "type": "dimension",
+          "value": "voice",
+          "operator": "matches",
+          "dimension": "mediaType"
+        }
+      ]
+    }
+  ]
+}

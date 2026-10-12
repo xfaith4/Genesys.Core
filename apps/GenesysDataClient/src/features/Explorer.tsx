@@ -47,20 +47,20 @@ export const Explorer = ({
   const workspace = useWorkspace();
   const { status, dataSet, error, reload } = useDataSource(source);
 
-  const [query, setQuery] = useState<QueryDefinition>(() => ({
+  const draft = workspace.explorerDrafts.get(sourceId);
+  const [query, setQuery] = useState<QueryDefinition>(() => draft?.query ?? ({
     ...emptyQuery(sourceId),
     ...source?.defaultQuery,
   }));
-  const [columns, setColumns] = useState<ColumnState[]>(() => (source ? defaultColumns(source) : []));
-  const [viewName, setViewName] = useState('');
+  const [columns, setColumns] = useState<ColumnState[]>(
+    () => draft?.columns ?? (source ? defaultColumns(source) : []),
+  );
+  const [viewName, setViewName] = useState(draft?.viewName ?? '');
 
-  // Switching source resets the on-screen state to that source's defaults.
+  // The keyed screen can remount when the user changes skins. Keep its working selection.
   useEffect(() => {
-    if (!source) return;
-    setQuery({ ...emptyQuery(source.id), ...source.defaultQuery });
-    setColumns(defaultColumns(source));
-    setViewName('');
-  }, [source]);
+    workspace.explorerDrafts.set(sourceId, { query, columns, viewName });
+  }, [workspace.explorerDrafts, sourceId, query, columns, viewName]);
 
   const records = dataSet?.records ?? [];
   const fields = dataSet?.fields ?? source?.fields ?? [];
@@ -79,6 +79,7 @@ export const Explorer = ({
 
   const applyView = (view: ViewDefinition) => {
     setQuery(structuredClone(view.query));
+    workspace.setDensity(view.density);
     // A view can predate fields the source has gained since; reconcile rather than freeze it.
     setColumns(reconcileColumns(structuredClone(view.columns), fields));
   };
@@ -189,6 +190,8 @@ export const Explorer = ({
     wide: true,
     render: () => (
       <ReportBuilder
+        sourceId={sourceId}
+        filterSummary={summarizeFilters(query)}
         sourceName={source.name}
         fields={fields}
         records={processed.records}

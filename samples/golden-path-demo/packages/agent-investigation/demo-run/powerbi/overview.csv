@@ -1,0 +1,2 @@
+"GeneratedAtUtc","Investigation","SubjectType","SubjectId","RunId","StartedAtUtc","FinishedAtUtc","SinceUtc","UntilUtc","StepCount","FailedSteps","RecordsCollected","SectionCount"
+"2026-10-11T14:50:06.2132678Z","agent-investigation","agent","agent-demo-001","demo-run","2026-10-11T14:50:04.1317135Z","2026-10-11T14:50:04.5185713Z","2026-04-01T00:00:00.0000000Z","2026-04-08T00:00:00.0000000Z","11","0","15","11"

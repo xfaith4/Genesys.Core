@@ -1,0 +1,33 @@
+async (page) => {
+  const check = (ok, message) => { if (!ok) throw new Error(message); };
+  await page.getByRole('button', { name: 'Endpoint explorer', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search', exact: true });
+  await search.fill('/api/v2/users/me');
+  const userEndpoint = page.getByRole('button', { name: 'GET /api/v2/users/me Get current user details. Synthesized', exact: true });
+  await userEndpoint.waitFor();
+  await userEndpoint.click();
+  await page.getByRole('button', { name: 'Run request', exact: true }).click();
+  await page.locator('.runner__result-head').getByText('200', { exact: true }).waitFor();
+  const outage = route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Demo audit injected outage' }) });
+  await page.route('**/__meta/endpoints?*', outage);
+  await search.fill('/api/v2/routing/queues');
+  await page.getByRole('alert').filter({ hasText: 'Could not load endpoints' }).waitFor();
+  check(await userEndpoint.count() === 0, 'Stale user results remain after discovery failure');
+  check(await page.getByRole('button', { name: 'Run request', exact: true }).count() === 0, 'Stale endpoint runner remains after filter change');
+  await page.screenshot({ path: 'output/playwright/22-discovery-outage-after.png' });
+  await page.unroute('**/__meta/endpoints?*', outage);
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await page.locator('.endpoint-list button').filter({ hasText: '/api/v2/routing/queues' }).first().waitFor();
+  await page.screenshot({ path: 'output/playwright/23-discovery-recovered-after.png' });
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+  await page.getByText('5 of 5 rows', { exact: true }).waitFor();
+  await page.getByText('results cursor page 2', { exact: true }).waitFor();
+  const exportPanel = page.getByRole('region', { name: 'Export', exact: true });
+  await exportPanel.getByRole('combobox', { name: 'Format', exact: true }).selectOption('csv');
+  const download = page.waitForEvent('download');
+  await exportPanel.getByRole('button', { name: 'Download 5 rows', exact: true }).click();
+  await (await download).saveAs('output/playwright/conversations-after.csv');
+  await page.getByRole('region', { name: 'Conversations', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'output/playwright/24-conversations-after.png' });
+  return { passed: ['endpoint search', 'endpoint HTTP 200 execution', 'visible discovery outage', 'stale results cleared', 'stale runner cleared', 'retry recovers current filters', 'async conversations and second cursor page', 'five-row CSV export'] };
+}

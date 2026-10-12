@@ -1,0 +1,49 @@
+{
+  "provenance": {
+    "source": "Users",
+    "generated": "2026-10-11T15:09:27.416Z",
+    "recordCount": 1,
+    "filterSummary": "search \"Alice\"",
+    "units": {
+      "durations": "milliseconds",
+      "timestamps": "ISO 8601 UTC"
+    },
+    "meta": {
+      "sourceId": "users",
+      "fetchedAt": "2026-10-11T15:09:27.296Z",
+      "durationMs": 27,
+      "requests": [
+        {
+          "method": "GET",
+          "url": "/api/v2/users",
+          "status": 200,
+          "durationMs": 16,
+          "endpointKey": "users",
+          "note": "page 1"
+        },
+        {
+          "method": "GET",
+          "url": "/api/v2/users?pageNumber=2",
+          "status": 200,
+          "durationMs": 10,
+          "endpointKey": "users",
+          "note": "page 2"
+        }
+      ],
+      "warnings": []
+    }
+  },
+  "records": [
+    {
+      "email": "alice.support@corp.example.com",
+      "department": "Customer Service",
+      "title": "Senior Support Agent",
+      "state": "active",
+      "presence": "AVAILABLE",
+      "routingStatus": "IDLE",
+      "skills": "English",
+      "skillCount": 1,
+      "acdAutoAnswer": true
+    }
+  ]
+}

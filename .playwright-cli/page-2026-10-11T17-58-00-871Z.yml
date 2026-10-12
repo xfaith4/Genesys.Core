@@ -1,0 +1,789 @@
+- generic [active] [ref=f1e1]:
+  - link "Skip to investigation" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]: Genesys · Investigation tools
+      - heading "Conversation investigation" [level=1] [ref=f1e6]
+      - paragraph [ref=f1e7]: Explore a population. Follow the evidence.
+    - generic [ref=f1e8] [cursor=pointer]:
+      - text: Open Ops analysis JSON
+      - button "Open Ops analysis JSON" [ref=f1e9]
+  - main [ref=f1e10]:
+    - status [ref=f1e11]: Analysis loaded. Filters and statistics use the full population.
+    - group [ref=f1e12]:
+      - generic "Collect conversations by interval, queue, user or Division" [ref=f1e13] [cursor=pointer]
+    - region "Collection scope" [ref=f1e14]:
+      - paragraph [ref=f1e15]: 2026-09-01T00:00:00.0000000Z → 2026-10-01T00:00:00.0000000Z · 120 distinct conversations · collected 2026-10-11T17:57:10.8516721Z
+      - generic [ref=f1e16]: "Collection: complete · Evidence: synthetic · Duplicates excluded: 0"
+    - generic [ref=f1e17]:
+      - region [ref=f1e18]:
+        - generic [ref=f1e19]:
+          - heading "Population & filters" [level=2] [ref=f1e20]
+          - generic [ref=f1e21]:
+            - text: Search all profiles
+            - searchbox "Search all profiles" [ref=f1e22]
+        - group "Add a condition · all conditions must match" [ref=f1e24]:
+          - generic [ref=f1e26]:
+            - generic [ref=f1e27]:
+              - text: Field
+              - combobox "Field" [ref=f1e28]:
+                - option "Abandoned" [selected]
+                - option "AgentConnected"
+                - option "AgentCount"
+                - option "AgentKeys"
+                - option "Answered"
+                - option "AvgAgentResponseSec"
+                - option "AvgUserResponseSec"
+                - option "Codecs"
+                - option "ConversationId"
+                - option "ConversationMinMos"
+                - option "CustomerParticipation"
+                - option "Direction"
+                - option "DisconnectPurpose"
+                - option "DisconnectType"
+                - option "DivisionIds"
+                - option "DurationSec"
+                - option "EndUtc"
+                - option "EndpointMinMos"
+                - option "ErrorCodes"
+                - option "ErrorDisconnect"
+                - option "ErrorSegmentCount"
+                - option "EvalScore"
+                - option "EvaluationCount"
+                - option "FlowEntryReason"
+                - option "FlowExitReason"
+                - option "FlowNames"
+                - option "FlowOutcomeFailures"
+                - option "FlowOutcomes"
+                - option "FlowType"
+                - option "HasErrorCodeProperty"
+                - option "HoldCount"
+                - option "Initiator"
+                - option "LanguageIds"
+                - option "MaxLatencyMs"
+                - option "MediaTypes"
+                - option "MinMos"
+                - option "MinRFactor"
+                - option "MosSource"
+                - option "NpsScore"
+                - option "Offered"
+                - option "OverSla"
+                - option "ParticipantCount"
+                - option "PurposeSummary"
+                - option "Q850Codes"
+                - option "QueueCount"
+                - option "QueueIds"
+                - option "Recorded"
+                - option "RequestedRoutings"
+                - option "ResolutionCount"
+                - option "SelfServed"
+                - option "ShortAbandon"
+                - option "SipCodes"
+                - option "SkillIds"
+                - option "StartUtc"
+                - option "SurveyCount"
+                - option "SurveyScore"
+                - option "TransferCount"
+                - option "Transferred"
+                - option "UsedRouting"
+                - option "Voicemail"
+                - option "WrapUpCodeId"
+                - option "nBlindTransferred"
+                - option "nConnected"
+                - option "nConsult"
+                - option "nConsultTransferred"
+                - option "nError"
+                - option "nOffered"
+                - option "nOutbound"
+                - option "nOverSla"
+                - option "nTransferred"
+                - option "tAbandonSec"
+                - option "tAcdSec"
+                - option "tAcwSec"
+                - option "tAlertSec"
+                - option "tAnsweredSec"
+                - option "tContactingSec"
+                - option "tDialingSec"
+                - option "tFlowSec"
+                - option "tHandleSec"
+                - option "tHeldSec"
+                - option "tIvrSec"
+                - option "tNotRespondingSec"
+                - option "tShortAbandonSec"
+                - option "tTalkSec"
+                - option "tVoicemailSec"
+                - option "tWaitSec"
+            - generic [ref=f1e29]:
+              - text: Operator
+              - combobox "Operator" [ref=f1e30]:
+                - option "Equals / array contains exact value" [selected]
+                - option "Contains text"
+                - option "Has a value"
+                - option "Missing"
+                - option "Less than"
+                - option "Less than or equal"
+                - option "Greater than"
+                - option "Greater than or equal"
+            - generic [ref=f1e31]:
+              - text: Value
+              - textbox "Value" [ref=f1e32]
+            - button "Add filter" [ref=f1e33] [cursor=pointer]
+            - button "Reset filters" [ref=f1e34] [cursor=pointer]
+        - generic [ref=f1e35]:
+          - generic [ref=f1e36]:
+            - text: Statistic field
+            - combobox "Statistic field" [ref=f1e37]:
+              - option "DurationSec"
+              - option "MinMos"
+              - option "EndpointMinMos" [selected]
+              - option "ConversationMinMos"
+              - option "MinRFactor"
+              - option "MaxLatencyMs"
+              - option "TransferCount"
+              - option "QueueCount"
+              - option "AgentCount"
+              - option "HoldCount"
+              - option "ErrorSegmentCount"
+              - option "ParticipantCount"
+              - option "FlowOutcomes"
+              - option "FlowOutcomeFailures"
+              - option "EvaluationCount"
+              - option "EvalScore"
+              - option "SurveyCount"
+              - option "SurveyScore"
+              - option "NpsScore"
+              - option "ResolutionCount"
+              - option "AvgUserResponseSec"
+              - option "AvgAgentResponseSec"
+              - option "tAnsweredSec"
+              - option "tAbandonSec"
+              - option "tShortAbandonSec"
+              - option "tAcdSec"
+              - option "tWaitSec"
+              - option "tIvrSec"
+              - option "tFlowSec"
+              - option "tAlertSec"
+              - option "tNotRespondingSec"
+              - option "tDialingSec"
+              - option "tContactingSec"
+              - option "tTalkSec"
+              - option "tHeldSec"
+              - option "tAcwSec"
+              - option "tHandleSec"
+              - option "tVoicemailSec"
+              - option "nConnected"
+              - option "nOffered"
+              - option "nOverSla"
+              - option "nOutbound"
+              - option "nError"
+              - option "nTransferred"
+              - option "nBlindTransferred"
+              - option "nConsultTransferred"
+              - option "nConsult"
+          - generic [ref=f1e38]:
+            - text: Group by
+            - combobox "Group by" [ref=f1e39]:
+              - option "All conversations" [selected]
+              - option "Division"
+              - option "Queue"
+              - option "Engaged agent"
+              - option "Error code"
+              - option "Direction"
+              - option "Media type"
+              - option "Disconnect type"
+              - option "Flow"
+              - option "Wrap-up code"
+          - generic [ref=f1e40]:
+            - button "Export filtered JSON" [ref=f1e41] [cursor=pointer]
+            - button "Export visible columns CSV" [ref=f1e42] [cursor=pointer]
+        - generic [ref=f1e43]:
+          - generic [ref=f1e44]:
+            - strong [ref=f1e45]: "120"
+            - text: Filtered conversations
+          - generic [ref=f1e46]:
+            - strong [ref=f1e47]: "2.5"
+            - text: Average
+          - generic [ref=f1e48]:
+            - strong [ref=f1e49]: "1"
+            - text: Minimum
+          - generic [ref=f1e50]:
+            - strong [ref=f1e51]: "4"
+            - text: Maximum
+          - generic [ref=f1e52]:
+            - strong [ref=f1e53]: "120"
+            - text: Valid samples
+          - generic [ref=f1e54]:
+            - strong [ref=f1e55]: "0"
+            - text: Missing
+        - paragraph [ref=f1e56]: EndpointMinMos · MOS points. Average uses one non-null value per conversation (120 valid, 0 missing). MinMos prefers conversation summary, falls back to endpoint minimum; EndpointMinMos uses mediaEndpointStats.minMos only.
+      - region "Population breakdowns" [ref=f1e57]:
+        - generic [ref=f1e58]:
+          - heading "Grouped statistics" [level=2] [ref=f1e59]
+          - paragraph [ref=f1e60]: One contribution per conversation per group. Conversations can belong to several groups; group counts are not additive.
+          - region "Grouped statistics" [ref=f1e61]:
+            - table [ref=f1e62]:
+              - rowgroup [ref=f1e63]:
+                - row [ref=f1e64]:
+                  - columnheader "Group" [ref=f1e65]
+                  - columnheader "Conversations" [ref=f1e66]
+                  - columnheader "Valid" [ref=f1e67]
+                  - columnheader "Missing" [ref=f1e68]
+                  - columnheader "Average" [ref=f1e69]
+                  - columnheader "Max" [ref=f1e70]
+              - rowgroup [ref=f1e71]:
+                - row [ref=f1e72]:
+                  - cell "All conversations" [ref=f1e73]
+                  - cell "120" [ref=f1e74]
+                  - cell "120" [ref=f1e75]
+                  - cell "0" [ref=f1e76]
+                  - cell "2.5" [ref=f1e77]
+                  - cell "4" [ref=f1e78]
+        - generic [ref=f1e79]:
+          - heading "Error distribution" [level=2] [ref=f1e80]
+          - paragraph [ref=f1e81]: Counts every error segment. Repeated codes on one conversation increase occurrences, while that conversation is counted once per code.
+          - region "Error distribution" [ref=f1e82]:
+            - table [ref=f1e83]:
+              - rowgroup [ref=f1e84]:
+                - row [ref=f1e85]:
+                  - columnheader "Error code" [ref=f1e86]
+                  - columnheader "Conversations" [ref=f1e87]
+                  - columnheader "Occurrences" [ref=f1e88]
+              - rowgroup [ref=f1e89]:
+                - row [ref=f1e90]:
+                  - cell [ref=f1e91]:
+                    - button "error.demo.ice" [ref=f1e92] [cursor=pointer]
+                  - cell "30" [ref=f1e93]
+                  - cell "60" [ref=f1e94]
+      - region [ref=f1e95]:
+        - generic [ref=f1e96]:
+          - heading "Conversations" [level=2] [ref=f1e97]
+          - status [ref=f1e98]: 120 of 120 conversations
+          - generic [ref=f1e99]:
+            - button "Previous" [disabled] [ref=f1e100]
+            - text: Page 1 of 3
+            - button "Next" [ref=f1e101] [cursor=pointer]
+        - group [ref=f1e102]:
+          - generic "Choose columns" [ref=f1e103] [cursor=pointer]
+        - region "Conversation population" [ref=f1e104]:
+          - table [ref=f1e105]:
+            - rowgroup [ref=f1e106]:
+              - row [ref=f1e107]:
+                - columnheader [ref=f1e108]:
+                  - button "ConversationId" [ref=f1e109] [cursor=pointer]
+                - columnheader [ref=f1e110]:
+                  - button "StartUtc" [ref=f1e111] [cursor=pointer]
+                - columnheader [ref=f1e112]:
+                  - button "Direction" [ref=f1e113] [cursor=pointer]
+                - columnheader [ref=f1e114]:
+                  - button "QueueIds" [ref=f1e115] [cursor=pointer]
+                - columnheader [ref=f1e116]:
+                  - button "AgentKeys" [ref=f1e117] [cursor=pointer]
+                - columnheader [ref=f1e118]:
+                  - button "ErrorCodes" [ref=f1e119] [cursor=pointer]
+                - columnheader [ref=f1e120]:
+                  - button "EndpointMinMos" [ref=f1e121] [cursor=pointer]
+                - columnheader [ref=f1e122]:
+                  - button "tHandleSec" [ref=f1e123] [cursor=pointer]
+            - rowgroup [ref=f1e124]:
+              - row [ref=f1e125]:
+                - cell [ref=f1e126]:
+                  - button "demo-conversation-001" [ref=f1e127] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e128]
+                - cell "inbound" [ref=f1e129]
+                - cell "queue-1" [ref=f1e130]
+                - cell "agent-1" [ref=f1e131]
+                - cell [ref=f1e132]
+                - cell "2" [ref=f1e133]
+                - cell "1" [ref=f1e134]
+              - row [ref=f1e135]:
+                - cell [ref=f1e136]:
+                  - button "demo-conversation-002" [ref=f1e137] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e138]
+                - cell "inbound" [ref=f1e139]
+                - cell "queue-2" [ref=f1e140]
+                - cell "agent-2" [ref=f1e141]
+                - cell [ref=f1e142]
+                - cell "3" [ref=f1e143]
+                - cell "2" [ref=f1e144]
+              - row [ref=f1e145]:
+                - cell [ref=f1e146]:
+                  - button "demo-conversation-003" [ref=f1e147] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e148]
+                - cell "outbound" [ref=f1e149]
+                - cell "queue-0" [ref=f1e150]
+                - cell "agent-3" [ref=f1e151]
+                - cell [ref=f1e152]
+                - cell "4" [ref=f1e153]
+                - cell "3" [ref=f1e154]
+              - row [ref=f1e155]:
+                - cell [ref=f1e156]:
+                  - button "demo-conversation-004" [ref=f1e157] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e158]
+                - cell "inbound" [ref=f1e159]
+                - cell "queue-1" [ref=f1e160]
+                - cell "agent-4" [ref=f1e161]
+                - cell "error.demo.ice" [ref=f1e162]
+                - cell "1" [ref=f1e163]
+                - cell "4" [ref=f1e164]
+              - row [ref=f1e165]:
+                - cell [ref=f1e166]:
+                  - button "demo-conversation-005" [ref=f1e167] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e168]
+                - cell "inbound" [ref=f1e169]
+                - cell "queue-2" [ref=f1e170]
+                - cell "agent-0" [ref=f1e171]
+                - cell [ref=f1e172]
+                - cell "2" [ref=f1e173]
+                - cell "5" [ref=f1e174]
+              - row [ref=f1e175]:
+                - cell [ref=f1e176]:
+                  - button "demo-conversation-006" [ref=f1e177] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e178]
+                - cell "outbound" [ref=f1e179]
+                - cell "queue-0" [ref=f1e180]
+                - cell "agent-1" [ref=f1e181]
+                - cell [ref=f1e182]
+                - cell "3" [ref=f1e183]
+                - cell "6" [ref=f1e184]
+              - row [ref=f1e185]:
+                - cell [ref=f1e186]:
+                  - button "demo-conversation-007" [ref=f1e187] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e188]
+                - cell "inbound" [ref=f1e189]
+                - cell "queue-1" [ref=f1e190]
+                - cell "agent-2" [ref=f1e191]
+                - cell [ref=f1e192]
+                - cell "4" [ref=f1e193]
+                - cell "7" [ref=f1e194]
+              - row [ref=f1e195]:
+                - cell [ref=f1e196]:
+                  - button "demo-conversation-008" [ref=f1e197] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e198]
+                - cell "inbound" [ref=f1e199]
+                - cell "queue-2" [ref=f1e200]
+                - cell "agent-3" [ref=f1e201]
+                - cell "error.demo.ice" [ref=f1e202]
+                - cell "1" [ref=f1e203]
+                - cell "8" [ref=f1e204]
+              - row [ref=f1e205]:
+                - cell [ref=f1e206]:
+                  - button "demo-conversation-009" [ref=f1e207] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e208]
+                - cell "outbound" [ref=f1e209]
+                - cell "queue-0" [ref=f1e210]
+                - cell "agent-4" [ref=f1e211]
+                - cell [ref=f1e212]
+                - cell "2" [ref=f1e213]
+                - cell "9" [ref=f1e214]
+              - row [ref=f1e215]:
+                - cell [ref=f1e216]:
+                  - button "demo-conversation-010" [ref=f1e217] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e218]
+                - cell "inbound" [ref=f1e219]
+                - cell "queue-1" [ref=f1e220]
+                - cell "agent-0" [ref=f1e221]
+                - cell [ref=f1e222]
+                - cell "3" [ref=f1e223]
+                - cell "10" [ref=f1e224]
+              - row [ref=f1e225]:
+                - cell [ref=f1e226]:
+                  - button "demo-conversation-011" [ref=f1e227] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e228]
+                - cell "inbound" [ref=f1e229]
+                - cell "queue-2" [ref=f1e230]
+                - cell "agent-1" [ref=f1e231]
+                - cell [ref=f1e232]
+                - cell "4" [ref=f1e233]
+                - cell "11" [ref=f1e234]
+              - row [ref=f1e235]:
+                - cell [ref=f1e236]:
+                  - button "demo-conversation-012" [ref=f1e237] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e238]
+                - cell "outbound" [ref=f1e239]
+                - cell "queue-0" [ref=f1e240]
+                - cell "agent-2" [ref=f1e241]
+                - cell "error.demo.ice" [ref=f1e242]
+                - cell "1" [ref=f1e243]
+                - cell "12" [ref=f1e244]
+              - row [ref=f1e245]:
+                - cell [ref=f1e246]:
+                  - button "demo-conversation-013" [ref=f1e247] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e248]
+                - cell "inbound" [ref=f1e249]
+                - cell "queue-1" [ref=f1e250]
+                - cell "agent-3" [ref=f1e251]
+                - cell [ref=f1e252]
+                - cell "2" [ref=f1e253]
+                - cell "13" [ref=f1e254]
+              - row [ref=f1e255]:
+                - cell [ref=f1e256]:
+                  - button "demo-conversation-014" [ref=f1e257] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e258]
+                - cell "inbound" [ref=f1e259]
+                - cell "queue-2" [ref=f1e260]
+                - cell "agent-4" [ref=f1e261]
+                - cell [ref=f1e262]
+                - cell "3" [ref=f1e263]
+                - cell "14" [ref=f1e264]
+              - row [ref=f1e265]:
+                - cell [ref=f1e266]:
+                  - button "demo-conversation-015" [ref=f1e267] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e268]
+                - cell "outbound" [ref=f1e269]
+                - cell "queue-0" [ref=f1e270]
+                - cell "agent-0" [ref=f1e271]
+                - cell [ref=f1e272]
+                - cell "4" [ref=f1e273]
+                - cell "15" [ref=f1e274]
+              - row [ref=f1e275]:
+                - cell [ref=f1e276]:
+                  - button "demo-conversation-016" [ref=f1e277] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e278]
+                - cell "inbound" [ref=f1e279]
+                - cell "queue-1" [ref=f1e280]
+                - cell "agent-1" [ref=f1e281]
+                - cell "error.demo.ice" [ref=f1e282]
+                - cell "1" [ref=f1e283]
+                - cell "16" [ref=f1e284]
+              - row [ref=f1e285]:
+                - cell [ref=f1e286]:
+                  - button "demo-conversation-017" [ref=f1e287] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e288]
+                - cell "inbound" [ref=f1e289]
+                - cell "queue-2" [ref=f1e290]
+                - cell "agent-2" [ref=f1e291]
+                - cell [ref=f1e292]
+                - cell "2" [ref=f1e293]
+                - cell "17" [ref=f1e294]
+              - row [ref=f1e295]:
+                - cell [ref=f1e296]:
+                  - button "demo-conversation-018" [ref=f1e297] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e298]
+                - cell "outbound" [ref=f1e299]
+                - cell "queue-0" [ref=f1e300]
+                - cell "agent-3" [ref=f1e301]
+                - cell [ref=f1e302]
+                - cell "3" [ref=f1e303]
+                - cell "18" [ref=f1e304]
+              - row [ref=f1e305]:
+                - cell [ref=f1e306]:
+                  - button "demo-conversation-019" [ref=f1e307] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e308]
+                - cell "inbound" [ref=f1e309]
+                - cell "queue-1" [ref=f1e310]
+                - cell "agent-4" [ref=f1e311]
+                - cell [ref=f1e312]
+                - cell "4" [ref=f1e313]
+                - cell "19" [ref=f1e314]
+              - row [ref=f1e315]:
+                - cell [ref=f1e316]:
+                  - button "demo-conversation-020" [ref=f1e317] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e318]
+                - cell "inbound" [ref=f1e319]
+                - cell "queue-2" [ref=f1e320]
+                - cell "agent-0" [ref=f1e321]
+                - cell "error.demo.ice" [ref=f1e322]
+                - cell "1" [ref=f1e323]
+                - cell "20" [ref=f1e324]
+              - row [ref=f1e325]:
+                - cell [ref=f1e326]:
+                  - button "demo-conversation-021" [ref=f1e327] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e328]
+                - cell "outbound" [ref=f1e329]
+                - cell "queue-0" [ref=f1e330]
+                - cell "agent-1" [ref=f1e331]
+                - cell [ref=f1e332]
+                - cell "2" [ref=f1e333]
+                - cell "21" [ref=f1e334]
+              - row [ref=f1e335]:
+                - cell [ref=f1e336]:
+                  - button "demo-conversation-022" [ref=f1e337] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e338]
+                - cell "inbound" [ref=f1e339]
+                - cell "queue-1" [ref=f1e340]
+                - cell "agent-2" [ref=f1e341]
+                - cell [ref=f1e342]
+                - cell "3" [ref=f1e343]
+                - cell "22" [ref=f1e344]
+              - row [ref=f1e345]:
+                - cell [ref=f1e346]:
+                  - button "demo-conversation-023" [ref=f1e347] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e348]
+                - cell "inbound" [ref=f1e349]
+                - cell "queue-2" [ref=f1e350]
+                - cell "agent-3" [ref=f1e351]
+                - cell [ref=f1e352]
+                - cell "4" [ref=f1e353]
+                - cell "23" [ref=f1e354]
+              - row [ref=f1e355]:
+                - cell [ref=f1e356]:
+                  - button "demo-conversation-024" [ref=f1e357] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e358]
+                - cell "outbound" [ref=f1e359]
+                - cell "queue-0" [ref=f1e360]
+                - cell "agent-4" [ref=f1e361]
+                - cell "error.demo.ice" [ref=f1e362]
+                - cell "1" [ref=f1e363]
+                - cell "24" [ref=f1e364]
+              - row [ref=f1e365]:
+                - cell [ref=f1e366]:
+                  - button "demo-conversation-025" [ref=f1e367] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e368]
+                - cell "inbound" [ref=f1e369]
+                - cell "queue-1" [ref=f1e370]
+                - cell "agent-0" [ref=f1e371]
+                - cell [ref=f1e372]
+                - cell "2" [ref=f1e373]
+                - cell "25" [ref=f1e374]
+              - row [ref=f1e375]:
+                - cell [ref=f1e376]:
+                  - button "demo-conversation-026" [ref=f1e377] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e378]
+                - cell "inbound" [ref=f1e379]
+                - cell "queue-2" [ref=f1e380]
+                - cell "agent-1" [ref=f1e381]
+                - cell [ref=f1e382]
+                - cell "3" [ref=f1e383]
+                - cell "26" [ref=f1e384]
+              - row [ref=f1e385]:
+                - cell [ref=f1e386]:
+                  - button "demo-conversation-027" [ref=f1e387] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e388]
+                - cell "outbound" [ref=f1e389]
+                - cell "queue-0" [ref=f1e390]
+                - cell "agent-2" [ref=f1e391]
+                - cell [ref=f1e392]
+                - cell "4" [ref=f1e393]
+                - cell "27" [ref=f1e394]
+              - row [ref=f1e395]:
+                - cell [ref=f1e396]:
+                  - button "demo-conversation-028" [ref=f1e397] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e398]
+                - cell "inbound" [ref=f1e399]
+                - cell "queue-1" [ref=f1e400]
+                - cell "agent-3" [ref=f1e401]
+                - cell "error.demo.ice" [ref=f1e402]
+                - cell "1" [ref=f1e403]
+                - cell "28" [ref=f1e404]
+              - row [ref=f1e405]:
+                - cell [ref=f1e406]:
+                  - button "demo-conversation-029" [ref=f1e407] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e408]
+                - cell "inbound" [ref=f1e409]
+                - cell "queue-2" [ref=f1e410]
+                - cell "agent-4" [ref=f1e411]
+                - cell [ref=f1e412]
+                - cell "2" [ref=f1e413]
+                - cell "29" [ref=f1e414]
+              - row [ref=f1e415]:
+                - cell [ref=f1e416]:
+                  - button "demo-conversation-030" [ref=f1e417] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e418]
+                - cell "outbound" [ref=f1e419]
+                - cell "queue-0" [ref=f1e420]
+                - cell "agent-0" [ref=f1e421]
+                - cell [ref=f1e422]
+                - cell "3" [ref=f1e423]
+                - cell "30" [ref=f1e424]
+              - row [ref=f1e425]:
+                - cell [ref=f1e426]:
+                  - button "demo-conversation-031" [ref=f1e427] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e428]
+                - cell "inbound" [ref=f1e429]
+                - cell "queue-1" [ref=f1e430]
+                - cell "agent-1" [ref=f1e431]
+                - cell [ref=f1e432]
+                - cell "4" [ref=f1e433]
+                - cell "31" [ref=f1e434]
+              - row [ref=f1e435]:
+                - cell [ref=f1e436]:
+                  - button "demo-conversation-032" [ref=f1e437] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e438]
+                - cell "inbound" [ref=f1e439]
+                - cell "queue-2" [ref=f1e440]
+                - cell "agent-2" [ref=f1e441]
+                - cell "error.demo.ice" [ref=f1e442]
+                - cell "1" [ref=f1e443]
+                - cell "32" [ref=f1e444]
+              - row [ref=f1e445]:
+                - cell [ref=f1e446]:
+                  - button "demo-conversation-033" [ref=f1e447] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e448]
+                - cell "outbound" [ref=f1e449]
+                - cell "queue-0" [ref=f1e450]
+                - cell "agent-3" [ref=f1e451]
+                - cell [ref=f1e452]
+                - cell "2" [ref=f1e453]
+                - cell "33" [ref=f1e454]
+              - row [ref=f1e455]:
+                - cell [ref=f1e456]:
+                  - button "demo-conversation-034" [ref=f1e457] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e458]
+                - cell "inbound" [ref=f1e459]
+                - cell "queue-1" [ref=f1e460]
+                - cell "agent-4" [ref=f1e461]
+                - cell [ref=f1e462]
+                - cell "3" [ref=f1e463]
+                - cell "34" [ref=f1e464]
+              - row [ref=f1e465]:
+                - cell [ref=f1e466]:
+                  - button "demo-conversation-035" [ref=f1e467] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e468]
+                - cell "inbound" [ref=f1e469]
+                - cell "queue-2" [ref=f1e470]
+                - cell "agent-0" [ref=f1e471]
+                - cell [ref=f1e472]
+                - cell "4" [ref=f1e473]
+                - cell "35" [ref=f1e474]
+              - row [ref=f1e475]:
+                - cell [ref=f1e476]:
+                  - button "demo-conversation-036" [ref=f1e477] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e478]
+                - cell "outbound" [ref=f1e479]
+                - cell "queue-0" [ref=f1e480]
+                - cell "agent-1" [ref=f1e481]
+                - cell "error.demo.ice" [ref=f1e482]
+                - cell "1" [ref=f1e483]
+                - cell "36" [ref=f1e484]
+              - row [ref=f1e485]:
+                - cell [ref=f1e486]:
+                  - button "demo-conversation-037" [ref=f1e487] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e488]
+                - cell "inbound" [ref=f1e489]
+                - cell "queue-1" [ref=f1e490]
+                - cell "agent-2" [ref=f1e491]
+                - cell [ref=f1e492]
+                - cell "2" [ref=f1e493]
+                - cell "37" [ref=f1e494]
+              - row [ref=f1e495]:
+                - cell [ref=f1e496]:
+                  - button "demo-conversation-038" [ref=f1e497] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e498]
+                - cell "inbound" [ref=f1e499]
+                - cell "queue-2" [ref=f1e500]
+                - cell "agent-3" [ref=f1e501]
+                - cell [ref=f1e502]
+                - cell "3" [ref=f1e503]
+                - cell "38" [ref=f1e504]
+              - row [ref=f1e505]:
+                - cell [ref=f1e506]:
+                  - button "demo-conversation-039" [ref=f1e507] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e508]
+                - cell "outbound" [ref=f1e509]
+                - cell "queue-0" [ref=f1e510]
+                - cell "agent-4" [ref=f1e511]
+                - cell [ref=f1e512]
+                - cell "4" [ref=f1e513]
+                - cell "39" [ref=f1e514]
+              - row [ref=f1e515]:
+                - cell [ref=f1e516]:
+                  - button "demo-conversation-040" [ref=f1e517] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e518]
+                - cell "inbound" [ref=f1e519]
+                - cell "queue-1" [ref=f1e520]
+                - cell "agent-0" [ref=f1e521]
+                - cell "error.demo.ice" [ref=f1e522]
+                - cell "1" [ref=f1e523]
+                - cell "40" [ref=f1e524]
+              - row [ref=f1e525]:
+                - cell [ref=f1e526]:
+                  - button "demo-conversation-041" [ref=f1e527] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e528]
+                - cell "inbound" [ref=f1e529]
+                - cell "queue-2" [ref=f1e530]
+                - cell "agent-1" [ref=f1e531]
+                - cell [ref=f1e532]
+                - cell "2" [ref=f1e533]
+                - cell "41" [ref=f1e534]
+              - row [ref=f1e535]:
+                - cell [ref=f1e536]:
+                  - button "demo-conversation-042" [ref=f1e537] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e538]
+                - cell "outbound" [ref=f1e539]
+                - cell "queue-0" [ref=f1e540]
+                - cell "agent-2" [ref=f1e541]
+                - cell [ref=f1e542]
+                - cell "3" [ref=f1e543]
+                - cell "42" [ref=f1e544]
+              - row [ref=f1e545]:
+                - cell [ref=f1e546]:
+                  - button "demo-conversation-043" [ref=f1e547] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e548]
+                - cell "inbound" [ref=f1e549]
+                - cell "queue-1" [ref=f1e550]
+                - cell "agent-3" [ref=f1e551]
+                - cell [ref=f1e552]
+                - cell "4" [ref=f1e553]
+                - cell "43" [ref=f1e554]
+              - row [ref=f1e555]:
+                - cell [ref=f1e556]:
+                  - button "demo-conversation-044" [ref=f1e557] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e558]
+                - cell "inbound" [ref=f1e559]
+                - cell "queue-2" [ref=f1e560]
+                - cell "agent-4" [ref=f1e561]
+                - cell "error.demo.ice" [ref=f1e562]
+                - cell "1" [ref=f1e563]
+                - cell "44" [ref=f1e564]
+              - row [ref=f1e565]:
+                - cell [ref=f1e566]:
+                  - button "demo-conversation-045" [ref=f1e567] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e568]
+                - cell "outbound" [ref=f1e569]
+                - cell "queue-0" [ref=f1e570]
+                - cell "agent-0" [ref=f1e571]
+                - cell [ref=f1e572]
+                - cell "2" [ref=f1e573]
+                - cell "45" [ref=f1e574]
+              - row [ref=f1e575]:
+                - cell [ref=f1e576]:
+                  - button "demo-conversation-046" [ref=f1e577] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e578]
+                - cell "inbound" [ref=f1e579]
+                - cell "queue-1" [ref=f1e580]
+                - cell "agent-1" [ref=f1e581]
+                - cell [ref=f1e582]
+                - cell "3" [ref=f1e583]
+                - cell "46" [ref=f1e584]
+              - row [ref=f1e585]:
+                - cell [ref=f1e586]:
+                  - button "demo-conversation-047" [ref=f1e587] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e588]
+                - cell "inbound" [ref=f1e589]
+                - cell "queue-2" [ref=f1e590]
+                - cell "agent-2" [ref=f1e591]
+                - cell [ref=f1e592]
+                - cell "4" [ref=f1e593]
+                - cell "47" [ref=f1e594]
+              - row [ref=f1e595]:
+                - cell [ref=f1e596]:
+                  - button "demo-conversation-048" [ref=f1e597] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e598]
+                - cell "outbound" [ref=f1e599]
+                - cell "queue-0" [ref=f1e600]
+                - cell "agent-3" [ref=f1e601]
+                - cell "error.demo.ice" [ref=f1e602]
+                - cell "1" [ref=f1e603]
+                - cell "48" [ref=f1e604]
+              - row [ref=f1e605]:
+                - cell [ref=f1e606]:
+                  - button "demo-conversation-049" [ref=f1e607] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e608]
+                - cell "inbound" [ref=f1e609]
+                - cell "queue-1" [ref=f1e610]
+                - cell "agent-4" [ref=f1e611]
+                - cell [ref=f1e612]
+                - cell "2" [ref=f1e613]
+                - cell "49" [ref=f1e614]
+              - row [ref=f1e615]:
+                - cell [ref=f1e616]:
+                  - button "demo-conversation-050" [ref=f1e617] [cursor=pointer]
+                - cell "2026-09-15T12:00:00Z" [ref=f1e618]
+                - cell "inbound" [ref=f1e619]
+                - cell "queue-2" [ref=f1e620]
+                - cell "agent-0" [ref=f1e621]
+                - cell [ref=f1e622]
+                - cell "3" [ref=f1e623]
+                - cell "50" [ref=f1e624]
+        - paragraph [ref=f1e625]: Select a conversation ID to inspect its normalized profile, error events and session facts. Statistics use every filtered conversation, not just this page.

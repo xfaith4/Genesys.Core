@@ -1,0 +1,38 @@
+async (page) => {
+  const check = (ok, message) => { if (!ok) throw new Error(message); };
+  await page.getByRole('button', { name: 'Genesys skin', exact: true }).click();
+  await page.getByRole('button', { name: 'Routing queues', exact: true }).click();
+  await page.getByRole('heading', { name: 'Routing queues', level: 1 }).waitFor();
+  check(await page.getByRole('button', { name: 'Back', exact: true }).isEnabled(), 'Back is disabled after navigation');
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('heading', { name: 'Users', level: 1 }).waitFor();
+  await page.goForward();
+  await page.getByRole('heading', { name: 'Routing queues', level: 1 }).waitFor();
+  await page.getByRole('searchbox', { name: 'Search pages', exact: true }).fill('Alice');
+  await page.getByRole('status').filter({ hasText: 'No pages match' }).waitFor();
+  await page.getByRole('searchbox', { name: 'Search pages', exact: true }).fill('');
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await page.getByRole('heading', { name: 'Getting started', level: 1 }).waitFor();
+  check(await page.getByRole('button', { name: 'Inbox', exact: true }).count() === 0, 'Inert Inbox control still appears');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const collapse = page.getByRole('button', { name: 'Collapse global menu', exact: true });
+  if (await collapse.count()) await collapse.click();
+  await page.getByRole('button', { name: 'Expand global menu', exact: true }).click();
+  const users = page.getByRole('button', { name: 'Users', exact: true });
+  check(await users.getByText('Users', { exact: true }).isVisible(), 'Genesys mobile labels remain hidden');
+  await page.screenshot({ path: 'output/playwright/19-genesys-mobile-after.png' });
+  await users.click();
+  check(await page.getByRole('button', { name: 'Expand global menu', exact: true }).count() === 1, 'Mobile menu did not close after selection');
+  await page.getByRole('button', { name: 'Switch to the Atlas skin', exact: true }).click();
+  await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
+  const queues = page.getByRole('button', { name: 'Routing queues', exact: true });
+  check(await queues.getByText('Routing queues', { exact: true }).isVisible(), 'Atlas mobile labels remain hidden');
+  await page.screenshot({ path: 'output/playwright/20-atlas-mobile-after.png' });
+  await queues.click();
+  await page.getByRole('heading', { name: 'Routing queues', level: 1 }).waitFor();
+  const dimensions = await page.evaluate(() => ({ width: innerWidth, content: document.documentElement.scrollWidth }));
+  check(dimensions.content <= dimensions.width, 'Mobile page overflows');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
+  return { passed: ['Back and browser Forward', 'honest search and empty feedback', 'Help navigation', 'inert controls removed', 'both mobile menus visibly expand', 'mobile selection closes menu', 'no mobile page overflow'] };
+}

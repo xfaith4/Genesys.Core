@@ -18,7 +18,7 @@ export interface Route {
   sourceId?: string;
 }
 
-const PAGES: PageId[] = ['home', 'endpoints', 'explore'];
+const PAGES: PageId[] = ['home', 'endpoints', 'explore', 'investigation'];
 
 export const parseHash = (hash: string): Route => {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);

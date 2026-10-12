@@ -133,29 +133,28 @@ export const GettingStarted = ({
     render: () => (
       <div className="prose">
         <p>
-          <strong>Genesys Data Client</strong> is a customizable data exploration, analysis, reporting and
-          visualization application built on Genesys.Core. It deliberately does not reproduce the agent, supervisor
-          or administrative workflows of the native Genesys Cloud client. It centres on the data instead:
+          <strong>Genesys Data Client</strong> brings conversation populations, operational metrics and
+          investigation evidence into one workspace for operations teams. Start with an affected
+          cohort, identify the agents, queues and flows it touched, and inspect the supporting evidence.
         </p>
         <div className="pillars">
           <div className="pillar">
-            <h3>Explore</h3>
-            <p>records, objects, APIs, events</p>
+            <h3>Investigate</h3>
+            <p>affected conversations, agents, queues and flows</p>
           </div>
           <div className="pillar">
-            <h3>Analyze</h3>
-            <p>metrics, trends, correlations</p>
+            <h3>Measure</h3>
+            <p>volume, quality, duration and missing evidence</p>
           </div>
           <div className="pillar">
-            <h3>Build</h3>
-            <p>reports, dashboards, exports, views</p>
+            <h3>Explain</h3>
+            <p>scoped findings with timelines and portable evidence</p>
           </div>
         </div>
         <p>
-          Every screen is assembled from the same primitives — <code className="inline-code">DataSource</code>,{' '}
-          <code className="inline-code">QueryDefinition</code>, <code className="inline-code">ViewDefinition</code>,{' '}
-          <code className="inline-code">ReportDefinition</code> and <code className="inline-code">ExportDefinition</code>{' '}
-          — so a new explorer is a new data source, not a new hand-built screen.
+          Conversation investigation is available now through Ops analysis imports. Cross-source
+          mass-disconnect correlation, historical user-Division membership and live NOC monitoring
+          remain roadmap work. Endpoint exploration supports focused diagnostics during an investigation.
         </p>
       </div>
     ),
@@ -174,7 +173,7 @@ export const GettingStarted = ({
             <p className="skin-compare__sub">Mirrors the productized unified navigation experience.</p>
             <ul>
               <li>Unified global menu with a structured hierarchy</li>
-              <li>Top bar with page title, back button, Collaborate, Inbox and avatar</li>
+              <li>Top bar with page title, Back, page search and Help</li>
               <li>Fixed layout — the arrangement is the product's, not yours</li>
               <li>Light theme only</li>
             </ul>
@@ -205,10 +204,14 @@ export const GettingStarted = ({
     wide: true,
     render: () => (
       <div className="starters">
+        <button type="button" className="starter" onClick={() => onNavigate('investigation')}>
+          <span className="starter__title">Investigate a conversation population</span>
+          <span className="starter__body">Collect an interval by queue, user or Division. Filter error cohorts, compare metrics and inspect conversation timelines.</span>
+        </button>
         <button type="button" className="starter" onClick={() => onNavigate('endpoints')}>
-          <span className="starter__title">Browse what the server can exercise</span>
+          <span className="starter__title">Inspect an endpoint</span>
           <span className="starter__body">
-            The endpoint outline, read live from the server's own coverage table, with a runner for any endpoint.
+            Inspect a specific response or collection capability while diagnosing an investigation.
           </span>
         </button>
         {DATA_SOURCES.slice(0, 5).map((source) => (

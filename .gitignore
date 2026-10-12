@@ -49,3 +49,17 @@ testResults.xml
 # Local editor configuration and reconciliation scratch files
 **/.vscode/settings.json
 .tmp_compare/
+
+# Generated runtime and tooling logs
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Curated demo evidence and test fixture logs may be committed
+!samples/**/*.log
+!samples/**/*.log.*
+!tests/fixtures/**/*.log
+!tests/fixtures/**/*.log.*

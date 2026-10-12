@@ -1,0 +1,3 @@
+"queueId","userId","oUserPresence"
+"queue-demo-1","agent-demo-001","AVAILABLE"
+"queue-demo-1","agent-demo-002","BUSY"

@@ -1,0 +1,2 @@
+"id","name","campaignStatus","dialingMode","contactListId","queueId","callerName","callerAddress","abandonRate"
+"campaign-demo-1","Spring Renewal","on","power","contact-list-demo-1","queue-demo-1","Genesys Cloud","+15551234567","3"

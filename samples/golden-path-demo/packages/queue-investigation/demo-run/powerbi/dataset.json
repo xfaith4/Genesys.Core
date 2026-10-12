@@ -1,0 +1,50 @@
+{
+  "bundleType": "powerbi-investigation-import",
+  "generatedAtUtc": "2026-10-11T14:50:07.3995549Z",
+  "tables": [
+    {
+      "Name": "overview",
+      "File": "overview.csv"
+    },
+    {
+      "Name": "steps",
+      "File": "steps.csv"
+    },
+    {
+      "Name": "queue",
+      "File": "queue.csv"
+    },
+    {
+      "Name": "members",
+      "File": "members.csv"
+    },
+    {
+      "Name": "wrapupCodes",
+      "File": "wrapupCodes.csv"
+    },
+    {
+      "Name": "observations",
+      "File": "observations.csv"
+    },
+    {
+      "Name": "sla",
+      "File": "sla.csv"
+    },
+    {
+      "Name": "abandons",
+      "File": "abandons.csv"
+    },
+    {
+      "Name": "transfers",
+      "File": "transfers.csv"
+    },
+    {
+      "Name": "wrapupDistribution",
+      "File": "wrapupDistribution.csv"
+    },
+    {
+      "Name": "activeAgents",
+      "File": "activeAgents.csv"
+    }
+  ]
+}

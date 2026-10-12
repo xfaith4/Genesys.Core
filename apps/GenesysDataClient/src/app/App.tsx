@@ -5,7 +5,7 @@
  * only the chrome and the declared capabilities change.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspace } from '../engine/workspace';
 import { useAuth } from './AuthProvider';
 import { SignIn } from '../features/SignIn';
@@ -18,20 +18,30 @@ import { genesysSkin } from '../skins/GenesysSkin';
 import { buildNavigation, titleFor, type PageId, type SkinDefinition } from '../skins';
 import { currentRoute, toHash, type Route } from './route';
 
+import { ConversationInvestigation, type InvestigationSnapshot } from '../features/ConversationInvestigation';
+
 const SKINS: Record<string, SkinDefinition> = {
   genesys: genesysSkin,
   atlas: atlasSkin,
 };
 
 export const App = () => {
+  const investigationSnapshot = useRef<InvestigationSnapshot | null>(null);
   const { workspace } = useWorkspace();
   const { status } = useAuth();
   const [route, setRoute] = useState<Route>(currentRoute);
   const { page, sourceId } = route;
+  const [canGoBack, setCanGoBack] = useState(() => (history.state?.gdcIndex ?? 0) > 0);
 
   // Back/forward and hand-edited URLs both drive the app.
   useEffect(() => {
-    const onHashChange = () => setRoute(currentRoute());
+    if (typeof history.state?.gdcIndex !== 'number') {
+      history.replaceState({ ...history.state, gdcIndex: 0 }, '');
+    }
+    const onHashChange = () => {
+      setRoute(currentRoute());
+      setCanGoBack((history.state?.gdcIndex ?? 0) > 0);
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -42,14 +52,19 @@ export const App = () => {
 
   const navigate = (nextPage: PageId, nextSourceId?: string) => {
     const next: Route = { page: nextPage, sourceId: nextSourceId };
-    // Writing the hash fires hashchange, which is what actually updates state.
     const hash = toHash(next);
-    if (location.hash === hash) setRoute(next);
-    else location.hash = hash;
+    if (location.hash !== hash) {
+      const gdcIndex = (history.state?.gdcIndex ?? 0) + 1;
+      history.pushState({ ...history.state, gdcIndex }, '', hash);
+      setCanGoBack(true);
+    }
+    setRoute(next);
   };
 
   const content = (() => {
     switch (page) {
+      case 'investigation':
+        return <ConversationInvestigation snapshot={investigationSnapshot} />;
       case 'endpoints':
         return <EndpointExplorer capabilities={skin.capabilities} />;
       case 'explore':
@@ -84,6 +99,7 @@ export const App = () => {
       activeSourceId={sourceId}
       title={title}
       onNavigate={navigate}
+      canGoBack={canGoBack}
     >
       {content}
     </Shell>

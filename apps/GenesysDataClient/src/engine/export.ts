@@ -54,6 +54,15 @@ const provenanceLines = (ctx: ExportContext): string[] => {
   return lines;
 };
 
+const jsonProvenance = (ctx: ExportContext) => ({
+  source: ctx.sourceName,
+  generated: new Date().toISOString(),
+  recordCount: ctx.recordCount,
+  filterSummary: ctx.filterSummary ?? '',
+  units: { durations: 'milliseconds', timestamps: 'ISO 8601 UTC' },
+  meta: ctx.meta,
+});
+
 /** Serializes records to the requested format. */
 export const exportRecords = (
   records: DataRecord[],
@@ -72,7 +81,7 @@ export const exportRecords = (
     case 'json': {
       const payload = {
         ...(definition.includeProvenance
-          ? { provenance: { source: ctx.sourceName, generated: new Date().toISOString(), meta: ctx.meta } }
+          ? { provenance: jsonProvenance(ctx) }
           : {}),
         records: records.map((record) => {
           const row: Record<string, unknown> = {};
@@ -158,9 +167,11 @@ export const exportReport = (
       return JSON.stringify(
         {
           ...(definition.includeProvenance
-            ? { provenance: { source: ctx.sourceName, generated: new Date().toISOString() } }
+            ? { provenance: jsonProvenance(ctx) }
             : {}),
           groupBy: result.groupBy,
+          metrics: result.metrics,
+          totalRecords: result.totalRecords,
           rows: result.rows,
         },
         null,

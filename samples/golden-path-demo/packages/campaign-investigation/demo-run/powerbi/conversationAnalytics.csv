@@ -1,0 +1,2 @@
+"conversationId","originatingDirection","participants"
+"conv-campaign-1","outbound","{""purpose"":""agent"",""userId"":""agent-demo-001"",""campaignId"":""campaign-demo-1"",""sessions"":[{""mediaType"":""voice"",""segments"":[{""segmentType"":""interact"",""campaignId"":""campaign-demo-1"",""queueId"":""queue-demo-1"",""disconnectType"":""client""}]}]}"

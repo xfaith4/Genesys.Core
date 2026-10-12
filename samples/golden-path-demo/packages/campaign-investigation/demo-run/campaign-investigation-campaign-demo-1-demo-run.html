@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investigation Package - campaign-investigation</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #15202b; background: #f5f7fa; }
+body { margin: 0; }
+a.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: #ffffff; color: #15202b; padding: 10px 16px; border: 2px solid #133b2f; border-radius: 0 0 8px 0; }
+a.skip-link:focus { left: 0; }
+:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+caption { text-align: left; font-weight: 650; padding: 10px 10px 8px; color: #2a3542; }
+header { background: linear-gradient(120deg, #133b2f 0%, #17483a 60%, #275e4b 100%); color: #fff; padding: 28px 36px; }
+header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
+header p { margin: 0; color: #deefe8; font-size: 14px; }
+main { padding: 28px 36px 40px; }
+section { margin: 0 0 28px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 20px; }
+.metric { background: #fff; border: 1px solid #d6dee6; border-radius: 10px; padding: 14px; }
+.metric .label { color: #5a6673; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.metric .value { font-size: 24px; margin-top: 4px; font-weight: 650; }
+table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dce3ea; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { border-bottom: 1px solid #e7ebf0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef3f7; color: #2a3542; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+.meta { color: #5f6c79; font-size: 13px; margin-bottom: 18px; }
+.empty { color: #6b7582; font-style: italic; }
+ul { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header>
+<h1>Investigation Package</h1>
+<p>campaign-investigation | campaign / campaign-demo-1 | Run demo-run | Generated 2026-10-11T14:50:06.7076439Z</p>
+</header>
+<main id="main-content">
+<section>
+<h2>Overview</h2>
+<p class="meta">Window: 2026-05-01T00:00:00.0000000Z -> 2026-05-12T00:00:00.0000000Z</p>
+<div class="grid">
+<div class="metric"><div class="label">Steps</div><div class="value">8</div></div>
+<div class="metric"><div class="label">Failed Steps</div><div class="value">0</div></div>
+<div class="metric"><div class="label">Records</div><div class="value">11</div></div>
+<div class="metric"><div class="label">Sections</div><div class="value">8</div></div>
+</div>
+</section>
+
+<section>
+<h2>Step Status</h2>
+<table><caption>Investigation step status</caption><thead><tr><th scope="col">StepName</th><th scope="col">DatasetKey</th><th scope="col">ValidationStatus</th><th scope="col">RecordCount</th><th scope="col">Required</th><th scope="col">Status</th><th scope="col">ErrorMessage</th></tr></thead><tbody><tr><td>campaign</td><td>outbound.get.campaigns</td><td>unvalidated</td><td>1</td><td>True</td><td>ok</td><td></td></tr><tr><td>contactList</td><td>outbound.get.contact.lists</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>queue</td><td>routing.get.single.queue.config</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>diagnostics</td><td>outbound.get.campaign.diagnostics.summary</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>outboundEvents</td><td>outbound.get.events</td><td>unvalidated</td><td>4</td><td>False</td><td>ok</td><td></td></tr><tr><td>auditChanges</td><td>audit-logs</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>conversationAnalytics</td><td>analytics-conversation-details-query</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr><tr><td>outboundAbandons</td><td>outbound.get.events</td><td>unvalidated</td><td>1</td><td>False</td><td>ok</td><td></td></tr></tbody></table>
+</section>
+<section>
+<h2>campaign</h2>
+<table><caption>campaign</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">campaignStatus</th><th scope="col">dialingMode</th><th scope="col">contactListId</th><th scope="col">queueId</th><th scope="col">callerName</th><th scope="col">callerAddress</th><th scope="col">abandonRate</th></tr></thead><tbody><tr><td>campaign-demo-1</td><td>Spring Renewal</td><td>on</td><td>power</td><td>contact-list-demo-1</td><td>queue-demo-1</td><td>Genesys Cloud</td><td>+15551234567</td><td>3</td></tr></tbody></table>
+</section>
+<section>
+<h2>contactList</h2>
+<table><caption>contactList</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">size</th><th scope="col">columnNames</th></tr></thead><tbody><tr><td>contact-list-demo-1</td><td>Renewals Q2</td><td>2400</td><td>[&quot;phone&quot;,&quot;firstName&quot;]</td></tr></tbody></table>
+</section>
+<section>
+<h2>queue</h2>
+<table><caption>queue</caption><thead><tr><th scope="col">id</th><th scope="col">name</th><th scope="col">mediaSettings</th></tr></thead><tbody><tr><td>queue-demo-1</td><td>Outbound Sales</td><td>{&quot;call&quot;:{&quot;alertingTimeoutSeconds&quot;:25}}</td></tr></tbody></table>
+</section>
+<section>
+<h2>diagnostics</h2>
+<table><caption>diagnostics</caption><thead><tr><th scope="col">campaignId</th><th scope="col">health</th><th scope="col">pacingMode</th><th scope="col">errorCount</th><th scope="col">contactableRate</th></tr></thead><tbody><tr><td>campaign-demo-1</td><td>healthy</td><td>power</td><td>0</td><td>78.1</td></tr></tbody></table>
+</section>
+<section>
+<h2>outboundEvents</h2>
+<table><caption>outboundEvents</caption><thead><tr><th scope="col">id</th><th scope="col">campaignId</th><th scope="col">timestamp</th><th scope="col">type</th><th scope="col">callResult</th></tr></thead><tbody><tr><td>evt-1</td><td>campaign-demo-1</td><td>2026-05-10T14:00:00.0000000Z</td><td>campaignStart</td><td></td></tr><tr><td>evt-2</td><td>campaign-demo-1</td><td>2026-05-10T14:01:00.0000000Z</td><td>contactCallCompleted</td><td>Connected</td></tr><tr><td>evt-3</td><td>campaign-demo-1</td><td>2026-05-10T14:02:00.0000000Z</td><td>contactCallCompleted</td><td>NoAnswer</td></tr><tr><td>evt-4</td><td>campaign-demo-1</td><td>2026-05-10T14:03:00.0000000Z</td><td>contactCallAbandon</td><td>OutboundAbandon</td></tr></tbody></table>
+</section>
+<section>
+<h2>auditChanges</h2>
+<table><caption>auditChanges</caption><thead><tr><th scope="col">id</th><th scope="col">entityId</th><th scope="col">entityType</th><th scope="col">action</th><th scope="col">serviceName</th><th scope="col">timestamp</th></tr></thead><tbody><tr><td>audit-1</td><td>campaign-demo-1</td><td>Campaign</td><td>UPDATE_OUTBOUND_CAMPAIGN</td><td>outbound</td><td>2026-05-10T13:45:00.0000000Z</td></tr></tbody></table>
+</section>
+<section>
+<h2>conversationAnalytics</h2>
+<table><caption>conversationAnalytics</caption><thead><tr><th scope="col">conversationId</th><th scope="col">originatingDirection</th><th scope="col">participants</th></tr></thead><tbody><tr><td>conv-campaign-1</td><td>outbound</td><td>{&quot;purpose&quot;:&quot;agent&quot;,&quot;userId&quot;:&quot;agent-demo-001&quot;,&quot;campaignId&quot;:&quot;campaign-demo-1&quot;,&quot;sessions&quot;:[{&quot;mediaType&quot;:&quot;voice&quot;,&quot;segments&quot;:[{&quot;segmentType&quot;:&quot;interact&quot;,&quot;campaignId&quot;:&quot;campaign-demo-1&quot;,&quot;queueId&quot;:&quot;queue-demo-1&quot;,&quot;disconnectType&quot;:&quot;client&quot;}]}]}</td></tr></tbody></table>
+</section>
+<section>
+<h2>outboundAbandons</h2>
+<table><caption>outboundAbandons</caption><thead><tr><th scope="col">id</th><th scope="col">campaignId</th><th scope="col">timestamp</th><th scope="col">type</th><th scope="col">callResult</th></tr></thead><tbody><tr><td>evt-4</td><td>campaign-demo-1</td><td>2026-05-10T14:03:00.0000000Z</td><td>contactCallAbandon</td><td>OutboundAbandon</td></tr></tbody></table>
+</section>
+</main>
+</body>
+</html>

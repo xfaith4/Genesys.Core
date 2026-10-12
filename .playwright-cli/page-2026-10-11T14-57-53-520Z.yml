@@ -1,0 +1,28 @@
+- main [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - heading "Demo authorization" [level=1] [ref=f1e4]
+    - paragraph [ref=f1e5]: Genesys.MockServer · offline OAuth 2.0 + PKCE
+  - generic [ref=f1e6]:
+    - paragraph [ref=f1e7]:
+      - strong [ref=f1e8]: This is not a sign-in page.
+      - text: No credentials are requested or checked. Approving simply issues a demo authorization code so the PKCE exchange can be exercised offline. Every authorization resolves to the fixed demo identity below.
+    - generic [ref=f1e9]:
+      - term [ref=f1e10]: Application
+      - definition [ref=f1e11]: genesys-data-client-demo
+      - term [ref=f1e12]: Redirect URI
+      - definition [ref=f1e13]: http://localhost:5173/
+      - term [ref=f1e14]: Scope
+      - definition [ref=f1e15]: (none requested)
+      - term [ref=f1e16]: Challenge method
+      - definition [ref=f1e17]: S256
+      - term [ref=f1e18]: Code challenge
+      - definition [ref=f1e19]: m7SDFTf7W6RFtABUNep_QcHk-Pu6jun4lf8lkAtZSW8
+      - term [ref=f1e20]: Signing in as
+      - definition [ref=f1e21]: Demo Admin <demo.admin@genesys-testplatform.local>
+    - generic [ref=f1e23]:
+      - button "Cancel" [ref=f1e24] [cursor=pointer]
+      - button "Authorize" [active] [ref=f1e25] [cursor=pointer]
+  - paragraph [ref=f1e26]:
+    - text: The authorization code returned here can only be redeemed by presenting the
+    - code [ref=f1e27]: code_verifier
+    - text: whose SHA-256 matches the challenge above.

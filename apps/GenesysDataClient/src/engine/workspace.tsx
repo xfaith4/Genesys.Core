@@ -19,6 +19,9 @@ import {
   emptyWorkspace,
   newId,
   WORKSPACE_VERSION,
+  type ColumnState,
+  type QueryDefinition,
+  type ReportMetric,
   type DashboardDefinition,
   type Density,
   type ReportDefinition,
@@ -57,7 +60,17 @@ const persist = (workspace: Workspace): void => {
   }
 };
 
+interface ExplorerDraft {
+  query: QueryDefinition;
+  columns: ColumnState[];
+  viewName: string;
+}
+interface ReportDraft { groupBy: string[]; metrics: ReportMetric[] }
+
 export interface WorkspaceApi {
+  /** In-memory drafts survive navigation and skin changes; they contain no fetched records. */
+  explorerDrafts: Map<string, ExplorerDraft>;
+  reportDrafts: Map<string, ReportDraft>;
   workspace: Workspace;
   client: CoreClient;
   /** Derived from the authenticated session; authentication owns it, not the workspace. */
@@ -110,6 +123,8 @@ const useResolvedTheme = (mode: ThemeMode): 'light' | 'dark' => {
 export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const [workspace, setWorkspace] = useState<Workspace>(loadWorkspace);
   const { session } = useAuth();
+  const explorerDrafts = useRef(new Map<string, ExplorerDraft>()).current;
+  const reportDrafts = useRef(new Map<string, ReportDraft>()).current;
 
   // The bearer and API base come from the authenticated session. Signing in or out, or a token
   // refresh, therefore reconfigures every data source without anything else being touched.
@@ -169,6 +184,8 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const api = useMemo<WorkspaceApi>(
     () => ({
       workspace,
+      explorerDrafts,
+      reportDrafts,
       client,
       connection,
 
@@ -254,9 +271,13 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
 
       isPanelCollapsed: (panelId) => workspace.collapsedPanels.includes(panelId),
 
-      resetWorkspace: () => setWorkspace(emptyWorkspace()),
+      resetWorkspace: () => {
+        explorerDrafts.clear();
+        reportDrafts.clear();
+        setWorkspace(emptyWorkspace());
+      },
     }),
-    [workspace, client, connection, update],
+    [workspace, client, connection, update, explorerDrafts, reportDrafts],
   );
 
   return <WorkspaceContext.Provider value={api}>{children}</WorkspaceContext.Provider>;

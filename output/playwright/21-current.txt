@@ -1,0 +1,407 @@
+### Page
+- Page URL: http://localhost:5173/#/explore/queues
+- Page Title: Genesys Data Client
+### Snapshot
+```yaml
+- generic [ref=f4e1140]:
+  - complementary "Navigation" [ref=f4e1141]:
+    - generic [ref=f4e1142]:
+      - button "Collapse navigation" [expanded] [active] [ref=f4e1143] [cursor=pointer]: ⟨
+      - generic [ref=f4e1144]: Atlas
+    - searchbox "Filter navigation" [ref=f4e1146]
+    - navigation [ref=f4e1147]:
+      - generic [ref=f4e1148]:
+        - paragraph [ref=f4e1149]: Start
+        - list [ref=f4e1150]:
+          - listitem [ref=f4e1151]:
+            - button "Getting started" [ref=f4e1152] [cursor=pointer]
+          - listitem [ref=f4e1155]:
+            - button "Endpoint explorer" [ref=f4e1156] [cursor=pointer]
+      - generic [ref=f4e1159]:
+        - paragraph [ref=f4e1160]: Analytics
+        - list [ref=f4e1161]:
+          - listitem [ref=f4e1162]:
+            - button "Speech & text topics" [ref=f4e1163] [cursor=pointer]
+      - generic [ref=f4e1166]:
+        - paragraph [ref=f4e1167]: Directory
+        - list [ref=f4e1168]:
+          - listitem [ref=f4e1169]:
+            - button "Users" [ref=f4e1170] [cursor=pointer]
+      - generic [ref=f4e1173]:
+        - paragraph [ref=f4e1174]: Governance
+        - list [ref=f4e1175]:
+          - listitem [ref=f4e1176]:
+            - button "Audit log" [ref=f4e1177] [cursor=pointer]
+          - listitem [ref=f4e1180]:
+            - button "Authorization roles" [ref=f4e1181] [cursor=pointer]
+          - listitem [ref=f4e1184]:
+            - button "OAuth clients" [ref=f4e1185] [cursor=pointer]
+      - generic [ref=f4e1188]:
+        - paragraph [ref=f4e1189]: Interactions
+        - list [ref=f4e1190]:
+          - listitem [ref=f4e1191]:
+            - button "Active conversations" [ref=f4e1192] [cursor=pointer]
+          - listitem [ref=f4e1195]:
+            - button "Conversation segments" [ref=f4e1196] [cursor=pointer]
+          - listitem [ref=f4e1199]:
+            - button "Conversations" [ref=f4e1200] [cursor=pointer]
+      - generic [ref=f4e1203]:
+        - paragraph [ref=f4e1204]: Routing
+        - list [ref=f4e1205]:
+          - listitem [ref=f4e1206]:
+            - button "Routing queues" [ref=f4e1207] [cursor=pointer]
+  - generic [ref=f4e1210]:
+    - banner [ref=f4e1211]:
+      - generic [ref=f4e1212]:
+        - heading "Routing queues" [level=1] [ref=f4e1213]
+        - paragraph [ref=f4e1214]: Genesys Data Client · Atlas
+      - generic [ref=f4e1215]:
+        - group "Theme" [ref=f4e1216]:
+          - button "Light" [ref=f4e1217] [cursor=pointer]
+          - button "Dark" [ref=f4e1218] [cursor=pointer]
+          - button "System" [pressed] [ref=f4e1219] [cursor=pointer]
+        - button "Interface settings" [ref=f4e1220] [cursor=pointer]: ⚙
+        - button "Genesys skin" [ref=f4e1221] [cursor=pointer]
+    - main [ref=f4e1222]:
+      - generic [ref=f4e1224]:
+        - region "Routing queues" [ref=f4e1227]:
+          - generic [ref=f4e1228]:
+            - generic [ref=f4e1229]:
+              - button "Collapse Routing queues" [ref=f4e1230] [cursor=pointer]: ▾
+              - heading "Routing queues" [level=2] [ref=f4e1231]
+            - generic [ref=f4e1232]:
+              - generic [ref=f4e1233]:
+                - generic [ref=f4e1234]: 5 of 5 rows
+                - button "Refresh" [ref=f4e1235] [cursor=pointer]
+              - generic [ref=f4e1236]:
+                - button "Move Routing queues up" [disabled] [ref=f4e1237]: ↑
+                - button "Move Routing queues down" [ref=f4e1238] [cursor=pointer]: ↓
+          - generic [ref=f4e1239]:
+            - generic [ref=f4e1240]:
+              - generic [ref=f4e1241]:
+                - generic [ref=f4e1242]: Search all columns
+                - textbox "Search all columns" [ref=f4e1243]:
+                  - /placeholder: Type to filter every column…
+              - generic [ref=f4e1244]:
+                - text: Sorted by name asc
+                - button "Clear sort" [ref=f4e1245] [cursor=pointer]
+            - table [ref=f4e1247]:
+              - rowgroup [ref=f4e1248]:
+                - row [ref=f4e1249]:
+                  - columnheader "Expand" [ref=f4e1250]
+                  - columnheader [ref=f4e1251]:
+                    - button "Queue ▲" [ref=f4e1252] [cursor=pointer]:
+                      - generic [ref=f4e1253]: Queue
+                      - generic [ref=f4e1254]: ▲
+                    - separator "Resize Queue" [ref=f4e1255]
+                  - columnheader [ref=f4e1256]:
+                    - button "Division" [ref=f4e1257] [cursor=pointer]
+                    - separator "Resize Division" [ref=f4e1259]
+                  - columnheader [ref=f4e1260]:
+                    - button "Members" [ref=f4e1261] [cursor=pointer]
+                    - separator "Resize Members" [ref=f4e1263]
+                  - columnheader [ref=f4e1264]:
+                    - button "Media settings" [ref=f4e1265] [cursor=pointer]
+                    - separator "Resize Media settings" [ref=f4e1267]
+                  - columnheader [ref=f4e1268]:
+                    - button "Joined" [ref=f4e1269] [cursor=pointer]
+                    - separator "Resize Joined" [ref=f4e1271]
+                  - columnheader [ref=f4e1272]:
+                    - button "Description" [ref=f4e1273] [cursor=pointer]
+                    - separator "Resize Description" [ref=f4e1275]
+                  - columnheader [ref=f4e1276]:
+                    - button "Modified" [ref=f4e1277] [cursor=pointer]
+                    - separator "Resize Modified" [ref=f4e1279]
+              - rowgroup [ref=f4e1280]:
+                - row [ref=f4e1281]:
+                  - cell [ref=f4e1282]:
+                    - button "Expand row" [ref=f4e1283] [cursor=pointer]: ▸
+                  - cell "Callback Queue" [ref=f4e1284]
+                  - cell [ref=f4e1286]
+                  - cell "0" [ref=f4e1287]
+                  - cell "call" [ref=f4e1289]
+                  - cell "No" [ref=f4e1291]
+                  - cell "Scheduled callback queue for requested callbacks" [ref=f4e1293]
+                  - cell "Jan 05, 2026, 06:00:00 AM" [ref=f4e1295]
+                - row [ref=f4e1297]:
+                  - cell [ref=f4e1298]:
+                    - button "Expand row" [ref=f4e1299] [cursor=pointer]: ▸
+                  - cell "Chat Support" [ref=f4e1300]
+                  - cell "Digital Division" [ref=f4e1302]
+                  - cell "8" [ref=f4e1304]
+                  - cell "chat" [ref=f4e1306]
+                  - cell "No" [ref=f4e1308]
+                  - cell "Digital channel chat support queue" [ref=f4e1310]
+                  - cell "Feb 01, 2026, 04:00:00 AM" [ref=f4e1312]
+                - row [ref=f4e1314]:
+                  - cell [ref=f4e1315]:
+                    - button "Expand row" [ref=f4e1316] [cursor=pointer]: ▸
+                  - cell "Email Response" [ref=f4e1317]
+                  - cell "Digital Division" [ref=f4e1319]
+                  - cell "4" [ref=f4e1321]
+                  - cell "email" [ref=f4e1323]
+                  - cell "No" [ref=f4e1325]
+                  - cell "Email response and follow-up queue" [ref=f4e1327]
+                  - cell "Feb 10, 2026, 04:00:00 AM" [ref=f4e1329]
+                - row [ref=f4e1331]:
+                  - cell [ref=f4e1332]:
+                    - button "Expand row" [ref=f4e1333] [cursor=pointer]: ▸
+                  - cell "Tier-1 Support" [ref=f4e1334]
+                  - cell "Main Division" [ref=f4e1336]
+                  - cell "12" [ref=f4e1338]
+                  - cell "call, chat, email" [ref=f4e1340]
+                  - cell "Yes" [ref=f4e1342]
+                  - cell "First-line customer support queue for general inquiries" [ref=f4e1344]
+                  - cell "Jan 15, 2026, 07:00:00 AM" [ref=f4e1346]
+                - row [ref=f4e1348]:
+                  - cell [ref=f4e1349]:
+                    - button "Expand row" [ref=f4e1350] [cursor=pointer]: ▸
+                  - cell "Tier-2 Escalation" [ref=f4e1351]
+                  - cell "Main Division" [ref=f4e1353]
+                  - cell "5" [ref=f4e1355]
+                  - cell "call" [ref=f4e1357]
+                  - cell "Yes" [ref=f4e1359]
+                  - cell "Escalation queue for complex customer issues" [ref=f4e1361]
+                  - cell "Jan 20, 2026, 05:00:00 AM" [ref=f4e1363]
+        - generic [ref=f4e1365]:
+          - region "Filters" [ref=f4e1367]:
+            - generic [ref=f4e1368]:
+              - generic [ref=f4e1369]:
+                - button "Collapse Filters" [ref=f4e1370] [cursor=pointer]: ▾
+                - heading "Filters" [level=2] [ref=f4e1371]
+              - generic [ref=f4e1372]:
+                - generic [ref=f4e1373]: 0 active
+                - generic [ref=f4e1374]:
+                  - button "Move Filters up" [ref=f4e1375] [cursor=pointer]: ↑
+                  - button "Move Filters down" [ref=f4e1376] [cursor=pointer]: ↓
+            - generic [ref=f4e1378]:
+              - paragraph [ref=f4e1379]: No filters. Every column can be filtered.
+              - button "Add filter" [ref=f4e1381] [cursor=pointer]
+          - region "Columns" [ref=f4e1383]:
+            - generic [ref=f4e1384]:
+              - generic [ref=f4e1385]:
+                - button "Collapse Columns" [ref=f4e1386] [cursor=pointer]: ▾
+                - heading "Columns" [level=2] [ref=f4e1387]
+              - generic [ref=f4e1388]:
+                - generic [ref=f4e1389]: 7 of 10 shown
+                - generic [ref=f4e1390]:
+                  - button "Move Columns up" [ref=f4e1391] [cursor=pointer]: ↑
+                  - button "Move Columns down" [ref=f4e1392] [cursor=pointer]: ↓
+            - generic [ref=f4e1394]:
+              - generic [ref=f4e1395]:
+                - button "Show all" [ref=f4e1396] [cursor=pointer]
+                - button "Reset" [ref=f4e1397] [cursor=pointer]
+              - list [ref=f4e1398]:
+                - listitem [ref=f4e1399]:
+                  - generic [ref=f4e1400] [cursor=pointer]:
+                    - checkbox "Queue" [checked] [ref=f4e1401]
+                    - generic [ref=f4e1402]: Queue
+                  - generic [ref=f4e1403]: string
+                  - generic [ref=f4e1404]:
+                    - button "Move Queue earlier" [ref=f4e1405] [cursor=pointer]: ↑
+                    - button "Move Queue later" [ref=f4e1406] [cursor=pointer]: ↓
+                - listitem [ref=f4e1407]:
+                  - generic [ref=f4e1408] [cursor=pointer]:
+                    - checkbox "Division" [checked] [ref=f4e1409]
+                    - generic [ref=f4e1410]: Division
+                  - generic [ref=f4e1411]: string
+                  - generic [ref=f4e1412]:
+                    - button "Move Division earlier" [ref=f4e1413] [cursor=pointer]: ↑
+                    - button "Move Division later" [ref=f4e1414] [cursor=pointer]: ↓
+                - listitem [ref=f4e1415]:
+                  - generic [ref=f4e1416] [cursor=pointer]:
+                    - checkbox "Members" [checked] [ref=f4e1417]
+                    - generic [ref=f4e1418]: Members
+                  - generic [ref=f4e1419]: number
+                  - generic [ref=f4e1420]:
+                    - button "Move Members earlier" [ref=f4e1421] [cursor=pointer]: ↑
+                    - button "Move Members later" [ref=f4e1422] [cursor=pointer]: ↓
+                - listitem [ref=f4e1423]:
+                  - generic [ref=f4e1424] [cursor=pointer]:
+                    - checkbox "Media settings" [checked] [ref=f4e1425]
+                    - generic [ref=f4e1426]: Media settings
+                  - generic [ref=f4e1427]: string
+                  - generic [ref=f4e1428]:
+                    - button "Move Media settings earlier" [ref=f4e1429] [cursor=pointer]: ↑
+                    - button "Move Media settings later" [ref=f4e1430] [cursor=pointer]: ↓
+                - listitem [ref=f4e1431]:
+                  - generic [ref=f4e1432] [cursor=pointer]:
+                    - checkbox "Joined" [checked] [ref=f4e1433]
+                    - generic [ref=f4e1434]: Joined
+                  - generic [ref=f4e1435]: boolean
+                  - generic [ref=f4e1436]:
+                    - button "Move Joined earlier" [ref=f4e1437] [cursor=pointer]: ↑
+                    - button "Move Joined later" [ref=f4e1438] [cursor=pointer]: ↓
+                - listitem [ref=f4e1439]:
+                  - generic [ref=f4e1440] [cursor=pointer]:
+                    - checkbox "Description" [checked] [ref=f4e1441]
+                    - generic [ref=f4e1442]: Description
+                  - generic [ref=f4e1443]: string
+                  - generic [ref=f4e1444]:
+                    - button "Move Description earlier" [ref=f4e1445] [cursor=pointer]: ↑
+                    - button "Move Description later" [ref=f4e1446] [cursor=pointer]: ↓
+                - listitem [ref=f4e1447]:
+                  - generic [ref=f4e1448] [cursor=pointer]:
+                    - checkbox "Modified" [checked] [ref=f4e1449]
+                    - generic [ref=f4e1450]: Modified
+                  - generic [ref=f4e1451]: date
+                  - generic [ref=f4e1452]:
+                    - button "Move Modified earlier" [ref=f4e1453] [cursor=pointer]: ↑
+                    - button "Move Modified later" [ref=f4e1454] [cursor=pointer]: ↓
+                - listitem [ref=f4e1455]:
+                  - generic [ref=f4e1456] [cursor=pointer]:
+                    - checkbox "Modified by" [ref=f4e1457]
+                    - generic [ref=f4e1458]: Modified by
+                  - generic [ref=f4e1459]: string
+                  - generic [ref=f4e1460]:
+                    - button "Move Modified by earlier" [ref=f4e1461] [cursor=pointer]: ↑
+                    - button "Move Modified by later" [ref=f4e1462] [cursor=pointer]: ↓
+                - listitem [ref=f4e1463]:
+                  - generic [ref=f4e1464] [cursor=pointer]:
+                    - checkbox "Created" [ref=f4e1465]
+                    - generic [ref=f4e1466]: Created
+                  - generic [ref=f4e1467]: date
+                  - generic [ref=f4e1468]:
+                    - button "Move Created earlier" [ref=f4e1469] [cursor=pointer]: ↑
+                    - button "Move Created later" [ref=f4e1470] [cursor=pointer]: ↓
+                - listitem [ref=f4e1471]:
+                  - generic [ref=f4e1472] [cursor=pointer]:
+                    - checkbox "Queue ID" [ref=f4e1473]
+                    - generic [ref=f4e1474]: Queue ID
+                  - generic [ref=f4e1475]: string
+                  - generic [ref=f4e1476]:
+                    - button "Move Queue ID earlier" [ref=f4e1477] [cursor=pointer]: ↑
+                    - button "Move Queue ID later" [ref=f4e1478] [cursor=pointer]: ↓
+        - region "Ad-hoc report" [ref=f4e1481]:
+          - generic [ref=f4e1482]:
+            - generic [ref=f4e1483]:
+              - button "Collapse Ad-hoc report" [ref=f4e1484] [cursor=pointer]: ▾
+              - heading "Ad-hoc report" [level=2] [ref=f4e1485]
+            - generic [ref=f4e1487]:
+              - button "Move Ad-hoc report up" [ref=f4e1488] [cursor=pointer]: ↑
+              - button "Move Ad-hoc report down" [ref=f4e1489] [cursor=pointer]: ↓
+          - generic [ref=f4e1491]:
+            - generic [ref=f4e1492]:
+              - generic [ref=f4e1493]:
+                - heading "Group by" [level=3] [ref=f4e1494]
+                - generic [ref=f4e1495]:
+                  - button "Queue" [ref=f4e1496] [cursor=pointer]
+                  - button "Division" [ref=f4e1497] [cursor=pointer]
+                  - button "Members" [ref=f4e1498] [cursor=pointer]
+                  - button "Media settings" [ref=f4e1499] [cursor=pointer]
+                  - button "Joined" [ref=f4e1500] [cursor=pointer]
+                  - button "Description" [ref=f4e1501] [cursor=pointer]
+                  - button "Modified" [ref=f4e1502] [cursor=pointer]
+                  - button "Modified by" [ref=f4e1503] [cursor=pointer]
+                  - button "Created" [ref=f4e1504] [cursor=pointer]
+                  - button "Queue ID" [ref=f4e1505] [cursor=pointer]
+                - paragraph [ref=f4e1506]: No grouping selected — the report is a single total row. Pick one or more fields to break it down.
+              - generic [ref=f4e1507]:
+                - heading "Metrics" [level=3] [ref=f4e1508]
+                - paragraph [ref=f4e1509]: Row counts are always included. Add a metric to aggregate a field.
+                - button "Add metric" [ref=f4e1511] [cursor=pointer]
+            - generic [ref=f4e1512]:
+              - generic [ref=f4e1513]:
+                - generic [ref=f4e1514]: 1 group
+                - generic [ref=f4e1515]: 5 records
+              - table [ref=f4e1517]:
+                - rowgroup [ref=f4e1518]:
+                  - row [ref=f4e1519]:
+                    - columnheader "Records" [ref=f4e1520]
+                - rowgroup [ref=f4e1521]:
+                  - row [ref=f4e1522]:
+                    - cell "5" [ref=f4e1523]
+              - generic [ref=f4e1524]:
+                - generic [ref=f4e1525]:
+                  - generic [ref=f4e1526]: Format
+                  - combobox "Format" [ref=f4e1527]:
+                    - option "CSV" [selected]
+                    - option "JSON"
+                    - option "NDJSON"
+                    - option "Markdown"
+                - generic [ref=f4e1528] [cursor=pointer]:
+                  - checkbox "Include provenance" [checked] [ref=f4e1529]
+                  - generic [ref=f4e1530]: Include provenance
+                - generic [ref=f4e1531]:
+                  - button "Download 1 row" [ref=f4e1532] [cursor=pointer]
+                  - button "Copy" [ref=f4e1533] [cursor=pointer]
+        - generic [ref=f4e1534]:
+          - region "Export" [ref=f4e1536]:
+            - generic [ref=f4e1537]:
+              - generic [ref=f4e1538]:
+                - button "Collapse Export" [ref=f4e1539] [cursor=pointer]: ▾
+                - heading "Export" [level=2] [ref=f4e1540]
+              - generic [ref=f4e1542]:
+                - button "Move Export up" [ref=f4e1543] [cursor=pointer]: ↑
+                - button "Move Export down" [ref=f4e1544] [cursor=pointer]: ↓
+            - generic [ref=f4e1546]:
+              - generic [ref=f4e1547]:
+                - generic [ref=f4e1548]: Format
+                - combobox "Format" [ref=f4e1549]:
+                  - option "CSV" [selected]
+                  - option "JSON"
+                  - option "NDJSON"
+                  - option "Markdown"
+              - generic [ref=f4e1550]:
+                - generic [ref=f4e1551]: Columns
+                - combobox "Columns" [ref=f4e1552]:
+                  - option "Visible only" [selected]
+                  - option "All fields"
+              - generic [ref=f4e1553] [cursor=pointer]:
+                - checkbox "Include provenance" [checked] [ref=f4e1554]
+                - generic [ref=f4e1555]: Include provenance
+              - generic [ref=f4e1556]:
+                - button "Download 5 rows" [ref=f4e1557] [cursor=pointer]
+                - button "Copy" [ref=f4e1558] [cursor=pointer]
+          - region "Saved views" [ref=f4e1560]:
+            - generic [ref=f4e1561]:
+              - generic [ref=f4e1562]:
+                - button "Collapse Saved views" [ref=f4e1563] [cursor=pointer]: ▾
+                - heading "Saved views" [level=2] [ref=f4e1564]
+              - generic [ref=f4e1565]:
+                - generic [ref=f4e1566]: "0"
+                - generic [ref=f4e1567]:
+                  - button "Move Saved views up" [ref=f4e1568] [cursor=pointer]: ↑
+                  - button "Move Saved views down" [ref=f4e1569] [cursor=pointer]: ↓
+            - generic [ref=f4e1571]:
+              - generic [ref=f4e1572]:
+                - generic [ref=f4e1573]:
+                  - generic [ref=f4e1574]: Save current layout as
+                  - textbox "Save current layout as" [ref=f4e1575]:
+                    - /placeholder: e.g. Abandoned voice calls
+                - button "Save view" [disabled] [ref=f4e1576]
+              - paragraph [ref=f4e1577]: No saved views yet. A view remembers the filters, sort order and column layout on screen.
+          - region "What was exercised" [ref=f4e1579]:
+            - generic [ref=f4e1580]:
+              - generic [ref=f4e1581]:
+                - button "Collapse What was exercised" [ref=f4e1582] [cursor=pointer]: ▾
+                - heading "What was exercised" [level=2] [ref=f4e1583]
+              - generic [ref=f4e1585]:
+                - button "Move What was exercised up" [ref=f4e1586] [cursor=pointer]: ↑
+                - button "Move What was exercised down" [disabled] [ref=f4e1587]: ↓
+            - generic [ref=f4e1589]:
+              - paragraph [ref=f4e1590]: Routing queues with division, membership and per-media settings, across both demo pages.
+              - generic [ref=f4e1591]:
+                - generic [ref=f4e1592]: Retrieved
+                - generic [ref=f4e1593]: 10/11/2026, 11:06:23 AM · 26 ms
+              - generic [ref=f4e1594]:
+                - generic [ref=f4e1595]: Records
+                - generic [ref=f4e1596]: "5"
+              - list [ref=f4e1597]:
+                - listitem [ref=f4e1598]:
+                  - code [ref=f4e1600]: GET
+                  - code [ref=f4e1601]: /api/v2/routing/queues
+                  - generic [ref=f4e1602]: "200"
+                  - generic [ref=f4e1603]: page 1
+                  - generic [ref=f4e1604]: 17 ms
+                - listitem [ref=f4e1605]:
+                  - code [ref=f4e1607]: GET
+                  - code [ref=f4e1608]: /api/v2/routing/queues?pageNumber=2
+                  - generic [ref=f4e1609]: "200"
+                  - generic [ref=f4e1610]: page 2
+                  - generic [ref=f4e1611]: 8 ms
+              - generic [ref=f4e1612]:
+                - generic [ref=f4e1613]: Catalog endpoints
+                - 'generic "Catalog endpoint key: routing-queues" [ref=f4e1614]':
+                  - code [ref=f4e1615]: routing-queues
+```

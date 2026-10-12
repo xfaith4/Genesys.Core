@@ -1,0 +1,2 @@
+"id","campaignId","timestamp","type","callResult"
+"evt-4","campaign-demo-1","2026-05-10T14:03:00.0000000Z","contactCallAbandon","OutboundAbandon"

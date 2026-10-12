@@ -663,6 +663,44 @@ public sealed class MockServerTests : IClassFixture<MockServerFactory>
             $"which suggests the copy loop has returned: {longestRelative}");
     }
 
+    [Fact]
+    public async Task Aggregate_query_and_job_preserve_different_totals_and_cursor_pages()
+    {
+        async Task<JsonObject?> Post(string path)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, path);
+            request.Headers.Add("Authorization", $"Bearer {RouteDispatcher.DemoBearerToken}");
+            request.Content = JsonContent.Create(new { interval = "2026-02-01T00:00:00Z/2026-03-01T00:00:00Z" });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadFromJsonAsync<JsonObject>();
+        }
+        var query = await Post("/api/v2/analytics/conversations/aggregates/query");
+        var submit = await Post("/api/v2/analytics/conversations/aggregates/jobs");
+        var id = submit?["jobId"]?.GetValue<string>();
+        Assert.False(string.IsNullOrWhiteSpace(id));
+        JsonObject? poll = null;
+        for (var i = 0; i < 3; i++)
+        {
+            var response = await _client.SendAsync(AuthedGet($"/api/v2/analytics/conversations/aggregates/jobs/{id}"));
+            poll = await response.Content.ReadFromJsonAsync<JsonObject>();
+            if (poll?["state"]?.GetValue<string>() == "FULFILLED") break;
+        }
+        Assert.Equal("FULFILLED", poll?["state"]?.GetValue<string>());
+        var firstResponse = await _client.SendAsync(AuthedGet($"/api/v2/analytics/conversations/aggregates/jobs/{id}/results"));
+        var first = await firstResponse.Content.ReadFromJsonAsync<JsonObject>();
+        var cursor = first?["cursor"]?.GetValue<string>();
+        Assert.False(string.IsNullOrWhiteSpace(cursor));
+        var secondResponse = await _client.SendAsync(AuthedGet($"/api/v2/analytics/conversations/aggregates/jobs/{id}/results?cursor={cursor}"));
+        var second = await secondResponse.Content.ReadFromJsonAsync<JsonObject>();
+        Assert.Null(second?["cursor"]);
+        Assert.NotEmpty(second?["results"]?.AsArray()!);
+        var queryCount = query?["results"]?[0]?["data"]?[0]?["metrics"]?[0]?["stats"]?["count"]?.GetValue<int>();
+        var jobCount = first?["results"]?[0]?["data"]?[0]?["metrics"]?[0]?["stats"]?["count"]?.GetValue<int>();
+        Assert.Equal(3, queryCount);
+        Assert.Equal(4, jobCount);
+    }
+
     private static HttpRequestMessage AuthedGet(string url)
     {
         var req = new HttpRequestMessage(HttpMethod.Get, url);
